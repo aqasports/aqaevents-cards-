@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
-import { logAdminAction } from "@/lib/audit";
+import { BillingService } from "@/domains/billing/billing.service";
+
+const billingService = new BillingService();
 
 const createPackageSchema = z.object({
   name: z.string().min(2),
@@ -15,19 +16,18 @@ export async function GET() {
   const { error } = await requireAdminSession();
   if (error) return error;
 
-  const packages = await prisma.package.findMany({
-    orderBy: { sortOrder: "asc" },
-    include: {
-      _count: { select: { ledgerEntries: true } },
-    },
-  });
-
-  return NextResponse.json(packages);
+  try {
+    const packages = await billingService.getPackages();
+    return NextResponse.json(packages);
+  } catch (err: unknown) {
+    console.error("GET packages API error:", err);
+    return NextResponse.json({ error: "Failed to fetch packages" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const body = await request.json();
   const parsed = createPackageSchema.safeParse(body);
@@ -39,30 +39,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { name, creditAmount, bonusCredits, sortOrder } = parsed.data;
-  const totalCredits = creditAmount + bonusCredits;
-  const price = creditAmount * 1900;
-
-  const pkg = await prisma.package.create({
-    data: {
-      name,
-      creditAmount,
-      bonusCredits,
-      totalCredits,
-      price,
-      sortOrder,
-    },
-  });
-
-  const sessionResult = await requireSuperAdminSession();
-  if (sessionResult.session) {
-    await logAdminAction(
-      sessionResult.session.user.id,
-      "CREATE_PACKAGE",
-      `Package "${pkg.name}"`,
-      `Created package "${pkg.name}" (${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus, price: ${pkg.price} DA).`
-    );
+  try {
+    const pkg = await billingService.createPackage(parsed.data, session.user.id);
+    return NextResponse.json(pkg, { status: 201 });
+  } catch (err: unknown) {
+    console.error("POST package API error:", err);
+    return NextResponse.json({ error: "Failed to create package" }, { status: 500 });
   }
-
-  return NextResponse.json(pkg, { status: 201 });
 }

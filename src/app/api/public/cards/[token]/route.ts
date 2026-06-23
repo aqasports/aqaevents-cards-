@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getClientBalance } from "@/lib/balance";
-import { getFirstName } from "@/lib/tokens";
+import { CardsService } from "@/domains/cards/cards.service";
+
+const cardsService = new CardsService();
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
@@ -31,63 +31,18 @@ export async function GET(
 
   const { token } = await params;
 
-  const card = await prisma.card.findUnique({
-    where: { publicToken: token },
-    include: {
-      client: {
-        include: {
-          redemptions: {
-            include: {
-              activity: true,
-              session: true,
-            },
-            orderBy: { redeemedAt: "desc" },
-            take: 50,
-          },
-          ledgerEntries: {
-            include: { package: true },
-            orderBy: { createdAt: "desc" },
-            take: 20,
-          },
-        },
-      },
-    },
-  });
-
-  if (!card || card.status !== "active" || !card.clientId || !card.client) {
-    return NextResponse.json({ error: "Card not found" }, { status: 404 });
-  }
-
-  const balance = await getClientBalance(card.clientId);
-
-  const history = card.client.redemptions.map((redemption) => ({
-    activity: redemption.activity.name,
-    date: redemption.session?.sessionDate ?? redemption.redeemedAt,
-    creditsUsed: redemption.creditsUsed,
-    redeemedAt: redemption.redeemedAt,
-    location: redemption.session?.location ?? null,
-  }));
-
-  const credits = card.client.ledgerEntries
-    .filter((entry) => entry.delta > 0)
-    .map((entry) => ({
-      label: entry.package?.name ?? entry.reason ?? "Credit added",
-      amount: entry.delta,
-      date: entry.createdAt,
-    }));
-
-  return NextResponse.json(
-    {
-      cardCode: card.cardCode,
-      clientFirstName: getFirstName(card.client.fullName),
-      balance,
-      credits,
-      history,
-    },
-    {
+  try {
+    const cardData = await cardsService.getPublicCardByToken(token);
+    if (!cardData) {
+      return NextResponse.json({ error: "Card not found" }, { status: 404 });
+    }
+    return NextResponse.json(cardData, {
       headers: {
         "Cache-Control": "no-store",
       },
-    },
-  );
+    });
+  } catch (err: unknown) {
+    console.error("GET public card API error:", err);
+    return NextResponse.json({ error: "Failed to fetch card info" }, { status: 500 });
+  }
 }

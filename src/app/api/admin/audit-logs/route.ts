@@ -1,22 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { ReportingService } from "@/domains/reporting/reporting.service";
+
+const reportingService = new ReportingService();
 
 export async function GET() {
   const { error } = await requireSuperAdminSession();
   if (error) return error;
 
   try {
-    const logs = await prisma.auditLog.findMany({
-      include: {
-        user: { select: { name: true, email: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
+    const logs = await reportingService.getAuditLogs();
     return NextResponse.json(logs);
-  } catch (err) {
-    console.error("Fetch audit logs error:", err);
+  } catch (err: unknown) {
+    console.error("GET audit logs API error:", err);
     return NextResponse.json({ error: "Failed to fetch audit logs" }, { status: 500 });
   }
 }

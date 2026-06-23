@@ -1,27 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { ActivitiesService } from "@/domains/activities/activities.service";
+
+const activitiesService = new ActivitiesService();
 
 export async function GET(_request: NextRequest) {
   const { error } = await requireAdminSession();
   if (error) return error;
 
   try {
-    const expenses = await prisma.activityExpense.findMany({
-      include: {
-        activity: {
-          select: { id: true, name: true }
-        }
-      },
-      orderBy: {
-        createdAt: "desc"
-      }
-    });
+    const expenses = await activitiesService.getExpenses();
     return NextResponse.json(expenses);
   } catch (err: unknown) {
-    console.error("GET expenses database error:", err);
-    return NextResponse.json({ error: "Database error retrieving expenses" }, { status: 500 });
+    console.error("GET expenses API error:", err);
+    return NextResponse.json({ error: "Failed to retrieve expenses" }, { status: 500 });
   }
 }
 
@@ -44,25 +37,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const activity = await prisma.activity.findUnique({
-      where: { id: parsed.data.activityId },
-    });
-
+    const activity = await activitiesService.getActivity(parsed.data.activityId);
     if (!activity) {
       return NextResponse.json({ error: "Activity not found" }, { status: 404 });
     }
 
-    const expense = await prisma.activityExpense.create({
-      data: parsed.data,
-    });
-
+    const expense = await activitiesService.createExpense(parsed.data);
     return NextResponse.json(expense, { status: 201 });
   } catch (err: unknown) {
-    console.error("Create expense database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during expense creation: ${details}` },
-      { status: 500 },
-    );
+    console.error("POST expense API error:", err);
+    return NextResponse.json({ error: "Failed to create expense" }, { status: 500 });
   }
 }

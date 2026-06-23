@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { ActivitiesService } from "@/domains/activities/activities.service";
+
+const activitiesService = new ActivitiesService();
 
 const patchExpenseSchema = z.object({
   name: z.string().min(1).optional(),
@@ -26,36 +28,24 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
 
-    const expense = await prisma.activityExpense.findUnique({
-      where: { id },
-    });
-
-    if (!expense) {
-      return NextResponse.json({ error: "Expense not found" }, { status: 404 });
-    }
-
     const { name, amount, notes, activityId, createdAt } = parsed.data;
-    const updateData: Record<string, unknown> = {};
+    const updateData: any = {};
     if (name !== undefined) updateData.name = name;
     if (amount !== undefined) updateData.amount = amount;
     if (notes !== undefined) updateData.notes = notes;
     if (activityId !== undefined) updateData.activityId = activityId;
     if (createdAt !== undefined) updateData.createdAt = new Date(createdAt);
 
-    const updated = await prisma.activityExpense.update({
-      where: { id },
-      data: updateData,
-    });
-
+    const updated = await activitiesService.updateExpense(id, updateData);
     return NextResponse.json(updated);
   } catch (err: unknown) {
-    console.error("PATCH expense database error:", err);
-    return NextResponse.json({ error: "Database error updating expense" }, { status: 500 });
+    console.error("PATCH expense API error:", err);
+    return NextResponse.json({ error: "Failed to update expense" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdminSession();
@@ -64,25 +54,11 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const expense = await prisma.activityExpense.findUnique({
-      where: { id },
-    });
-
-    if (!expense) {
-      return NextResponse.json({ error: "Expense not found" }, { status: 404 });
-    }
-
-    await prisma.activityExpense.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ success: true });
+    const result = await activitiesService.deleteExpense(id);
+    return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("Delete expense database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during expense deletion: ${details}` },
-      { status: 500 },
-    );
+    console.error("DELETE expense API error:", err);
+    const message = err instanceof Error ? err.message : "Failed to delete expense.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

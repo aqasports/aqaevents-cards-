@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
-import { logAdminAction } from "@/lib/audit";
+import { ActivitiesService } from "@/domains/activities/activities.service";
+
+const activitiesService = new ActivitiesService();
 
 const patchSchema = z.object({
   name: z.string().min(2).optional(),
@@ -17,7 +18,7 @@ const patchSchema = z.object({
 });
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdminSession();
@@ -26,45 +27,14 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const activity = await prisma.activity.findUnique({
-      where: { id },
-      include: {
-        expenses: {
-          orderBy: { createdAt: "desc" },
-        },
-        sessions: {
-          include: {
-            redemptions: {
-              include: {
-                client: {
-                  select: {
-                    id: true,
-                    fullName: true,
-                    phone: true,
-                    email: true,
-                  },
-                },
-              },
-              orderBy: { redeemedAt: "desc" },
-            },
-          },
-          orderBy: { sessionDate: "asc" },
-        },
-      },
-    });
-
+    const activity = await activitiesService.getActivity(id);
     if (!activity) {
       return NextResponse.json({ error: "Activity not found" }, { status: 404 });
     }
-
     return NextResponse.json(activity);
   } catch (err: unknown) {
-    console.error("Fetch activity details database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during activity fetch: ${details}` },
-      { status: 500 },
-    );
+    console.error("GET activity details API error:", err);
+    return NextResponse.json({ error: "Failed to fetch activity details" }, { status: 500 });
   }
 }
 
@@ -72,8 +42,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
   const body = await request.json();
@@ -84,81 +54,29 @@ export async function PATCH(
   }
 
   try {
-    const activity = await prisma.activity.update({
-      where: { id },
-      data: {
-        name: parsed.data.name,
-        description: parsed.data.description,
-        creditCost: parsed.data.creditCost,
-        imageUrl: parsed.data.imageUrl,
-        places: parsed.data.places,
-        duration: parsed.data.duration,
-        gallery: parsed.data.gallery,
-        equipment: parsed.data.equipment,
-        active: parsed.data.active,
-      },
-    });
-
-    const sessionResult = await requireSuperAdminSession();
-    if (sessionResult.session) {
-      await logAdminAction(
-        sessionResult.session.user.id,
-        "UPDATE_ACTIVITY",
-        `Activity "${activity.name}"`,
-        `Updated activity "${activity.name}" (Credit cost: ${activity.creditCost}, duration: ${activity.duration || "None"}, active: ${activity.active}).`
-      );
-    }
-
+    const activity = await activitiesService.updateActivity(id, parsed.data, session.user.id);
     return NextResponse.json(activity);
   } catch (err: unknown) {
-    console.error("Patch activity details database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during activity update: ${details}` },
-      { status: 500 },
-    );
+    console.error("PATCH activity API error:", err);
+    return NextResponse.json({ error: "Failed to update activity" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
 
   try {
-    const activity = await prisma.activity.findUnique({
-      where: { id },
-    });
-
-    if (!activity) {
-      return NextResponse.json({ error: "Activity not found" }, { status: 404 });
-    }
-
-    await prisma.activity.delete({
-      where: { id },
-    });
-
-    const sessionResult = await requireSuperAdminSession();
-    if (sessionResult.session) {
-      await logAdminAction(
-        sessionResult.session.user.id,
-        "DELETE_ACTIVITY",
-        `Activity "${activity.name}"`,
-        `Deleted activity "${activity.name}" (ID: ${id}).`
-      );
-    }
-
-    return NextResponse.json({ success: true });
+    const result = await activitiesService.deleteActivity(id, session.user.id);
+    return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("Delete activity database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during activity deletion: ${details}` },
-      { status: 500 },
-    );
+    console.error("DELETE activity API error:", err);
+    const message = err instanceof Error ? err.message : "Failed to delete activity.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

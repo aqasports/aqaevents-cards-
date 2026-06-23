@@ -1,40 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
-import { syncClientCRM } from "@/lib/crm";
+import { BillingService } from "@/domains/billing/billing.service";
+
+const billingService = new BillingService();
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
 
   try {
-    const redemption = await prisma.redemption.findUnique({
-      where: { id },
-    });
-
-    if (!redemption) {
-      return NextResponse.json({ error: "Redemption not found" }, { status: 404 });
-    }
-
-    // Delete redemption. SQLite will cascade delete the linked LedgerEntry.
-    await prisma.redemption.delete({
-      where: { id },
-    });
-
-    await syncClientCRM(redemption.clientId);
-
-    return NextResponse.json({ success: true });
+    const result = await billingService.deleteRedemption(id, session.user.id);
+    return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("Delete redemption database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during redemption deletion: ${details}` },
-      { status: 500 },
-    );
+    console.error("DELETE redemption API error:", err);
+    const message = err instanceof Error ? err.message : "Failed to delete redemption.";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

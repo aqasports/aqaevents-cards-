@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
-import { logAdminAction } from "@/lib/audit";
+import { ActivitiesService } from "@/domains/activities/activities.service";
+
+const activitiesService = new ActivitiesService();
 
 const createActivitySchema = z.object({
   name: z.string().min(2),
@@ -24,25 +25,18 @@ export async function GET() {
   const { error } = await requireAdminSession();
   if (error) return error;
 
-  const activities = await prisma.activity.findMany({
-    include: {
-      sessions: {
-        where: { active: true, sessionDate: { gte: new Date() } },
-        orderBy: { sessionDate: "asc" },
-        take: 5,
-      },
-      expenses: true,
-      _count: { select: { redemptions: true } },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  return NextResponse.json(activities);
+  try {
+    const activities = await activitiesService.getActivities();
+    return NextResponse.json(activities);
+  } catch (err: unknown) {
+    console.error("GET activities API error:", err);
+    return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const body = await request.json();
   const parsed = createActivitySchema.safeParse(body);
@@ -51,29 +45,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const { expenses, ...activityData } = parsed.data;
-
-  const activity = await prisma.activity.create({
-    data: {
-      ...activityData,
-      expenses: expenses ? {
-        create: expenses
-      } : undefined
-    },
-    include: {
-      expenses: true
-    }
-  });
-
-  const sessionResult = await requireSuperAdminSession();
-  if (sessionResult.session) {
-    await logAdminAction(
-      sessionResult.session.user.id,
-      "CREATE_ACTIVITY",
-      `Activity "${activity.name}"`,
-      `Created activity "${activity.name}" (Credit cost: ${activity.creditCost}, duration: ${activity.duration || "None"}).`
-    );
+  try {
+    const activity = await activitiesService.createActivity(parsed.data, session.user.id);
+    return NextResponse.json(activity, { status: 201 });
+  } catch (err: unknown) {
+    console.error("POST activity API error:", err);
+    return NextResponse.json({ error: "Failed to create activity" }, { status: 500 });
   }
-
-  return NextResponse.json(activity, { status: 201 });
 }

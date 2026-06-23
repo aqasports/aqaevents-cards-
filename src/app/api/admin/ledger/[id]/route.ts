@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { BillingService } from "@/domains/billing/billing.service";
+
+const billingService = new BillingService();
 
 const updateLedgerSchema = z.object({
   delta: z.number().optional(),
@@ -24,36 +26,16 @@ export async function PATCH(
   }
 
   try {
-    const entry = await prisma.ledgerEntry.findUnique({
-      where: { id },
-    });
-
-    if (!entry) {
-      return NextResponse.json({ error: "Ledger entry not found" }, { status: 404 });
-    }
-
-    const updated = await prisma.ledgerEntry.update({
-      where: { id },
-      data: {
-        delta: parsed.data.delta !== undefined ? parsed.data.delta : entry.delta,
-        reason: parsed.data.reason !== undefined ? parsed.data.reason : entry.reason,
-        type: parsed.data.delta !== undefined ? (parsed.data.delta > 0 ? "credit" : "debit") : entry.type,
-      },
-    });
-
+    const updated = await billingService.updateLedgerEntry(id, parsed.data);
     return NextResponse.json(updated);
   } catch (err: unknown) {
-    console.error("Update ledger entry database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during ledger update: ${details}` },
-      { status: 500 },
-    );
+    console.error("PATCH ledger entry API error:", err);
+    return NextResponse.json({ error: "Failed to update ledger entry" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdminSession();
@@ -62,25 +44,10 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const entry = await prisma.ledgerEntry.findUnique({
-      where: { id },
-    });
-
-    if (!entry) {
-      return NextResponse.json({ error: "Ledger entry not found" }, { status: 404 });
-    }
-
-    await prisma.ledgerEntry.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ success: true });
+    const result = await billingService.deleteLedgerEntry(id);
+    return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("Delete ledger entry database error:", err);
-    const details = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Database error during ledger deletion: ${details}` },
-      { status: 500 },
-    );
+    console.error("DELETE ledger entry API error:", err);
+    return NextResponse.json({ error: "Failed to delete ledger entry" }, { status: 500 });
   }
 }

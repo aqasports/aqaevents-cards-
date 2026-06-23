@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { ClientsService } from "@/domains/clients/clients.service";
+
+const clientsService = new ClientsService();
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { error } = await requireAdminSession();
@@ -12,14 +14,10 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const logs = await prisma.notificationLog.findMany({
-      where: { clientId: id },
-      orderBy: { sentAt: "desc" },
-      take: 50,
-    });
+    const logs = await clientsService.getNotificationLogs(id);
     return NextResponse.json(logs);
-  } catch (err) {
-    console.error("Fetch client notification logs error:", err);
+  } catch (err: unknown) {
+    console.error("GET client notifications API error:", err);
     return NextResponse.json({ error: "Failed to fetch notification logs" }, { status: 500 });
   }
 }

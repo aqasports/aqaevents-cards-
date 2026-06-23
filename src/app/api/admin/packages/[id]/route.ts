@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
-import { logAdminAction } from "@/lib/audit";
+import { requireSuperAdminSession } from "@/lib/api-auth";
+import { BillingService } from "@/domains/billing/billing.service";
+
+const billingService = new BillingService();
 
 const updatePackageSchema = z.object({
   name: z.string().min(2).optional(),
@@ -16,8 +17,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
   const body = await request.json();
@@ -30,67 +31,29 @@ export async function PATCH(
     );
   }
 
-  const existing = await prisma.package.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: "Package not found" }, { status: 404 });
+  try {
+    const pkg = await billingService.updatePackage(id, parsed.data, session.user.id);
+    return NextResponse.json(pkg);
+  } catch (err: unknown) {
+    console.error("PATCH package API error:", err);
+    return NextResponse.json({ error: "Failed to update package" }, { status: 500 });
   }
-
-  const creditAmount = parsed.data.creditAmount !== undefined ? parsed.data.creditAmount : existing.creditAmount;
-  const bonusCredits = parsed.data.bonusCredits !== undefined ? parsed.data.bonusCredits : existing.bonusCredits;
-  
-  const totalCredits = creditAmount + bonusCredits;
-  const price = creditAmount * 1900;
-
-  const pkg = await prisma.package.update({
-    where: { id },
-    data: {
-      name: parsed.data.name,
-      creditAmount: parsed.data.creditAmount,
-      bonusCredits: parsed.data.bonusCredits,
-      totalCredits,
-      price,
-      sortOrder: parsed.data.sortOrder,
-      active: parsed.data.active,
-    },
-  });
-
-  const sessionResult = await requireSuperAdminSession();
-  if (sessionResult.session) {
-    await logAdminAction(
-      sessionResult.session.user.id,
-      "UPDATE_PACKAGE",
-      `Package "${pkg.name}"`,
-      `Updated package "${pkg.name}" (Credits: ${pkg.creditAmount} + ${pkg.bonusCredits} bonus, price: ${pkg.price} DA, active: ${pkg.active}).`
-    );
-  }
-
-  return NextResponse.json(pkg);
 }
 
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireSuperAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
 
-  // Soft delete — just mark inactive
-  const pkg = await prisma.package.update({
-    where: { id },
-    data: { active: false },
-  });
-
-  const sessionResult = await requireSuperAdminSession();
-  if (sessionResult.session) {
-    await logAdminAction(
-      sessionResult.session.user.id,
-      "ARCHIVE_PACKAGE",
-      `Package "${pkg.name}"`,
-      `Archived package "${pkg.name}" (marked active = false).`
-    );
+  try {
+    const pkg = await billingService.deletePackage(id, session.user.id);
+    return NextResponse.json(pkg);
+  } catch (err: unknown) {
+    console.error("DELETE package API error:", err);
+    return NextResponse.json({ error: "Failed to archive package" }, { status: 500 });
   }
-
-  return NextResponse.json(pkg);
 }

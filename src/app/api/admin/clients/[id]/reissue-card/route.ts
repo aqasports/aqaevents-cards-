@@ -1,36 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
-import { generateCardCode, generatePublicToken } from "@/lib/tokens";
+import { ClientsService } from "@/domains/clients/clients.service";
+
+const clientsService = new ClientsService();
 
 export async function POST(
-  _request: Request,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireAdminSession();
-  if (error) return error;
+  const { session, error } = await requireAdminSession();
+  if (error || !session) return error;
 
   const { id: clientId } = await params;
 
-  const client = await prisma.client.findUnique({ where: { id: clientId } });
-  if (!client) {
-    return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  try {
+    const card = await clientsService.reissueCard(clientId, null, session.user.id);
+    return NextResponse.json(card);
+  } catch (err: unknown) {
+    console.error("POST reissue-card API error:", err);
+    const message = err instanceof Error ? err.message : "Failed to reissue card.";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  const card = await prisma.$transaction(async (tx) => {
-    await tx.card.updateMany({
-      where: { clientId, status: "active" },
-      data: { status: "replaced" },
-    });
-
-    return tx.card.create({
-      data: {
-        clientId,
-        publicToken: generatePublicToken(),
-        cardCode: generateCardCode(),
-      },
-    });
-  });
-
-  return NextResponse.json(card);
 }

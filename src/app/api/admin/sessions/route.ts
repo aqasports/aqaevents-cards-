@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { ActivitiesService } from "@/domains/activities/activities.service";
+
+const activitiesService = new ActivitiesService();
 
 const createSessionSchema = z.object({
   activityId: z.string(),
@@ -17,17 +19,13 @@ export async function GET(request: NextRequest) {
   const activityId = request.nextUrl.searchParams.get("activityId");
   const from = request.nextUrl.searchParams.get("from");
 
-  const sessions = await prisma.activitySession.findMany({
-    where: {
-      ...(activityId ? { activityId } : {}),
-      ...(from ? { sessionDate: { gte: new Date(from) } } : {}),
-      active: true,
-    },
-    include: { activity: true },
-    orderBy: { sessionDate: "asc" },
-  });
-
-  return NextResponse.json(sessions);
+  try {
+    const sessions = await activitiesService.getSessions({ activityId, from, activeOnly: true });
+    return NextResponse.json(sessions);
+  } catch (err: unknown) {
+    console.error("GET sessions API error:", err);
+    return NextResponse.json({ error: "Failed to fetch sessions" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -41,15 +39,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const session = await prisma.activitySession.create({
-    data: {
+  try {
+    const session = await activitiesService.createSession({
       activityId: parsed.data.activityId,
       sessionDate: new Date(parsed.data.sessionDate),
       location: parsed.data.location,
       capacity: parsed.data.capacity,
-    },
-    include: { activity: true },
-  });
-
-  return NextResponse.json(session, { status: 201 });
+    });
+    return NextResponse.json(session, { status: 201 });
+  } catch (err: unknown) {
+    console.error("POST session API error:", err);
+    return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
+  }
 }
