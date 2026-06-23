@@ -195,3 +195,5 @@ npm run db:studio    # Open Prisma Studio (GUI)
 npm run db:generate  # Regenerate Prisma client
 ```
 # aqaevents-cards-
+# aqaevents-cards-
+# aqaevents-cards-

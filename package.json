@@ -1,0 +1,45 @@
+{
+  "name": "aqa-event-card",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node prisma/prepare.js && next dev",
+    "build": "node prisma/prepare.js && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest run",
+    "db:generate": "node prisma/prepare.js && prisma generate",
+    "db:push": "node prisma/prepare.js && prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "node prisma/prepare.js && prisma studio",
+    "postinstall": "node prisma/prepare.js && prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.9.0",
+    "bcryptjs": "^3.0.2",
+    "jspdf": "^4.2.1",
+    "nanoid": "^5.1.5",
+    "next": "^15.3.4",
+    "next-auth": "^4.24.11",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.1.10",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.15.32",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "eslint": "^9.29.0",
+    "eslint-config-next": "^15.3.4",
+    "prisma": "^6.9.0",
+    "tailwindcss": "^4.1.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.9"
+  }
+}
