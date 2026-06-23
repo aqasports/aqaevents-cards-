@@ -43,13 +43,15 @@ export function EventCardClient({
   const totalBonus = credits.reduce((sum, item) => sum + item.bonus, 0);
   const totalAll = totalPaid + totalBonus;
 
-  const balancePercent =
-    totalAll > 0
+  const total = totalAll > 0 ? totalAll : (balance > 0 ? balance : 1);
+  const used = Math.max(0, total - balance);
+  const percentage =
+    total > 0
       ? Math.max(
           0,
           Math.min(
             100,
-            Math.round((balance / totalAll) * 100),
+            Math.round((balance / total) * 100),
           ),
         )
       : 0;
@@ -133,15 +135,46 @@ export function EventCardClient({
                         {cardCode}
                       </p>
                     </div>
-                    <div className={`flex flex-col ${
-                      dir === "rtl" ? "items-start text-left" : "items-end text-right"
-                    } animate-pulse-motion`}>
-                      <span className="text-4xl font-black tracking-tight drop-shadow leading-none text-cyan-300">
-                        {balance}
-                      </span>
-                      <span className="text-[9px] font-bold text-white/70 mt-1 uppercase tracking-wider">
-                        {balance === 1 ? t("oneRemaining") : t("remaining")}
-                      </span>
+                    <div className="relative flex items-center justify-center w-16 h-16 shrink-0">
+                      <svg className="w-16 h-16 transform -rotate-90">
+                        <circle
+                          className="text-white/10"
+                          strokeWidth="4.5"
+                          stroke="currentColor"
+                          fill="transparent"
+                          r="23"
+                          cx="32"
+                          cy="32"
+                        />
+                        <circle
+                          className="text-cyan-400 transition-all duration-1000 ease-out"
+                          strokeWidth="4.5"
+                          strokeDasharray="144.5"
+                          strokeDashoffset={144.5 - (percentage / 100) * 144.5}
+                          strokeLinecap="round"
+                          stroke="url(#cardGradient)"
+                          fill="transparent"
+                          r="23"
+                          cx="32"
+                          cy="32"
+                          style={{ filter: "drop-shadow(0 0 3px rgba(34, 211, 238, 0.45))" }}
+                        />
+                        <defs>
+                          <linearGradient id="cardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#22d3ee" />
+                            <stop offset="100%" stopColor="#0ea5e9" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none text-center">
+                        <span className="text-sm font-black text-white drop-shadow">
+                          {balance}
+                        </span>
+                        <div className="h-[0.5px] w-4 bg-white/20 my-0.5" />
+                        <span className="text-[8px] font-bold text-white/50">
+                          {total}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -204,23 +237,57 @@ export function EventCardClient({
                 </div>
               </div>
 
-              {/* Progress Bar Card */}
-              <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                <div className={`flex items-center justify-between text-xs text-white/60 mb-2 ${
-                  dir === "rtl" ? "flex-row-reverse" : ""
-                }`}>
-                  <span>{t("usedProgress")}</span>
-                  <span className="font-semibold text-white/80">
-                    {100 - balancePercent}% {t("used")}
-                  </span>
+              {/* Circular Progress Ring Card */}
+              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden flex flex-col items-center">
+                <div className="relative flex items-center justify-center">
+                  <svg className="w-36 h-36 transform -rotate-90 drop-shadow-[0_0_12px_rgba(34,211,238,0.25)]">
+                    <circle
+                      className="text-white/5"
+                      strokeWidth="10"
+                      stroke="currentColor"
+                      fill="transparent"
+                      r="54"
+                      cx="72"
+                      cy="72"
+                    />
+                    <circle
+                      className="text-cyan-400 transition-all duration-1000 ease-out"
+                      strokeWidth="10"
+                      strokeDasharray="339.3"
+                      strokeDashoffset={339.3 - (percentage / 100) * 339.3}
+                      strokeLinecap="round"
+                      stroke="url(#widgetGradient)"
+                      fill="transparent"
+                      r="54"
+                      cx="72"
+                      cy="72"
+                    />
+                    <defs>
+                      <linearGradient id="widgetGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#22d3ee" />
+                        <stop offset="50%" stopColor="#0ea5e9" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center leading-none text-center">
+                    <span className="text-4xl font-black tracking-tight text-white drop-shadow">
+                      {balance}
+                    </span>
+                    <div className="h-[1.5px] w-8 bg-white/20 my-1.5" />
+                    <span className="text-white/40 text-xs font-bold uppercase tracking-wider">
+                      {total}
+                    </span>
+                  </div>
                 </div>
-                <div className="h-2 rounded-full bg-white/10">
-                  <div
-                    className={`h-2 rounded-full bg-cyan-500 transition-all duration-700 shadow-glow ${
-                      dir === "rtl" ? "mr-0 ml-auto" : ""
-                    }`}
-                    style={{ width: `${balancePercent}%` }}
-                  />
+
+                <div className="text-center mt-5 space-y-1">
+                  <h3 className="text-base font-bold text-white tracking-wide">
+                    {balance} / {total} {balance === 1 ? t("oneRemaining") : t("remaining")}
+                  </h3>
+                  <p className="text-xs text-white/50">
+                    {used} {t("used")} · {t("usedProgress")} ({100 - percentage}% {t("used")})
+                  </p>
                 </div>
               </div>
             </>
