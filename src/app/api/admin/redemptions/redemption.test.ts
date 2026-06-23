@@ -28,6 +28,8 @@ vi.mock("@/lib/balance", () => ({
   getClientBalance: vi.fn().mockResolvedValue(10),
 }));
 
+import "@/domains/subscribers";
+
 describe("Redemptions POST API", () => {
   beforeEach(() => {
     vi.resetAllMocks();

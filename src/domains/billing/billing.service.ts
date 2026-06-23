@@ -7,6 +7,7 @@ import { BillingRepository } from "./billing.repository";
 import { ClientsRepository } from "../clients/clients.repository";
 import { ReportingRepository } from "../reporting/reporting.repository";
 import { Prisma } from "@prisma/client";
+import { eventBus, EVENTS } from "@/lib/events";
 
 export class BillingService {
   private billingRepo = new BillingRepository();
@@ -114,56 +115,71 @@ export class BillingService {
 
     if (!client) throw new Error("Client not found");
 
-    const result = await prisma.$transaction(async (tx) => {
-      const invoiceCode = await this.uniqueInvoiceCode(tx);
+    const shouldRecharge = data.creditDelta && data.creditDelta !== 0 && data.category !== "adhoc";
+    const hasPackage = !!data.packageId && data.category !== "adhoc";
 
-      const invoice = await this.billingRepo.createInvoice(
-        {
-          data: {
-            clientId: data.clientId,
-            invoiceCode,
+    if (shouldRecharge || hasPackage) {
+      const result = await prisma.$transaction(async (tx) => {
+        const eventPayload: any = {
+          clientId: data.clientId,
+          packageId: data.packageId,
+          customAmount: data.creditDelta,
+          reason: data.creditReason,
+          invoice: {
             amount: data.amount,
             category: data.category,
             items: data.items,
-            notes: data.notes ?? null,
+            notes: data.notes,
             status: data.status,
-            paidAt: data.status === "paid" ? new Date() : null,
           },
-        },
-        tx
-      );
+          adminId,
+          tx,
+          postCommitActions: [],
+        };
 
-      let ledgerEntry = null;
-      if (data.creditDelta && data.creditDelta !== 0 && data.category !== "adhoc") {
-        let pkgIdVal: string | null = null;
-        if (data.packageId) {
-          const pkg = await this.billingRepo.findPackageUnique({ where: { id: data.packageId } }, tx);
-          if (pkg) pkgIdVal = pkg.id;
+        await eventBus.emit(EVENTS.PACKAGE_PURCHASED, eventPayload);
+
+        return {
+          invoice: eventPayload.invoiceResult,
+          ledgerEntry: eventPayload.ledgerEntry,
+          postCommitActions: eventPayload.postCommitActions,
+        };
+      });
+
+      if (result.postCommitActions) {
+        for (const action of result.postCommitActions) {
+          await action().catch((e: any) => console.error("Post-commit action error:", e));
         }
+      }
 
-        ledgerEntry = await this.billingRepo.createLedger(
+      const balance = await getClientBalance(data.clientId);
+      return { invoice: result.invoice, ledgerEntry: result.ledgerEntry, balance };
+    } else {
+      const result = await prisma.$transaction(async (tx) => {
+        const invoiceCode = await this.uniqueInvoiceCode(tx);
+        const invoice = await this.billingRepo.createInvoice(
           {
             data: {
               clientId: data.clientId,
-              cardId: client.cards[0]?.id ?? null,
-              packageId: pkgIdVal,
-              delta: data.creditDelta,
-              type: data.creditDelta > 0 ? "credit" : "debit",
-              reason: data.creditReason ?? `Invoice ${invoiceCode}: ${data.items}`,
-              createdById: adminId,
+              invoiceCode,
+              amount: data.amount,
+              category: data.category,
+              items: data.items,
+              notes: data.notes ?? null,
+              status: data.status,
+              paidAt: data.status === "paid" ? new Date() : null,
             },
           },
           tx
         );
-      }
+        return { invoice, ledgerEntry: null };
+      });
 
-      return { invoice, ledgerEntry };
-    });
+      await syncClientCRM(data.clientId);
+      const balance = await getClientBalance(data.clientId);
 
-    await syncClientCRM(data.clientId);
-    const balance = await getClientBalance(data.clientId);
-
-    return { ...result, balance };
+      return { ...result, balance };
+    }
   }
 
   async updateInvoiceWithCredits(
@@ -426,95 +442,40 @@ export class BillingService {
 
     if (!client) throw new Error("Client not found");
 
-    let delta = data.customAmount ?? 0;
-    let packageId: string | undefined;
-    let reason = data.reason;
-    let pkgData: { name: string; creditAmount: number; bonusCredits: number; totalCredits: number; price: number } | null = null;
+    const result = await prisma.$transaction(async (tx) => {
+      const eventPayload: any = {
+        clientId,
+        packageId: data.packageId,
+        customAmount: data.customAmount,
+        reason: data.reason,
+        invoice: data.invoice,
+        adminId,
+        tx,
+        postCommitActions: [],
+      };
 
-    if (data.packageId) {
-      const pkg = await this.billingRepo.findPackageUnique({ where: { id: data.packageId } });
-      if (!pkg) throw new Error("Package not found");
-      delta = pkg.totalCredits;
-      packageId = pkg.id;
-      pkgData = pkg;
-      reason = reason ?? `Package: ${pkg.name} (${pkg.creditAmount} paid + ${pkg.bonusCredits} bonus)`;
-    }
+      await eventBus.emit(EVENTS.PACKAGE_PURCHASED, eventPayload);
 
-    if (delta === 0) {
-      throw new Error("Provide packageId or a non-zero customAmount");
-    }
-
-    const { entry, invoice } = await prisma.$transaction(async (tx) => {
-      const ledger = await tx.ledgerEntry.create({
-        data: {
-          clientId,
-          cardId: client.cards[0]?.id || null,
-          packageId: packageId || null,
-          delta,
-          type: delta > 0 ? "credit" : "debit",
-          reason: reason || (delta > 0 ? "Manual credit addition" : "Manual debit adjustment"),
-          createdById: adminId,
-        },
-      });
-
-      let inv = null;
-      if (data.invoice) {
-        const { amount, category, items, notes, status } = data.invoice;
-        const code = await this.uniqueInvoiceCode(tx);
-        inv = await tx.invoice.create({
-          data: {
-            clientId,
-            invoiceCode: code,
-            amount,
-            category,
-            items,
-            notes: notes ?? null,
-            status,
-            paidAt: status === "paid" ? new Date() : null,
-          },
-        });
-      } else if (pkgData) {
-        const code = await this.uniqueInvoiceCode(tx);
-        inv = await tx.invoice.create({
-          data: {
-            clientId,
-            invoiceCode: code,
-            amount: pkgData.price,
-            category: "package",
-            items: `${pkgData.name} Package — ${pkgData.creditAmount} credits + ${pkgData.bonusCredits} bonus (${pkgData.totalCredits} total)`,
-            notes: reason ?? null,
-            status: "paid",
-            paidAt: new Date(),
-          },
-        });
-      }
-
-      return { entry: ledger, invoice: inv };
+      return {
+        entry: eventPayload.ledgerEntry,
+        invoice: eventPayload.invoiceResult,
+        postCommitActions: eventPayload.postCommitActions,
+      };
     });
 
-    await syncClientCRM(clientId);
+    if (result.postCommitActions) {
+      for (const action of result.postCommitActions) {
+        await action().catch((e: any) => console.error("Post-commit action error:", e));
+      }
+    }
+
     const balance = await getClientBalance(clientId);
 
-    await this.reportingRepo.createAudit({
-      data: {
-        userId: adminId,
-        action: "RECHARGE_CLIENT",
-        target: `Client ${client.fullName}`,
-        details: `Recharged ${client.fullName} with ${delta} credits. Reason: ${reason}. New Balance: ${balance} credits.`,
-      },
-    });
-
-    const notificationMessage = `Hello ${client.fullName}, a balance adjustment of ${delta > 0 ? `+${delta}` : delta} credits has been applied to your AQA Sports event card. Your current balance is: ${balance} credits.`;
-
-    if (client.phone) {
-      await sendSimulatedNotification(clientId, "sms", client.phone, `AQA Sports: ${notificationMessage}`);
-    }
-
-    if (client.email) {
-      await sendSimulatedNotification(clientId, "email", client.email, notificationMessage, "AQA Sports Event Card Balance Update");
-    }
-
-    return { entry, invoice, balance };
+    return {
+      entry: result.entry,
+      invoice: result.invoice,
+      balance,
+    };
   }
 
   // Redemption Workflows
@@ -556,64 +517,33 @@ export class BillingService {
     if (!client) throw new Error("CLIENT_NOT_FOUND");
 
     const result = await prisma.$transaction(async (tx) => {
-      const currentBalance = await this.billingRepo.sumLedgerDelta(client.id, tx);
-      if (currentBalance < activity.creditCost) {
-        throw new Error("INSUFFICIENT_BALANCE");
-      }
+      const eventPayload: any = {
+        client,
+        activity,
+        sessionId: data.sessionId,
+        notes: data.notes,
+        adminId,
+        tx,
+        postCommitActions: [],
+      };
 
-      const redemption = await tx.redemption.create({
-        data: {
-          clientId: client.id,
-          activityId: activity.id,
-          sessionId: data.sessionId || null,
-          creditsUsed: activity.creditCost,
-          staffId: adminId,
-          notes: data.notes || null,
-        },
-        include: {
-          activity: true,
-          session: true,
-        },
-      });
+      await eventBus.emit(EVENTS.ACTIVITY_REDEEMED, eventPayload);
 
-      await tx.ledgerEntry.create({
-        data: {
-          clientId: client.id,
-          cardId: client.cards[0]?.id || null,
-          redemptionId: redemption.id,
-          delta: -activity.creditCost,
-          type: "debit",
-          reason: `Redeemed ${activity.name}`,
-          createdById: adminId,
-        },
-      });
-
-      return redemption;
+      return {
+        redemption: eventPayload.redemptionResult,
+        postCommitActions: eventPayload.postCommitActions,
+      };
     });
 
-    await syncClientCRM(client.id);
+    if (result.postCommitActions) {
+      for (const action of result.postCommitActions) {
+        await action().catch((e: any) => console.error("Post-commit action error:", e));
+      }
+    }
+
     const newBalance = await getClientBalance(client.id);
 
-    await this.reportingRepo.createAudit({
-      data: {
-        userId: adminId,
-        action: "REDEEM_ACTIVITY",
-        target: `Client ${client.fullName}`,
-        details: `Redeemed activity "${activity.name}" for ${client.fullName}. Credits deducted: -${activity.creditCost}. New Balance: ${newBalance} credits.`,
-      },
-    });
-
-    const notificationMessage = `Hello ${client.fullName}, activity "${activity.name}" was successfully redeemed. -${activity.creditCost} credits applied. Your remaining balance is: ${newBalance} credits.`;
-
-    if (client.phone) {
-      await sendSimulatedNotification(client.id, "sms", client.phone, `AQA Sports: ${notificationMessage}`);
-    }
-
-    if (client.email) {
-      await sendSimulatedNotification(client.id, "email", client.email, notificationMessage, "AQA Sports Event Activity Redeemed");
-    }
-
-    return { redemption: result, balance: newBalance };
+    return { redemption: result.redemption, balance: newBalance };
   }
 
   async deleteRedemption(id: string, adminId: string) {
@@ -627,19 +557,31 @@ export class BillingService {
 
     if (!redemption) throw new Error("Redemption not found");
 
-    await prisma.redemption.delete({ where: { id } });
-    await syncClientCRM(redemption.clientId);
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.redemption.delete({ where: { id } });
+
+      const eventPayload: any = {
+        clientId: redemption.clientId,
+        redemption,
+        adminId,
+        tx,
+        postCommitActions: [],
+      };
+
+      await eventBus.emit(EVENTS.REDEMPTION_DELETED, eventPayload);
+
+      return {
+        postCommitActions: eventPayload.postCommitActions,
+      };
+    });
+
+    if (result.postCommitActions) {
+      for (const action of result.postCommitActions) {
+        await action().catch((e: any) => console.error("Post-commit action error:", e));
+      }
+    }
 
     const newBalance = await getClientBalance(redemption.clientId);
-
-    await this.reportingRepo.createAudit({
-      data: {
-        userId: adminId,
-        action: "DELETE_REDEMPTION",
-        target: `Client ${redemption.client.fullName}`,
-        details: `Deleted redemption of "${redemption.activity.name}" for ${redemption.client.fullName}. Credits restored: +${redemption.creditsUsed}. New Balance: ${newBalance} credits.`,
-      },
-    });
 
     return { success: true, balance: newBalance };
   }

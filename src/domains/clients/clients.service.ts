@@ -7,6 +7,7 @@ import { ClientsRepository } from "./clients.repository";
 import { CardsRepository } from "../cards/cards.repository";
 import { BillingRepository } from "../billing/billing.repository";
 import { ReportingRepository } from "../reporting/reporting.repository";
+import { eventBus, EVENTS } from "@/lib/events";
 
 export class ClientsService {
   private clientsRepo = new ClientsRepository();
@@ -117,129 +118,32 @@ export class ClientsService {
         tx
       );
 
-      let card = null;
-      if (data.preCardCode) {
-        const existing = await this.cardsRepo.findUnique(
-          {
-            where: { cardCode: data.preCardCode.trim().toUpperCase() },
-          },
-          tx
-        );
-        if (!existing) {
-          throw new Error(`Card code "${data.preCardCode}" not found. Generate it first from the Print page.`);
-        }
-        if (existing.clientId) {
-          throw new Error(`Card ${data.preCardCode} is already assigned to another client.`);
-        }
-        card = await this.cardsRepo.update(
-          {
-            where: { id: existing.id },
-            data: { clientId: client.id },
-          },
-          tx
-        );
-      } else if (data.issueCard) {
-        card = await this.cardsRepo.create(
-          {
-            data: {
-              clientId: client.id,
-              publicToken: generatePublicToken(),
-              cardCode: generateCardCode(),
-            },
-          },
-          tx
-        );
-      }
+      const eventPayload: any = {
+        client,
+        packageId: data.packageId,
+        issueCard: data.issueCard,
+        preCardCode: data.preCardCode,
+        adminId,
+        tx,
+        postCommitActions: [],
+      };
 
-      if (data.packageId) {
-        const pkg = await this.billingRepo.findPackageUnique({ where: { id: data.packageId } }, tx);
-        if (!pkg) {
-          throw new Error("Package not found");
-        }
+      await eventBus.emit(EVENTS.CLIENT_CREATED, eventPayload);
 
-        await this.billingRepo.createLedger(
-          {
-            data: {
-              clientId: client.id,
-              cardId: card?.id || null,
-              packageId: pkg.id,
-              delta: pkg.totalCredits,
-              type: "credit",
-              reason: `Package: ${pkg.name} (${pkg.creditAmount} paid + ${pkg.bonusCredits} bonus)`,
-              createdById: adminId,
-            },
-          },
-          tx
-        );
-
-        let invoiceCode = this.generateInvoiceCode();
-        let codeExists = await this.billingRepo.findInvoiceUnique({ where: { invoiceCode } }, tx);
-        while (codeExists) {
-          invoiceCode = this.generateInvoiceCode();
-          codeExists = await this.billingRepo.findInvoiceUnique({ where: { invoiceCode } }, tx);
-        }
-
-        await this.billingRepo.createInvoice(
-          {
-            data: {
-              clientId: client.id,
-              invoiceCode,
-              amount: pkg.price,
-              category: "package",
-              items: `${pkg.name} Package — ${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus (${pkg.totalCredits} total) · New client signup`,
-              status: "paid",
-              paidAt: new Date(),
-            },
-          },
-          tx
-        );
-      }
-
-      await syncClientCRM(client.id, tx);
-
-      return { client, card };
+      return {
+        client,
+        card: eventPayload.card,
+        postCommitActions: eventPayload.postCommitActions,
+      };
     });
+
+    if (result.postCommitActions) {
+      for (const action of result.postCommitActions) {
+        await action().catch((e: any) => console.error("Post-commit action error:", e));
+      }
+    }
 
     const finalBalance = await getClientBalance(result.client.id);
-
-    // Audit logs
-    await this.reportingRepo.createAudit({
-      data: {
-        userId: adminId,
-        action: "CREATE_CLIENT",
-        target: `Client ${result.client.fullName}`,
-        details: `Created client ${result.client.fullName} (${result.client.email || "No email"}). Card code: ${result.card?.cardCode || "None"}. Initial Balance: ${finalBalance} credits.`,
-      },
-    });
-
-    // Send notifications
-    if (result.client.email) {
-      await sendSimulatedNotification(
-        result.client.id,
-        "email",
-        result.client.email,
-        `Welcome to AQA Sports, ${result.client.fullName}! Your prepaid card is now active. Card Code: ${result.card?.cardCode || "None"}. Scan the QR code to track your activity balance online anytime.`,
-        "Welcome to AQA Sports!"
-      );
-    }
-
-    if (result.client.phone) {
-      await sendSimulatedNotification(
-        result.client.id,
-        "sms",
-        result.client.phone,
-        `AQA Sports: Welcome ${result.client.fullName}! Your event card is active. Code: ${result.card?.cardCode || "None"}. Initial Balance: ${finalBalance} credits.`
-      );
-
-      if (data.packageId) {
-        await sendSimulatedNotification(
-          result.client.id,
-          "sms",
-          result.client.phone,
-          `AQA Sports: Recharge successful. Loaded package credits. Your current balance is: ${finalBalance} activities.`
-        );
-      }
-    }
 
     return {
       ...result.client,
