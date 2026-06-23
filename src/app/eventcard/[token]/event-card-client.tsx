@@ -115,30 +115,34 @@ export function EventCardClient({
                     <span className="text-[10px] font-black uppercase tracking-widest bg-blue-700/80 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow">
                       AQA
                     </span>
+                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider bg-white/10 backdrop-blur-sm px-2.5 py-0.5 rounded-full">
+                      {t("subtitle")}
+                    </span>
+                  </div>
+                  <div className={`flex justify-between items-end ${
+                    dir === "rtl" ? "flex-row-reverse" : ""
+                  }`}>
+                    <div className={`space-y-0.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                      <p className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">
+                        {t("title")}
+                      </p>
+                      <h1 className="text-xl font-bold tracking-wide drop-shadow-md">
+                        {clientFirstName}
+                      </h1>
+                      <p className="font-mono text-[10px] text-white/50 tracking-widest">
+                        {cardCode}
+                      </p>
+                    </div>
                     <div className={`flex flex-col ${
                       dir === "rtl" ? "items-start text-left" : "items-end text-right"
-                    }`}>
-                      <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider">
-                        {t("subtitle")}
-                      </span>
-                      <span className="text-4xl font-black tracking-tight drop-shadow leading-none">
+                    } animate-pulse-motion`}>
+                      <span className="text-4xl font-black tracking-tight drop-shadow leading-none text-cyan-300">
                         {balance}
                       </span>
-                      <span className="text-[9px] font-medium text-white/80 mt-1">
+                      <span className="text-[9px] font-bold text-white/70 mt-1 uppercase tracking-wider">
                         {balance === 1 ? t("oneRemaining") : t("remaining")}
                       </span>
                     </div>
-                  </div>
-                  <div className={`space-y-0.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
-                    <p className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">
-                      {t("title")}
-                    </p>
-                    <h1 className="text-xl font-bold tracking-wide drop-shadow-md">
-                      {clientFirstName}
-                    </h1>
-                    <p className="font-mono text-[10px] text-white/50 tracking-widest">
-                      {cardCode}
-                    </p>
                   </div>
                 </div>
               </div>
