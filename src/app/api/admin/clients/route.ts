@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { logAdminAction } from "@/lib/audit";
 import { sendSimulatedNotification } from "@/lib/notifications";
+import { syncClientCRM } from "@/lib/crm";
 
 function generateInvoiceCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -24,6 +25,7 @@ const createClientSchema = z.object({
   packageId: z.string().optional(),
   issueCard: z.boolean().default(true),
   preCardCode: z.string().optional(), // existing pre-printed blank card code to claim
+  leadSource: z.string().optional().nullable(),
 });
 
 export async function GET(request: NextRequest) {
@@ -66,6 +68,11 @@ export async function GET(request: NextRequest) {
       balance: balances.get(client.id) ?? 0,
       card: client.cards[0] ?? null,
       createdAt: client.createdAt,
+      leadSource: client.leadSource,
+      customerSegment: client.customerSegment,
+      totalSpent: client.totalSpent,
+      lastActivityDate: client.lastActivityDate,
+      favoriteActivity: client.favoriteActivity,
     })),
   );
 }
@@ -94,6 +101,7 @@ export async function POST(request: NextRequest) {
           email: data.email || null,
           phone: data.phone || null,
           notes: data.notes || null,
+          leadSource: data.leadSource || null,
         },
       });
 
@@ -157,6 +165,9 @@ export async function POST(request: NextRequest) {
           },
         });
       }
+
+      // Sync CRM fields inside transaction
+      await syncClientCRM(client.id, tx);
 
       return { client, card };
     });

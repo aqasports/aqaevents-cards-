@@ -5,6 +5,7 @@ import { getClientBalance } from "@/lib/balance";
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
 import { sendSimulatedNotification } from "@/lib/notifications";
+import { syncClientCRM } from "@/lib/crm";
 
 const redeemSchema = z.object({
   clientId: z.string(),
@@ -83,6 +84,8 @@ export async function POST(request: NextRequest) {
 
       return redemption;
     });
+
+    await syncClientCRM(client.id);
 
     const newBalance = await getClientBalance(client.id);
 

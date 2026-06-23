@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getClientBalance } from "@/lib/balance";
+import { syncClientCRM } from "@/lib/crm";
 
 function generateInvoiceCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -168,6 +169,8 @@ export async function POST(request: NextRequest) {
 
     return { invoice, ledgerEntry };
   });
+
+  await syncClientCRM(clientId);
 
   const balance = await getClientBalance(clientId);
 

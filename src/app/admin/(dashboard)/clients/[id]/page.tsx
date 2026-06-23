@@ -61,6 +61,12 @@ type ClientDetail = {
   }>;
   ledgerEntries: LedgerEntry[];
   redemptions: Redemption[];
+  // CRM Fields
+  leadSource: string | null;
+  customerSegment: string | null;
+  totalSpent: number | null;
+  lastActivityDate: string | null;
+  favoriteActivity: string | null;
 };
 
 export default function ClientDetailPage() {
@@ -433,8 +439,8 @@ export default function ClientDetailPage() {
 
   async function saveContact(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
     const formData = new FormData(event.currentTarget);
+    setSaving(true);
 
     const res = await fetch(`/api/admin/clients/${params.id}`, {
       method: "PATCH",
@@ -444,6 +450,7 @@ export default function ClientDetailPage() {
         email: formData.get("email") || null,
         phone: formData.get("phone") || null,
         notes: formData.get("notes") || null,
+        leadSource: formData.get("leadSource") || null,
       }),
     });
 
@@ -911,12 +918,32 @@ export default function ClientDetailPage() {
               <Input label="Full name" name="fullName" defaultValue={client.fullName} required />
               <Input label="Email" name="email" type="email" defaultValue={client.email ?? ""} />
               <Input label="Phone" name="phone" defaultValue={client.phone ?? ""} />
+              <Input label="Lead source" name="leadSource" defaultValue={client.leadSource ?? ""} />
               <Textarea label="Notes" name="notes" defaultValue={client.notes ?? ""} />
               <Button type="submit" loading={saving}>Save changes</Button>
             </form>
           ) : (
             <dl className="space-y-3 text-sm">
               {[
+                { label: "Segment", value: (
+                  <Badge
+                    tone={
+                      client.customerSegment === "VIP"
+                        ? "success"
+                        : client.customerSegment === "High-Value"
+                        ? "primary"
+                        : client.customerSegment === "Inactive"
+                        ? "danger"
+                        : "default"
+                    }
+                  >
+                    {client.customerSegment ?? "Standard"}
+                  </Badge>
+                ) },
+                { label: "Lead source", value: client.leadSource },
+                { label: "Total spent", value: `${(client.totalSpent ?? 0).toLocaleString()} DA` },
+                { label: "Last activity", value: client.lastActivityDate ? new Date(client.lastActivityDate).toLocaleDateString() : "No activities yet" },
+                { label: "Favorite activity", value: client.favoriteActivity },
                 { label: "Email", value: client.email },
                 { label: "Phone", value: client.phone },
                 { label: "Notes", value: client.notes },

@@ -12,12 +12,20 @@ type ClientRow = {
   balance: number;
   card: { cardCode: string; publicToken: string } | null;
   createdAt: string;
+  
+  // CRM Fields
+  leadSource: string | null;
+  customerSegment: string | null;
+  totalSpent: number;
+  lastActivityDate: string | null;
+  favoriteActivity: string | null;
 };
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [activeCrmTab, setActiveCrmTab] = useState("all");
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -99,18 +107,22 @@ export default function ClientsPage() {
 
   const filtered = clients.filter(
     (c) =>
-      !search ||
-      c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-      (c.card?.cardCode ?? "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.phone ?? "").includes(search) ||
-      (c.email ?? "").toLowerCase().includes(search.toLowerCase()),
+      (!search ||
+        c.fullName.toLowerCase().includes(search.toLowerCase()) ||
+        (c.card?.cardCode ?? "").toLowerCase().includes(search.toLowerCase()) ||
+        (c.phone ?? "").includes(search) ||
+        (c.email ?? "").toLowerCase().includes(search.toLowerCase())) &&
+      (activeCrmTab === "all" ||
+        (activeCrmTab === "vip" && c.customerSegment === "VIP") ||
+        (activeCrmTab === "high-value" && c.customerSegment === "High-Value") ||
+        (activeCrmTab === "inactive" && c.customerSegment === "Inactive"))
   );
 
   return (
     <div className="animate-fade-in">
       <PageHeader
-        title="Clients"
-        description="Manage event card holders and their activity balances."
+        title="Clients CRM"
+        description="Manage event card holders, segments, lead sources, and LTV."
         action={
           <Link
             href="/admin/clients/new"
@@ -128,18 +140,40 @@ export default function ClientsPage() {
       )}
 
       <Card padding={false}>
-        {/* Search bar */}
-        <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-4">
-          <h3 className="text-base font-semibold">
-            All clients {!loading && `(${filtered.length})`}
-          </h3>
-          <input
-            type="search"
-            placeholder="Search by name, card, phone…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-56 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
-          />
+        {/* Search & CRM Tabs */}
+        <div className="border-b border-[var(--border)]">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-5 py-4">
+            <h3 className="text-base font-semibold">
+              Clients Directory {!loading && `(${filtered.length})`}
+            </h3>
+            <input
+              type="search"
+              placeholder="Search by name, card, phone…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-56 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+            />
+          </div>
+          <div className="flex px-5 border-t border-[var(--border)] bg-slate-50/50 gap-4 flex-wrap">
+            {[
+              { id: "all", label: "All Clients" },
+              { id: "vip", label: "VIP Clients" },
+              { id: "high-value", label: "High-Value" },
+              { id: "inactive", label: "Inactive" },
+            ].map((tabInfo) => (
+              <button
+                key={tabInfo.id}
+                onClick={() => setActiveCrmTab(tabInfo.id)}
+                className={`py-3 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer ${
+                  activeCrmTab === tabInfo.id
+                    ? "border-[var(--primary)] text-[var(--primary)]"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {tabInfo.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -149,14 +183,14 @@ export default function ClientsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
-            title={search ? "No clients match your search" : "No clients yet"}
+            title={search ? "No clients match your search" : "No clients in this segment"}
             description={
               search
                 ? "Try a different name, card code, or phone number."
-                : "Create your first client to issue an event card."
+                : "Create your first client or adjust filters."
             }
             action={
-              !search ? (
+              !search && activeCrmTab === "all" ? (
                 <Link
                   href="/admin/clients/new"
                   className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--primary-hover)]"
@@ -172,9 +206,13 @@ export default function ClientsPage() {
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
                   <th className="px-4 py-3 font-medium text-[var(--muted)]">Name</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Segment</th>
                   <th className="px-4 py-3 font-medium text-[var(--muted)]">Card code</th>
                   <th className="px-4 py-3 font-medium text-[var(--muted)]">Balance</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Contact</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Lead source</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Total spent</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Last activity</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Fav Activity</th>
                   <th className="px-4 py-3 font-medium text-[var(--muted)]">Joined</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -185,7 +223,22 @@ export default function ClientsPage() {
                     key={client.id}
                     className="border-b border-[var(--border)] hover:bg-[var(--surface-2)] transition-colors"
                   >
-                    <td className="px-4 py-3 font-semibold">{client.fullName}</td>
+                    <td className="px-4 py-3 font-semibold whitespace-nowrap">{client.fullName}</td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        tone={
+                          client.customerSegment === "VIP"
+                            ? "success"
+                            : client.customerSegment === "High-Value"
+                            ? "primary"
+                            : client.customerSegment === "Inactive"
+                            ? "danger"
+                            : "default"
+                        }
+                      >
+                        {client.customerSegment ?? "Standard"}
+                      </Badge>
+                    </td>
                     <td className="px-4 py-3">
                       {client.card ? (
                         <span className="font-mono text-xs text-[var(--foreground)]">
@@ -208,10 +261,19 @@ export default function ClientsPage() {
                         {client.balance} credit{client.balance !== 1 ? "s" : ""}
                       </Badge>
                     </td>
-                    <td className="px-4 py-3 text-[var(--muted)]">
-                      {client.phone ?? client.email ?? "—"}
+                    <td className="px-4 py-3 text-[var(--muted)] whitespace-nowrap">
+                      {client.leadSource ?? "—"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                    <td className="px-4 py-3 font-semibold text-[var(--foreground)] whitespace-nowrap">
+                      {(client.totalSpent ?? 0).toLocaleString()} DA
+                    </td>
+                    <td className="px-4 py-3 text-[var(--muted)] whitespace-nowrap">
+                      {client.lastActivityDate ? new Date(client.lastActivityDate).toLocaleDateString() : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--muted)] whitespace-nowrap">
+                      {client.favoriteActivity ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[var(--muted)] whitespace-nowrap">
                       {new Date(client.createdAt).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right">

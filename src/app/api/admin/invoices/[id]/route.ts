@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getClientBalance } from "@/lib/balance";
+import { syncClientCRM } from "@/lib/crm";
 
 export async function GET(
   _request: NextRequest,
@@ -118,6 +119,7 @@ export async function PATCH(
     },
   });
 
+  await syncClientCRM(invoice.clientId);
   const balance = await getClientBalance(invoice.clientId);
   return NextResponse.json({ invoice: updated, balance });
 }
@@ -137,5 +139,6 @@ export async function DELETE(
   }
 
   await prisma.invoice.delete({ where: { id } });
+  await syncClientCRM(invoice.clientId);
   return NextResponse.json({ success: true });
 }

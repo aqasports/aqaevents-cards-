@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { syncClientCRM } from "@/lib/crm";
 
 export async function DELETE(
   request: NextRequest,
@@ -24,6 +25,8 @@ export async function DELETE(
     await prisma.redemption.delete({
       where: { id },
     });
+
+    await syncClientCRM(redemption.clientId);
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

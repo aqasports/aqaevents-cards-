@@ -4,11 +4,13 @@ import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { getClientBalance } from "@/lib/balance";
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
+import { syncClientCRM } from "@/lib/crm";
 const updateClientSchema = z.object({
   fullName: z.string().min(2).optional(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phone: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  leadSource: z.string().optional().nullable(),
 });
 
 export async function GET(
@@ -73,8 +75,11 @@ export async function PATCH(
       email: parsed.data.email === "" ? null : parsed.data.email,
       phone: parsed.data.phone,
       notes: parsed.data.notes,
+      leadSource: parsed.data.leadSource,
     },
   });
+
+  await syncClientCRM(id);
 
   await logAdminAction(
     session.user.id,

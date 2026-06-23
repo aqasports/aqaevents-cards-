@@ -29,6 +29,13 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // CRM Fields
+  leadSource        String?
+  customerSegment   String    @default("Standard")
+  totalSpent        Int       @default(0)
+  lastActivityDate  DateTime?
+  favoriteActivity  String?
+
   cards            Card[]
   ledgerEntries    LedgerEntry[]
   redemptions      Redemption[]

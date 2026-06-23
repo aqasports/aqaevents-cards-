@@ -5,6 +5,7 @@ import { getClientBalance } from "@/lib/balance";
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
 import { sendSimulatedNotification } from "@/lib/notifications";
+import { syncClientCRM } from "@/lib/crm";
 
 function generateInvoiceCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -142,6 +143,8 @@ export async function POST(
 
       return { entry: ledger, invoice: inv };
     });
+
+    await syncClientCRM(clientId);
 
     const balance = await getClientBalance(clientId);
 

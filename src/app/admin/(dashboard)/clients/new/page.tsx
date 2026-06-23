@@ -73,6 +73,7 @@ export default function NewClientPage() {
       email: formData.get("email"),
       phone: formData.get("phone"),
       notes: formData.get("notes"),
+      leadSource: formData.get("leadSource"),
       packageId: formData.get("packageId") || undefined,
       issueCard: cardMode === "auto",
       preCardCode: cardMode === "preprinted" && preCardCode.trim() ? preCardCode.trim().toUpperCase() : undefined,
@@ -112,9 +113,10 @@ export default function NewClientPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Client info */}
             <Input label="Full name" name="fullName" placeholder="e.g. Ahmed Benali" required />
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <Input label="Email" name="email" type="email" placeholder="optional" />
               <Input label="Phone" name="phone" placeholder="optional" />
+              <Input label="Lead source" name="leadSource" placeholder="e.g. Google, Walk-in, Friend" />
             </div>
             <Textarea label="Notes" name="notes" placeholder="Any relevant notes…" />
 
