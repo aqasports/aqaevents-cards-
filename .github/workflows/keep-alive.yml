@@ -1,0 +1,22 @@
+name: Database Keep-Alive
+
+on:
+  schedule:
+    # Run every day at midnight UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Public Site API
+        run: |
+          URL="${{ secrets.PUBLIC_SITE_URL }}"
+          if [ -z "$URL" ]; then
+            echo "PUBLIC_SITE_URL secret not found. Please add your public Netlify URL as a GitHub secret."
+            exit 1
+          fi
+          echo "Pinging $URL..."
+          curl -s -f "$URL/api/public/cards" || curl -s -f "$URL"
+          echo "Database ping successful!"

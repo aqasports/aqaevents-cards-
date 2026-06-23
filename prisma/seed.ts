@@ -1,8 +1,28 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth";
 import { generateCardCode, generatePublicToken } from "../src/lib/tokens";
+import { syncClientCRM } from "../src/lib/crm";
 
 const prisma = new PrismaClient();
+
+function generateInvoiceCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "INV-";
+  for (let i = 0; i < 8; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+async function uniqueInvoiceCode() {
+  let code = generateInvoiceCode();
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const existing = await prisma.invoice.findUnique({ where: { invoiceCode: code } });
+    if (!existing) return code;
+    code = generateInvoiceCode();
+  }
+}
 
 async function main() {
   const adminEmail = process.env.ADMIN_EMAIL ?? "admin@aqasports.com";
@@ -162,12 +182,12 @@ async function main() {
   }
 
   const demoClients = [
-    { fullName: "Amine Benali",   phone: "+212 612 345 678", packageIdx: 1 }, // 5 pack
-    { fullName: "Fatima Zahra",   phone: "+212 661 234 567", packageIdx: 2 }, // 8 pack
-    { fullName: "Youssef Idrissi",phone: "+212 670 987 654", packageIdx: 0 }, // 3 pack
-    { fullName: "Sara Alami",     phone: "+212 655 111 222", packageIdx: 1 }, // 5 pack
-    { fullName: "Karim Tazi",     phone: "+212 699 333 444", packageIdx: 2 }, // 8 pack
-    { fullName: "Nadia Chraibi",  phone: "+212 612 555 666", packageIdx: 0 }, // 3 pack
+    { fullName: "Amine Benali",   phone: "+212 612 345 678", packageIdx: 1 }, // Solo
+    { fullName: "Fatima Zahra",   phone: "+212 661 234 567", packageIdx: 2 }, // Starter
+    { fullName: "Youssef Idrissi",phone: "+212 670 987 654", packageIdx: 0 }, // Value
+    { fullName: "Sara Alami",     phone: "+212 655 111 222", packageIdx: 1 }, // Solo
+    { fullName: "Karim Tazi",     phone: "+212 699 333 444", packageIdx: 2 }, // Starter
+    { fullName: "Nadia Chraibi",  phone: "+212 612 555 666", packageIdx: 0 }, // Value
   ];
 
   for (const demo of demoClients) {
@@ -198,6 +218,21 @@ async function main() {
       },
     });
 
+    // Auto-create invoice for package
+    const invoiceCode = await uniqueInvoiceCode();
+    await prisma.invoice.create({
+      data: {
+        clientId: client.id,
+        invoiceCode,
+        amount: pkg.price,
+        category: "package",
+        items: `${pkg.name} Package — ${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus (${pkg.totalCredits} total)`,
+        status: "paid",
+        paidAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      },
+    });
+
     // Redeem 1–2 activities (except for 0-balance clients)
     const redemptionsToMake = demo.packageIdx === 0 ? 1 : 2; // Use most credits on small packs
     for (let i = 0; i < redemptionsToMake; i++) {
@@ -224,6 +259,9 @@ async function main() {
         },
       });
     }
+
+    // Sync client CRM fields after creating redemptions and invoices
+    await syncClientCRM(client.id);
   }
 
   console.log(`✓ Demo clients: ${demoClients.length} clients with cards, credits, and redemptions`);
