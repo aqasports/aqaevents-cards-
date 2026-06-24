@@ -1,0 +1,12 @@
+{
+  "appId": "com.aqasports.admin",
+  "appName": "AQA Admin",
+  "webDir": "www",
+  "server": {
+    "url": "https://aqasports.com/admin",
+    "cleartext": true,
+    "headers": {
+      "X-Admin-App-Token": "SUPER_SECURE_ADMIN_APP_TOKEN_CHANGE_ME"
+    }
+  }
+}

@@ -17,6 +17,6 @@ jobs:
             echo "PUBLIC_SITE_URL secret not found. Please add your public Netlify URL as a GitHub secret."
             exit 1
           fi
-          echo "Pinging $URL..."
-          curl -s -f "$URL/api/public/cards" || curl -s -f "$URL"
+          echo "Pinging $URL/api/health..."
+          curl -s -f "$URL/api/health"
           echo "Database ping successful!"
