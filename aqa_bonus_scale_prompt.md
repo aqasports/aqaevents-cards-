@@ -109,7 +109,7 @@ Mark the **Value** package as recommended / most popular in the UI.
 
 ---
 
-### 6. Update the public card view (`/app/eventcard/[token]`)
+### 6. Update the public card view (`/app/eventscard/[token]`)
 
 The balance shown to the client on their card must reflect `totalCredits` already (since the ledger delta already includes the bonus). No change needed to the balance calculation — it still sums all `delta` values. Only verify the display label says **"activities remaining"** not "credits".
 

@@ -8,7 +8,7 @@ A full-stack web application for managing prepaid activity cards for AQA Sports 
 |---|---|
 | 🃏 **PVC Card QR** | Unique cryptographic tokens per card, never encoding balance or PII |
 | ⚖️ **Immutable Ledger** | Balance = `SUM(ledger.delta)` — no editable balance field |
-| 📱 **Public Balance Page** | Mobile-first `aqasports.com/eventcard/{token}` — no login required |
+| 📱 **Public Balance Page** | Mobile-first `aqasports.com/eventscard/{token}` — no login required |
 | 🖥️ **Admin Dashboard** | Clients, packages, activities, redemptions, reports |
 | 🖨️ **Print Export** | Browser-printable QR sheet + CSV manifest for PVC printer |
 | 🔐 **Auth** | NextAuth credentials — JWT sessions, role-based (`super_admin`, `staff`) |
@@ -84,7 +84,7 @@ src/
 │   │       ├── redeem/         # POS redemption page
 │   │       ├── reports/        # Reports + CSV export
 │   │       └── print/          # QR print sheet
-│   ├── eventcard/[token]/  # Public balance page (no login)
+│   ├── eventscard/[token]/  # Public balance page (no login)
 │   └── api/
 │       ├── admin/          # Protected admin APIs
 │       └── public/cards/   # Public token lookup (rate-limited)
@@ -116,7 +116,7 @@ Credits are `+N` rows, redemptions are `−N` rows. Adjustments go through new r
 ### Token Security
 QR codes encode only the public URL:
 ```
-https://aqasports.com/eventcard/{32-char-nanoid}
+https://aqasports.com/eventscard/{32-char-nanoid}
 ```
 No balance, no name, no PII in the QR. Tokens are generated with `nanoid` using a 62-char alphabet = ~190 bits of entropy.
 

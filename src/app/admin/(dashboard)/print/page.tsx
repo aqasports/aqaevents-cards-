@@ -91,7 +91,7 @@ function QRCardFace({
         </div>
 
         <div className="w-full border-t border-dashed border-slate-200" />
-        <p className="text-[9px] text-slate-400">aqasports.com/eventcard</p>
+        <p className="text-[9px] text-slate-400">aqasports.com/eventscard</p>
       </div>
     </div>
   );

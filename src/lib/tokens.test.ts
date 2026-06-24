@@ -33,7 +33,7 @@ describe("token utils", () => {
       process.env.PUBLIC_SITE_URL = "https://example.com/";
       try {
         const url = getEventCardUrl("my-token");
-        expect(url).toBe("https://example.com/eventcard/my-token");
+        expect(url).toBe("https://example.com/eventscard/my-token");
       } finally {
         process.env.PUBLIC_SITE_URL = originalEnv;
       }
@@ -44,7 +44,7 @@ describe("token utils", () => {
       delete process.env.PUBLIC_SITE_URL;
       try {
         const url = getEventCardUrl("my-token");
-        expect(url).toBe("http://localhost:3000/eventcard/my-token");
+        expect(url).toBe("http://localhost:3000/eventscard/my-token");
       } finally {
         process.env.PUBLIC_SITE_URL = originalEnv;
       }

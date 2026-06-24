@@ -17,7 +17,7 @@ export function generateCardCode(): string {
 
 export function getEventCardUrl(token: string): string {
   const base = process.env.PUBLIC_SITE_URL ?? "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}/eventcard/${token}`;
+  return `${base.replace(/\/$/, "")}/eventscard/${token}`;
 }
 
 export function getFirstName(fullName: string): string {

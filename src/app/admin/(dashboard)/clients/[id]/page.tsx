@@ -174,7 +174,7 @@ export default function ClientDetailPage() {
 
   const activeCard = client?.cards.find((c) => c.status === "active");
   const publicUrl = activeCard
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/eventcard/${activeCard.publicToken}`
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/eventscard/${activeCard.publicToken}`
     : null;
 
   const [isFlipped, setIsFlipped] = useState(false);
