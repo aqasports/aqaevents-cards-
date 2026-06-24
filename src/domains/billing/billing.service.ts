@@ -205,7 +205,19 @@ export class BillingService {
     if (!invoice) throw new Error("Invoice not found");
 
     const updateData: any = {};
-    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.notes !== undefined) {
+      if (invoice.notes && invoice.notes.startsWith("{") && invoice.notes.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(invoice.notes);
+          parsed.originalNotes = data.notes;
+          updateData.notes = JSON.stringify(parsed);
+        } catch {
+          updateData.notes = data.notes;
+        }
+      } else {
+        updateData.notes = data.notes;
+      }
+    }
     if (data.amount !== undefined) updateData.amount = data.amount;
     if (data.category !== undefined) updateData.category = data.category;
     if (data.items !== undefined) updateData.items = data.items;
@@ -218,6 +230,27 @@ export class BillingService {
         if (data.status === "paid" && invoice.status !== "paid") {
           if (data.paidAt === undefined) {
             updateData.paidAt = new Date();
+          }
+          if (invoice.notes) {
+            try {
+              const metadata = JSON.parse(invoice.notes);
+              if (metadata && (metadata.type === "package" || metadata.type === "custom")) {
+                const activeCard = invoice.client.cards[0];
+                await tx.ledgerEntry.create({
+                  data: {
+                    clientId: invoice.clientId,
+                    cardId: activeCard?.id ?? null,
+                    packageId: metadata.packageId || null,
+                    delta: metadata.credits,
+                    type: "credit",
+                    reason: metadata.reason ?? `Approved Demand: ${invoice.items}`,
+                    createdById: adminId,
+                  },
+                });
+              }
+            } catch (e) {
+              // Ignore if notes is not JSON
+            }
           }
         } else if (data.status === "unpaid") {
           updateData.paidAt = null;

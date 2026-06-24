@@ -280,7 +280,17 @@ function PrintModal({ invoice, onClose }: { invoice: Invoice; onClose: () => voi
                   {invoice.notes && (
                     <tr>
                       <td colSpan={3} className="py-2 px-3 text-xs text-slate-400 italic">
-                        Note: {invoice.notes}
+                        Note: {(() => {
+                          if (invoice.notes.startsWith("{") && invoice.notes.endsWith("}")) {
+                            try {
+                              const parsed = JSON.parse(invoice.notes);
+                              return parsed.originalNotes ?? invoice.notes;
+                            } catch {
+                              return invoice.notes;
+                            }
+                          }
+                          return invoice.notes;
+                        })()}
                       </td>
                     </tr>
                   )}
@@ -323,7 +333,18 @@ function EditInvoiceModal({
   const [amount, setAmount] = useState(String(invoice.amount));
   const [category, setCategory] = useState(invoice.category);
   const [items, setItems] = useState(invoice.items);
-  const [notes, setNotes] = useState(invoice.notes ?? "");
+  const [notes, setNotes] = useState(() => {
+    const raw = invoice.notes ?? "";
+    if (raw.startsWith("{") && raw.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed.originalNotes ?? raw;
+      } catch {
+        return raw;
+      }
+    }
+    return raw;
+  });
   const [status, setStatus] = useState(invoice.status);
   const [createdAt, setCreatedAt] = useState(toInputDateTime(invoice.createdAt));
   const [paidAt, setPaidAt] = useState(toInputDateTime(invoice.paidAt));

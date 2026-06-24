@@ -1317,7 +1317,21 @@ export default function ClientDetailPage() {
                       </td>
                       <td className="px-5 py-3.5 max-w-xs truncate">
                         <p className="font-semibold text-slate-800">{inv.items}</p>
-                        {inv.notes && <p className="text-xs text-slate-400 truncate italic mt-0.5">Notes: {inv.notes}</p>}
+                        {inv.notes && (
+                          <p className="text-xs text-slate-400 truncate italic mt-0.5">
+                            Notes: {(() => {
+                              if (inv.notes.startsWith("{") && inv.notes.endsWith("}")) {
+                                try {
+                                  const parsed = JSON.parse(inv.notes);
+                                  return parsed.originalNotes ?? inv.notes;
+                                } catch {
+                                  return inv.notes;
+                                }
+                              }
+                              return inv.notes;
+                            })()}
+                          </p>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">
                         {inv.amount.toLocaleString()} DA

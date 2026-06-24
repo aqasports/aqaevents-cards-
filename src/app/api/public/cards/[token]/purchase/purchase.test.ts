@@ -23,9 +23,17 @@ vi.mock("@/domains/billing/billing.service", () => {
       invoice: { id: "inv-1", amount: 1900 },
       balance: 10,
     });
-    createInvoiceWithCredits = vi.fn().mockResolvedValue({
-      invoice: { id: "inv-2", amount: 3500 },
-      balance: 10,
+    createInvoiceWithCredits = vi.fn().mockImplementation(async (data) => {
+      if (data.category === "package" || data.category === "custom") {
+        return {
+          invoice: { id: "inv-1", amount: data.amount },
+          balance: 10,
+        };
+      }
+      return {
+        invoice: { id: "inv-2", amount: data.amount },
+        balance: 10,
+      };
     });
   }
   return {

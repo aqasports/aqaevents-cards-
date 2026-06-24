@@ -58,18 +58,20 @@ export async function POST(
         return NextResponse.json({ error: "Package not found or inactive" }, { status: 400 });
       }
 
-      const result = await billingService.rechargeCredits(
-        card.clientId,
+      const result = await billingService.createInvoiceWithCredits(
         {
-          packageId: pkg.id,
-          reason: `Public Demand: ${pkg.name} (On Credit)`,
-          invoice: {
-            amount: pkg.price,
-            category: "package",
-            items: `${pkg.name} Package — ${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus (${pkg.totalCredits} total)`,
-            notes: "Demanded on credit via client page",
-            status: "unpaid",
-          },
+          clientId: card.clientId,
+          amount: pkg.price,
+          category: "package",
+          items: `${pkg.name} Package — ${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus (${pkg.totalCredits} total)`,
+          status: "unpaid",
+          notes: JSON.stringify({
+            type: "package",
+            packageId: pkg.id,
+            credits: pkg.totalCredits,
+            reason: `Public Demand: ${pkg.name} (On Credit)`,
+            originalNotes: "Demanded on credit via client page",
+          }),
         }
       );
 
@@ -87,18 +89,19 @@ export async function POST(
       }
 
       const price = credits * 1900;
-      const result = await billingService.rechargeCredits(
-        card.clientId,
+      const result = await billingService.createInvoiceWithCredits(
         {
-          customAmount: credits,
-          reason: `Public Demand: Custom Credit (${credits} activities) (On Credit)`,
-          invoice: {
-            amount: price,
-            category: "custom",
-            items: `Custom Credit Recharge — ${credits} activities`,
-            notes: "Demanded on credit via client page",
-            status: "unpaid",
-          },
+          clientId: card.clientId,
+          amount: price,
+          category: "custom",
+          items: `Custom Credit Recharge — ${credits} activities`,
+          status: "unpaid",
+          notes: JSON.stringify({
+            type: "custom",
+            credits: credits,
+            reason: `Public Demand: Custom Credit (${credits} activities) (On Credit)`,
+            originalNotes: "Demanded on credit via client page",
+          }),
         }
       );
 
@@ -128,8 +131,12 @@ export async function POST(
           amount: product.price,
           category: "adhoc",
           items: `Product: ${product.name}`,
-          notes: "Product ordered on credit via client page",
           status: "unpaid",
+          notes: JSON.stringify({
+            type: "product",
+            productId: product.id,
+            originalNotes: "Product ordered on credit via client page",
+          }),
         }
       );
 
