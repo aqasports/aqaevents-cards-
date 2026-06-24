@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@netlify/plugin-nextjs": "^5.15.12",
     "@tailwindcss/postcss": "^4.1.10",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.15.32",
