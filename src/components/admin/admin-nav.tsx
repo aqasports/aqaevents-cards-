@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "@/lib/i18n";
 
 const links = [
@@ -113,6 +113,25 @@ export function AdminNav() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { t, locale, setLocale, dir } = useTranslations("nav");
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    async function fetchPendingCount() {
+      try {
+        const res = await fetch("/api/admin/invoices/pending-count");
+        if (res.ok) {
+          const data = await res.json();
+          setPendingCount(data.count);
+        }
+      } catch (err) {
+        console.error("Failed to fetch pending count:", err);
+      }
+    }
+    fetchPendingCount();
+
+    const interval = setInterval(fetchPendingCount, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
@@ -149,6 +168,11 @@ export function AdminNav() {
             >
               {link.icon}
               {t(link.key)}
+              {link.key === "invoices" && pendingCount > 0 && (
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)] leading-none ml-1">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -217,6 +241,11 @@ export function AdminNav() {
               >
                 {link.icon}
                 {t(link.key)}
+                {link.key === "invoices" && pendingCount > 0 && (
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.5)] leading-none ml-1">
+                    {pendingCount}
+                  </span>
+                )}
               </Link>
             ))}
             <button
