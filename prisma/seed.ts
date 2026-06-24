@@ -58,20 +58,26 @@ async function main() {
   }
 
   // ─── Packages ─────────────────────────────────────────────────────────────────
-  await prisma.package.deleteMany();
-  const packages = await Promise.all([
-    prisma.package.create({ data: { name: "Solo",    creditAmount: 1,  bonusCredits: 0,  totalCredits: 1,  price: 1900,  sortOrder: 1 } }),
-    prisma.package.create({ data: { name: "Starter", creditAmount: 7,  bonusCredits: 1,  totalCredits: 8,  price: 13300, sortOrder: 2 } }),
-    prisma.package.create({ data: { name: "Value",   creditAmount: 10, bonusCredits: 2,  totalCredits: 12, price: 19000, sortOrder: 3 } }),
-    prisma.package.create({ data: { name: "Club",    creditAmount: 20, bonusCredits: 5,  totalCredits: 25, price: 38000, sortOrder: 4 } }),
-    prisma.package.create({ data: { name: "Pro",     creditAmount: 30, bonusCredits: 9,  totalCredits: 39, price: 57000, sortOrder: 5 } }),
-    prisma.package.create({ data: { name: "Elite",   creditAmount: 50, bonusCredits: 17, totalCredits: 67, price: 95000, sortOrder: 6 } }),
-  ]);
-  console.log("✓ Packages: Solo, Starter, Value, Club, Pro, Elite");
+  const defaultPackages = [
+    { name: "Solo",    creditAmount: 1,  bonusCredits: 0,  totalCredits: 1,  price: 1900,  sortOrder: 1 },
+    { name: "Starter", creditAmount: 7,  bonusCredits: 1,  totalCredits: 8,  price: 13300, sortOrder: 2 },
+    { name: "Value",   creditAmount: 10, bonusCredits: 2,  totalCredits: 12, price: 19000, sortOrder: 3 },
+    { name: "Club",    creditAmount: 20, bonusCredits: 5,  totalCredits: 25, price: 38000, sortOrder: 4 },
+    { name: "Pro",     creditAmount: 30, bonusCredits: 9,  totalCredits: 39, price: 57000, sortOrder: 5 },
+    { name: "Elite",   creditAmount: 50, bonusCredits: 17, totalCredits: 67, price: 95000, sortOrder: 6 },
+  ];
+
+  for (const pkg of defaultPackages) {
+    const existing = await prisma.package.findFirst({ where: { name: pkg.name } });
+    if (!existing) {
+      await prisma.package.create({ data: pkg });
+      console.log(`✓ Seeded package: ${pkg.name}`);
+    } else {
+      console.log(`- Package already exists: ${pkg.name}`);
+    }
+  }
 
   // ─── Activities ───────────────────────────────────────────────────────────────
-  await prisma.activity.deleteMany();
-
   const activitiesData = [
     {
       name: "Kayaking",
@@ -131,140 +137,27 @@ async function main() {
     }
   ];
 
-  const activities = [];
   for (const act of activitiesData) {
-    const activity = await prisma.activity.create({
-      data: {
-        name: act.name,
-        description: act.description,
-        creditCost: act.creditCost,
-        imageUrl: act.imageUrl,
-        places: act.places,
-        expenses: {
-          create: act.expenses
+    const existing = await prisma.activity.findFirst({ where: { name: act.name } });
+    if (!existing) {
+      await prisma.activity.create({
+        data: {
+          name: act.name,
+          description: act.description,
+          creditCost: act.creditCost,
+          imageUrl: act.imageUrl,
+          places: act.places,
+          expenses: {
+            create: act.expenses
+          }
         }
-      }
-    });
-    activities.push(activity);
-  }
-  console.log("✓ Seeded activities with places, images, and expenses.");
-
-  // Add upcoming sessions if none exist
-  const sessionCount = await prisma.activitySession.count();
-  if (sessionCount === 0) {
-    const now = new Date();
-    const soon = (days: number, hour = 9) => {
-      const d = new Date(now);
-      d.setDate(d.getDate() + days);
-      d.setHours(hour, 0, 0, 0);
-      return d;
-    };
-    for (const activity of activities) {
-      const placesList = activity.places ? activity.places.split(",") : ["Oued Fès"];
-      const loc1 = placesList[0].trim();
-      const loc2 = (placesList[1] || placesList[0]).trim();
-      
-      await prisma.activitySession.create({
-        data: { activityId: activity.id, sessionDate: soon(2), location: loc1, capacity: 12 }
       });
-      await prisma.activitySession.create({
-        data: { activityId: activity.id, sessionDate: soon(7), location: loc2, capacity: 10 }
-      });
+      console.log(`✓ Seeded activity: ${act.name}`);
+    } else {
+      console.log(`- Activity already exists: ${act.name}`);
     }
-    console.log("✓ Sessions: 2 upcoming per activity at predefined locations");
   }
 
-  // ─── Demo clients ─────────────────────────────────────────────────────────────
-  const clientCount = await prisma.client.count();
-  if (clientCount > 0) {
-    console.log("✓ Clients already exist — skipping demo data");
-    return;
-  }
-
-  const demoClients = [
-    { fullName: "Amine Benali",   phone: "+212 612 345 678", packageIdx: 1 }, // Solo
-    { fullName: "Fatima Zahra",   phone: "+212 661 234 567", packageIdx: 2 }, // Starter
-    { fullName: "Youssef Idrissi",phone: "+212 670 987 654", packageIdx: 0 }, // Value
-    { fullName: "Sara Alami",     phone: "+212 655 111 222", packageIdx: 1 }, // Solo
-    { fullName: "Karim Tazi",     phone: "+212 699 333 444", packageIdx: 2 }, // Starter
-    { fullName: "Nadia Chraibi",  phone: "+212 612 555 666", packageIdx: 0 }, // Value
-  ];
-
-  for (const demo of demoClients) {
-    const pkg = packages[demo.packageIdx];
-
-    const client = await prisma.client.create({
-      data: { fullName: demo.fullName, phone: demo.phone },
-    });
-
-    const card = await prisma.card.create({
-      data: {
-        clientId: client.id,
-        publicToken: generatePublicToken(),
-        cardCode: generateCardCode(),
-      },
-    });
-
-    // Issue package credits
-    await prisma.ledgerEntry.create({
-      data: {
-        clientId: client.id,
-        cardId: card.id,
-        packageId: pkg.id,
-        delta: pkg.totalCredits,
-        type: "credit",
-        reason: `Package: ${pkg.name} (${pkg.creditAmount} paid + ${pkg.bonusCredits} bonus)`,
-        createdById: admin.id,
-      },
-    });
-
-    // Auto-create invoice for package
-    const invoiceCode = await uniqueInvoiceCode();
-    await prisma.invoice.create({
-      data: {
-        clientId: client.id,
-        invoiceCode,
-        amount: pkg.price,
-        category: "package",
-        items: `${pkg.name} Package — ${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus (${pkg.totalCredits} total)`,
-        status: "paid",
-        paidAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    // Redeem 1–2 activities (except for 0-balance clients)
-    const redemptionsToMake = demo.packageIdx === 0 ? 1 : 2; // Use most credits on small packs
-    for (let i = 0; i < redemptionsToMake; i++) {
-      const activity = activities[i % activities.length];
-      const redemption = await prisma.redemption.create({
-        data: {
-          clientId: client.id,
-          activityId: activity.id,
-          staffId: staffUser.id,
-          creditsUsed: 1,
-          redeemedAt: new Date(Date.now() - (i + 1) * 3 * 24 * 60 * 60 * 1000), // days ago
-          notes: "Event day redemption",
-        },
-      });
-      await prisma.ledgerEntry.create({
-        data: {
-          clientId: client.id,
-          cardId: card.id,
-          redemptionId: redemption.id,
-          delta: -1,
-          type: "debit",
-          reason: `Redeemed: ${activity.name}`,
-          createdById: staffUser.id,
-        },
-      });
-    }
-
-    // Sync client CRM fields after creating redemptions and invoices
-    await syncClientCRM(client.id);
-  }
-
-  console.log(`✓ Demo clients: ${demoClients.length} clients with cards, credits, and redemptions`);
   console.log("");
   console.log("─────────────────────────────────────────");
   console.log(" Seed complete! Log in at /admin/login");
