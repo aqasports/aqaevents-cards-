@@ -106,7 +106,7 @@ export class BillingService {
       creditDelta?: number;
       creditReason?: string;
     },
-    adminId: string
+    adminId?: string | null
   ) {
     const client = await this.clientsRepo.findUnique({
       where: { id: data.clientId },
@@ -433,7 +433,7 @@ export class BillingService {
         status: "paid" | "unpaid";
       };
     },
-    adminId: string
+    adminId?: string | null
   ) {
     const client = await this.clientsRepo.findUnique({
       where: { id: clientId },

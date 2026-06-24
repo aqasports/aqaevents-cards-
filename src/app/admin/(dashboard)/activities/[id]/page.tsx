@@ -71,6 +71,7 @@ type ActivityDetail = {
   active: boolean;
   sessions: EventSession[];
   expenses: ActivityExpense[];
+  _count: { redemptions: number };
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -773,7 +774,9 @@ export default function ActivityDetailPage() {
   const upcomingSessions = activity.sessions.filter((s) => s.active && new Date(s.sessionDate) >= now);
   const pastAndCancelledSessions = activity.sessions.filter((s) => !s.active || new Date(s.sessionDate) < now);
   const totalExpenses = activity.expenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const totalRevenue = activity.sessions.reduce((sum, sess) => sum + sess.redemptions.length * activity.creditCost * RATE, 0);
+  const totalRevenue = activity._count.redemptions * activity.creditCost * RATE;
+  const netProfit = totalRevenue - totalExpenses;
+  const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
   const predefinedPlaces = activity.places ? activity.places.split(",").map((p) => p.trim()) : [];
   const galleryItems = parseGallery(activity.gallery);
   const equipmentItems = parseEquipment(activity.equipment);
@@ -896,28 +899,35 @@ export default function ActivityDetailPage() {
       </div>
 
       {/* ── KPI Stats ──────────────────────────────────────────────── */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Price / Session</p>
-          <p className="mt-2 text-2xl font-black text-blue-700">{(activity.creditCost * RATE).toLocaleString()} DA</p>
-          <p className="text-xs text-slate-400 mt-1">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {RATE.toLocaleString()} DA</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-blue-700">{(activity.creditCost * RATE).toLocaleString()} DZD</p>
+          <p className="text-xs text-slate-400 mt-1">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {RATE.toLocaleString()} DZD</p>
+        </Card>
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Attendance</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-indigo-700">{activity._count.redemptions.toLocaleString()} claims</p>
+          <p className="text-xs text-slate-400 mt-1">Total check-ins</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Revenue</p>
-          <p className="mt-2 text-2xl font-black text-[var(--success)]">{totalRevenue.toLocaleString()} DA</p>
-          <p className="text-xs text-[var(--muted)] mt-1">From credit redemptions</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-[var(--success)]">{totalRevenue.toLocaleString()} DZD</p>
+          <p className="text-xs text-[var(--muted)] mt-1">From redemptions</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Expenses</p>
-          <p className="mt-2 text-2xl font-black text-[var(--danger)]">{totalExpenses.toLocaleString()} DA</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-[var(--danger)]">{totalExpenses.toLocaleString()} DZD</p>
           <p className="text-xs text-[var(--muted)] mt-1">Operational costs</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Net P&L</p>
-          <p className={`mt-2 text-2xl font-black ${totalRevenue - totalExpenses >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>
-            {(totalRevenue - totalExpenses).toLocaleString()} DA
+          <p className={`mt-2 text-xl md:text-2xl font-black ${netProfit >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}`}>
+            {netProfit.toLocaleString()} DZD
           </p>
-          <p className="text-xs text-[var(--muted)] mt-1">Profit / Loss</p>
+          <p className="text-xs text-[var(--muted)] mt-1 font-bold">
+            {netProfit >= 0 ? "+" : ""}{margin}% Margin
+          </p>
         </Card>
       </div>
 
@@ -1149,8 +1159,8 @@ export default function ActivityDetailPage() {
             <Card>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Price Reference</p>
               <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-2xl font-extrabold text-blue-700">{(activity.creditCost * RATE).toLocaleString()} DA</p>
-                <p className="text-xs text-blue-500 mt-0.5">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {RATE.toLocaleString()} DA/credit</p>
+                <p className="text-2xl font-extrabold text-blue-700">{(activity.creditCost * RATE).toLocaleString()} DZD</p>
+                <p className="text-xs text-blue-500 mt-0.5">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {RATE.toLocaleString()} DZD/credit</p>
               </div>
               {activity.duration && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">

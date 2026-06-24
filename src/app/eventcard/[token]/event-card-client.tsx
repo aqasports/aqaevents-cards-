@@ -19,6 +19,25 @@ type CreditItem = {
   date: Date | string;
 };
 
+type Package = {
+  id: string;
+  name: string;
+  creditAmount: number;
+  bonusCredits: number;
+  totalCredits: number;
+  price: number;
+};
+
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  description: string | null;
+  imageUrl: string | null;
+  advertised: boolean;
+  active: boolean;
+};
+
 type Props = {
   cardCode: string;
   clientFirstName: string;
@@ -26,6 +45,9 @@ type Props = {
   history: HistoryItem[];
   credits: CreditItem[];
   qrDataUrl: string;
+  packages: Package[];
+  products: Product[];
+  publicToken: string;
 };
 
 export function EventCardClient({
@@ -35,9 +57,68 @@ export function EventCardClient({
   history,
   credits,
   qrDataUrl,
+  packages,
+  products,
+  publicToken,
 }: Props) {
   const { t, locale, setLocale, dir } = useTranslations("publicCard");
   const [isFlipped, setIsFlipped] = useState(false);
+  const [purchasingItemId, setPurchasingItemId] = useState<string | null>(null);
+  const [purchaseMessage, setPurchaseMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
+  const [creditType, setCreditType] = useState<"package" | "custom">("package");
+  const [selectedPackageId, setSelectedPackageId] = useState<string>(packages[0]?.id || "");
+  const [customCreditsCount, setCustomCreditsCount] = useState<number>(5);
+
+  async function handleBuy(
+    type: "package" | "custom" | "product",
+    payloadValue: string | number
+  ) {
+    setPurchasingItemId(String(payloadValue));
+    setPurchaseMessage(null);
+
+    const bodyPayload: Record<string, unknown> = { type };
+    if (type === "package") {
+      bodyPayload.packageId = payloadValue;
+    } else if (type === "custom") {
+      bodyPayload.customCredits = Number(payloadValue);
+    } else if (type === "product") {
+      bodyPayload.productId = payloadValue;
+    }
+
+    try {
+      const res = await fetch(`/api/public/cards/${publicToken}/purchase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload),
+      });
+
+      if (res.ok) {
+        setPurchaseMessage({
+          text: t("orderSuccess"),
+          tone: "success",
+        });
+        setIsCreditModalOpen(false);
+        setTimeout(() => {
+          window.location.reload();
+        }, 2500);
+      } else {
+        const data = await res.json();
+        setPurchaseMessage({
+          text: data.error ?? t("orderError"),
+          tone: "danger",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setPurchaseMessage({
+        text: t("orderError"),
+        tone: "danger",
+      });
+    } finally {
+      setPurchasingItemId(null);
+    }
+  }
 
   const totalPaid = credits.reduce((sum, item) => sum + item.paid, 0);
   const totalBonus = credits.reduce((sum, item) => sum + item.bonus, 0);
@@ -289,6 +370,17 @@ export function EventCardClient({
                     {used} {t("used")} · {t("usedProgress")} ({100 - percentage}% {t("used")})
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsCreditModalOpen(true)}
+                  className="mt-5 w-full max-w-xs rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 active:scale-[0.98] text-slate-950 text-xs font-black py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>{t("demandCreditBtn")}</span>
+                </button>
               </div>
             </>
           )}
@@ -433,11 +525,285 @@ export function EventCardClient({
           )}
         </section>
 
+        {/* Vitrine Store Section */}
+        <section className="space-y-6 pt-4">
+          <div className={`border-b border-white/10 pb-2 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+            <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2 justify-start">
+              <svg className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              {t("storeTitle")}
+            </h2>
+            <p className="text-xs text-white/40 mt-1">
+              {t("storeDesc")}
+            </p>
+          </div>
+
+          {purchaseMessage && (
+            <div className={`rounded-2xl p-4 text-xs font-semibold backdrop-blur-md border ${
+              purchaseMessage.tone === "success" 
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200" 
+                : "bg-red-500/10 border-red-500/20 text-red-200"
+            }`}>
+              <div className="flex items-center gap-2">
+                {purchaseMessage.tone === "success" ? (
+                  <svg className="h-4 w-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="h-4 w-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+                <span>{purchaseMessage.text}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Products Grid Showcase */}
+          <div className="grid grid-cols-2 gap-4">
+            {products.length === 0 ? (
+              <p className="col-span-2 text-center text-xs text-white/40 italic py-6">
+                No products available at the moment.
+              </p>
+            ) : (
+              products.map((prod) => {
+                const isBusy = purchasingItemId === prod.id;
+                return (
+                  <div
+                    key={prod.id}
+                    className="bg-white/5 border border-white/10 hover:border-cyan-500/30 transition-all duration-300 rounded-3xl overflow-hidden flex flex-col justify-between"
+                  >
+                    {/* Product Image or Gradient Placeholder */}
+                    <div className="aspect-square w-full relative overflow-hidden bg-white/5 flex items-center justify-center">
+                      {prod.imageUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={prod.imageUrl}
+                          alt={prod.name}
+                          className="object-cover w-full h-full hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-slate-950 flex flex-col items-center justify-center p-4">
+                          <svg className="h-10 w-10 text-cyan-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-14L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-full px-2.5 py-1 text-[10px] font-black text-cyan-300">
+                        {prod.price.toLocaleString()} DA
+                      </div>
+                    </div>
+
+                    <div className="p-4 flex-1 flex flex-col justify-between">
+                      <div className={`space-y-1 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                        <h4 className="text-xs font-bold text-white line-clamp-1">
+                          {prod.name}
+                        </h4>
+                        <p className="text-[10px] text-white/50 line-clamp-2 leading-relaxed h-7">
+                          {prod.description}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleBuy("product", prod.id)}
+                        disabled={purchasingItemId !== null}
+                        className="mt-3.5 w-full rounded-2xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-slate-950 text-[10px] font-black py-2 px-3 transition-all duration-200 flex items-center justify-center gap-1.5"
+                      >
+                        {isBusy ? (
+                          <>
+                            <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                            <span>{t("purchasing")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                            <span>{t("orderOnCredit")}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
         {/* Footer */}
         <p className="pb-8 text-center text-xs text-white/30">
           aqasports.com · {t("scanToCheck")}
         </p>
       </main>
+
+      {/* Demand Credit Modal */}
+      {isCreditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div 
+            className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-md p-6 space-y-5 relative overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <svg className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {t("modalTitle")}
+              </h3>
+              <button 
+                onClick={() => setIsCreditModalOpen(false)}
+                className="text-white/40 hover:text-white transition-colors"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-xs text-white/50">
+              {t("modalDesc")}
+            </p>
+
+            {/* Tabs to select credit type */}
+            <div className="grid grid-cols-2 gap-2 bg-white/5 p-1 rounded-2xl border border-white/5">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreditType("package");
+                  setPurchaseMessage(null);
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                  creditType === "package"
+                    ? "bg-cyan-500 text-slate-950 shadow"
+                    : "text-white/60 hover:text-white"
+                }`}
+              >
+                {t("predefinedPackageLabel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreditType("custom");
+                  setPurchaseMessage(null);
+                }}
+                className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
+                  creditType === "custom"
+                    ? "bg-cyan-500 text-slate-950 shadow"
+                    : "text-white/60 hover:text-white"
+                }`}
+              >
+                {t("customCreditsLabel")}
+              </button>
+            </div>
+
+            {creditType === "package" ? (
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
+                  {t("choosePackage")}
+                </label>
+                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                  {packages.map((pkg) => (
+                    <button
+                      key={pkg.id}
+                      type="button"
+                      onClick={() => setSelectedPackageId(pkg.id)}
+                      className={`w-full text-left p-3.5 rounded-2xl border transition-all flex justify-between items-center ${
+                        selectedPackageId === pkg.id
+                          ? "bg-cyan-500/10 border-cyan-400 text-white"
+                          : "bg-white/5 border-white/10 text-white/80 hover:bg-white/10"
+                      }`}
+                    >
+                      <div>
+                        <h4 className="text-xs font-bold">{pkg.name}</h4>
+                        <p className="text-[10px] text-white/50 mt-0.5">
+                          {pkg.creditAmount} + {pkg.bonusCredits} {t("freeSuffix")} ({pkg.totalCredits} {t("totalCreditsText")})
+                        </p>
+                      </div>
+                      <span className="text-xs font-black text-cyan-400">
+                        {pkg.price.toLocaleString()} DA
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
+                  {t("customCreditsLabel")}
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={customCreditsCount || ""}
+                    onChange={(e) => setCustomCreditsCount(Math.max(1, Number(e.target.value)))}
+                    placeholder={t("enterActivities")}
+                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-cyan-400 transition-all font-semibold"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40 font-bold">
+                    {t("remaining").split(" ")[0]}
+                  </span>
+                </div>
+                <div className="text-[10px] text-white/40 italic">
+                  * 1 activity = 1,900 DA
+                </div>
+              </div>
+            )}
+
+            {/* Pricing Summary */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center">
+              <span className="text-xs font-bold text-white/60">
+                {t("estimatedPrice")}
+              </span>
+              <span className="text-base font-black text-cyan-300">
+                {creditType === "package"
+                  ? (packages.find((p) => p.id === selectedPackageId)?.price.toLocaleString() ?? "0")
+                  : ((customCreditsCount * 1900).toLocaleString())}{" "}
+                DA
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsCreditModalOpen(false)}
+                className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold py-3 transition-all"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={
+                  purchasingItemId !== null ||
+                  (creditType === "package" && !selectedPackageId) ||
+                  (creditType === "custom" && (!customCreditsCount || customCreditsCount <= 0))
+                }
+                onClick={() => {
+                  if (creditType === "package") {
+                    handleBuy("package", selectedPackageId);
+                  } else {
+                    handleBuy("custom", customCreditsCount);
+                  }
+                }}
+                className="flex-1 rounded-2xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-slate-950 text-xs font-black py-3 transition-all flex items-center justify-center gap-1.5"
+              >
+                {purchasingItemId !== null ? (
+                  <>
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                    <span>{t("purchasing")}</span>
+                  </>
+                ) : (
+                  <span>{t("submitRequest")}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

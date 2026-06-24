@@ -67,6 +67,7 @@ export class ClientsService {
       where: { id },
       include: {
         cards: { orderBy: { issuedAt: "desc" } },
+        invoices: { orderBy: { createdAt: "desc" } },
         ledgerEntries: {
           include: {
             package: true,

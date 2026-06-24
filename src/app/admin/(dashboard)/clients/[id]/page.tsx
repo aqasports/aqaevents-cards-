@@ -45,6 +45,18 @@ type Redemption = {
   notes: string | null;
 };
 
+type Invoice = {
+  id: string;
+  invoiceCode: string;
+  amount: number;
+  category: string;
+  items: string;
+  notes: string | null;
+  status: string;
+  createdAt: string;
+  paidAt: string | null;
+};
+
 type ClientDetail = {
   id: string;
   fullName: string;
@@ -61,6 +73,7 @@ type ClientDetail = {
   }>;
   ledgerEntries: LedgerEntry[];
   redemptions: Redemption[];
+  invoices: Invoice[];
   // CRM Fields
   leadSource: string | null;
   customerSegment: string | null;
@@ -75,10 +88,21 @@ export default function ClientDetailPage() {
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
-  const [tab, setTab] = useState<"ledger" | "redemptions" | "notifications">("ledger");
+  const [tab, setTab] = useState<"overview" | "transactions" | "invoices" | "notifications" | "activities" | "store">("overview");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
+
+  // Additional states for Activities, Store and Invoices
+  const [activities, setActivities] = useState<any[]>([]);
+  const [redeemActivityId, setRedeemActivityId] = useState("");
+  const [redeemSessionId, setRedeemSessionId] = useState("");
+  const [redeemNotes, setRedeemNotes] = useState("");
+  const [submittingRedeem, setSubmittingRedeem] = useState(false);
+
+  const [purchasingStoreId, setPurchasingStoreId] = useState<string | null>(null);
+  const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
+  const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
 
   const loadNotifications = useCallback(async () => {
     setLoadingNotifications(true);
@@ -178,7 +202,178 @@ export default function ClientDetailPage() {
     fetch("/api/admin/packages")
       .then((r) => r.json())
       .then((data) => setPackages(data.filter((p: Package & { active: boolean }) => p.active)));
+    fetch("/api/admin/activities")
+      .then((r) => r.json())
+      .then((data) => setActivities(data.filter((a: any) => a.active)));
   }, [loadClient]);
+
+  async function handleRedeemActivity(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!redeemActivityId) return;
+    setSubmittingRedeem(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/redemptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: params.id,
+          activityId: redeemActivityId,
+          sessionId: redeemSessionId || undefined,
+          notes: redeemNotes || undefined,
+        }),
+      });
+      if (res.ok) {
+        setMessage({ text: "Activity redeemed successfully.", tone: "success" });
+        setRedeemActivityId("");
+        setRedeemSessionId("");
+        setRedeemNotes("");
+        await loadClient();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error ?? "Failed to redeem activity.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Network error redeeming activity.", tone: "danger" });
+    } finally {
+      setSubmittingRedeem(false);
+    }
+  }
+
+  async function handleBuyPackage(pkgId: string, status: "paid" | "unpaid") {
+    const pkg = packages.find((p) => p.id === pkgId);
+    if (!pkg) return;
+    setPurchasingStoreId(`${pkgId}-${status}`);
+    setMessage(null);
+
+    const invoiceMsg = status === "paid" ? "Paid" : "On Credit (Unpaid)";
+    const bodyPayload = {
+      packageId: pkgId,
+      reason: `Store Purchase: ${pkg.name} (${invoiceMsg})`,
+      invoice: {
+        amount: pkg.price,
+        category: "package",
+        items: `${pkg.name} Package — ${pkg.creditAmount} credits + ${pkg.bonusCredits} bonus (${pkg.totalCredits} total)`,
+        notes: status === "unpaid" ? "Purchased on credit (Unpaid)" : "Paid at storefront",
+        status: status,
+      },
+    };
+
+    try {
+      const res = await fetch(`/api/admin/clients/${params.id}/credits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload),
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        setMessage({
+          text: `Successfully purchased ${pkg.name} (${invoiceMsg}).${resData.invoice ? ` Invoice ${resData.invoice.invoiceCode} created.` : ""}`,
+          tone: "success",
+        });
+        await loadClient();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error ?? "Failed to purchase package.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Network error purchasing package.", tone: "danger" });
+    } finally {
+      setPurchasingStoreId(null);
+    }
+  }
+
+  async function handleBuyProduct(product: { name: string; price: number }, status: "paid" | "unpaid") {
+    setPurchasingStoreId(`${product.name}-${status}`);
+    setMessage(null);
+
+    const invoiceMsg = status === "paid" ? "Paid" : "On Credit (Unpaid)";
+    try {
+      const res = await fetch("/api/admin/invoices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: params.id,
+          amount: product.price,
+          category: "adhoc",
+          items: `Product: ${product.name}`,
+          notes: status === "unpaid" ? "Product bought on credit" : "Product purchased at storefront",
+          status: status,
+        }),
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        setMessage({
+          text: `Successfully purchased ${product.name} (${invoiceMsg}). Invoice ${resData.invoice.invoiceCode} created.`,
+          tone: "success",
+        });
+        await loadClient();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error ?? "Failed to purchase product.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Network error purchasing product.", tone: "danger" });
+    } finally {
+      setPurchasingStoreId(null);
+    }
+  }
+
+  async function handleUpdateInvoiceStatus(invoiceId: string, status: "paid" | "refunded") {
+    setUpdatingInvoiceId(invoiceId);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        setMessage({ text: `Invoice marked as ${status} successfully.`, tone: "success" });
+        await loadClient();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error ?? "Failed to update invoice.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Network error updating invoice.", tone: "danger" });
+    } finally {
+      setUpdatingInvoiceId(null);
+    }
+  }
+
+  async function handleDeleteInvoice(invoiceId: string) {
+    triggerConfirm(
+      "Delete Invoice",
+      "Are you sure you want to delete this invoice? This will permanently delete the invoice record from the system.",
+      async () => {
+        setDeletingInvoiceId(invoiceId);
+        setMessage(null);
+        try {
+          const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            setMessage({ text: "Invoice deleted successfully.", tone: "success" });
+            await loadClient();
+          } else {
+            const data = await res.json();
+            setMessage({ text: data.error ?? "Failed to delete invoice.", tone: "danger" });
+          }
+        } catch (err) {
+          console.error(err);
+          setMessage({ text: "Network error deleting invoice.", tone: "danger" });
+        } finally {
+          setDeletingInvoiceId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
 
   async function addCredits(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -475,10 +670,10 @@ export default function ClientDetailPage() {
     );
   }
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-6">
       <PageHeader
         title={client.fullName}
-        description="Client profile, card, balance, and activity history."
+        description="Client profile, balance history, invoices, notifications, and store purchases."
         action={
           <Link href="/admin/clients" className="text-sm text-[var(--primary)] hover:underline">
             ← Back to clients
@@ -487,672 +682,740 @@ export default function ClientDetailPage() {
       />
 
       {message && (
-        <div className="mb-6">
-          <Alert tone={message.tone}>{message.text}</Alert>
-        </div>
+        <Alert tone={message.tone}>{message.text}</Alert>
       )}
 
-      {/* Top row: Balance + Card */}
-      <div className="grid gap-4 lg:grid-cols-3 mb-6">
-        {/* Balance */}
-        <Card>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Current balance</p>
-          <p
-            className={`mt-3 text-5xl font-black tabular-nums ${
+      {/* Top Banner Overview: Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card className="bg-slate-50 border-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Current Balance</p>
+          <div className="flex items-baseline gap-2 mt-2">
+            <span className={`text-4xl font-black tabular-nums ${
               client.balance === 0
                 ? "text-[var(--danger)]"
                 : client.balance <= 2
                 ? "text-[var(--warning)]"
                 : "text-[var(--success)]"
-            }`}
-          >
-            {client.balance}
-          </p>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            {client.balance === 1 ? "activity remaining" : "activities remaining"}
-          </p>
-          {client.balance === 0 && (
-            <p className="mt-2 text-xs text-[var(--danger)] flex items-center gap-1">
-              <svg className="h-3.5 w-3.5 text-[var(--danger)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Top up required before next redemption
-            </p>
-          )}
+            }`}>
+              {client.balance}
+            </span>
+            <span className="text-xs text-[var(--muted)] font-medium">activities</span>
+          </div>
         </Card>
 
-        {/* Card info */}
-        <Card className="lg:col-span-2">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex-1 w-full space-y-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
-                  {activeCard ? "Active card" : "No active card"}
-                </p>
-                {activeCard ? (
-                  <div className="mt-3 space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[var(--muted)]">Card Code:</span>
-                      <span className="font-mono font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-800">{activeCard.cardCode}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[var(--muted)]">Date Issued:</span>
-                      <span className="font-semibold">{new Date(activeCard.issuedAt).toLocaleDateString(undefined, { dateStyle: "long" })}</span>
-                    </div>
-                    {publicUrl && (
-                      <div className="space-y-1">
-                        <span className="text-xs text-[var(--muted)] block">Public Balance Page URL:</span>
-                        <a
-                          href={publicUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[var(--primary)] hover:underline break-all font-mono text-xs bg-blue-50 px-2.5 py-1.5 rounded block border border-blue-100"
-                        >
-                          {publicUrl}
-                        </a>
+        <Card className="bg-slate-50 border-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Customer Segment</p>
+          <div className="mt-2.5">
+            <Badge
+              tone={
+                client.customerSegment === "VIP"
+                  ? "success"
+                  : client.customerSegment === "High-Value"
+                  ? "primary"
+                  : client.customerSegment === "Inactive"
+                  ? "danger"
+                  : "default"
+              }
+            >
+              {client.customerSegment ?? "Standard"}
+            </Badge>
+          </div>
+        </Card>
+
+        <Card className="bg-slate-50 border-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Total Spent</p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">
+            {(client.totalSpent ?? 0).toLocaleString()} DA
+          </p>
+        </Card>
+
+        <Card className="bg-slate-50 border-slate-200">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Last Activity</p>
+          <p className="mt-2 text-sm font-semibold text-slate-700">
+            {client.lastActivityDate
+              ? new Date(client.lastActivityDate).toLocaleDateString(undefined, { dateStyle: "medium" })
+              : "No activities yet"}
+          </p>
+        </Card>
+      </div>
+
+      {/* Main Tab Navigation */}
+      <div className="border-b border-[var(--border)] flex flex-wrap gap-2">
+        {(
+          [
+            { id: "overview", label: "Overview" },
+            { id: "transactions", label: "Transactions & Top-Up" },
+            { id: "invoices", label: "Invoices" },
+            { id: "notifications", label: "Notifications" },
+            { id: "activities", label: "Activities & Redeem" },
+          ] as const
+        ).map((tItem) => (
+          <button
+            key={tItem.id}
+            onClick={() => {
+              setTab(tItem.id);
+              setMessage(null);
+            }}
+            className={`px-5 py-3 text-sm font-semibold transition-all border-b-2 -mb-px rounded-t-lg ${
+              tab === tItem.id
+                ? "border-[var(--primary)] text-[var(--primary)] bg-blue-50/50"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            {tItem.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab 1: Overview */}
+      {tab === "overview" && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Card Info & 3D Card */}
+          <Card className="lg:col-span-2 space-y-4">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex-1 w-full space-y-4">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Active Card</h3>
+                  {activeCard ? (
+                    <div className="mt-3 space-y-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[var(--muted)]">Card Code:</span>
+                        <span className="font-mono font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-800">{activeCard.cardCode}</span>
                       </div>
-                    )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[var(--muted)]">Date Issued:</span>
+                        <span className="font-semibold">{new Date(activeCard.issuedAt).toLocaleDateString(undefined, { dateStyle: "long" })}</span>
+                      </div>
+                      {publicUrl && (
+                        <div className="space-y-1">
+                          <span className="text-xs text-[var(--muted)] block">Public Balance Page URL:</span>
+                          <a
+                            href={publicUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[var(--primary)] hover:underline break-all font-mono text-xs bg-blue-50 px-2.5 py-1.5 rounded block border border-blue-100"
+                          >
+                            {publicUrl}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-[var(--muted)]">No card has been issued to this client.</p>
+                  )}
+                </div>
+
+                {activeCard && (
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button variant="secondary" size="sm" onClick={reissueCard} loading={reissuingCard}>
+                      Reissue card
+                    </Button>
+                    <Link href="/admin/print">
+                      <Button variant="ghost" size="sm">
+                        Print QR sticker →
+                      </Button>
+                    </Link>
                   </div>
-                ) : (
-                  <p className="mt-2 text-sm text-[var(--muted)]">No card has been issued to this client.</p>
                 )}
               </div>
 
+              {/* Realistic 3D card preview */}
               {activeCard && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Button variant="secondary" size="sm" onClick={reissueCard} loading={reissuingCard}>
-                    Reissue card
-                  </Button>
-                  <Link href="/admin/print">
-                    <Button variant="ghost" size="sm">
-                      Print QR sticker →
-                    </Button>
-                  </Link>
+                <div className="flex flex-col items-center gap-2 shrink-0 select-none">
+                  <div 
+                    className="relative w-[280px] h-[177px] cursor-pointer group"
+                    style={{ perspective: "1000px" }}
+                    onClick={() => setIsFlipped(!isFlipped)}
+                  >
+                    <div 
+                      className="relative w-full h-full duration-500 transition-transform"
+                      style={{ 
+                        transformStyle: "preserve-3d",
+                        transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
+                      }}
+                    >
+                      {/* Front Face */}
+                      <div 
+                        className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden shadow-md bg-slate-900"
+                        style={{ 
+                          backfaceVisibility: "hidden",
+                          backgroundImage: "url('/image/face.png')",
+                          backgroundSize: "cover",
+                          backgroundPosition: "center"
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-black/10 flex flex-col justify-between p-4 text-white">
+                          <div className="flex justify-between items-start">
+                            <span className="text-[10px] font-black uppercase tracking-widest bg-blue-700 px-2 py-0.5 rounded shadow">
+                              AQA
+                            </span>
+                            <span className="text-[9px] font-semibold text-white/80 uppercase">
+                              Sports Card
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-mono text-sm font-bold tracking-wide drop-shadow-md">
+                              {client.fullName}
+                            </p>
+                            <p className="font-mono text-[10px] text-white/70 tracking-widest mt-0.5">
+                              {activeCard?.cardCode}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Back Face */}
+                      <div 
+                        className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden shadow-md bg-slate-900"
+                        style={{ 
+                          backfaceVisibility: "hidden",
+                          transform: "rotateY(180deg)",
+                          backgroundImage: "url('/image/back.png')",
+                          backgroundSize: "cover",
+                          backgroundPosition: "center"
+                        }}
+                      >
+                        <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center p-3">
+                          {activeCardQrUrl ? (
+                            <div className="bg-white p-1.5 rounded-lg shadow-lg flex flex-col items-center gap-1">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img 
+                                src={activeCardQrUrl} 
+                                alt="QR Code" 
+                                className="w-[85px] h-[85px]"
+                              />
+                              <span className="font-mono text-[8px] font-black text-slate-800 tracking-wider">
+                                {activeCard?.cardCode}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="bg-white/90 backdrop-blur px-3 py-2 rounded-lg text-[10px] text-slate-600 font-bold">
+                              Generating QR…
+                            </div>
+                          )}
+                          <span className="text-[8px] text-white/70 font-medium tracking-widest uppercase mt-2 drop-shadow">
+                            Scan to check balance
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 italic flex items-center gap-1 justify-center">
+                    <svg className="h-3 w-3 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    Click card to flip and view QR code
+                  </p>
                 </div>
               )}
             </div>
+          </Card>
 
-            {/* Realistic 3D card preview */}
-            {activeCard && (
-              <div className="flex flex-col items-center gap-2 shrink-0 select-none">
-                <div 
-                  className="relative w-[280px] h-[177px] cursor-pointer group"
-                  style={{ perspective: "1000px" }}
-                  onClick={() => setIsFlipped(!isFlipped)}
-                >
-                  <div 
-                    className="relative w-full h-full duration-500 transition-transform"
-                    style={{ 
-                      transformStyle: "preserve-3d",
-                      transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)"
-                    }}
-                  >
-                    {/* Front Face */}
-                    <div 
-                      className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden shadow-md bg-slate-900"
-                      style={{ 
-                        backfaceVisibility: "hidden",
-                        backgroundImage: "url('/image/face.png')",
-                        backgroundSize: "cover",
-                        backgroundPosition: "center"
-                      }}
-                    >
-                      {/* Front overlay details */}
-                      <div className="absolute inset-0 bg-black/10 flex flex-col justify-between p-4 text-white">
-                        <div className="flex justify-between items-start">
-                          <span className="text-[10px] font-black uppercase tracking-widest bg-blue-700 px-2 py-0.5 rounded shadow">
-                            AQA
-                          </span>
-                          <span className="text-[9px] font-semibold text-white/80 uppercase">
-                            Sports Card
-                          </span>
-                        </div>
-                        <div>
-                          <p className="font-mono text-sm font-bold tracking-wide drop-shadow-md">
-                            {client.fullName}
-                          </p>
-                          <p className="font-mono text-[10px] text-white/70 tracking-widest mt-0.5">
-                            {activeCard?.cardCode}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Back Face */}
-                    <div 
-                      className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden shadow-md bg-slate-900"
-                      style={{ 
-                        backfaceVisibility: "hidden",
-                        transform: "rotateY(180deg)",
-                        backgroundImage: "url('/image/back.png')",
-                        backgroundSize: "cover",
-                        backgroundPosition: "center"
-                      }}
-                    >
-                      {/* Back overlay details: QR sticker */}
-                      <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center p-3">
-                        {activeCardQrUrl ? (
-                          <div className="bg-white p-1.5 rounded-lg shadow-lg flex flex-col items-center gap-1">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                              src={activeCardQrUrl} 
-                              alt="QR Code" 
-                              className="w-[85px] h-[85px]"
-                            />
-                            <span className="font-mono text-[8px] font-black text-slate-800 tracking-wider">
-                              {activeCard?.cardCode}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="bg-white/90 backdrop-blur px-3 py-2 rounded-lg text-[10px] text-slate-600 font-bold">
-                            Generating QR…
-                          </div>
-                        )}
-                        <span className="text-[8px] text-white/70 font-medium tracking-widest uppercase mt-2 drop-shadow">
-                          Scan to check balance
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-400 italic flex items-center gap-1 justify-center">
-                  <svg className="h-3 w-3 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                  Click card to flip and view QR code
-                </p>
-              </div>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Middle row: Add credits + Contact */}
-      <div className="grid gap-4 lg:grid-cols-2 mb-6">
-        {/* Adjust balance */}
-        {/* Adjust balance */}
-        <Card>
-          <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-2">
-            <h3 className="text-base font-semibold">Adjust balance</h3>
-            <div className="flex rounded-md bg-slate-100 p-0.5 text-[10px] sm:text-xs">
-              {(["package", "money", "manual"] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => {
-                    setAdjustMode(m);
-                    setMessage(null);
-                  }}
-                  className={`rounded px-2.5 py-1 font-medium capitalize transition-all ${
-                    adjustMode === m
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900"
-                  }`}
-                >
-                  {m === "package" ? "Package" : m === "money" ? "By Money" : "Manual"}
-                </button>
-              ))}
+          {/* Contact & CRM Info */}
+          <Card>
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">Client Details</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditing(!editing)}
+              >
+                {editing ? "Cancel" : "Edit"}
+              </Button>
             </div>
-          </div>
 
-          <form onSubmit={addCredits} className="space-y-4">
-            {adjustMode === "package" && (
-              <>
-                <Select
-                  label="Select Package"
-                  name="packageId"
-                  value={selectedPackageId}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setSelectedPackageId(id);
-                    const pkg = packages.find((p) => p.id === id);
-                    if (pkg) {
-                      setPaidMoney(pkg.price.toString());
-                    } else {
-                      setPaidMoney("");
-                    }
-                  }}
-                  required
-                >
-                  <option value="">Choose package…</option>
-                  {packages.map((pkg) => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.name} — pay for {pkg.creditAmount}, get {pkg.totalCredits} credits — {pkg.price.toLocaleString()} DA
-                    </option>
-                  ))}
-                </Select>
-                {selectedPackageId && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input
-                      label="Money Paid (DA) (for invoicing)"
-                      type="number"
-                      min={0}
-                      value={paidMoney}
-                      onChange={(e) => setPaidMoney(e.target.value)}
-                    />
-                    <Input
-                      label="Custom Note (Optional)"
-                      placeholder="e.g. Cash payment"
-                      value={moneyReason}
-                      onChange={(e) => setMoneyReason(e.target.value)}
-                    />
-                  </div>
-                )}
-                {selectedPackageId && (() => {
-                  const pkg = packages.find((p) => p.id === selectedPackageId);
-                  if (!pkg) return null;
-                  return (
-                    <div className="rounded-lg bg-slate-50 p-3 text-xs space-y-1.5 border border-[var(--border)]">
-                      <div className="flex justify-between font-medium">
-                        <span>Invoice package price:</span>
-                        <span>{pkg.price.toLocaleString()} DA</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Base Credits:</span>
-                        <span>{pkg.creditAmount}</span>
-                      </div>
-                      <div className="flex justify-between text-[var(--success)]">
-                        <span>Bonus Credits:</span>
-                        <span>+{pkg.bonusCredits} free</span>
-                      </div>
-                      <div className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900 text-sm">
-                        <span>Total Credited:</span>
-                        <span>{pkg.totalCredits} activities</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
+            {editing ? (
+              <form onSubmit={saveContact} className="space-y-3">
+                <Input label="Full name" name="fullName" defaultValue={client.fullName} required />
+                <Input label="Email" name="email" type="email" defaultValue={client.email ?? ""} />
+                <Input label="Phone" name="phone" defaultValue={client.phone ?? ""} />
+                <Input label="Lead source" name="leadSource" defaultValue={client.leadSource ?? ""} />
+                <Textarea label="Notes" name="notes" defaultValue={client.notes ?? ""} />
+                <Button type="submit" loading={saving} className="w-full">Save changes</Button>
+              </form>
+            ) : (
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-sm">
+                <div className="col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Favorite Activity</dt>
+                  <dd className="mt-0.5 text-base font-bold text-slate-800">{client.favoriteActivity ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Lead Source</dt>
+                  <dd className="mt-0.5 text-[var(--foreground)]">{client.leadSource ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Email</dt>
+                  <dd className="mt-0.5 text-[var(--foreground)] break-all">{client.email ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Phone</dt>
+                  <dd className="mt-0.5 text-[var(--foreground)]">{client.phone ?? "—"}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Notes</dt>
+                  <dd className="mt-0.5 text-[var(--foreground)] bg-slate-50 border border-slate-100 p-2.5 rounded-lg text-xs italic break-words whitespace-pre-wrap">
+                    {client.notes ?? "No client notes added yet."}
+                  </dd>
+                </div>
+              </dl>
             )}
-
-            {adjustMode === "money" && (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    label="Money Received (DA)"
-                    type="number"
-                    min={0}
-                    placeholder="e.g. 20000"
-                    value={moneyAmount}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setMoneyAmount(val);
-                      const parsed = parseFloat(val) || 0;
-                      const base = Math.floor(parsed / 1900);
-                      
-                      // Auto compute bonus based on scale
-                      let bonus = 0;
-                      if (base >= 50) bonus = 17;
-                      else if (base >= 30) bonus = 9;
-                      else if (base >= 20) bonus = 5;
-                      else if (base >= 10) bonus = 2;
-                      else if (base >= 7) bonus = 1;
-
-                      setBaseCredits(base);
-                      setBonusCredits(bonus);
-                    }}
-                    required
-                  />
-                  <Input
-                    label="Custom Note (Optional)"
-                    placeholder="e.g. Cash / Bank transfer"
-                    value={moneyReason}
-                    onChange={(e) => setMoneyReason(e.target.value)}
-                  />
-                </div>
-
-                {moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && (
-                  <div className="rounded-lg bg-amber-50 p-3 border border-amber-200 text-xs space-y-2">
-                    <p className="font-semibold text-amber-800">
-                      Remaining Change (Rest): {(parseFloat(moneyAmount) % 1900).toLocaleString()} DA
-                    </p>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
-                        <input
-                          type="radio"
-                          name="changeOption"
-                          value="refund"
-                          checked={changeOption === "refund"}
-                          onChange={() => setChangeOption("refund")}
-                          className="text-[var(--primary)] focus:ring-[var(--primary)]"
-                        />
-                        Refund change to client
-                      </label>
-                      <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
-                        <input
-                          type="radio"
-                          name="changeOption"
-                          value="convert"
-                          checked={changeOption === "convert"}
-                          onChange={() => setChangeOption("convert")}
-                          className="text-[var(--primary)] focus:ring-[var(--primary)]"
-                        />
-                        Convert change to +1 credit
-                      </label>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid gap-3 grid-cols-2 bg-slate-50 p-3 rounded-lg border border-[var(--border)]">
-                  <Input
-                    label="Paid Credits (1,900 DA each)"
-                    type="number"
-                    min={0}
-                    value={baseCredits}
-                    onChange={(e) => setBaseCredits(Number(e.target.value))}
-                  />
-                  <Input
-                    label="Bonus Credits Given"
-                    type="number"
-                    min={0}
-                    value={bonusCredits}
-                    onChange={(e) => setBonusCredits(Number(e.target.value))}
-                  />
-                </div>
-
-                <div className="rounded-lg bg-[var(--primary-light)] text-[var(--primary)] p-3 text-xs flex justify-between items-center font-bold">
-                  <span>Invoice Breakdown Summary:</span>
-                  <span>
-                    {baseCredits} Paid + {bonusCredits} Bonus
-                    {moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && changeOption === "convert" && " + 1 Rest"}
-                    {" = "}{baseCredits + bonusCredits + (moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && changeOption === "convert" ? 1 : 0)} Activities
-                  </span>
-                </div>
-              </>
-            )}
-
-            {adjustMode === "manual" && (
-              <>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input
-                    label="Custom Credit Adjustment"
-                    name="customAmount"
-                    type="number"
-                    step="any"
-                    placeholder="e.g. 5 (to add) or -3 (to deduct)"
-                    value={customCredits}
-                    onChange={(e) => setCustomCredits(e.target.value)}
-                    required
-                  />
-                  <Input
-                    label="Money Paid (DA) (optional, for invoicing)"
-                    type="number"
-                    min={0}
-                    placeholder="e.g. 5000"
-                    value={paidMoney}
-                    onChange={(e) => setPaidMoney(e.target.value)}
-                  />
-                </div>
-                <Input
-                  label="Adjustment Reason"
-                  name="reason"
-                  placeholder="e.g. Correcting typo / Promo bonus"
-                  value={manualReason}
-                  onChange={(e) => setManualReason(e.target.value)}
-                  required
-                />
-              </>
-            )}
-
-            <Button type="submit" className="w-full" loading={submittingCredits}>
-              Confirm Balance Adjustment
-            </Button>
-          </form>
-        </Card>
-
-        {/* Contact info */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold">Contact info</h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditing(!editing)}
-            >
-              {editing ? "Cancel" : "Edit"}
-            </Button>
-          </div>
-
-          {editing ? (
-            <form onSubmit={saveContact} className="space-y-3">
-              <Input label="Full name" name="fullName" defaultValue={client.fullName} required />
-              <Input label="Email" name="email" type="email" defaultValue={client.email ?? ""} />
-              <Input label="Phone" name="phone" defaultValue={client.phone ?? ""} />
-              <Input label="Lead source" name="leadSource" defaultValue={client.leadSource ?? ""} />
-              <Textarea label="Notes" name="notes" defaultValue={client.notes ?? ""} />
-              <Button type="submit" loading={saving}>Save changes</Button>
-            </form>
-          ) : (
-            <dl className="space-y-3 text-sm">
-              {[
-                { label: "Segment", value: (
-                  <Badge
-                    tone={
-                      client.customerSegment === "VIP"
-                        ? "success"
-                        : client.customerSegment === "High-Value"
-                        ? "primary"
-                        : client.customerSegment === "Inactive"
-                        ? "danger"
-                        : "default"
-                    }
-                  >
-                    {client.customerSegment ?? "Standard"}
-                  </Badge>
-                ) },
-                { label: "Lead source", value: client.leadSource },
-                { label: "Total spent", value: `${(client.totalSpent ?? 0).toLocaleString()} DA` },
-                { label: "Last activity", value: client.lastActivityDate ? new Date(client.lastActivityDate).toLocaleDateString() : "No activities yet" },
-                { label: "Favorite activity", value: client.favoriteActivity },
-                { label: "Email", value: client.email },
-                { label: "Phone", value: client.phone },
-                { label: "Notes", value: client.notes },
-              ].map(({ label, value }) => (
-                <div key={label}>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</dt>
-                  <dd className="mt-0.5 text-[var(--foreground)]">{value ?? "—"}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </Card>
-      </div>
-
-      {/* History tabs */}
-      <Card padding={false}>
-        <div className="flex border-b border-[var(--border)] flex-wrap">
-          <button
-            onClick={() => setTab("ledger")}
-            className={`px-5 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px ${
-              tab === "ledger"
-                ? "border-[var(--primary)] text-[var(--primary)] font-bold"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            Credit history ({client.ledgerEntries.length})
-          </button>
-          <button
-            onClick={() => setTab("redemptions")}
-            className={`px-5 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px ${
-              tab === "redemptions"
-                ? "border-[var(--primary)] text-[var(--primary)] font-bold"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            Redemptions ({client.redemptions.length})
-          </button>
-          <button
-            onClick={() => setTab("notifications")}
-            className={`px-5 py-3.5 text-sm font-medium transition-all border-b-2 -mb-px ${
-              tab === "notifications"
-                ? "border-[var(--primary)] text-[var(--primary)] font-bold"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            Notification Logs {notifications.length > 0 ? `(${notifications.length})` : ""}
-          </button>
+          </Card>
         </div>
+      )}
 
-        {tab === "ledger" && (
-          client.ledgerEntries.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--muted)]">No ledger entries yet.</p>
-          ) : (
-            <ul className="divide-y divide-[var(--border)]">
-              {client.ledgerEntries.map((entry) => (
-                <li key={entry.id} className="flex flex-col gap-3 px-5 py-3 text-sm md:flex-row md:items-center md:justify-between">
-                  {editingLedgerId === entry.id ? (
-                    <div className="flex w-full flex-col gap-3 md:flex-row md:items-end">
-                      <div className="flex-1 grid gap-3 grid-cols-1 md:grid-cols-3">
-                        <div className="md:col-span-2">
-                          <Input
-                            label="Reason"
-                            value={editReason}
-                            onChange={(e) => setEditReason(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <Input
-                            label="Amount"
-                            type="number"
-                            step="1"
-                            value={editDelta}
-                            onChange={(e) => setEditDelta(Number(e.target.value))}
-                          />
-                        </div>
+      {/* Tab 2: Transactions & Top-Up */}
+      {tab === "transactions" && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Adjust Balance Top-up Panel */}
+          <div className="lg:col-span-1">
+            <Card>
+              <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-2">
+                <h3 className="text-sm font-bold uppercase text-slate-800">Adjust Balance</h3>
+                <div className="flex rounded-md bg-slate-100 p-0.5 text-[10px] sm:text-xs">
+                  {(["package", "money", "manual"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setAdjustMode(m);
+                        setMessage(null);
+                      }}
+                      className={`rounded px-2.5 py-1 font-medium capitalize transition-all ${
+                        adjustMode === m
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                    >
+                      {m === "package" ? "Package" : m === "money" ? "By Money" : "Manual"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <form onSubmit={addCredits} className="space-y-4">
+                {adjustMode === "package" && (
+                  <>
+                    <Select
+                      label="Select Package"
+                      name="packageId"
+                      value={selectedPackageId}
+                      onChange={(e) => {
+                        const id = e.target.value;
+                        setSelectedPackageId(id);
+                        const pkg = packages.find((p) => p.id === id);
+                        if (pkg) {
+                          setPaidMoney(pkg.price.toString());
+                        } else {
+                          setPaidMoney("");
+                        }
+                      }}
+                      required
+                    >
+                      <option value="">Choose package…</option>
+                      {packages.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.name} — pay for {pkg.creditAmount}, get {pkg.totalCredits} credits — {pkg.price.toLocaleString()} DA
+                        </option>
+                      ))}
+                    </Select>
+                    {selectedPackageId && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                          label="Money Paid (DA)"
+                          type="number"
+                          min={0}
+                          value={paidMoney}
+                          onChange={(e) => setPaidMoney(e.target.value)}
+                        />
+                        <Input
+                          label="Custom Note (Optional)"
+                          placeholder="e.g. Cash payment"
+                          value={moneyReason}
+                          onChange={(e) => setMoneyReason(e.target.value)}
+                        />
                       </div>
-                      <div className="flex gap-2 shrink-0 justify-end">
-                        <Button size="sm" onClick={() => saveLedgerEdit(entry.id)} loading={editingLedgerIdLoading === entry.id}>
-                          Save
-                        </Button>
-                        <Button size="sm" variant="secondary" onClick={() => setEditingLedgerId(null)} disabled={editingLedgerIdLoading === entry.id}>
-                          Cancel
-                        </Button>
-                      </div>
+                    )}
+                    {selectedPackageId && (() => {
+                      const pkg = packages.find((p) => p.id === selectedPackageId);
+                      if (!pkg) return null;
+                      return (
+                        <div className="rounded-lg bg-slate-50 p-3 text-xs space-y-1.5 border border-[var(--border)]">
+                          <div className="flex justify-between font-medium">
+                            <span>Invoice package price:</span>
+                            <span>{pkg.price.toLocaleString()} DA</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Base Credits:</span>
+                            <span>{pkg.creditAmount}</span>
+                          </div>
+                          <div className="flex justify-between text-[var(--success)]">
+                            <span>Bonus Credits:</span>
+                            <span>+{pkg.bonusCredits} free</span>
+                          </div>
+                          <div className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900 text-sm">
+                            <span>Total Credited:</span>
+                            <span>{pkg.totalCredits} activities</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
+                )}
+
+                {adjustMode === "money" && (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Input
+                        label="Money Received (DA)"
+                        type="number"
+                        min={0}
+                        placeholder="e.g. 20000"
+                        value={moneyAmount}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMoneyAmount(val);
+                          const parsed = parseFloat(val) || 0;
+                          const base = Math.floor(parsed / 1900);
+                          
+                          let bonus = 0;
+                          if (base >= 50) bonus = 17;
+                          else if (base >= 30) bonus = 9;
+                          else if (base >= 20) bonus = 5;
+                          else if (base >= 10) bonus = 2;
+                          else if (base >= 7) bonus = 1;
+
+                          setBaseCredits(base);
+                          setBonusCredits(bonus);
+                        }}
+                        required
+                      />
+                      <Input
+                        label="Custom Note (Optional)"
+                        placeholder="e.g. Cash / Bank transfer"
+                        value={moneyReason}
+                        onChange={(e) => setMoneyReason(e.target.value)}
+                      />
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-[var(--foreground)] break-words">
-                          {entry.reason ?? entry.package?.name ?? entry.type}
+
+                    {moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && (
+                      <div className="rounded-lg bg-amber-50 p-3 border border-amber-200 text-xs space-y-2">
+                        <p className="font-semibold text-amber-800">
+                          Remaining Change (Rest): {(parseFloat(moneyAmount) % 1900).toLocaleString()} DA
                         </p>
-                        <p className="text-xs text-[var(--muted)] mt-0.5">
-                          {new Date(entry.createdAt).toLocaleString()}
-                          {entry.createdBy ? ` · by ${entry.createdBy.name}` : ""}
-                        </p>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                            <input
+                              type="radio"
+                              name="changeOption"
+                              value="refund"
+                              checked={changeOption === "refund"}
+                              onChange={() => setChangeOption("refund")}
+                              className="text-[var(--primary)] focus:ring-[var(--primary)]"
+                            />
+                            Refund change to client
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                            <input
+                              type="radio"
+                              name="changeOption"
+                              value="convert"
+                              checked={changeOption === "convert"}
+                              onChange={() => setChangeOption("convert")}
+                              className="text-[var(--primary)] focus:ring-[var(--primary)]"
+                            />
+                            Convert change to +1 credit
+                          </label>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between gap-4 shrink-0 mt-2 md:mt-0">
-                        <Badge tone={entry.delta > 0 ? "success" : "default"}>
-                          {entry.delta > 0 ? "+" : ""}
-                          {entry.delta}
+                    )}
+
+                    <div className="grid gap-3 grid-cols-2 bg-slate-50 p-3 rounded-lg border border-[var(--border)]">
+                      <Input
+                        label="Paid Credits (1,900 DA each)"
+                        type="number"
+                        min={0}
+                        value={baseCredits}
+                        onChange={(e) => setBaseCredits(Number(e.target.value))}
+                      />
+                      <Input
+                        label="Bonus Credits Given"
+                        type="number"
+                        min={0}
+                        value={bonusCredits}
+                        onChange={(e) => setBonusCredits(Number(e.target.value))}
+                      />
+                    </div>
+
+                    <div className="rounded-lg bg-[var(--primary-light)] text-[var(--primary)] p-3 text-xs flex justify-between items-center font-bold">
+                      <span>Invoice Breakdown Summary:</span>
+                      <span>
+                        {baseCredits} Paid + {bonusCredits} Bonus
+                        {moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && changeOption === "convert" && " + 1 Rest"}
+                        {" = "}{baseCredits + bonusCredits + (moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && changeOption === "convert" ? 1 : 0)} Activities
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {adjustMode === "manual" && (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Input
+                        label="Custom Credit Adjustment"
+                        name="customAmount"
+                        type="number"
+                        step="any"
+                        placeholder="e.g. 5 (to add) or -3 (to deduct)"
+                        value={customCredits}
+                        onChange={(e) => setCustomCredits(e.target.value)}
+                        required
+                      />
+                      <Input
+                        label="Money Paid (DA) (optional)"
+                        type="number"
+                        min={0}
+                        placeholder="e.g. 5000"
+                        value={paidMoney}
+                        onChange={(e) => setPaidMoney(e.target.value)}
+                      />
+                    </div>
+                    <Input
+                      label="Adjustment Reason"
+                      name="reason"
+                      placeholder="e.g. Typo correction / Loyalty reward"
+                      value={manualReason}
+                      onChange={(e) => setManualReason(e.target.value)}
+                      required
+                    />
+                  </>
+                )}
+
+                <Button type="submit" className="w-full" loading={submittingCredits}>
+                  Confirm Top-Up / Recharge
+                </Button>
+              </form>
+            </Card>
+          </div>
+
+          {/* Ledger / Transactions List */}
+          <div className="lg:col-span-2">
+            <Card padding={false}>
+              <div className="px-5 py-4 border-b border-[var(--border)]">
+                <h3 className="text-sm font-bold uppercase text-slate-800">Ledger History</h3>
+              </div>
+              {client.ledgerEntries.length === 0 ? (
+                <p className="py-12 text-center text-sm text-[var(--muted)]">No ledger transactions found.</p>
+              ) : (
+                <ul className="divide-y divide-[var(--border)]">
+                  {client.ledgerEntries.map((entry) => (
+                    <li key={entry.id} className="flex flex-col gap-3 px-5 py-3.5 text-sm md:flex-row md:items-center md:justify-between">
+                      {editingLedgerId === entry.id ? (
+                        <div className="flex w-full flex-col gap-3 md:flex-row md:items-end">
+                          <div className="flex-1 grid gap-3 grid-cols-1 md:grid-cols-3">
+                            <div className="md:col-span-2">
+                              <Input
+                                label="Reason"
+                                value={editReason}
+                                onChange={(e) => setEditReason(e.target.value)}
+                              />
+                            </div>
+                            <div>
+                              <Input
+                                label="Amount"
+                                type="number"
+                                step="1"
+                                value={editDelta}
+                                onChange={(e) => setEditDelta(Number(e.target.value))}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2 shrink-0 justify-end">
+                            <Button size="sm" onClick={() => saveLedgerEdit(entry.id)} loading={editingLedgerIdLoading === entry.id}>
+                              Save
+                            </Button>
+                            <Button size="sm" variant="secondary" onClick={() => setEditingLedgerId(null)} disabled={editingLedgerIdLoading === entry.id}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[var(--foreground)] break-words">
+                              {entry.reason ?? entry.package?.name ?? entry.type}
+                            </p>
+                            <p className="text-xs text-[var(--muted)] mt-0.5">
+                              {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                              {entry.createdBy ? ` · by ${entry.createdBy.name}` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center justify-between gap-4 shrink-0 mt-2 md:mt-0">
+                            <Badge tone={entry.delta > 0 ? "success" : "default"}>
+                              {entry.delta > 0 ? "+" : ""}
+                              {entry.delta}
+                            </Badge>
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingLedgerId(entry.id);
+                                  setEditDelta(entry.delta);
+                                  setEditReason(entry.reason || "");
+                                }}
+                              >
+                                Edit
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                onClick={() => deleteLedgerEntry(entry.id)}
+                                loading={deletingLedgerId === entry.id}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: Invoices */}
+      {tab === "invoices" && (
+        <Card padding={false}>
+          <div className="px-5 py-4 border-b border-[var(--border)]">
+            <h3 className="text-sm font-bold uppercase text-slate-800">Billing Invoices</h3>
+          </div>
+          {client.invoices.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[var(--muted)]">No invoices have been generated for this client.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-[var(--border)] text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <th className="px-5 py-3">Invoice Code</th>
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3">Item details</th>
+                    <th className="px-5 py-3 text-right">Amount</th>
+                    <th className="px-5 py-3 text-center">Status</th>
+                    <th className="px-5 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {client.invoices.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-slate-50/50">
+                      <td className="px-5 py-3.5 font-mono font-bold text-slate-700">{inv.invoiceCode}</td>
+                      <td className="px-5 py-3.5 text-xs text-slate-400">
+                        {new Date(inv.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                      </td>
+                      <td className="px-5 py-3.5 max-w-xs truncate">
+                        <p className="font-semibold text-slate-800">{inv.items}</p>
+                        {inv.notes && <p className="text-xs text-slate-400 truncate italic mt-0.5">Notes: {inv.notes}</p>}
+                      </td>
+                      <td className="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">
+                        {inv.amount.toLocaleString()} DA
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        <Badge
+                          tone={
+                            inv.status === "paid"
+                              ? "success"
+                              : inv.status === "refunded"
+                              ? "default"
+                              : "warning"
+                          }
+                        >
+                          {inv.status}
                         </Badge>
-                        <div className="flex items-center gap-2">
+                      </td>
+                      <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                        <div className="inline-flex gap-1.5">
+                          {inv.status === "unpaid" && (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => handleUpdateInvoiceStatus(inv.id, "paid")}
+                              loading={updatingInvoiceId === inv.id}
+                            >
+                              Mark Paid
+                            </Button>
+                          )}
+                          {inv.status === "paid" && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleUpdateInvoiceStatus(inv.id, "refunded")}
+                              loading={updatingInvoiceId === inv.id}
+                            >
+                              Refund
+                            </Button>
+                          )}
                           <Button
-                            variant="secondary"
                             size="sm"
-                            onClick={() => {
-                              setEditingLedgerId(entry.id);
-                              setEditDelta(entry.delta);
-                              setEditReason(entry.reason || "");
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
                             variant="danger"
-                            size="sm"
-                            onClick={() => deleteLedgerEntry(entry.id)}
-                            loading={deletingLedgerId === entry.id}
+                            onClick={() => handleDeleteInvoice(inv.id)}
+                            loading={deletingInvoiceId === inv.id}
                           >
                             Delete
                           </Button>
                         </div>
-                      </div>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )
-        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
 
-        {tab === "redemptions" && (
-          client.redemptions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[var(--muted)]">No redemptions yet.</p>
-          ) : (
-            <ul className="divide-y divide-[var(--border)]">
-              {client.redemptions.map((item) => (
-                <li key={item.id} className="flex flex-col gap-3 px-5 py-3 text-sm md:flex-row md:items-center md:justify-between">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-[var(--foreground)]">{item.activity.name}</p>
-                    <p className="text-xs text-[var(--muted)] mt-0.5">
-                      {new Date(item.redeemedAt).toLocaleString()}
-                      {item.session?.location ? ` · ${item.session.location}` : ""}
-                      {item.staff ? ` · by ${item.staff.name}` : ""}
-                      {item.notes ? ` · "${item.notes}"` : ""}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between gap-4 shrink-0 mt-2 md:mt-0">
-                    <Badge tone="warning">−{item.creditsUsed}</Badge>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => refundRedemption(item.id)}
-                      loading={refundingRedemptionId === item.id}
-                    >
-                      Refund / Cancel
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )
-        )}
+      {/* Tab 4: Notifications */}
+      {tab === "notifications" && (
+        <Card padding={false}>
+          <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase text-slate-800">Notification Logs</h3>
+            <Button size="sm" variant="ghost" onClick={loadNotifications} loading={loadingNotifications}>
+              Refresh Logs
+            </Button>
+          </div>
 
-        {tab === "notifications" && (
-          loadingNotifications ? (
-            <div className="flex items-center justify-center py-12 text-slate-400">
-              <svg className="h-5 w-5 animate-spin mr-2 text-[var(--primary)]" viewBox="0 0 24 24" fill="none">
+          {loadingNotifications ? (
+            <div className="flex items-center justify-center py-20 text-slate-400">
+              <svg className="h-6 w-6 animate-spin mr-2 text-[var(--primary)]" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               <span>Fetching notification logs...</span>
             </div>
           ) : notificationsError ? (
-            <p className="py-8 text-center text-sm text-[var(--danger)]">{notificationsError}</p>
+            <p className="py-12 text-center text-sm text-[var(--danger)]">{notificationsError}</p>
           ) : notifications.length === 0 ? (
-            <div className="py-12 text-center text-slate-400">
-              <svg className="h-10 w-10 mx-auto text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="py-16 text-center text-slate-400">
+              <svg className="h-12 w-12 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
               <p className="font-semibold text-slate-700">No notifications sent</p>
-              <p className="text-xs text-slate-500">Welcome, recharges or redemption notifications will show here.</p>
+              <p className="text-xs text-slate-500">Welcome, recharge, or redemption logs will appear here.</p>
             </div>
           ) : (
             <ul className="divide-y divide-[var(--border)]">
               {notifications.map((notif) => (
-                <li key={notif.id} className="p-5 text-sm space-y-2">
+                <li key={notif.id} className="p-5 text-sm space-y-2 hover:bg-slate-50/20">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold ${
+                      <span className={`inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-[10px] font-black ${
                         notif.type === "email" ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-teal-50 text-teal-700 border border-teal-200"
                       }`}>
-                        {notif.type === "email" ? (
-                          <>
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            <span>EMAIL</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            <span>SMS</span>
-                          </>
-                        )}
+                        {notif.type === "email" ? "EMAIL" : "SMS"}
                       </span>
-                      <span className="font-medium text-slate-700 font-mono text-xs">{notif.recipient}</span>
+                      <span className="font-semibold text-slate-600 font-mono text-xs">{notif.recipient}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
@@ -1160,11 +1423,13 @@ export default function ClientDetailPage() {
                       }`}>
                         {notif.status}
                       </span>
-                      <span className="text-xs text-slate-400 font-medium">{new Date(notif.sentAt).toLocaleString()}</span>
+                      <span className="text-xs text-slate-400 font-medium">
+                        {new Date(notif.sentAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                      </span>
                     </div>
                   </div>
                   {notif.subject && (
-                    <p className="text-sm font-bold text-slate-900">Subject: {notif.subject}</p>
+                    <p className="text-sm font-bold text-slate-800">Subject: {notif.subject}</p>
                   )}
                   <p className="text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3.5 font-mono text-xs whitespace-pre-wrap">
                     {notif.message}
@@ -1172,9 +1437,90 @@ export default function ClientDetailPage() {
                 </li>
               ))}
             </ul>
-          )
-        )}
-      </Card>
+          )}
+        </Card>
+      )}
+
+      {/* Tab 5: Activities & Redeem */}
+      {tab === "activities" && (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Inline Redeem Activity Form */}
+          <div className="lg:col-span-1">
+            <Card>
+              <div className="mb-4 border-b border-slate-100 pb-2">
+                <h3 className="text-sm font-bold uppercase text-slate-800">Redeem Event Activity</h3>
+              </div>
+
+              <form onSubmit={handleRedeemActivity} className="space-y-4">
+                <Select
+                  label="Select Activity to Redeem"
+                  value={redeemActivityId}
+                  onChange={(e) => setRedeemActivityId(e.target.value)}
+                  required
+                >
+                  <option value="">Choose activity…</option>
+                  {activities.map((act) => (
+                    <option key={act.id} value={act.id}>
+                      {act.name} — Cost: {act.creditCost} credits
+                    </option>
+                  ))}
+                </Select>
+
+                <Input
+                  label="Optional Notes"
+                  placeholder="e.g. Session info / Equipment rented"
+                  value={redeemNotes}
+                  onChange={(e) => setRedeemNotes(e.target.value)}
+                />
+
+                <Button type="submit" className="w-full" loading={submittingRedeem} variant="primary">
+                  Confirm Activity Redemption
+                </Button>
+              </form>
+            </Card>
+          </div>
+
+          {/* Activity Redemptions List */}
+          <div className="lg:col-span-2">
+            <Card padding={false}>
+              <div className="px-5 py-4 border-b border-[var(--border)]">
+                <h3 className="text-sm font-bold uppercase text-slate-800">Redemption History</h3>
+              </div>
+              {client.redemptions.length === 0 ? (
+                <p className="py-12 text-center text-sm text-[var(--muted)]">No activities redeemed yet.</p>
+              ) : (
+                <ul className="divide-y divide-[var(--border)]">
+                  {client.redemptions.map((item) => (
+                    <li key={item.id} className="flex flex-col gap-3 px-5 py-3.5 text-sm md:flex-row md:items-center md:justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-800 text-base">{item.activity.name}</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">
+                          {new Date(item.redeemedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                          {item.session?.location ? ` · Location: ${item.session.location}` : ""}
+                          {item.staff ? ` · by ${item.staff.name}` : ""}
+                          {item.notes ? ` · "${item.notes}"` : ""}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 shrink-0 mt-2 md:mt-0">
+                        <Badge tone="warning">−{item.creditsUsed} credits</Badge>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => refundRedemption(item.id)}
+                          loading={refundingRedemptionId === item.id}
+                        >
+                          Refund / Cancel
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          </div>
+        </div>
+      )}
+
 
       <ConfirmModal
         isOpen={confirmConfig.isOpen}

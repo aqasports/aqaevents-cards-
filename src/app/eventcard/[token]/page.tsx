@@ -67,6 +67,16 @@ export default async function EventCardPage({
   const cardUrl = getEventCardUrl(card.publicToken);
   const qrDataUrl = await QRCode.toDataURL(cardUrl, { width: 300, margin: 1 });
 
+  const activePackages = await prisma.package.findMany({
+    where: { active: true },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const advertisedProducts = await prisma.product.findMany({
+    where: { active: true, advertised: true },
+    orderBy: { name: "asc" },
+  });
+
   return (
     <EventCardClient
       cardCode={card.cardCode}
@@ -75,6 +85,9 @@ export default async function EventCardPage({
       history={history}
       credits={credits}
       qrDataUrl={qrDataUrl}
+      packages={activePackages}
+      products={advertisedProducts}
+      publicToken={card.publicToken}
     />
   );
 }

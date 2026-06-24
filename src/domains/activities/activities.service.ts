@@ -45,6 +45,7 @@ export class ActivitiesService {
           },
           orderBy: { sessionDate: "asc" },
         },
+        _count: { select: { redemptions: true } },
       },
     });
   }

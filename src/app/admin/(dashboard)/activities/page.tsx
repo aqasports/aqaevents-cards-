@@ -579,6 +579,82 @@ export default function ActivitiesPage() {
                       })()}
                     </div>
 
+                    {/* Gallery Thumbnails Preview */}
+                    {(() => {
+                      const galleryItems = (() => {
+                        if (!activity.gallery) return [];
+                        try {
+                          return JSON.parse(activity.gallery);
+                        } catch {
+                          return [];
+                        }
+                      })();
+                      if (galleryItems.length === 0) return null;
+                      return (
+                        <div className="mt-3 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gallery:</span>
+                          <div className="flex gap-1 overflow-x-auto py-0.5">
+                            {galleryItems.slice(0, 5).map((item: any, idx: number) => (
+                              <div key={idx} className="h-6 w-6 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                                {item.type === "image" ? (
+                                  <img src={item.url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
+                                ) : (
+                                  <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+                                    <svg className="h-3.5 w-3.5 text-slate-300" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {galleryItems.length > 5 && (
+                              <span className="text-[10px] font-bold text-slate-400 flex items-center pl-1">
+                                +{galleryItems.length - 5}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Financial Performance / Profitability */}
+                    {(() => {
+                      const totalRev = activity._count.redemptions * activity.creditCost * RATE;
+                      const totalExp = activity.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+                      const netProfit = totalRev - totalExp;
+                      const margin = totalRev > 0 ? Math.round((netProfit / totalRev) * 100) : 0;
+                      return (
+                        <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 space-y-2 text-xs">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span className="font-bold text-slate-700">Profitability</span>
+                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
+                              margin >= 50 ? "bg-green-100 text-green-700 border border-green-200" :
+                              margin >= 0 ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                              "bg-red-100 text-red-700 border border-red-200"
+                            }`}>
+                              {margin}% Margin
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-y-1.5 gap-x-4">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Revenue:</span>
+                              <span className="font-bold text-slate-800 tabular-nums">{totalRev.toLocaleString()} DZD</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Expenses:</span>
+                              <span className="font-bold text-slate-800 tabular-nums">{totalExp.toLocaleString()} DZD</span>
+                            </div>
+                            <div className="flex justify-between col-span-2 border-t border-slate-100 pt-1.5">
+                              <span className="font-semibold text-slate-600">Net Profit:</span>
+                              <span className={`font-black tabular-nums ${netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                {netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString()} DZD
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Stats */}
                     <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-3 text-xs text-[var(--muted)]">
                       <div className="flex gap-4">
@@ -586,7 +662,7 @@ export default function ActivitiesPage() {
                           <span className="font-bold text-[var(--foreground)]">{activity.sessions.length}</span> scheduled
                         </div>
                         <div>
-                          <span className="font-bold text-[var(--foreground)]">{activity._count.redemptions}</span> redemptions
+                          <span className="font-bold text-[var(--foreground)]">{activity._count.redemptions}</span> check-in{activity._count.redemptions !== 1 ? "s" : ""}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
