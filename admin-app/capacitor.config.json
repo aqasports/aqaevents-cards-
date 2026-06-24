@@ -6,7 +6,7 @@
     "url": "https://aqasports.com/admin",
     "cleartext": true,
     "headers": {
-      "X-Admin-App-Token": "SUPER_SECURE_ADMIN_APP_TOKEN_CHANGE_ME"
+      "X-Admin-App-Token": "655B3D5B26D302F8B768A89A063051EB7F049D0BD58C1E899782684341DB8643"
     }
   }
 }
