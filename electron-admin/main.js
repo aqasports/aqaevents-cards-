@@ -1,6 +1,16 @@
 const { app, BrowserWindow, session, shell, Menu } = require("electron");
 const path = require("path");
+const os = require("os");
 const Store = require("electron-store");
+
+// ─── Fix portable app GPU cache (must run before app is ready) ───────────────
+// Portable EXEs can't write to their own directory — redirect userData to APPDATA.
+const userDataPath = path.join(os.homedir(), "AppData", "Roaming", "AQA Admin");
+app.setPath("userData", userDataPath);
+
+// Disable GPU shader disk cache to prevent black window on restricted systems
+app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+app.commandLine.appendSwitch("disable-http-cache");
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const ADMIN_URL  = "https://aqasports.com/admin";
