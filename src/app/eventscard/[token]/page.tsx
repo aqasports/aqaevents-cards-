@@ -6,6 +6,8 @@ import { getFirstName, getEventCardUrl } from "@/lib/tokens";
 import { EventCardClient } from "./event-card-client";
 import QRCode from "qrcode";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Your Activity Card · AQA Sports",
