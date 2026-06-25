@@ -4,3 +4,7 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[functions."keep-alive"]
+  schedule = "0 0 * * *"
+
