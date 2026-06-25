@@ -3,10 +3,10 @@ import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { syncClientCRM } from "@/lib/crm";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { getClientBalance } from "@/lib/balance";
-import { ClientsRepository } from "./clients/clients.repository";
-import { CardsRepository } from "./cards/cards.repository";
-import { BillingRepository } from "./billing/billing.repository";
-import { ReportingRepository } from "./reporting/reporting.repository";
+import { ClientsRepository } from "./clients/repository";
+import { CardsRepository } from "./cards/repository";
+import { BillingRepository } from "./invoices/repository";
+import { ReportingRepository } from "./reports/repository";
 
 const clientsRepo = new ClientsRepository();
 const cardsRepo = new CardsRepository();

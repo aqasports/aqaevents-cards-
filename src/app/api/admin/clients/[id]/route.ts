@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { ClientsService } from "@/domains/clients/clients.service";
+import { ClientsService } from "@/modules/clients/service";
+import { updateClientSchema } from "@/modules/clients/validators";
 
 const clientsService = new ClientsService();
-
-const updateClientSchema = z.object({
-  fullName: z.string().min(2).optional(),
-  email: z.string().email().optional().or(z.literal("")).nullable(),
-  phone: z.string().optional().nullable(),
-  notes: z.string().optional().nullable(),
-  leadSource: z.string().optional().nullable(),
-});
 
 export async function GET(
   _request: NextRequest,

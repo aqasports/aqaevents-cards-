@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { createPackageSchema } from "@/modules/invoices/validators";
 
 const billingService = new BillingService();
-
-const createPackageSchema = z.object({
-  name: z.string().min(2),
-  creditAmount: z.number().int().min(1),
-  bonusCredits: z.number().int().nonnegative().default(0),
-  sortOrder: z.number().int().default(0),
-});
 
 export async function GET() {
   const { error } = await requireAdminSession();

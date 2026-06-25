@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireSuperAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { updatePackageSchema } from "@/modules/invoices/validators";
 
 const billingService = new BillingService();
-
-const updatePackageSchema = z.object({
-  name: z.string().min(2).optional(),
-  creditAmount: z.number().int().min(1).optional(),
-  bonusCredits: z.number().int().nonnegative().optional(),
-  sortOrder: z.number().int().optional(),
-  active: z.boolean().optional(),
-});
 
 export async function PATCH(
   request: NextRequest,

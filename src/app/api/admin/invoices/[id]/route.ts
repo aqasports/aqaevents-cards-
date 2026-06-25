@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { updateInvoiceSchema } from "@/modules/invoices/validators";
 
 const billingService = new BillingService();
 
@@ -26,16 +26,6 @@ export async function GET(
   }
 }
 
-const patchSchema = z.object({
-  status: z.enum(["paid", "unpaid", "refunded"]).optional(),
-  notes: z.string().optional().nullable(),
-  amount: z.number().positive().optional(),
-  category: z.enum(["package", "custom", "adhoc"]).optional(),
-  items: z.string().min(1).optional(),
-  createdAt: z.string().optional(),
-  paidAt: z.string().nullable().optional(),
-});
-
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -45,7 +35,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const parsed = patchSchema.safeParse(body);
+  const parsed = updateInvoiceSchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });

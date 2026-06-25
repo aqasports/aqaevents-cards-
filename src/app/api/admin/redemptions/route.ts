@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { redeemSchema } from "@/modules/invoices/validators";
 import { getClientBalance } from "@/lib/balance";
 import { prisma } from "@/lib/prisma";
 
 const billingService = new BillingService();
-
-const redeemSchema = z.object({
-  clientId: z.string(),
-  activityId: z.string(),
-  sessionId: z.string().optional(),
-  notes: z.string().optional(),
-});
 
 export async function GET() {
   const { error } = await requireAdminSession();

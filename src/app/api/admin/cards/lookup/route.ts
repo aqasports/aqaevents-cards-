@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { CardsService } from "@/domains/cards/cards.service";
+import { CardsService } from "@/modules/cards/service";
 
 const cardsService = new CardsService();
 

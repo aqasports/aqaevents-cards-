@@ -17,7 +17,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-vi.mock("@/domains/billing/billing.service", () => {
+vi.mock("@/modules/invoices/service", () => {
   class MockBillingService {
     rechargeCredits = vi.fn().mockResolvedValue({
       invoice: { id: "inv-1", amount: 1900 },

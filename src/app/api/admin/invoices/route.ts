@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { createInvoiceSchema } from "@/modules/invoices/validators";
 
 const billingService = new BillingService();
 
@@ -21,18 +21,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
   }
 }
-
-const createInvoiceSchema = z.object({
-  clientId: z.string(),
-  amount: z.number().positive(),
-  category: z.enum(["package", "custom", "adhoc"]),
-  items: z.string().min(1),
-  notes: z.string().optional(),
-  status: z.enum(["paid", "unpaid"]).default("paid"),
-  packageId: z.string().optional(),
-  creditDelta: z.number().optional(),
-  creditReason: z.string().optional(),
-});
 
 export async function POST(request: NextRequest) {
   const { session, error } = await requireAdminSession();

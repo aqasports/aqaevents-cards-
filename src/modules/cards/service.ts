@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { generatePublicToken, getEventCardUrl } from "@/lib/tokens";
-import { CardsRepository } from "./cards.repository";
-import { BillingRepository } from "../billing/billing.repository";
+import { CardsRepository } from "./repository";
+import { BillingRepository } from "../invoices/repository";
 import QRCode from "qrcode";
 import { Prisma } from "@prisma/client";
 

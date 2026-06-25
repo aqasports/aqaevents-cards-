@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { ActivitiesService } from "@/domains/activities/activities.service";
+import { ActivitiesService } from "@/modules/activities/service";
 
 const activitiesService = new ActivitiesService();
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { ReportingService } from "@/domains/reporting/reporting.service";
+import { ReportingService } from "@/modules/reports/service";
 
 const reportingService = new ReportingService();
 

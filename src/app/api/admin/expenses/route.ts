@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { ActivitiesService } from "@/domains/activities/activities.service";
+import { ActivitiesService } from "@/modules/activities/service";
+import { createExpenseSchema } from "@/modules/activities/validators";
 
 const activitiesService = new ActivitiesService();
 
@@ -17,13 +17,6 @@ export async function GET(_request: NextRequest) {
     return NextResponse.json({ error: "Failed to retrieve expenses" }, { status: 500 });
   }
 }
-
-const createExpenseSchema = z.object({
-  activityId: z.string(),
-  name: z.string().min(1),
-  amount: z.number().positive(),
-  notes: z.string().optional().nullable(),
-});
 
 export async function POST(request: NextRequest) {
   const { error } = await requireAdminSession();

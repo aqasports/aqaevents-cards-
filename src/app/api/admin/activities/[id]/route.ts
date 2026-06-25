@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
-import { ActivitiesService } from "@/domains/activities/activities.service";
+import { ActivitiesService } from "@/modules/activities/service";
+import { updateActivitySchema } from "@/modules/activities/validators";
 
 const activitiesService = new ActivitiesService();
-
-const patchSchema = z.object({
-  name: z.string().min(2).optional(),
-  description: z.string().optional().nullable(),
-  creditCost: z.number().int().nonnegative().optional(),
-  imageUrl: z.string().optional().nullable(),
-  places: z.string().optional().nullable(),
-  duration: z.string().optional().nullable(),
-  gallery: z.string().optional().nullable(),
-  equipment: z.string().optional().nullable(),
-  active: z.boolean().optional(),
-});
 
 export async function GET(
   _request: NextRequest,
@@ -47,7 +35,7 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await request.json();
-  const parsed = patchSchema.safeParse(body);
+  const parsed = updateActivitySchema.safeParse(body);
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { ReportingRepository } from "./reporting.repository";
-import { BillingRepository } from "../billing/billing.repository";
-import { CardsRepository } from "../cards/cards.repository";
+import { ReportingRepository } from "./repository";
+import { BillingRepository } from "../invoices/repository";
+import { CardsRepository } from "../cards/repository";
 
 export class ReportingService {
   private reportingRepo = new ReportingRepository();

@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { updateLedgerSchema } from "@/modules/invoices/validators";
 
 const billingService = new BillingService();
-
-const updateLedgerSchema = z.object({
-  delta: z.number().optional(),
-  reason: z.string().optional(),
-});
 
 export async function PATCH(
   request: NextRequest,

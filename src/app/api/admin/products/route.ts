@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { ProductsService } from "@/domains/products/products.service";
+import { ProductsService } from "@/modules/invoices/service";
+import { createProductSchema } from "@/modules/invoices/validators";
 
 const productsService = new ProductsService();
-
-const createProductSchema = z.object({
-  name: z.string().min(2),
-  price: z.number().int().positive(),
-  description: z.string().optional().nullable(),
-  imageUrl: z.string().optional().nullable(),
-  advertised: z.boolean().default(true),
-});
 
 export async function GET() {
   const { error } = await requireAdminSession();

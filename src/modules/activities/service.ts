@@ -1,5 +1,5 @@
-import { ActivitiesRepository } from "./activities.repository";
-import { ReportingRepository } from "../reporting/reporting.repository";
+import { ActivitiesRepository } from "./repository";
+import { ReportingRepository } from "../reports/repository";
 
 export class ActivitiesService {
   private activitiesRepo = new ActivitiesRepository();

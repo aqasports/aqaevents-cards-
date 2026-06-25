@@ -1,18 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { ProductsService } from "@/domains/products/products.service";
+import { ProductsService } from "@/modules/invoices/service";
+import { updateProductSchema } from "@/modules/invoices/validators";
 
 const productsService = new ProductsService();
-
-const updateProductSchema = z.object({
-  name: z.string().min(2).optional(),
-  price: z.number().int().positive().optional(),
-  description: z.string().optional().nullable(),
-  imageUrl: z.string().optional().nullable(),
-  advertised: z.boolean().optional(),
-  active: z.boolean().optional(),
-});
 
 export async function PATCH(
   request: NextRequest,

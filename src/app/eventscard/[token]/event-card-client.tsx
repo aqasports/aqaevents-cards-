@@ -192,12 +192,9 @@ export function EventCardClient({
                 <div className={`absolute inset-0 bg-black/10 flex flex-col justify-between p-6 text-white ${
                   dir === "rtl" ? "flex-col" : ""
                 }`}>
-                  <div className={`flex justify-between items-start ${
+                  <div className={`flex justify-end items-start ${
                     dir === "rtl" ? "flex-row-reverse" : ""
                   }`}>
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-blue-700/80 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow">
-                      AQA
-                    </span>
                     <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider bg-white/10 backdrop-blur-sm px-2.5 py-0.5 rounded-full">
                       {t("subtitle")}
                     </span>
@@ -206,9 +203,6 @@ export function EventCardClient({
                     dir === "rtl" ? "flex-row-reverse" : ""
                   }`}>
                     <div className={`space-y-0.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
-                      <p className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">
-                        {t("title")}
-                      </p>
                       <h1 className="text-xl font-bold tracking-wide drop-shadow-md">
                         {clientFirstName}
                       </h1>

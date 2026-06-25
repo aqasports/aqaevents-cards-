@@ -113,4 +113,25 @@ export class BillingRepository {
   async groupByRedemption(args: any, tx?: Prisma.TransactionClient): Promise<any> {
     return this.db(tx).redemption.groupBy(args);
   }
+
+  // Product operations (from ProductsRepository)
+  async findProductMany(args?: Prisma.ProductFindManyArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).product.findMany(args);
+  }
+
+  async findProductUnique(args: Prisma.ProductFindUniqueArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).product.findUnique(args);
+  }
+
+  async createProduct(args: Prisma.ProductCreateArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).product.create(args);
+  }
+
+  async updateProduct(args: Prisma.ProductUpdateArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).product.update(args);
+  }
+
+  async deleteProduct(args: Prisma.ProductDeleteArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).product.delete(args);
+  }
 }

@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { ActivitiesService } from "@/domains/activities/activities.service";
+import { ActivitiesService } from "@/modules/activities/service";
+import { createSessionSchema } from "@/modules/activities/validators";
 
 const activitiesService = new ActivitiesService();
-
-const createSessionSchema = z.object({
-  activityId: z.string(),
-  sessionDate: z.string(),
-  location: z.string().optional(),
-  capacity: z.number().int().positive().optional(),
-});
 
 export async function GET(request: NextRequest) {
   const { error } = await requireAdminSession();

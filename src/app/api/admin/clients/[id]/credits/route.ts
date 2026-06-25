@@ -1,24 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { BillingService } from "@/domains/billing/billing.service";
+import { BillingService } from "@/modules/invoices/service";
+import { addCreditsSchema } from "@/modules/invoices/validators";
 
 const billingService = new BillingService();
-
-const addCreditsSchema = z.object({
-  packageId: z.string().optional(),
-  customAmount: z.number().int().optional(),
-  reason: z.string().optional(),
-  invoice: z
-    .object({
-      amount: z.number().int().positive(),
-      category: z.enum(["package", "custom", "adhoc"]).default("custom"),
-      items: z.string().min(1),
-      notes: z.string().optional(),
-      status: z.enum(["paid", "unpaid"]).default("paid"),
-    })
-    .optional(),
-});
 
 export async function POST(
   request: NextRequest,

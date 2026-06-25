@@ -3,10 +3,10 @@ import { getClientBalances, getClientBalance } from "@/lib/balance";
 import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { syncClientCRM } from "@/lib/crm";
-import { ClientsRepository } from "./clients.repository";
-import { CardsRepository } from "../cards/cards.repository";
-import { BillingRepository } from "../billing/billing.repository";
-import { ReportingRepository } from "../reporting/reporting.repository";
+import { ClientsRepository } from "./repository";
+import { CardsRepository } from "../cards/repository";
+import { BillingRepository } from "../invoices/repository";
+import { ReportingRepository } from "../reports/repository";
 import { eventBus, EVENTS } from "@/lib/events";
 
 export class ClientsService {
