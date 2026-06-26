@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const activities = await prisma.activity.findMany({
       where: { active: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ places: "asc" }, { name: "asc" }],
     });
     return NextResponse.json(activities, {
       headers: {
