@@ -103,7 +103,7 @@ export class ClientsService {
       preCardCode?: string | null;
       leadSource?: string | null;
     },
-    adminId: string
+    adminId: string | null
   ) {
     const result = await prisma.$transaction(async (tx) => {
       const client = await this.clientsRepo.create(

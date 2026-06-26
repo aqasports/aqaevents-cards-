@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         preCardCode: null,
         leadSource: "website_signup",
       },
-      "system-web" // system id for audit logging
+      null // null adminId since it is a self-signup
     );
 
     return NextResponse.json({
