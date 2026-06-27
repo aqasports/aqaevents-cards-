@@ -837,7 +837,7 @@ function CreateInvoiceModal({
     if (category === "adhoc") return undefined;
     if (category === "package" && selectedPkg) return selectedPkg.totalCredits;
     if (category === "custom") {
-      const parsed = parseInt(customCredits, 10);
+      const parsed = parseFloat(customCredits);
       return isNaN(parsed) ? undefined : parsed;
     }
     return undefined;
@@ -940,7 +940,7 @@ function CreateInvoiceModal({
                   value={clientSearch}
                   onChange={(e) => { setClientSearch(e.target.value); setShowDropdown(true); }}
                   onFocus={() => setShowDropdown(true)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 {showDropdown && clientOptions.length > 0 && (
                   <ul className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
@@ -1026,7 +1026,7 @@ function CreateInvoiceModal({
               <select
                 value={selectedPackageId}
                 onChange={(e) => setSelectedPackageId(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 required
               >
                 <option value="">— Choose a package —</option>
@@ -1046,11 +1046,12 @@ function CreateInvoiceModal({
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.1"
+                step="any"
                 placeholder="e.g. 5"
                 value={customCredits}
                 onChange={(e) => setCustomCredits(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 required
               />
             </div>
@@ -1493,7 +1494,7 @@ export default function InvoicesPage() {
               placeholder="Search client name or invoice code…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
             <div className="flex items-center gap-1 rounded-xl border border-slate-200 p-1 bg-slate-50">
               {["all", "paid", "unpaid", "refunded"].map((s) => (
@@ -1667,7 +1668,7 @@ export default function InvoicesPage() {
                 placeholder="Search expense name or notes…"
                 value={expenseSearch}
                 onChange={(e) => setExpenseSearch(e.target.value)}
-                className="flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
               />
               <Select
                 value={expenseActivityFilter}

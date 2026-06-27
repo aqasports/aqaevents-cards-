@@ -202,7 +202,7 @@ export default function EditActivityPage() {
                 step="any"
                 value={creditCost}
                 onChange={(e) => setCreditCost(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 required
               />
               <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs flex items-center gap-2">

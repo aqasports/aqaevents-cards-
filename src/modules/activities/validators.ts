@@ -3,7 +3,7 @@ import { z } from "zod";
 export const createActivitySchema = z.object({
   name: z.string().min(2),
   description: z.string().optional().nullable(),
-  creditCost: z.number().int().nonnegative().default(1),
+  creditCost: z.number().nonnegative().default(1),
   imageUrl: z.string().optional().nullable(),
   places: z.string().optional().nullable(),
   duration: z.string().optional().nullable(),
@@ -19,7 +19,7 @@ export const createActivitySchema = z.object({
 export const updateActivitySchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().optional().nullable(),
-  creditCost: z.number().int().nonnegative().optional(),
+  creditCost: z.number().nonnegative().optional(),
   imageUrl: z.string().optional().nullable(),
   places: z.string().optional().nullable(),
   duration: z.string().optional().nullable(),

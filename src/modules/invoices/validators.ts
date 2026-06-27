@@ -24,7 +24,7 @@ export const updateInvoiceSchema = z.object({
 
 export const addCreditsSchema = z.object({
   packageId: z.string().optional(),
-  customAmount: z.number().int().optional(),
+  customAmount: z.number().optional(),
   reason: z.string().optional(),
   invoice: z
     .object({

@@ -241,7 +241,7 @@ function EraseModal({
               onChange={(e) => setPhrase(e.target.value)}
               placeholder={REQUIRED}
               className={`w-full rounded-xl border-2 px-4 py-3 text-sm font-mono focus:outline-none transition ${
-                phrase === "" ? "border-slate-300" :
+                phrase === "" ? "border-slate-300 bg-[var(--surface)] text-[var(--foreground)]" :
                 match ? "border-emerald-500 bg-emerald-50 text-emerald-800" :
                 "border-red-300 bg-red-50 text-red-700"
               }`}

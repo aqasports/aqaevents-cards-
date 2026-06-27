@@ -174,10 +174,10 @@ export default function NewClientPage() {
                     placeholder="AQA-000001"
                     className={`w-full rounded-xl border-2 px-4 py-2.5 text-sm font-mono focus:outline-none transition uppercase ${
                       cardLookupStatus === "ok"
-                        ? "border-emerald-500 bg-emerald-50"
+                        ? "border-emerald-500 bg-emerald-50 text-emerald-800"
                         : cardLookupStatus === "error"
-                        ? "border-red-400 bg-red-50"
-                        : "border-slate-300 focus:border-blue-500"
+                        ? "border-red-400 bg-red-50 text-red-700"
+                        : "border-slate-300 focus:border-blue-500 bg-[var(--surface)] text-[var(--foreground)]"
                     }`}
                   />
                     <p className={`text-xs mt-1.5 font-medium flex items-center gap-1 ${

@@ -123,7 +123,7 @@ function ImageEditModal({
               placeholder="https://images.unsplash.com/..."
               value={url}
               onChange={(e) => { setUrl(e.target.value); setPreview(e.target.value); }}
-              className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
             <p className="text-[11px] text-slate-400 mt-1.5">Paste a direct image URL. Supports Unsplash, Imgur, etc.</p>
           </div>
@@ -318,7 +318,7 @@ export default function ActivitiesPage() {
                   step="any"
                   value={formCreditCost}
                   onChange={(e) => setFormCreditCost(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <div className="mt-2">
                   <PriceCalculator creditCost={formCreditCost} />
@@ -330,7 +330,7 @@ export default function ActivitiesPage() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Duration</label>
                 <select
                   name="duration"
-                  className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 >
                   <option value="">— Select duration —</option>
                   {["1h", "1h30", "2h", "2h30", "3h", "Half day (4h)", "Full day (8h)", "Multi-day"].map((d) => (

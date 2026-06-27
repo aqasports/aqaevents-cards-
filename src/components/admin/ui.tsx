@@ -121,7 +121,7 @@ export const Input = React.forwardRef<
       ) : null}
       <input
         ref={ref}
-        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] ${
+        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)] ${
           error
             ? "border-[var(--danger)] bg-[var(--danger-bg)]"
             : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
@@ -156,7 +156,7 @@ export function Select({
         <span className="mb-1.5 block font-medium text-[var(--foreground)]">{label}</span>
       ) : null}
       <select
-        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition-colors duration-150 hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition-colors duration-150 hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)]"
         {...props}
       >
         {children}
@@ -183,7 +183,7 @@ export function Textarea({
         <span className="mb-1.5 block font-medium text-[var(--foreground)]">{label}</span>
       ) : null}
       <textarea
-        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition-colors duration-150 hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] resize-y"
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition-colors duration-150 hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] resize-y text-[var(--foreground)]"
         rows={3}
         {...props}
       />

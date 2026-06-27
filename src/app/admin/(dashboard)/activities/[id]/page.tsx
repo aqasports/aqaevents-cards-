@@ -145,7 +145,7 @@ function ImageEditModal({
             placeholder="https://images.unsplash.com/…"
             value={url}
             onChange={(e) => { setUrl(e.target.value); setPreview(e.target.value); }}
-            className="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
           <p className="text-[11px] text-slate-400">Paste any direct image URL (Unsplash, Imgur, etc.)</p>
           <div className="flex gap-3">
@@ -238,14 +238,14 @@ function GalleryManager({
           placeholder={newType === "image" ? "https://images.unsplash.com/…" : "https://youtube.com/embed/… or direct .mp4"}
           value={newUrl}
           onChange={(e) => setNewUrl(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
         />
         <input
           type="text"
           placeholder="Caption (optional)"
           value={newCaption}
           onChange={(e) => setNewCaption(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
         />
         <button
           onClick={addItem}
@@ -413,7 +413,7 @@ function EquipmentManager({
           placeholder="Equipment name (e.g. Life jacket, Paddle, Helmet)"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
         />
 
         {(newType === "rent" || newType === "buy") && (
@@ -422,7 +422,7 @@ function EquipmentManager({
             placeholder="Price (DA) — optional"
             value={newPrice}
             onChange={(e) => setNewPrice(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
         )}
 
@@ -431,7 +431,7 @@ function EquipmentManager({
           placeholder="Notes (optional)"
           value={newNotes}
           onChange={(e) => setNewNotes(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
         />
 
         <button
@@ -1147,7 +1147,7 @@ export default function ActivityDetailPage() {
                 {predefinedPlaces.length > 0 && (
                   <div className="space-y-1">
                     <span className="text-xs font-medium text-[var(--muted)] block">Or custom location</span>
-                    <input type="text" name="customLocation" placeholder="e.g. Sebou River" className="w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(e) => { const sel = document.getElementsByName("location")[0] as HTMLSelectElement; if (sel && e.target.value) sel.value = ""; }} />
+                    <input type="text" name="customLocation" placeholder="e.g. Sebou River" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(e) => { const sel = document.getElementsByName("location")[0] as HTMLSelectElement; if (sel && e.target.value) sel.value = ""; }} />
                   </div>
                 )}
                 <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />

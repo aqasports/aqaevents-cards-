@@ -357,7 +357,7 @@ export default function ReportsPage() {
               placeholder="Filter by client or activity…"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              className="w-48 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)]"
+              className="w-48 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)]"
             />
           </div>
 

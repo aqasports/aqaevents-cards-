@@ -77,7 +77,7 @@ model Activity {
   id          String   @id @default(cuid())
   name        String
   description String?
-  creditCost  Int      @default(1)
+  creditCost  Float    @default(1.0)
   imageUrl    String?
   places      String?
   duration    String?   // e.g. "2h", "Half day", "Full day"
@@ -126,7 +126,7 @@ model LedgerEntry {
   cardId    String?
   packageId String?
   redemptionId String?
-  delta     Int
+  delta     Float
   type      String
   reason    String?
   createdById String?
@@ -147,7 +147,7 @@ model Redemption {
   clientId    String
   activityId  String
   sessionId   String?
-  creditsUsed Int      @default(1)
+  creditsUsed Float    @default(1.0)
   staffId     String?
   redeemedAt  DateTime @default(now())
   notes       String?
