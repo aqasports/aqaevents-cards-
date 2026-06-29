@@ -1,5 +1,5 @@
 [build]
-  command = "npx prisma generate && npm run build"
+  command = "node prisma/prepare.js && npx prisma db push --skip-generate && npx prisma generate && npm run build"
   publish = ".next"
 
 [[plugins]]
@@ -7,4 +7,3 @@
 
 [functions."keep-alive"]
   schedule = "0 0 * * *"
-
