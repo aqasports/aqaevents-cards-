@@ -19,6 +19,7 @@ type Product = {
   imageUrl: string | null;
   advertised: boolean;
   active: boolean;
+  sortOrder: number;
 };
 
 export default function ProductsPage() {
@@ -26,6 +27,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [newSortOrder, setNewSortOrder] = useState(1);
 
   // Inline editing states
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -34,8 +36,10 @@ export default function ProductsPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editAdvertised, setEditAdvertised] = useState(true);
+  const [editSortOrder, setEditSortOrder] = useState(1);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [orderingId, setOrderingId] = useState<string | null>(null);
 
   async function loadProducts() {
     try {
@@ -43,6 +47,7 @@ export default function ProductsPage() {
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
         setProducts(data);
+        setNewSortOrder(data.filter((p: Product) => p.active).length + 1);
       } else {
         setProducts([]);
         setMessage({ text: data?.error || "Failed to load products.", tone: "danger" });
@@ -74,6 +79,7 @@ export default function ProductsPage() {
         description: formData.get("description") || null,
         imageUrl: formData.get("imageUrl") || null,
         advertised: formData.get("advertised") === "true",
+        sortOrder: Number(formData.get("sortOrder")) || 0,
       }),
     });
 
@@ -82,6 +88,7 @@ export default function ProductsPage() {
     if (res.ok) {
       setMessage({ text: "Product created successfully.", tone: "success" });
       (event.target as HTMLFormElement).reset();
+      setNewSortOrder(activeProducts.length + 2);
       await loadProducts();
     } else {
       const data = await res.json();
@@ -102,6 +109,7 @@ export default function ProductsPage() {
         description: editDescription || null,
         imageUrl: editImageUrl || null,
         advertised: editAdvertised,
+        sortOrder: editSortOrder,
       }),
     });
 
@@ -145,6 +153,50 @@ export default function ProductsPage() {
     }
   }
 
+  async function moveProduct(product: Product, direction: "up" | "down") {
+    const currentIndex = activeProducts.findIndex((p) => p.id === product.id);
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= activeProducts.length) return;
+
+    const reordered = [...activeProducts];
+    [reordered[currentIndex], reordered[nextIndex]] = [reordered[nextIndex], reordered[currentIndex]];
+
+    const updatedActive = reordered.map((item, index) => ({
+      ...item,
+      sortOrder: index + 1,
+    }));
+    const updatedById = new Map(updatedActive.map((item) => [item.id, item]));
+
+    setOrderingId(product.id);
+    setMessage(null);
+    setProducts((current) => current.map((item) => updatedById.get(item.id) ?? item));
+
+    try {
+      const responses = await Promise.all(
+        updatedActive.map((item) =>
+          fetch(`/api/admin/products/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: item.sortOrder }),
+          })
+        )
+      );
+
+      if (responses.some((res) => !res.ok)) {
+        throw new Error("Failed to save product order.");
+      }
+
+      setMessage({ text: "Product order updated.", tone: "success" });
+      await loadProducts();
+    } catch {
+      setMessage({ text: "Failed to update product order.", tone: "danger" });
+      await loadProducts();
+    } finally {
+      setOrderingId(null);
+    }
+  }
+
   function startEdit(product: Product) {
     setEditingId(product.id);
     setEditName(product.name);
@@ -152,9 +204,14 @@ export default function ProductsPage() {
     setEditDescription(product.description || "");
     setEditImageUrl(product.imageUrl || "");
     setEditAdvertised(product.advertised);
+    setEditSortOrder(product.sortOrder);
   }
 
-  const activeProducts = products.filter((p) => p.active);
+  const activeProducts = products
+    .map((product, index) => ({ product, index }))
+    .filter(({ product }) => product.active)
+    .sort((a, b) => a.product.sortOrder - b.product.sortOrder || a.index - b.index)
+    .map(({ product }) => product);
   const archivedProducts = products.filter((p) => !p.active);
 
   return (
@@ -199,6 +256,15 @@ export default function ProductsPage() {
                 label="Image URL (Optional)"
                 name="imageUrl"
                 placeholder="e.g. /image/goggles.png"
+              />
+              <Input
+                label="Sort order"
+                name="sortOrder"
+                type="number"
+                min={0}
+                value={newSortOrder}
+                onChange={(e) => setNewSortOrder(Number(e.target.value) || 0)}
+                hint="Lower numbers appear first."
               />
               
               <div className="flex flex-col gap-1.5">
@@ -246,7 +312,7 @@ export default function ProductsPage() {
                 Active Products ({activeProducts.length})
               </h3>
               <div className="space-y-3">
-                {activeProducts.map((product) => (
+                {activeProducts.map((product, index) => (
                   <div key={product.id}>
                     {editingId === product.id ? (
                       <Card className="border-[var(--primary)] ring-1 ring-[var(--primary)] animate-slide-in">
@@ -274,6 +340,13 @@ export default function ProductsPage() {
                               label="Image URL"
                               value={editImageUrl}
                               onChange={(e) => setEditImageUrl(e.target.value)}
+                            />
+                            <Input
+                              label="Sort order"
+                              type="number"
+                              min={0}
+                              value={editSortOrder}
+                              onChange={(e) => setEditSortOrder(Number(e.target.value) || 0)}
                             />
                           </div>
 
@@ -306,7 +379,12 @@ export default function ProductsPage() {
                         onToggle={toggleActive}
                         onToggleAdv={toggleAdvertised}
                         onEdit={startEdit}
-                        loading={togglingId === product.id || togglingId === product.id + "-adv"}
+                        onMoveUp={() => moveProduct(product, "up")}
+                        onMoveDown={() => moveProduct(product, "down")}
+                        disableMoveUp={index === 0}
+                        disableMoveDown={index === activeProducts.length - 1}
+                        orderPosition={index + 1}
+                        loading={togglingId === product.id || togglingId === product.id + "-adv" || orderingId === product.id}
                       />
                     )}
                   </div>
@@ -344,26 +422,39 @@ function ProductRow({
   onToggle,
   onToggleAdv,
   onEdit,
+  onMoveUp,
+  onMoveDown,
+  disableMoveUp,
+  disableMoveDown,
+  orderPosition,
   loading,
 }: {
   product: Product;
   onToggle: (p: Product) => void;
   onToggleAdv?: (p: Product) => void;
   onEdit?: (p: Product) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  disableMoveUp?: boolean;
+  disableMoveDown?: boolean;
+  orderPosition?: number;
   loading?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)]">
-      <div className="flex items-center gap-4">
+    <div className="flex flex-col gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)] sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-4">
         {/* Product icon display */}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 font-bold leading-none">
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
           </svg>
         </div>
-        <div>
-          <div className="flex items-center gap-2">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold text-slate-800">{product.name}</p>
+            {product.active && orderPosition !== undefined && (
+              <Badge tone="default" size="sm">#{orderPosition}</Badge>
+            )}
             {product.advertised && product.active && (
               <Badge tone="success" size="sm">Advertised</Badge>
             )}
@@ -376,7 +467,29 @@ function ProductRow({
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        {product.active && onMoveUp && onMoveDown && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onMoveUp}
+              loading={loading}
+              disabled={disableMoveUp}
+            >
+              Up
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onMoveDown}
+              loading={loading}
+              disabled={disableMoveDown}
+            >
+              Down
+            </Button>
+          </div>
+        )}
         {onToggleAdv && product.active && (
           <Button
             variant="ghost"

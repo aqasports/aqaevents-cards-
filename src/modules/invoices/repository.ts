@@ -134,4 +134,8 @@ export class BillingRepository {
   async deleteProduct(args: Prisma.ProductDeleteArgs, tx?: Prisma.TransactionClient): Promise<any> {
     return this.db(tx).product.delete(args);
   }
+
+  async countProduct(args?: Prisma.ProductCountArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).product.count(args);
+  }
 }

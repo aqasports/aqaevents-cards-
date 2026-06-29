@@ -41,6 +41,7 @@ export interface ProductCreatePayload {
   description?: string | null;
   imageUrl?: string | null;
   advertised?: boolean;
+  sortOrder?: number;
 }
 
 export interface ProductUpdatePayload {
@@ -50,6 +51,7 @@ export interface ProductUpdatePayload {
   imageUrl?: string | null;
   advertised?: boolean;
   active?: boolean;
+  sortOrder?: number;
 }
 
 export interface RedemptionCreatePayload {

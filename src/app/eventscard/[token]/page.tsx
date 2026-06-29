@@ -76,7 +76,10 @@ export default async function EventCardPage({
 
   const advertisedProducts = await prisma.product.findMany({
     where: { active: true, advertised: true },
-    orderBy: { name: "asc" },
+    orderBy: [
+      { sortOrder: "asc" },
+      { createdAt: "desc" },
+    ],
   });
 
   return (

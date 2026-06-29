@@ -58,6 +58,7 @@ export const createProductSchema = z.object({
   description: z.string().optional().nullable(),
   imageUrl: z.string().optional().nullable(),
   advertised: z.boolean().default(true),
+  sortOrder: z.number().int().optional(),
 });
 
 export const updateProductSchema = z.object({
@@ -67,6 +68,7 @@ export const updateProductSchema = z.object({
   imageUrl: z.string().optional().nullable(),
   advertised: z.boolean().optional(),
   active: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
 });
 
 export const redeemSchema = z.object({

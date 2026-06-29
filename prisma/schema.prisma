@@ -32,11 +32,11 @@ model Client {
   updatedAt DateTime @updatedAt
 
   // CRM Fields
-  leadSource        String?
-  customerSegment   String    @default("Standard")
-  totalSpent        Int       @default(0)
-  lastActivityDate  DateTime?
-  favoriteActivity  String?
+  leadSource       String?
+  customerSegment  String    @default("Standard")
+  totalSpent       Int       @default(0)
+  lastActivityDate DateTime?
+  favoriteActivity String?
 
   cards            Card[]
   ledgerEntries    LedgerEntry[]
@@ -47,7 +47,7 @@ model Client {
 
 model Card {
   id          String   @id @default(cuid())
-  clientId    String?   // null = pre-printed blank, not yet assigned to a client
+  clientId    String? // null = pre-printed blank, not yet assigned to a client
   publicToken String   @unique
   cardCode    String   @unique
   status      String   @default("active") // active | voided
@@ -60,15 +60,15 @@ model Card {
 }
 
 model Package {
-  id            String   @id @default(cuid())
-  name          String
-  creditAmount  Int      // Activities the client pays for
-  bonusCredits  Int      @default(0) // Free bonus activities added on top
-  totalCredits  Int      // Computed: creditAmount + bonusCredits
-  price         Int      // creditAmount × 1900
-  active        Boolean  @default(true)
-  sortOrder     Int      @default(0)
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String
+  creditAmount Int // Activities the client pays for
+  bonusCredits Int      @default(0) // Free bonus activities added on top
+  totalCredits Int // Computed: creditAmount + bonusCredits
+  price        Int // creditAmount × 1900
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
 
   ledgerEntries LedgerEntry[]
 }
@@ -80,9 +80,9 @@ model Activity {
   creditCost  Float    @default(1.0)
   imageUrl    String?
   places      String?
-  duration    String?   // e.g. "2h", "Half day", "Full day"
-  gallery     String?   // JSON: [{type:"image"|"video", url:string, caption:string?}]
-  equipment   String?   // JSON: [{name:string, type:"rent"|"buy"|"provided", price:number?}]
+  duration    String? // e.g. "2h", "Half day", "Full day"
+  gallery     String? // JSON: [{type:"image"|"video", url:string, caption:string?}]
+  equipment   String? // JSON: [{name:string, type:"rent"|"buy"|"provided", price:number?}]
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
 
@@ -92,26 +92,26 @@ model Activity {
 }
 
 model ActivityExpense {
-  id          String   @id @default(cuid())
-  activityId  String
-  name        String
-  amount      Int
-  notes       String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  activityId String
+  name       String
+  amount     Int
+  notes      String?
+  createdAt  DateTime @default(now())
 
-  activity    Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   @@index([activityId])
 }
 
 model ActivitySession {
-  id         String   @id @default(cuid())
-  activityId String
+  id          String   @id @default(cuid())
+  activityId  String
   sessionDate DateTime
-  location   String?
-  capacity   Int?
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
+  location    String?
+  capacity    Int?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
 
   activity    Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
   redemptions Redemption[]
@@ -121,22 +121,22 @@ model ActivitySession {
 }
 
 model LedgerEntry {
-  id        String   @id @default(cuid())
-  clientId  String
-  cardId    String?
-  packageId String?
+  id           String   @id @default(cuid())
+  clientId     String
+  cardId       String?
+  packageId    String?
   redemptionId String?
-  delta     Float
-  type      String
-  reason    String?
-  createdById String?
-  createdAt DateTime @default(now())
+  delta        Float
+  type         String
+  reason       String?
+  createdById  String?
+  createdAt    DateTime @default(now())
 
-  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  card      Card?      @relation(fields: [cardId], references: [id], onDelete: SetNull)
-  package   Package?   @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  card       Card?       @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  package    Package?    @relation(fields: [packageId], references: [id], onDelete: SetNull)
   redemption Redemption? @relation(fields: [redemptionId], references: [id], onDelete: Cascade)
-  createdBy AdminUser? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy  AdminUser?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([clientId])
   @@index([createdAt])
@@ -152,10 +152,10 @@ model Redemption {
   redeemedAt  DateTime @default(now())
   notes       String?
 
-  client   Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  activity Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  session  ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  staff    AdminUser?       @relation(fields: [staffId], references: [id], onDelete: SetNull)
+  client        Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  session       ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  staff         AdminUser?       @relation(fields: [staffId], references: [id], onDelete: SetNull)
   ledgerEntries LedgerEntry[]
 
   @@index([clientId])
@@ -182,31 +182,31 @@ model Invoice {
 }
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  action      String   // e.g. "RESET_DATA", "CREATE_PACKAGE", "DELETE_ACTIVITY"
-  target      String   // Target description
-  details     String?  // Detail info
-  ipAddress   String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String // e.g. "RESET_DATA", "CREATE_PACKAGE", "DELETE_ACTIVITY"
+  target    String // Target description
+  details   String? // Detail info
+  ipAddress String?
+  createdAt DateTime @default(now())
 
-  user        AdminUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user AdminUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([createdAt])
 }
 
 model NotificationLog {
-  id          String   @id @default(cuid())
-  clientId    String
-  type        String   // "sms" | "email"
-  recipient   String   // target phone or email
-  subject     String?
-  message     String
-  status      String   // "sent" | "failed"
-  sentAt      DateTime @default(now())
+  id        String   @id @default(cuid())
+  clientId  String
+  type      String // "sms" | "email"
+  recipient String // target phone or email
+  subject   String?
+  message   String
+  status    String // "sent" | "failed"
+  sentAt    DateTime @default(now())
 
-  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId])
   @@index([sentAt])
@@ -220,7 +220,7 @@ model Product {
   imageUrl    String?
   advertised  Boolean  @default(true)
   active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
-

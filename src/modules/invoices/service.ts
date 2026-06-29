@@ -623,15 +623,21 @@ export class ProductsService {
 
   async getProducts() {
     return this.productsRepo.findProductMany({
-      where: { active: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { active: "desc" },
+        { sortOrder: "asc" },
+        { createdAt: "desc" },
+      ],
     });
   }
 
   async getAdvertisedProducts() {
     return this.productsRepo.findProductMany({
       where: { active: true, advertised: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { sortOrder: "asc" },
+        { createdAt: "desc" },
+      ],
     });
   }
 
@@ -648,9 +654,14 @@ export class ProductsService {
       description?: string | null;
       imageUrl?: string | null;
       advertised?: boolean;
+      sortOrder?: number;
     },
     adminId?: string | null
   ) {
+    const sortOrder =
+      data.sortOrder ??
+      ((await this.productsRepo.countProduct({ where: { active: true } })) + 1);
+
     const product = await this.productsRepo.createProduct({
       data: {
         name: data.name,
@@ -658,6 +669,7 @@ export class ProductsService {
         description: data.description,
         imageUrl: data.imageUrl,
         advertised: data.advertised ?? true,
+        sortOrder,
       },
     });
 
@@ -684,6 +696,7 @@ export class ProductsService {
       imageUrl?: string | null;
       advertised?: boolean;
       active?: boolean;
+      sortOrder?: number;
     },
     adminId?: string | null
   ) {
