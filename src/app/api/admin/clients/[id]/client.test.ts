@@ -49,7 +49,7 @@ describe("Clients DELETE API", () => {
     expect(res.status).toBe(403);
   });
 
-  it("should return 400 if client has financial ledger history", async () => {
+  it("should delete client even if financial ledger history exists", async () => {
     vi.mocked(requireSuperAdminSession).mockResolvedValue({
       session: { user: { id: "admin-1", role: "super_admin" } } as any,
       error: null,
@@ -60,6 +60,15 @@ describe("Clients DELETE API", () => {
         ledgerEntry: {
           count: vi.fn().mockResolvedValue(3), // 3 transactions
         },
+        redemption: {
+          deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        card: {
+          deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        client: {
+          delete: vi.fn().mockResolvedValue({ id: "client-1" }),
+        },
       };
       return await callback(mockTx as any);
     });
@@ -69,12 +78,12 @@ describe("Clients DELETE API", () => {
     });
 
     const res = await DELETE(request, { params: Promise.resolve({ id: "client-1" }) });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error).toContain("Cannot delete a client with financial ledger history");
+    expect(body.ok).toBe(true);
   });
 
-  it("should successfully delete client and linked records if no history exists", async () => {
+  it("should successfully delete client and linked records", async () => {
     vi.mocked(requireSuperAdminSession).mockResolvedValue({
       session: { user: { id: "admin-1", role: "super_admin" } } as any,
       error: null,
@@ -82,9 +91,6 @@ describe("Clients DELETE API", () => {
 
     vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
       const mockTx = {
-        ledgerEntry: {
-          count: vi.fn().mockResolvedValue(0), // 0 transactions
-        },
         redemption: {
           deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
         },

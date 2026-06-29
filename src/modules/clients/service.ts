@@ -190,18 +190,7 @@ export class ClientsService {
   }
 
   async deleteClient(id: string, adminId: string) {
-    const hasHistory = await prisma.$transaction(async (tx) => {
-      const ledgerCount = await this.billingRepo.countLedger(
-        {
-          where: { clientId: id },
-        },
-        tx
-      );
-
-      if (ledgerCount > 0) {
-        return true;
-      }
-
+    await prisma.$transaction(async (tx) => {
       await this.billingRepo.deleteRedemptionMany(
         {
           where: { clientId: id },
@@ -222,20 +211,14 @@ export class ClientsService {
         },
         tx
       );
-
-      return false;
     });
-
-    if (hasHistory) {
-      throw new Error("Cannot delete a client with financial ledger history. Archive them or update their status in notes instead.");
-    }
 
     await this.reportingRepo.createAudit({
       data: {
         userId: adminId,
         action: "DELETE_CLIENT",
         target: `Client ID ${id}`,
-        details: `Deleted client ID ${id} and all related non-financial records.`,
+        details: `Deleted client ID ${id} and related cards, redemptions, invoices, ledger entries, and notifications.`,
       },
     });
 
