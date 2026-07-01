@@ -459,9 +459,30 @@ export default function ActivitiesPage() {
         {/* ── Activities Grid ──────────────────────────────────── */}
         <div className="space-y-4">
           {loading ? (
-            <Card>
-              <p className="py-6 text-center text-sm text-[var(--muted)]">Loading activities…</p>
-            </Card>
+            <div className="grid gap-5 md:grid-cols-2">
+              {[1, 2, 3, 4].map((n) => (
+                <div
+                  key={n}
+                  className="flex flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] animate-pulse"
+                >
+                  {/* Image skeleton */}
+                  <div className="h-48 w-full bg-[var(--border)]/40" />
+                  
+                  {/* Content skeleton */}
+                  <div className="flex flex-1 flex-col p-4 space-y-3">
+                    <div className="h-5 w-2/3 rounded bg-[var(--border)]/60" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-full rounded bg-[var(--border)]/40" />
+                      <div className="h-3 w-4/5 rounded bg-[var(--border)]/40" />
+                    </div>
+                    <div className="pt-2 flex gap-2">
+                      <div className="h-4 w-24 rounded-full bg-[var(--border)]/40" />
+                      <div className="h-4 w-16 rounded-full bg-[var(--border)]/40" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : activeActivities.length === 0 ? (
             <Card>
               <EmptyState

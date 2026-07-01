@@ -41,6 +41,7 @@ export default function PackagesPage() {
   const [editSortOrder, setEditSortOrder] = useState(0);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [orderingId, setOrderingId] = useState<string | null>(null);
 
   async function loadPackages() {
     try {
@@ -144,7 +145,55 @@ export default function PackagesPage() {
     setEditSortOrder(pkg.sortOrder);
   }
 
-  const activePackages = packages.filter((p) => p.active);
+  async function movePackage(pkg: Package, direction: "up" | "down") {
+    const currentIndex = activePackages.findIndex((p) => p.id === pkg.id);
+    const nextIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= activePackages.length) return;
+
+    const reordered = [...activePackages];
+    [reordered[currentIndex], reordered[nextIndex]] = [reordered[nextIndex], reordered[currentIndex]];
+
+    const updatedActive = reordered.map((item, index) => ({
+      ...item,
+      sortOrder: index + 1,
+    }));
+    const updatedById = new Map(updatedActive.map((item) => [item.id, item]));
+
+    setOrderingId(pkg.id);
+    setMessage(null);
+    setPackages((current) => current.map((item) => updatedById.get(item.id) ?? item));
+
+    try {
+      const responses = await Promise.all(
+        updatedActive.map((item) =>
+          fetch(`/api/admin/packages/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sortOrder: item.sortOrder }),
+          })
+        )
+      );
+
+      if (responses.some((res) => !res.ok)) {
+        throw new Error("Failed to save package order.");
+      }
+
+      setMessage({ text: "Package order updated.", tone: "success" });
+      await loadPackages();
+    } catch {
+      setMessage({ text: "Failed to update package order.", tone: "danger" });
+      await loadPackages();
+    } finally {
+      setOrderingId(null);
+    }
+  }
+
+  const activePackages = packages
+    .map((pkg, index) => ({ pkg, index }))
+    .filter(({ pkg }) => pkg.active)
+    .sort((a, b) => a.pkg.sortOrder - b.pkg.sortOrder || a.index - b.index)
+    .map(({ pkg }) => pkg);
   const archivedPackages = packages.filter((p) => !p.active);
 
   // Live previews for create form
@@ -287,7 +336,7 @@ export default function PackagesPage() {
                 Active packages ({activePackages.length})
               </h3>
               <div className="space-y-3">
-                {activePackages.map((pkg) => (
+                {activePackages.map((pkg, index) => (
                   <div key={pkg.id}>
                     {editingId === pkg.id ? (
                       <Card className="border-[var(--primary)] ring-1 ring-[var(--primary)] animate-slide-in">
@@ -350,7 +399,17 @@ export default function PackagesPage() {
                         </div>
                       </Card>
                     ) : (
-                      <PackageRow pkg={pkg} onToggle={toggleActive} onEdit={startEdit} loading={togglingId === pkg.id} />
+                      <PackageRow
+                        pkg={pkg}
+                        onToggle={toggleActive}
+                        onEdit={startEdit}
+                        onMoveUp={() => movePackage(pkg, "up")}
+                        onMoveDown={() => movePackage(pkg, "down")}
+                        disableMoveUp={index === 0}
+                        disableMoveDown={index === activePackages.length - 1}
+                        orderPosition={index + 1}
+                        loading={togglingId === pkg.id || orderingId === pkg.id}
+                      />
                     )}
                   </div>
                 ))}
@@ -380,11 +439,21 @@ function PackageRow({
   pkg,
   onToggle,
   onEdit,
+  onMoveUp,
+  onMoveDown,
+  disableMoveUp,
+  disableMoveDown,
+  orderPosition,
   loading,
 }: {
   pkg: Package;
   onToggle: (pkg: Package) => void;
   onEdit?: (pkg: Package) => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  disableMoveUp?: boolean;
+  disableMoveDown?: boolean;
+  orderPosition?: number;
   loading?: boolean;
 }) {
   const effectiveRate = pkg.totalCredits > 0 ? pkg.price / pkg.totalCredits : 0;
@@ -399,6 +468,9 @@ function PackageRow({
         <div>
           <div className="flex items-center gap-2">
             <p className="font-semibold">{pkg.name}</p>
+            {pkg.active && orderPosition !== undefined && (
+              <Badge tone="default" size="sm">#{orderPosition}</Badge>
+            )}
             {pkg.name.toLowerCase() === "value" && (
               <Badge tone="warning" size="sm">Value Choice</Badge>
             )}
@@ -418,6 +490,28 @@ function PackageRow({
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {pkg.active && onMoveUp && onMoveDown && (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onMoveUp}
+              loading={loading}
+              disabled={disableMoveUp}
+            >
+              Up
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onMoveDown}
+              loading={loading}
+              disabled={disableMoveDown}
+            >
+              Down
+            </Button>
+          </div>
+        )}
         {onEdit && pkg.active && (
           <Button variant="ghost" size="sm" onClick={() => onEdit(pkg)}>
             Edit

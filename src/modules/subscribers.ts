@@ -55,7 +55,7 @@ eventBus.on(EVENTS.CLIENT_CREATED, async (payload: any) => {
     card = await cardsRepo.update(
       {
         where: { id: existing.id },
-        data: { clientId: payload.client.id },
+        data: { clientId: payload.client.id, issuedAt: new Date() },
       },
       payload.tx
     );

@@ -253,7 +253,7 @@ export class ClientsService {
         newCard = await this.cardsRepo.update(
           {
             where: { id: existing.id },
-            data: { clientId },
+            data: { clientId, issuedAt: new Date() },
           },
           tx
         );
