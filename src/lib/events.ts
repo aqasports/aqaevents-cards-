@@ -9,16 +9,14 @@ export class AsyncEventEmitter {
 
   async emit(event: string, payload: any): Promise<void> {
     const listeners = this.listenersMap.get(event) ?? [];
-    await Promise.all(
-      listeners.map(async (listener) => {
-        try {
-          await listener(payload);
-        } catch (err) {
-          console.error(`Error in listener for event ${event}:`, err);
-          throw err; // Rethrow to allow transaction rollback if needed
-        }
-      })
-    );
+    for (const listener of listeners) {
+      try {
+        await listener(payload);
+      } catch (err) {
+        console.error(`Error in listener for event ${event}:`, err);
+        throw err; // Rethrow to allow transaction rollback if needed
+      }
+    }
   }
 }
 
