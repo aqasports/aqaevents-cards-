@@ -69,6 +69,7 @@ type ActivityDetail = {
   gallery: string | null;
   equipment: string | null;
   active: boolean;
+  eventType: string;
   sessions: EventSession[];
   expenses: ActivityExpense[];
   _count: { redemptions: number };
@@ -838,6 +839,9 @@ export default function ActivityDetailPage() {
                 <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${activity.active ? "bg-emerald-500 text-white" : "bg-slate-500 text-white"}`}>
                   ● {activity.active ? "Active" : "Disabled"}
                 </span>
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${activity.eventType === "whatsapp" ? "bg-amber-500 text-white" : "bg-blue-500 text-white"}`}>
+                  ● {activity.eventType === "whatsapp" ? "WhatsApp Variable" : "aqasports.com Fixed"}
+                </span>
               </div>
  
               {/* Description */}
@@ -1170,6 +1174,12 @@ export default function ActivityDetailPage() {
                   <span className="font-semibold">{activity.duration}</span>
                 </div>
               )}
+              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
+                <svg className="h-4 w-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="font-semibold">{activity.eventType === "whatsapp" ? "WhatsApp Variable" : "aqasports.com Fixed"}</span>
+              </div>
             </Card>
           </div>
         </div>

@@ -161,6 +161,24 @@ select option {
   animation: custom-pulse-motion 2.2s infinite ease-in-out;
 }
 
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Print styles */
 @media print {
   .print\:hidden { display: none !important; }
@@ -168,3 +186,4 @@ select option {
   body { background: white; color: black; }
   .bg-glow-orb-1, .bg-glow-orb-2 { display: none; }
 }
+

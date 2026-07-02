@@ -245,7 +245,12 @@
       right: 0;
       z-index: 100;
       padding: 0 24px;
-      transition: background 0.3s var(--ease), border-color 0.3s var(--ease);
+      transition: background 0.3s var(--ease), border-color 0.3s var(--ease), transform 0.3s var(--ease);
+      transform: translateY(0);
+    }
+
+    nav.nav-hidden {
+      transform: translateY(-100%);
     }
 
     nav.scrolled {
@@ -701,7 +706,7 @@
 
     /* ── how flip cards ──────────────────────── */
     #how .flip-card {
-      height: 280px;
+      height: 310px;
       perspective: 1200px;
       cursor: pointer;
     }
@@ -728,9 +733,18 @@
     /* front */
     #how .face.front {
       background: linear-gradient(160deg, #0a1f33, var(--bg2));
-      padding: 20px; justify-content: space-between;
+      padding: 20px; display: flex; flex-direction: column; justify-content: flex-start;
     }
     #how .flip-card:hover .face.front { border-color: var(--border-glow); box-shadow: 0 18px 50px rgba(0,242,255,.12); }
+
+    #how .step-bottom {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+      z-index: 2;
+    }
 
     /* scan glint for how cards */
     #how .scan-glint {
@@ -783,9 +797,9 @@
       border-color: var(--border-glow);
       padding: 20px;
     }
-    .back-label { font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; }
-    .back-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 10px; line-height: 1.2; }
-    .back-desc { font-size: 12.8px; color: var(--muted); line-height: 1.55; overflow-y: auto; flex: 1; padding-right: 2px; }
+    .back-label { font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent); margin-bottom: 8px; flex-shrink: 0; }
+    .back-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; margin-bottom: 10px; line-height: 1.2; flex-shrink: 0; }
+    .back-desc { font-size: 12.8px; color: var(--muted); line-height: 1.55; overflow-y: auto; flex: 1; min-height: 0; padding-right: 2px; }
     .back-desc a { color: var(--accent); }
     .back-desc::-webkit-scrollbar { width: 3px; }
     .back-desc::-webkit-scrollbar-thumb { background: var(--border-glow); border-radius: 99px; }
@@ -798,7 +812,7 @@
     .flip-card.cta .step-num { background: var(--accent); color: #021019; border-color: var(--accent); }
     .flip-card.cta .face.back { background: linear-gradient(165deg, #0a2230, var(--bg2)); }
 
-    .cta-actions { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+    .cta-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; flex-shrink: 0; }
     .btn-p, .btn-g {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
       font-size: 13px; font-weight: 700; text-decoration: none;
@@ -814,7 +828,7 @@
     .rtl-mode .track-hint span { margin-right: 0; margin-left: 6px; }
 
     @media (max-width: 880px) {
-      #how .flip-card { height: 260px; }
+      #how .flip-card { height: 290px; }
     }
 
     /* ── FEATURES ────────────────────────────────────── */
@@ -2447,6 +2461,11 @@
       .pricing-tabs {
         flex-wrap: wrap;
       }
+
+      .hero-badge,
+      .credit-visual {
+        display: none !important;
+      }
     }
 
     @media (max-width: 480px) {
@@ -2599,6 +2618,264 @@
     body.rtl-mode .stepper-controls {
       flex-direction: row-reverse;
     }
+
+    /* Floating Card Request Button - Caseless */
+    .floating-card-btn-wrap {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      z-index: 9999;
+      transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease;
+    }
+    .floating-card-btn-wrap.hidden {
+      opacity: 0;
+      transform: translateY(20px) scale(0.9);
+      pointer-events: none;
+      visibility: hidden;
+    }
+    body.rtl-mode .floating-card-btn-wrap {
+      right: auto;
+      left: 32px;
+    }
+    .floating-card-btn-caseless {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      text-decoration: none;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    .floating-card-btn-caseless:hover .floating-card-text {
+      color: var(--accent, #00f2ff);
+      text-shadow: 0 0 10px rgba(0, 242, 255, 0.6);
+    }
+    .floating-card-btn-caseless:hover .floating-card-thumb {
+      animation-duration: 3s;
+      box-shadow: 0 15px 30px rgba(14, 165, 233, 0.4);
+    }
+    .floating-card-btn-caseless:active {
+      transform: scale(0.95);
+    }
+    .floating-card-thumb {
+      position: relative;
+      width: 70px;
+      height: 44.3px;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: #030712;
+      flex-shrink: 0;
+      animation: card-bounce-flip-landing 5s ease-in-out infinite;
+      transform-style: preserve-3d;
+      perspective: 600px;
+    }
+    .floating-card-thumb-face {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+    .floating-card-thumb-face.front {
+      background-image: url('../image/face.png');
+    }
+    .floating-card-thumb-face.back {
+      background-image: url('../image/back.png');
+      transform: rotateY(180deg);
+    }
+    .floating-card-text {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #ffffff;
+      white-space: normal;
+      text-align: right;
+      user-select: none;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8), 0 0 4px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s ease;
+    }
+    
+    @keyframes card-bounce-flip-landing {
+      0%, 100% {
+        transform: translateY(0) rotateY(0deg) rotateX(4deg);
+      }
+      50% {
+        transform: translateY(-8px) rotateY(180deg) rotateX(-4deg);
+      }
+    }
+
+    /* ── PRICING MOBILE EXPERIENCE OVERRIDES ─── */
+    @media (max-width: 520px) {
+      #pricing {
+        padding: 60px 16px;
+      }
+      .pricing-header {
+        margin-bottom: 32px;
+      }
+      .pricing-tabs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 24px;
+      }
+      .ptab {
+        padding: 8px 4px;
+        font-size: 12px;
+        text-align: center;
+        border-radius: 8px;
+      }
+      .tuner-wrap, .money-panel {
+        padding: 24px 16px;
+        border-radius: var(--r-lg);
+      }
+      .tier-pill {
+        display: grid !important;
+        grid-template-columns: 1fr auto !important;
+        grid-template-rows: auto auto !important;
+        gap: 6px !important;
+        padding: 12px 14px !important;
+        align-items: center !important;
+      }
+      .tier-pill-left {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        text-align: start !important;
+        font-size: 13.5px !important;
+      }
+      .tier-pill-center {
+        grid-column: 1 / span 2 !important;
+        grid-row: 2 !important;
+        text-align: start !important;
+        font-size: 11.5px !important;
+      }
+      .tier-pill-right {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        text-align: end !important;
+        font-size: 13.5px !important;
+      }
+      .tuner-summary, #digitalSummary {
+        padding: 16px 12px !important;
+      }
+      .money-calc-wrap {
+        padding: 16px 12px !important;
+      }
+      .money-method {
+        padding: 10px 12px !important;
+      }
+      .btn-buy-pkg, .btn-buy-digital, .btn-contact {
+        padding: 12px !important;
+        font-size: 14px !important;
+      }
+
+      /* Features Section Card Optimization */
+      .feat-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        margin-top: 28px !important;
+      }
+      .feat-card {
+        padding: 16px !important;
+        border-radius: 12px !important;
+      }
+      .feat-grid .feat-card:nth-child(5) {
+        grid-column: span 2 !important;
+      }
+      .feat-icon {
+        width: 36px !important;
+        height: 36px !important;
+        margin-bottom: 12px !important;
+        border-radius: 8px !important;
+      }
+      .feat-icon svg {
+        width: 18px !important;
+        height: 18px !important;
+      }
+      .feat-card h3 {
+        font-size: 13px !important;
+        margin-bottom: 4px !important;
+      }
+      .feat-card p {
+        font-size: 11px !important;
+        line-height: 1.35 !important;
+      }
+
+      /* Activities Section Card Grid Optimization */
+      .acts-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+      }
+      .flip-card {
+        height: 200px !important;
+      }
+      .front-badge {
+        top: 8px !important;
+        left: 8px !important;
+        padding: 3px 8px !important;
+        font-size: 8px !important;
+      }
+      .front-badge svg {
+        width: 10px !important;
+        height: 10px !important;
+      }
+      .front-title {
+        font-size: 13px !important;
+        bottom: 10px !important;
+        left: 10px !important;
+        right: 10px !important;
+      }
+      .front-flip-hint {
+        width: 24px !important;
+        height: 24px !important;
+        top: 8px !important;
+        right: 8px !important;
+      }
+      .rtl-mode .front-badge {
+        left: auto !important;
+        right: 8px !important;
+      }
+      .rtl-mode .front-flip-hint {
+        right: auto !important;
+        left: 8px !important;
+      }
+      
+      .face.back {
+        padding: 12px !important;
+      }
+      .back-label {
+        font-size: 8px !important;
+        letter-spacing: 1px !important;
+        margin-bottom: 4px !important;
+      }
+      .back-title {
+        font-size: 13px !important;
+        margin-bottom: 6px !important;
+      }
+      .back-desc {
+        font-size: 10.5px !important;
+        line-height: 1.35 !important;
+      }
+      .back-foot {
+        margin-top: 6px !important;
+        padding-top: 6px !important;
+        font-size: 9.5px !important;
+      }
+
+      /* FAQ Section Optimization */
+      .faq-q {
+        padding: 12px 14px !important;
+        font-size: 13px !important;
+      }
+      .faq-a-inner {
+        padding: 0 14px 14px !important;
+        font-size: 11.5px !important;
+        line-height: 1.45 !important;
+      }
+    }
   </style>
 </head>
 
@@ -2615,7 +2892,7 @@
       <ul class="nav-links">
         <li><a href="#how" data-i18n="nav.how">How It Works</a></li>
         <li><a href="#activities" data-i18n="nav.activities">Activities</a></li>
-        <li><a href="#bases" data-i18n="nav.bases">Bases</a></li>
+        <!-- <li><a href="#bases" data-i18n="nav.bases">Bases</a></li> -->
         <li><a href="#features" data-i18n="nav.features">Features</a></li>
         <li><a href="#credit-system" data-i18n="nav.credits">Credits</a></li>
         <li><a href="#pricing" data-i18n="nav.pricing">Pricing</a></li>
@@ -2642,7 +2919,7 @@
   <div class="mob-nav" id="mobNav">
     <a href="#how" onclick="closeMob()" data-i18n="nav.how">How It Works</a>
     <a href="#activities" onclick="closeMob()" data-i18n="nav.activities">Activities</a>
-    <a href="#bases" onclick="closeMob()" data-i18n="nav.bases">Bases</a>
+    <!-- <a href="#bases" onclick="closeMob()" data-i18n="nav.bases">Bases</a> -->
     <a href="#features" onclick="closeMob()" data-i18n="nav.features">Features</a>
     <a href="#credit-system" onclick="closeMob()" data-i18n="nav.credits">Credits</a>
     <a href="#pricing" onclick="closeMob()" data-i18n="nav.pricing">Pricing</a>
@@ -2792,7 +3069,7 @@
     </div>
   </section>
 
-  <!-- BASES -->
+  <!-- BASES
   <section id="bases">
     <div class="container">
       <div class="bases-header reveal">
@@ -2802,7 +3079,7 @@
       </div>
 
       <div class="bases-grid">
-        <!-- 1. Base Nautique -->
+        [1. Base Nautique]
         <div class="base-card reveal d1">
           <div class="base-icon-wrap base-icon-nautique">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -2824,7 +3101,7 @@
           </ul>
         </div>
 
-        <!-- 2. Base Forestière -->
+        [2. Base Forestière]
         <div class="base-card reveal d2">
           <div class="base-icon-wrap base-icon-forestique">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -2843,7 +3120,7 @@
           </ul>
         </div>
 
-        <!-- 3. Base Urbaine -->
+        [3. Base Urbaine]
         <div class="base-card reveal d3">
           <div class="base-icon-wrap base-icon-urbaine">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -2862,7 +3139,7 @@
           </ul>
         </div>
 
-        <!-- 4. Base Aérienne -->
+        [4. Base Aérienne]
         <div class="base-card reveal d4">
           <div class="base-icon-wrap base-icon-aerienne">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
@@ -2882,6 +3159,7 @@
       </div>
     </div>
   </section>
+  -->
   <!-- FEATURES -->
   <section id="features">
     <div class="container">
@@ -2904,18 +3182,6 @@
         </div>
 
         <div class="feat-card reveal d2">
-          <div class="feat-icon fi-blue">
-            <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              viewBox="0 0 24 24">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </div>
-          <div class="feat-title" data-i18n="feat.card2title">Secure &amp; Private</div>
-          <div class="feat-desc" data-i18n="feat.card2desc">Your QR code contains zero personal information. Only a secure random token is encoded — your name and balance stay private.</div>
-        </div>
-
-        <div class="feat-card reveal d3">
           <div class="feat-icon fi-green">
             <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
               viewBox="0 0 24 24">
@@ -2930,7 +3196,7 @@
           <div class="feat-desc" data-i18n="feat.card3desc">Larger packages include free extra credits. The Elite pack gives you 17 bonus activities completely free on top of what you paid for.</div>
         </div>
 
-        <div class="feat-card reveal d4">
+        <div class="feat-card reveal d3">
           <div class="feat-icon fi-purple">
             <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
               viewBox="0 0 24 24">
@@ -2941,7 +3207,7 @@
           <div class="feat-desc" data-i18n="feat.card4desc">Every credit loaded and every activity attended is permanently recorded. Your transparent audit trail is always a scan away.</div>
         </div>
 
-        <div class="feat-card reveal d5">
+        <div class="feat-card reveal d4">
           <div class="feat-icon fi-gold">
             <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
               viewBox="0 0 24 24">
@@ -2953,31 +3219,7 @@
           <div class="feat-desc" data-i18n="feat.card5desc">Your credits stay on your card indefinitely. There is no deadline. Use them at your own pace across any AQA Sports session.</div>
         </div>
 
-        <div class="feat-card reveal d6">
-          <div class="feat-icon fi-orange">
-            <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              viewBox="0 0 24 24">
-              <line x1="12" y1="1" x2="12" y2="23" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-          </div>
-          <div class="feat-title" data-i18n="feat.card6title">Money-Back Guarantee</div>
-          <div class="feat-desc" data-i18n="feat.card6desc">Unused credits after a session series ends? You can claim a refund for unspent credits. Your investment is always protected.</div>
-        </div>
-
         <div class="feat-card reveal d1">
-          <div class="feat-icon fi-teal">
-            <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              viewBox="0 0 24 24">
-              <polyline points="1 4 1 10 7 10" />
-              <path d="M3.51 15a9 9 0 1 0 .49-4.5" />
-            </svg>
-          </div>
-          <div class="feat-title" data-i18n="feat.card7title">Replaceable Card</div>
-          <div class="feat-desc" data-i18n="feat.card7desc">Lost your card? Staff reissue a replacement in seconds. Your full credit balance transfers automatically — nothing is lost.</div>
-        </div>
-
-        <div class="feat-card reveal d2">
           <div class="feat-icon fi-blue">
             <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
               viewBox="0 0 24 24">
@@ -3156,7 +3398,7 @@
             </div>
           </div>
           <button class="btn-buy-pkg" id="buy-pkg-btn"
-            onclick="window.open('https://aqasports.com/events', '_blank')" data-i18n="pricing.buyPackageCTA">
+            onclick="openCheckout('package')" data-i18n="pricing.buyPackageCTA">
             Purchase Package &rarr;
           </button>
         </div>
@@ -3175,12 +3417,26 @@
               <button class="step-btn" onclick="adjustCredits(1)">&#43;</button>
             </div>
           </div>
-          <div class="digital-total">
-            <span style="color:var(--muted);font-size:14px;align-self:center;" data-i18n="pricing.digitalTotalLabel">Total to pay</span>
-            <span class="dt-price" id="digitalPrice">9,500 DA</span>
+          <div class="tuner-summary" id="digitalSummary" style="margin: 20px 0;">
+            <div class="summary-row">
+              <span class="s-label" data-i18n="pricing.statPaid">You pay for</span>
+              <span class="s-val" id="d-paid">5 credits</span>
+            </div>
+            <div class="summary-row">
+              <span class="s-label" data-i18n="pricing.statBonus">Free bonus credits</span>
+              <span class="s-val s-bonus" id="d-bonus">+ 0 credits</span>
+            </div>
+            <div class="summary-row">
+              <span class="s-label" data-i18n="pricing.statTotal">Total credited to your card</span>
+              <span class="s-val s-total" id="d-total">5 credits</span>
+            </div>
+            <div class="summary-row">
+              <span class="s-label" data-i18n="pricing.statPrice">Total price</span>
+              <span class="s-val s-price" id="digitalPrice">9,500 DA</span>
+            </div>
           </div>
           <button class="btn-buy-digital"
-            onclick="window.open('https://aqasports.com/events', '_blank')" data-i18n="pricing.digitalCTA">
+            onclick="openCheckout('digital')" data-i18n="pricing.digitalCTA">
             Add Credits to Card &rarr;
           </button>
           <p class="digital-note" data-i18n="pricing.digitalNote">Credits are loaded immediately upon payment confirmation. No bonus credits apply to digital top-ups.</p>
@@ -3246,19 +3502,6 @@
               </div>
             </div>
             <div class="money-method">
-              <div class="mm-icon" style="color:var(--success);">
-                <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  viewBox="0 0 24 24">
-                  <rect x="2" y="5" width="20" height="14" rx="2" />
-                  <line x1="2" y1="10" x2="22" y2="10" />
-                </svg>
-              </div>
-              <div>
-                <div class="mm-name" data-i18n="pricing.method2title">Bank Transfer</div>
-                <div class="mm-desc" data-i18n="pricing.method2desc">Transfer to our account — credits loaded within 24 hours</div>
-              </div>
-            </div>
-            <div class="money-method">
               <div class="mm-icon" style="color:var(--gold);">
                 <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                   viewBox="0 0 24 24">
@@ -3272,14 +3515,49 @@
               </div>
             </div>
           </div>
-          <a href="https://aqasports.com/events" class="btn-contact" target="_blank" rel="noopener noreferrer" id="buy-money-btn">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round" viewBox="0 0 24 24">
-              <path
-                d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 11.39 19a19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-2.92-8.45A2 2 0 0 1 4.44 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.69 2.81a2 2 0 0 1-.45 2.11L8.09 9.91A16 16 0 0 0 14 15.91l1.27-1.27a2 2 0 0 1 2.11-.45c.91.33 1.85.56 2.81.69A2 2 0 0 1 22 16.92z" />
-            </svg>
-            <span data-i18n="pricing.contactCTA">Contact AQA Sports</span>
-          </a>
+          <button type="button" class="btn-buy-pkg" id="buy-money-btn" onclick="openCheckout('money')" style="margin-top: 20px;" data-i18n="pricing.moneyCTA">
+            Next &rarr;
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB: CHECKOUT -->
+      <div class="ptab-panel" id="panel-checkout">
+        <div class="money-panel reveal d2" style="max-width:560px; text-align: left;">
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px; text-align: center;" data-i18n="checkout.title">Submit Demand</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:24px; text-align: center;" data-i18n="checkout.desc">Enter your details to request your card. We will contact you via WhatsApp.</p>
+          
+          <!-- Summary Banner -->
+          <div id="checkoutSummary" class="tuner-summary" style="margin-bottom: 24px; background: rgba(0, 242, 255, 0.03);">
+            <!-- Populated via JS -->
+          </div>
+
+          <!-- Form Fields -->
+          <form id="checkoutForm" onsubmit="submitDemand(event)">
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px;" data-i18n="checkout.nameLabel">Full Name *</label>
+              <input type="text" id="chkName" required data-i18n="checkout.namePlaceholder" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-weight: 500;" />
+            </div>
+
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px;" data-i18n="checkout.phoneLabel">WhatsApp Phone Number *</label>
+              <input type="tel" id="chkPhone" required data-i18n="checkout.phonePlaceholder" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-weight: 500;" />
+            </div>
+
+            <div style="margin-bottom: 24px;">
+              <label style="display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px;" data-i18n="checkout.emailLabel">Email Address (Optional)</label>
+              <input type="email" id="chkEmail" data-i18n="checkout.emailPlaceholder" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-weight: 500;" />
+            </div>
+
+            <!-- Submit Buttons -->
+            <div style="display: flex; gap: 12px; margin-top: 20px;">
+              <button type="button" class="btn-buy-pkg" onclick="goBackToPricing()" style="flex: 1; background: transparent; border: 1px solid var(--border); margin: 0;" data-i18n="checkout.btnBack">Back</button>
+              <button type="submit" class="btn-buy-pkg" id="btnSubmitDemand" style="flex: 2; margin: 0;" data-i18n="checkout.btnSubmit">Send Demand</button>
+            </div>
+            
+            <p id="checkoutError" style="color: var(--danger-text, #f87171); font-size: 12.5px; margin-top: 14px; text-align: center; display: none;"></p>
+            <p id="checkoutSuccess" style="color: #4ade80; font-size: 13px; margin-top: 14px; text-align: center; display: none;" data-i18n="checkout.successMsg">Demand sent successfully! We will contact you shortly.</p>
+          </form>
         </div>
       </div>
     </div>
@@ -3291,7 +3569,7 @@
         <div class="phone-wrap reveal">
           <img class="phone-screenshot" src="../image/balance_screen_cropped.png"
             alt="AQA Events Card balance page on mobile"
-            onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;296&quot; height=&quot;560&quot; viewBox=&quot;0 0 296 560&quot;><rect width=&quot;296&quot; height=&quot;560&quot; fill=&quot;%23070f1c&quot;/><text x=&quot;148&quot; y=&quot;280&quot; fill=&quot;%2300f2ff&quot; font-family=&quot;Inter&quot; font-size=&quot;13&quot; text-anchor=&quot;middle&quot;>Balance Page Preview</text></svg>'; renderPhoneScreen();" />
+            onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;296&quot; height=&quot;560&quot; viewBox=&quot;0 0 296 560&quot;><rect width=&quot;296&quot; height=&quot;560&quot; fill=&quot;%23070f1c&quot;/><text x=&quot;148&quot; y=&quot;280&quot; fill=&quot;%2300f2ff&quot; font-family=&quot;Inter&quot; font-size=&quot;13&quot; text-anchor=&quot;middle&quot;>Balance Page Preview</text></svg>'; useCanvasFallback=true; renderPhoneScreen();" />
           <!-- fallback canvas screen rendered by JS -->
           <canvas id="phoneCanvas" width="296" height="560" style="display:none;"></canvas>
         </div>
@@ -3353,12 +3631,6 @@
               <div class="faq-a-inner" data-i18n="faq.a3">No. Credits on your AQA Events Card never expire. They remain on your card indefinitely until you use them. There is no time limit or season restriction.</div>
             </div>
           </div>
-          <div class="faq-item reveal d3">
-            <button class="faq-q" onclick="toggleFaq(this)"><span data-i18n="faq.q4">Can I get a refund on unused credits?</span><div class="faq-arr">&#9662;</div></button>
-            <div class="faq-a">
-              <div class="faq-a-inner" data-i18n="faq.a4">Yes. If a session series ends and you have unused credits remaining, you can request a refund for the value of those unspent credits. Contact AQA Sports and present your card — the refund is calculated at the base rate of 1,900 DA per credit.</div>
-            </div>
-          </div>
           <div class="faq-item reveal">
             <button class="faq-q" onclick="toggleFaq(this)"><span data-i18n="faq.q5">What happens if I lose my card?</span><div class="faq-arr">&#9662;</div></button>
             <div class="faq-a">
@@ -3408,7 +3680,7 @@
     <ul class="footer-links">
       <li><a href="#how" data-i18n="nav.how">How It Works</a></li>
       <li><a href="#activities" data-i18n="nav.activities">Activities</a></li>
-      <li><a href="#bases" data-i18n="nav.bases">Bases</a></li>
+      <!-- <li><a href="#bases" data-i18n="nav.bases">Bases</a></li> -->
       <li><a href="#features" data-i18n="nav.features">Features</a></li>
       <li><a href="#credit-system" data-i18n="nav.credits">Credits</a></li>
       <li><a href="#pricing" data-i18n="nav.pricing">Pricing</a></li>
@@ -3419,16 +3691,31 @@
   </footer>
 
   <script>
+    let mobOpen = false;
+
     /* ── NAVBAR SCROLL ─────────────────────────── */
     const navbar = document.getElementById('navbar');
+    let lastScrollY = window.scrollY;
+
     window.addEventListener('scroll', () => {
-      navbar.classList.toggle('scrolled', window.scrollY > 16);
+      const currentScrollY = window.scrollY;
+      navbar.classList.toggle('scrolled', currentScrollY > 16);
+      
+      // Hide on scroll down, show on scroll up (unless mobile menu is open)
+      if (!mobOpen) {
+        if (currentScrollY > lastScrollY && currentScrollY > 100) {
+          navbar.classList.add('nav-hidden');
+        } else {
+          navbar.classList.remove('nav-hidden');
+        }
+      }
+      
+      lastScrollY = currentScrollY;
     }, { passive: true });
 
     /* ── MOBILE NAV ────────────────────────────── */
     const mobToggle = document.getElementById('mobToggle');
     const mobNav = document.getElementById('mobNav');
-    let mobOpen = false;
     mobToggle.addEventListener('click', () => {
       mobOpen = !mobOpen;
       mobNav.classList.toggle('open', mobOpen);
@@ -3443,6 +3730,8 @@
       });
     }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
     reveals.forEach(el => io.observe(el));
+
+
 
     /* ── FAQ ACCORDION ─────────────────────────── */
     function toggleFaq(btn) {
@@ -3463,6 +3752,7 @@
     /* ── TRANSLATIONS DICTIONARY ────────────────────── */
     const translations = {
       fr: {
+        "pricing.floatingDemande": "Demandez<br>votre<br>carte",
         "hero.neverExpires": "Les cartes n'expirent jamais",
         "ambiance.label": "Ambiance",
         "ambiance.title": "Ambiance exceptionnelle",
@@ -3590,16 +3880,16 @@
         "pricing.soloLabel": "Solo (1)",
         "pricing.eliteLabel": "Elite (50)",
         "pricing.buyPackageCTA": "Acheter la formule &rarr;",
-        "pricing.statPaid": "You pay for",
-        "pricing.statBonus": "Free bonus credits",
-        "pricing.statTotal": "Total credited to your card",
-        "pricing.statPrice": "Total price",
+        "pricing.statPaid": "Vous payez pour",
+        "pricing.statBonus": "Crédits bonus gratuits",
+        "pricing.statTotal": "Total des crédits",
+        "pricing.statPrice": "Tarif total",
         "pricing.digitalTitle": "Recharge en ligne",
-        "pricing.digitalDesc": "Rechargez votre carte avec le nombre de crédits de votre choix. Pas de bonus inclus — les crédits sont ajoutés au tarif de base de 1 900 DA chacun.",
+        "pricing.digitalDesc": "Rechargez votre carte avec le nombre de crédits de votre choix. Les bonus de notre grille s'appliquent automatiquement.",
         "pricing.digitalCreditsLabel": "Nombre de crédits",
         "pricing.digitalTotalLabel": "Total à payer",
         "pricing.digitalCTA": "Recharger ma carte &rarr;",
-        "pricing.digitalNote": "Les crédits sont chargés immédiatement après confirmation du paiement. Aucun crédit bonus ne s'applique aux recharges numériques.",
+        "pricing.digitalNote": "Les crédits sont chargés immédiatement après confirmation du paiement. La grille de bonus standard s'applique.",
         "pricing.calcTitle": "Load Money to Your Card",
         "pricing.calcDesc": "Vous préférez déposer un montant en cash ? Nous convertissons votre dépôt au meilleur tarif combiné disponible.",
         "pricing.calcHeader": "Convert DA en Crédits",
@@ -3643,9 +3933,22 @@
         "cta.desc": "Rendez-vous dans l'agence AQA Sports la plus proche, choisissez une formule et repartez avec votre carte chargée. Les crédits n'expirent jamais — votre investissement est sécurisé.",
         "cta.ctaPrimary": "Visiter aqasports.com",
         "cta.ctaSecondary": "Voir toutes les formules",
+        "pricing.moneyCTA": "Suivant &rarr;",
+        "checkout.title": "Demande de carte",
+        "checkout.desc": "Saisissez vos informations pour finaliser votre demande. Nous vous contacterons via WhatsApp.",
+        "checkout.nameLabel": "Nom complet *",
+        "checkout.phoneLabel": "Numéro de téléphone (WhatsApp) *",
+        "checkout.emailLabel": "Adresse e-mail (Optionnel)",
+        "checkout.namePlaceholder": "Ex. John Doe",
+        "checkout.phonePlaceholder": "Ex. +213 555 12 34 56",
+        "checkout.emailPlaceholder": "Ex. contact@exemple.com (Optionnel)",
+        "checkout.btnBack": "Retour",
+        "checkout.btnSubmit": "Envoyer la demande",
+        "checkout.successMsg": "Demande envoyée avec succès ! Nous vous contacterons très prochainement.",
         "footer.copy": "2025 AQA Sports &mdash; Système de carte AQA Events. Une carte, chaque aventure."
       },
       en: {
+        "pricing.floatingDemande": "demand<br>your<br>card",
         "hero.neverExpires": "Cards never expire",
         "ambiance.label": "Vibe",
         "ambiance.title": "Exceptional Vibe",
@@ -3778,11 +4081,11 @@
         "pricing.statTotal": "Total credited to your card",
         "pricing.statPrice": "Total price",
         "pricing.digitalTitle": "Add Credits Digitally",
-        "pricing.digitalDesc": "Top up your card with a custom number of credits. No bonus included — credits are added at the base rate of 1,900 DA each.",
+        "pricing.digitalDesc": "Top up your card with a custom number of credits. Bonus credits apply automatically based on the scale.",
         "pricing.digitalCreditsLabel": "Number of credits",
         "pricing.digitalTotalLabel": "Total to pay",
         "pricing.digitalCTA": "Add Credits to Card &rarr;",
-        "pricing.digitalNote": "Credits are loaded immediately upon payment confirmation. No bonus credits apply to digital top-ups.",
+        "pricing.digitalNote": "Credits are loaded immediately upon payment confirmation. Bonus credits apply to digital top-ups.",
         "pricing.calcTitle": "Load Money to Your Card",
         "pricing.calcDesc": "Prefer to load a cash amount directly? We convert your deposit into the equivalent number of credits at the current base rate.",
         "pricing.calcHeader": "Convert Cash to Credits",
@@ -3826,9 +4129,22 @@
         "cta.desc": "Visit your nearest AQA Sports location, choose a package, and walk out with your card loaded and ready. Credits never expire — your investment is always safe.",
         "cta.ctaPrimary": "Visit aqasports.com",
         "cta.ctaSecondary": "View All Packages",
+        "pricing.moneyCTA": "Next &rarr;",
+        "checkout.title": "Submit Demand",
+        "checkout.desc": "Enter your details to request your card. We will contact you via WhatsApp.",
+        "checkout.nameLabel": "Full Name *",
+        "checkout.phoneLabel": "WhatsApp Phone Number *",
+        "checkout.emailLabel": "Email Address (Optional)",
+        "checkout.namePlaceholder": "e.g. John Doe",
+        "checkout.phonePlaceholder": "e.g. +213 555 12 34 56",
+        "checkout.emailPlaceholder": "e.g. contact@example.com (Optional)",
+        "checkout.btnBack": "Back",
+        "checkout.btnSubmit": "Send Demand",
+        "checkout.successMsg": "Demand sent successfully! We will contact you shortly.",
         "footer.copy": "2025 AQA Sports &mdash; AQA Events Card system. One card, every adventure."
       },
       ar: {
+        "pricing.floatingDemande": "اطلب<br>بطاقتك",
         "hero.neverExpires": "البطاقات لا تنتهي صلاحيتها أبداً",
         "ambiance.label": "الأجواء",
         "ambiance.title": "أجواء استثنائية",
@@ -3961,11 +4277,11 @@
         "pricing.statTotal": "إجمالي الرصيد في البطاقة",
         "pricing.statPrice": "السعر الإجمالي",
         "pricing.digitalTitle": "شحن الرصيد رقمياً",
-        "pricing.digitalDesc": "اشحن بطاقتك بعدد مخصص من الأرصدة. لا تشمل البونص — تضاف الأرصدة بالسعر الأساسي البالغ ١,٩٠٠ د.ج لكل رصيد.",
+        "pricing.digitalDesc": "اشحن بطاقتك بعدد مخصص من الأرصدة. يتم تطبيق الأرصدة الإضافية تلقائياً حسب جدول البونص.",
         "pricing.digitalCreditsLabel": "عدد الأرصدة",
         "pricing.digitalTotalLabel": "إجمالي الدفع",
         "pricing.digitalCTA": "شحن الرصيد للبطاقة &rarr;",
-        "pricing.digitalNote": "يتم شحن الرصيد فوراً بعد تأكيد الدفع. لا تنطبق الأرصدة الإضافية على عمليات الشحن المخصصة رقمياً.",
+        "pricing.digitalNote": "يتم شحن الرصيد فوراً بعد تأكيد الدفع. يتم تطبيق الأرصدة الإضافية على عمليات الشحن الرقمية.",
         "pricing.calcTitle": "تحويل النقد إلى رصيد",
         "pricing.calcDesc": "هل تفضل شحن مبلغ نقدي مباشرة؟ نقوم بتحويل إيداعك إلى ما يعادله من الأرصدة بأفضل باقة ممكنة.",
         "pricing.calcHeader": "تحويل المبالغ النقدية",
@@ -4009,6 +4325,18 @@
         "cta.desc": "قم بزيارة أقرب فرع لـ AQA Sports، اختر باقتك، واحصل على بطاقتك مشحونة وجاهزة. الرصيد لا ينتهي أبداً — استثمارك آمن دائماً.",
         "cta.ctaPrimary": "قم بزيارة aqasports.com",
         "cta.ctaSecondary": "عرض جميع الباقات",
+        "pricing.moneyCTA": "التالي &rarr;",
+        "checkout.title": "تقديم الطلب",
+        "checkout.desc": "أدخل تفاصيلك لطلب بطاقتك. سنتواصل معك عبر واتساب.",
+        "checkout.nameLabel": "الاسم الكامل *",
+        "checkout.phoneLabel": "رقم الهاتف (واتساب) *",
+        "checkout.emailLabel": "البريد الإلكتروني (اختياري)",
+        "checkout.namePlaceholder": "مثال: محمد أحمد",
+        "checkout.phonePlaceholder": "مثال: ٠٥٥٥١٢٣٤٥٦",
+        "checkout.emailPlaceholder": "مثال: mail@example.com (اختياري)",
+        "checkout.btnBack": "رجوع",
+        "checkout.btnSubmit": "إرسال الطلب",
+        "checkout.successMsg": "تم إرسال الطلب بنجاح! سنتصل بك قريباً.",
         "footer.copy": "2025 AQA Sports &mdash; نظام بطاقة AQA للفعاليات. بطاقة واحدة، لكل مغامرة."
       }
     };
@@ -4657,7 +4985,7 @@
       updateSummary(currentTier, lang);
 
       // 3. Re-run stepper pricing count
-      document.getElementById('digitalPrice').textContent = formatPriceNum(digitalCredits * baseRate, lang);
+      adjustCredits(0);
 
       // 4. Re-run calculator updates
       const calcVal = document.getElementById('moneyAmountInput').value;
@@ -4762,7 +5090,7 @@
                   </div>
                 </div>
                 <div class="step-icon">${s.icon}</div>
-                <div>
+                <div class="step-bottom">
                   <div class="front-title">${title}</div>
                   <div class="front-tag">${tag}</div>
                 </div>
@@ -4797,7 +5125,7 @@
                 </div>
               </div>
               <div class="step-icon">${s.icon}</div>
-              <div>
+              <div class="step-bottom">
                 <div class="front-title">${title}</div>
                 <div class="front-tag">${tag}</div>
               </div>
@@ -4968,27 +5296,35 @@
 
     /* ── BASE SCRIPT ADAPTATIONS ────────────────────── */
     let TIERS = [
-      { name: 'Essai', paid: 1, bonus: 0, total: 1, price: 1900 },
-      { name: 'FUN7', paid: 7, bonus: 1, total: 8, price: 13300 },
-      { name: 'Starter', paid: 4, bonus: 0, total: 4, price: 7600 },
-      { name: 'Bon Plan', paid: 10, bonus: 2, total: 12, price: 19000 },
-      { name: 'Club', paid: 20, bonus: 5, total: 25, price: 38000 },
-      { name: 'Pro', paid: 30, bonus: 9, total: 39, price: 57000 },
-      { name: 'Elite', paid: 50, bonus: 17, total: 67, price: 95000 },
+      { id: null, name: 'Essai', paid: 1, bonus: 0, total: 1, price: 1900 },
+      { id: null, name: 'FUN7', paid: 7, bonus: 1, total: 8, price: 13300 },
+      { id: null, name: 'Starter', paid: 4, bonus: 0, total: 4, price: 7600 },
+      { id: null, name: 'Bon Plan', paid: 10, bonus: 2, total: 12, price: 19000 },
+      { id: null, name: 'Club', paid: 20, bonus: 5, total: 25, price: 38000 },
+      { id: null, name: 'Pro', paid: 30, bonus: 9, total: 39, price: 57000 },
+      { id: null, name: 'Elite', paid: 50, bonus: 17, total: 67, price: 95000 },
     ];
     let baseRate = 1900;
     let currentTier = 3;
 
-    async function fetchPackages() {
-      // First try local relative path, fallback to production Netlify URL if local fails or is file://
-      let urls = ['/api/public/packages'];
+    function getApiEndpoints(path) {
+      const urls = [path];
       if (window.location.protocol === 'file:') {
-        urls.unshift('https://delightful-torte-bcca6a.netlify.app/api/public/packages');
+        urls.unshift('https://delightful-torte-bcca6a.netlify.app' + path);
       } else {
-        urls.push('https://delightful-torte-bcca6a.netlify.app/api/public/packages');
+        urls.push('https://delightful-torte-bcca6a.netlify.app' + path);
       }
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        if (window.location.port !== '3000') {
+          urls.unshift('http://localhost:3000' + path);
+        }
+      }
+      return [...new Set(urls)];
+    }
 
+    async function fetchPackages() {
       let success = false;
+      const urls = getApiEndpoints('/api/public/packages');
       for (const url of urls) {
         try {
           const res = await fetch(url);
@@ -4996,6 +5332,7 @@
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
             TIERS = data.map(p => ({
+              id: p.id,
               name: p.name,
               paid: p.creditAmount,
               bonus: p.bonusCredits,
@@ -5115,6 +5452,15 @@
         p.classList.remove('selected', 'selected-elite');
         if (i === idx) p.classList.add(i === 5 ? 'selected-elite' : 'selected');
       });
+      
+      // Update cards
+      document.querySelectorAll('.pricing-card').forEach((card, i) => {
+        if (i === idx) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
     }
 
     function selectTier(idx) {
@@ -5129,10 +5475,37 @@
 
     /* ── Digital credits stepper ────────────────── */
     let digitalCredits = 5;
+    function getBonus(credits) {
+      if (credits >= 50) return 17;
+      if (credits >= 30) return 9;
+      if (credits >= 20) return 5;
+      if (credits >= 10) return 2;
+      if (credits >= 7) return 1;
+      return 0;
+    }
+
     function adjustCredits(delta) {
       digitalCredits = Math.max(1, Math.min(50, digitalCredits + delta));
       document.getElementById('digitalCount').textContent = digitalCredits;
-      document.getElementById('digitalPrice').textContent = formatPriceNum(digitalCredits * baseRate, currentLang);
+      
+      const bonus = getBonus(digitalCredits);
+      const total = digitalCredits + bonus;
+      
+      const paidEl = document.getElementById('d-paid');
+      const bonusEl = document.getElementById('d-bonus');
+      const totalEl = document.getElementById('d-total');
+      const priceEl = document.getElementById('digitalPrice');
+
+      const creditsText = {
+        fr: " crédits",
+        en: " credits",
+        ar: " رصيد"
+      }[currentLang] || " credits";
+
+      if (paidEl) paidEl.textContent = digitalCredits + creditsText;
+      if (bonusEl) bonusEl.textContent = "+ " + bonus + creditsText;
+      if (totalEl) totalEl.textContent = total + creditsText;
+      if (priceEl) priceEl.textContent = formatPriceNum(digitalCredits * baseRate, currentLang);
     }
 
     /* ── Money to credits calculator ────────────── */
@@ -5243,11 +5616,20 @@
       }
     }
 
+    let useCanvasFallback = false;
+
     /* ── Render phone screen (canvas fallback) ─── */
     function renderPhoneScreen() {
       const img = document.querySelector('.phone-screenshot');
       const canvas = document.getElementById('phoneCanvas');
       if (!canvas) return;
+      
+      if (!useCanvasFallback) {
+        img.style.display = 'block';
+        canvas.style.display = 'none';
+        return;
+      }
+      
       img.style.display = 'none';
       canvas.style.display = 'block';
       const ctx = canvas.getContext('2d');
@@ -5371,7 +5753,12 @@
     }
 
     const scrImg = document.querySelector('.phone-screenshot');
-    if (scrImg) scrImg.addEventListener('error', renderPhoneScreen, { once: true });
+    if (scrImg) {
+      scrImg.addEventListener('error', () => {
+        useCanvasFallback = true;
+        renderPhoneScreen();
+      }, { once: true });
+    }
 
     /* ── Activity Filters ──────────────── */
     function filterActs(cat, btn) {
@@ -5384,20 +5771,266 @@
           card.style.display = '';
         } else if (card.classList.contains('category-' + cat)) {
           card.style.display = '';
-        } else {
-          card.style.display = 'none';
         }
       });
     }
 
-    /* ── INITIALIZATION ──────────────────────────────── */
+    /* ── Checkout Flow Functions ─── */
+    let checkoutData = null;
+
+    function openCheckout(flowType) {
+      // Hide all panels and tabs
+      document.querySelectorAll('.ptab-panel').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+      
+      const checkoutPanel = document.getElementById('panel-checkout');
+      const summaryEl = document.getElementById('checkoutSummary');
+      
+      if (!checkoutPanel || !summaryEl) return;
+      
+      // Clear messages
+      document.getElementById('checkoutError').style.display = 'none';
+      document.getElementById('checkoutSuccess').style.display = 'none';
+      
+      // Determine what was selected
+      let paidCredits = 0;
+      let bonusCredits = 0;
+      let totalCredits = 0;
+      let totalPrice = 0;
+      let title = "";
+      
+      if (flowType === 'package') {
+        const tier = TIERS[currentTier];
+        paidCredits = tier.paid;
+        bonusCredits = tier.bonus;
+        totalCredits = tier.total;
+        totalPrice = tier.price;
+        
+        const packageLabel = currentLang === 'ar' ? 'باقة: ' : (currentLang === 'fr' ? 'Formule : ' : 'Package: ');
+        title = packageLabel + tier.name;
+        
+        checkoutData = {
+          creditType: 'package',
+          packageId: tier.id,
+          amount: null,
+          price: totalPrice
+        };
+      } else if (flowType === 'digital') {
+        paidCredits = digitalCredits;
+        bonusCredits = getBonus(digitalCredits);
+        totalCredits = paidCredits + bonusCredits;
+        totalPrice = paidCredits * baseRate;
+        
+        const digitalLabel = currentLang === 'ar' ? 'شحن رقمي مخصص' : (currentLang === 'fr' ? 'Recharge numérique' : 'Digital Top-up');
+        title = digitalLabel;
+        
+        checkoutData = {
+          creditType: 'custom',
+          packageId: null,
+          amount: paidCredits,
+          price: totalPrice
+        };
+      } else if (flowType === 'money') {
+        const amountVal = parseFloat(document.getElementById('moneyAmountInput').value);
+        if (isNaN(amountVal) || amountVal <= 0) {
+          alert(currentLang === 'ar' ? 'يرجى إدخال مبلغ صحيح' : (currentLang === 'fr' ? 'Veuillez saisir un montant valide' : 'Please enter a valid amount'));
+          // Restore active panel
+          switchTab('money', document.getElementById('tab-money'));
+          return;
+        }
+        
+        // Calculate credits based on amount
+        let remainingMoney = amountVal;
+        let totalPaid = 0;
+        let totalBonus = 0;
+        const CALC_TIERS = [...TIERS].sort((a, b) => b.price - a.price);
+        for (const tier of CALC_TIERS) {
+          const qty = Math.floor(remainingMoney / tier.price);
+          if (qty > 0) {
+            totalPaid += tier.paid * qty;
+            totalBonus += tier.bonus * qty;
+            remainingMoney -= tier.price * qty;
+          }
+        }
+        const maxBonus = TIERS.length > 0 ? Math.max(...TIERS.map(t => t.bonus)) : 17;
+        if (totalBonus > maxBonus) {
+          totalBonus = maxBonus;
+        }
+        
+        paidCredits = totalPaid;
+        bonusCredits = totalBonus;
+        totalCredits = paidCredits + bonusCredits;
+        totalPrice = amountVal;
+        
+        const moneyLabel = currentLang === 'ar' ? 'إيداع مبلغ نقدي' : (currentLang === 'fr' ? 'Dépôt de montant' : 'Cash Deposit');
+        title = moneyLabel;
+        
+        checkoutData = {
+          creditType: 'custom',
+          packageId: null,
+          amount: paidCredits,
+          price: totalPrice
+        };
+      }
+      
+      // Render summary row
+      const labelPaid = currentLang === 'ar' ? 'الأرصدة المدفوعة' : (currentLang === 'fr' ? 'Vous payez pour' : 'You pay for');
+      const labelBonus = currentLang === 'ar' ? 'الأرصدة الإضافية المجانية' : (currentLang === 'fr' ? 'Crédits bonus gratuits' : 'Free bonus credits');
+      const labelTotal = currentLang === 'ar' ? 'إجمالي الرصيد' : (currentLang === 'fr' ? 'Total des crédits' : 'Total credited');
+      const labelPrice = currentLang === 'ar' ? 'السعر الإجمالي' : (currentLang === 'fr' ? 'Tarif total' : 'Total price');
+      
+      const unitText = currentLang === 'ar' ? ' رصيد' : (currentLang === 'fr' ? ' crédits' : ' credits');
+      
+      summaryEl.innerHTML = `
+        <div style="font-weight: 700; font-size: 15px; color: var(--accent); margin-bottom: 12px; font-family:'Space Grotesk',sans-serif;">
+          ${title}
+        </div>
+        <div class="summary-row" style="padding: 4px 0;">
+          <span class="s-label">${labelPaid}</span>
+          <span class="s-val">${paidCredits}${unitText}</span>
+        </div>
+        <div class="summary-row" style="padding: 4px 0;">
+          <span class="s-label">${labelBonus}</span>
+          <span class="s-val s-bonus">+ ${bonusCredits}${unitText}</span>
+        </div>
+        <div class="summary-row" style="padding: 4px 0;">
+          <span class="s-label">${labelTotal}</span>
+          <span class="s-val s-total">${totalCredits}${unitText}</span>
+        </div>
+        <div class="summary-row" style="padding: 8px 0 0; margin-top: 8px; border-top: 1px dashed rgba(255,255,255,0.08);">
+          <span class="s-label">${labelPrice}</span>
+          <span class="s-val s-price" style="font-size: 20px; color: var(--text);">${formatPriceNum(totalPrice, currentLang)}</span>
+        </div>
+      `;
+      
+      // Show checkout panel
+      checkoutPanel.classList.add('active');
+    }
+
+    function goBackToPricing() {
+      const checkoutPanel = document.getElementById('panel-checkout');
+      if (checkoutPanel) checkoutPanel.classList.remove('active');
+      
+      // Determine which tab to restore
+      if (checkoutData && checkoutData.creditType === 'package') {
+        switchTab('package', document.getElementById('tab-package'));
+      } else if (checkoutData && checkoutData.packageId === null && document.getElementById('tab-digital').classList.contains('active')) {
+        switchTab('digital', document.getElementById('tab-digital'));
+      } else {
+        switchTab('money', document.getElementById('tab-money'));
+      }
+    }
+
+    async function submitDemand(e) {
+      e.preventDefault();
+      if (!checkoutData) return;
+      
+      const btn = document.getElementById('btnSubmitDemand');
+      const errEl = document.getElementById('checkoutError');
+      const succEl = document.getElementById('checkoutSuccess');
+      
+      errEl.style.display = 'none';
+      succEl.style.display = 'none';
+      
+      const name = document.getElementById('chkName').value.trim();
+      const phone = document.getElementById('chkPhone').value.trim();
+      const email = document.getElementById('chkEmail').value.trim();
+      
+      if (!name || !phone) {
+        errEl.textContent = currentLang === 'ar' ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields';
+        errEl.style.display = 'block';
+        return;
+      }
+      
+      btn.disabled = true;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = currentLang === 'ar' ? 'جاري الإرسال...' : (currentLang === 'fr' ? 'Envoi en cours...' : 'Sending...');
+      
+      let success = false;
+      let lastError = "Network error. Please try again.";
+      const urls = getApiEndpoints('/api/public/demands');
+      
+      for (const url of urls) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              phone,
+              email: email || null,
+              creditType: checkoutData.creditType,
+              packageId: checkoutData.packageId,
+              amount: checkoutData.amount
+            })
+          });
+          
+          if (res.ok) {
+            success = true;
+            break;
+          } else {
+            const errData = await res.json();
+            lastError = errData.error || lastError;
+          }
+        } catch (err) {
+          console.warn(`Failed to submit demand to ${url}:`, err);
+          lastError = err.message || lastError;
+        }
+      }
+      
+      if (success) {
+        succEl.style.display = 'block';
+        document.getElementById('checkoutForm').reset();
+        setTimeout(() => {
+          succEl.style.display = 'none';
+          goBackToPricing();
+        }, 4000);
+      } else {
+        errEl.textContent = lastError;
+        errEl.style.display = 'block';
+      }
+      
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       // Get saved language or default to FR
       const savedLang = localStorage.getItem('aqa-lang') || 'fr';
       await fetchPackages();
       setLanguage(savedLang);
+
+      // Hide floating button when in pricing section
+      const pricingSection = document.getElementById('pricing');
+      const floatingBtn = document.querySelector('.floating-card-btn-wrap');
+      if (pricingSection && floatingBtn) {
+        const pricingObserver = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              floatingBtn.classList.add('hidden');
+            } else {
+              floatingBtn.classList.remove('hidden');
+            }
+          });
+        }, {
+          threshold: 0,
+          rootMargin: '-50px 0px -50px 0px'
+        });
+        pricingObserver.observe(pricingSection);
+      }
     });
   </script>
+
+  <!-- FLOATING CARD REQUEST BUTTON -->
+  <div class="floating-card-btn-wrap">
+    <a href="#pricing" class="floating-card-btn-caseless">
+      <span class="floating-card-text" data-i18n="pricing.floatingDemande">demand<br>your<br>card</span>
+      <div class="floating-card-thumb">
+        <div class="floating-card-thumb-face front"></div>
+        <div class="floating-card-thumb-face back"></div>
+      </div>
+    </a>
+  </div>
 </body>
 
 </html>

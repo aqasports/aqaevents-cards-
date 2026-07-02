@@ -30,6 +30,7 @@ type Activity = {
   gallery: string | null;
   equipment: string | null;
   active: boolean;
+  eventType: string;
   sessions: Session[];
   expenses: { id: string; name: string; amount: number }[];
   _count: { redemptions: number };
@@ -225,6 +226,7 @@ export default function ActivitiesPage() {
         imageUrl: fd.get("imageUrl") || undefined,
         places: fd.get("places") || undefined,
         duration: fd.get("duration") || undefined,
+        eventType: fd.get("eventType") || "fixed",
         expenses: tempExpenses,
       }),
     });
@@ -349,6 +351,18 @@ export default function ActivitiesPage() {
                 name="places"
                 placeholder="e.g. Oued Fès, Bin El Ouidane (comma separated)"
               />
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Event Type</label>
+                <select
+                  name="eventType"
+                  defaultValue="fixed"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                >
+                  <option value="fixed">aqasports.com/events (Fixed)</option>
+                  <option value="whatsapp">WhatsApp group variable</option>
+                </select>
+              </div>
 
               {/* Expenses Inline Builder */}
               <div className="border-t border-dashed border-[var(--border)] pt-3">
@@ -536,6 +550,11 @@ export default function ActivitiesPage() {
                           {activity.duration}
                         </span>
                       )}
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm ${
+                        activity.eventType === "whatsapp" ? "bg-amber-500" : "bg-sky-500"
+                      }`}>
+                        {activity.eventType === "whatsapp" ? "WhatsApp Variable" : "aqasports.com Fixed"}
+                      </span>
                     </div>
                   </div>
 

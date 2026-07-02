@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 
 export async function sendSimulatedNotification(
   clientId: string,
-  type: "sms" | "email",
+  type: "sms" | "email" | "whatsapp",
   recipient: string,
   message: string,
   subject?: string | null,

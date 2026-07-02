@@ -7,6 +7,7 @@ export interface ActivityCreatePayload {
   duration?: string | null;
   gallery?: string | null;
   equipment?: string | null;
+  eventType?: string;
   expenses?: Array<{
     name: string;
     amount: number;
@@ -24,6 +25,7 @@ export interface ActivityUpdatePayload {
   gallery?: string | null;
   equipment?: string | null;
   active?: boolean;
+  eventType?: string;
 }
 
 export interface SessionCreatePayload {

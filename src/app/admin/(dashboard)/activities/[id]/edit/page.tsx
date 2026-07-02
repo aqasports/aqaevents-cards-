@@ -25,6 +25,7 @@ type ActivityDetail = {
   places: string | null;
   duration: string | null;
   active: boolean;
+  eventType: string;
 };
 
 export default function EditActivityPage() {
@@ -44,6 +45,7 @@ export default function EditActivityPage() {
   const [places, setPlaces] = useState("");
   const [duration, setDuration] = useState("");
   const [active, setActive] = useState(true);
+  const [eventType, setEventType] = useState("fixed");
 
   // Confirm modal state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -75,6 +77,7 @@ export default function EditActivityPage() {
       setPlaces(data.places ?? "");
       setDuration(data.duration ?? "");
       setActive(data.active);
+      setEventType(data.eventType ?? "fixed");
       setLoading(false);
     } catch (err) {
       console.error(err);
@@ -104,6 +107,7 @@ export default function EditActivityPage() {
           places: places.trim() || null,
           duration: duration || null,
           active: active,
+          eventType: eventType,
         }),
       });
 
@@ -257,6 +261,15 @@ export default function EditActivityPage() {
           >
             <option value="active">Active (Visible & bookable)</option>
             <option value="disabled">Disabled (Hidden from active grid)</option>
+          </Select>
+
+          <Select
+            label="Event Type"
+            value={eventType}
+            onChange={(e) => setEventType(e.target.value)}
+          >
+            <option value="fixed">aqasports.com/events (Fixed)</option>
+            <option value="whatsapp">WhatsApp group variable</option>
           </Select>
 
           <div className="flex flex-wrap gap-3 pt-3 border-t border-[var(--border)]">
