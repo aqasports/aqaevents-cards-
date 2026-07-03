@@ -361,6 +361,12 @@ export default function SettingsPage() {
       return;
     }
 
+    if (newPassword.length < 12) {
+      setMessage({ text: "New password must be at least 12 characters.", tone: "danger" });
+      setSaving(false);
+      return;
+    }
+
     const res = await fetch("/api/admin/users/me/change-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -496,7 +502,7 @@ export default function SettingsPage() {
               <h3 className="mb-4 text-base font-semibold">Change password</h3>
               <form onSubmit={changePassword} className="space-y-4">
                 <Input label="Current password" name="currentPassword" type="password" autoComplete="current-password" required />
-                <Input label="New password" name="newPassword" type="password" autoComplete="new-password" hint="Minimum 6 characters." required />
+                <Input label="New password" name="newPassword" type="password" autoComplete="new-password" hint="Minimum 12 characters." required />
                 <Input label="Confirm new password" name="confirm" type="password" autoComplete="new-password" required />
                 <Button type="submit" loading={saving}>Update password</Button>
               </form>

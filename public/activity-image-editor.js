@@ -3,7 +3,23 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = Number(process.env.PORT || 4173);
-const LANDING_FILE = path.join(__dirname, 'landing.html');
+
+function getEventsAstroPath() {
+  const candidates = [
+    path.join(__dirname, '../../aqasportsdotpro/src/pages/events.astro'),
+    'C:/Users/dell/Desktop/aqasportsdotpro/src/pages/events.astro',
+    path.join(__dirname, '../src/pages/events.astro'),
+    path.join(__dirname, 'events.astro')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return candidates[0];
+}
+
+const LANDING_FILE = getEventsAstroPath();
 
 function send(res, status, body, type = 'text/plain; charset=utf-8') {
   res.writeHead(status, { 'Content-Type': type });
@@ -100,9 +116,9 @@ function getActivities() {
 function saveActivities(newActivities) {
   const html = getLandingHtml();
   const arrayText = getActivitiesDataText(html);
-  if (!arrayText) throw new Error('Could not find activitiesData array in landing.html');
+  if (!arrayText) throw new Error('Could not find activitiesData array in events.astro');
 
-  // Format array to look nice inside landing.html
+  // Format array to look nice inside events.astro
   const newArrayText = JSON.stringify(newActivities, null, 2);
   const nextHtml = html.replace(arrayText, newArrayText);
   fs.writeFileSync(LANDING_FILE, nextHtml, 'utf8');
@@ -343,7 +359,7 @@ function renderApp() {
         <div class="status" id="status">Loading...</div>
       </div>
       <div class="actions">
-        <a class="button" href="/landing" target="_blank" rel="noopener">Open landing</a>
+        <a class="button" href="http://localhost:4321/events" target="_blank" rel="noopener">Open Live Site</a>
         <button type="button" onclick="reloadActivities()">Reload</button>
         <button type="button" class="primary" onclick="saveActivities()">Save changes</button>
       </div>
@@ -642,7 +658,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/landing') {
-      send(res, 200, getLandingHtml(), 'text/html; charset=utf-8');
+      res.writeHead(302, { 'Location': 'http://localhost:4321/events' });
+      res.end();
       return;
     }
 

@@ -1,10 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { isIpRateLimited, recordIpAttempt } from "@/lib/auth";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ─── IP rate limiting on the login endpoint ───────────────────────────────
+  // Applied before the /admin auth check so it runs even for the login POST.
+  // NextAuth's credentials callback is at /api/auth/callback/credentials.
+  if (
+    pathname === "/api/auth/callback/credentials" &&
+    request.method === "POST"
+  ) {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+      request.headers.get("x-real-ip") ??
+      "unknown";
+
+    if (ip !== "unknown" && isIpRateLimited(ip)) {
+      console.warn(`[middleware] Login rate limit exceeded for IP: ${ip}`);
+      return new NextResponse(
+        JSON.stringify({ error: "Too many login attempts. Please try again later." }),
+        {
+          status: 429,
+          headers: {
+            "content-type": "application/json",
+            "cache-control": "no-store, max-age=0",
+            "retry-after": "900",
+          },
+        }
+      );
+    }
+
+    if (ip !== "unknown") {
+      recordIpAttempt(ip);
+    }
+  }
+
   if (pathname.startsWith("/admin")) {
+    // Fail loudly if NEXTAUTH_SECRET is not configured — prevents silent auth bypass.
+    // A missing secret causes getToken() to return null for all requests, which would
+    // make every /admin route appear authenticated. Throwing here makes the misconfiguration
+    // visible in Netlify function logs instead of silently serving production data.
+    if (!process.env.NEXTAUTH_SECRET) {
+      console.error(
+        "[middleware] NEXTAUTH_SECRET is not set. Admin routes are not safe to serve. " +
+        "Set NEXTAUTH_SECRET in your Netlify environment variables."
+      );
+      return new NextResponse("Server misconfiguration: authentication secret is missing.", {
+        status: 500,
+        headers: { "cache-control": "no-store, max-age=0" },
+      });
+    }
+
     // If App-Only mode is enabled, enforce that the request comes from our official mobile/desktop app shell
     if (process.env.ENFORCE_ADMIN_APP === "true") {
       const appToken = request.headers.get("x-admin-app-token") || request.nextUrl.searchParams.get("app_token");
@@ -124,5 +172,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/api/auth/callback/credentials"],
 };

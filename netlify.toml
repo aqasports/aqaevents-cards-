@@ -7,3 +7,34 @@
 
 [functions."keep-alive"]
   schedule = "0 0 * * *"
+
+# Prevent CDN and browser caching of admin pages.
+# A cached 200 response could serve production data to a subsequent unauthenticated
+# user on the same device or CDN edge node, even after auth is fixed server-side.
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, private"
+    X-Robots-Tag = "noindex, nofollow"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+# Admin API routes: enforce no-cache and no-referrer leakage.
+[[headers]]
+  for = "/api/admin/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate, private"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+
+# Global security headers for all routes.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "SAMEORIGIN"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"

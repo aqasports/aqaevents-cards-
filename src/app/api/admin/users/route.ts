@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 const createUserSchema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(12, "Password must be at least 12 characters."),
   role: z.enum(["super_admin", "staff"]).default("staff"),
 });
 

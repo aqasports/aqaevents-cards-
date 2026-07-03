@@ -501,8 +501,6 @@
       }
     }
 
-
-
     .hero-inner {
       max-width: 1160px;
       margin: 0 auto;
@@ -3705,8 +3703,8 @@
       <!-- TAB: CHECKOUT -->
       <div class="ptab-panel" id="panel-checkout">
         <div class="money-panel reveal d2" style="max-width:560px; text-align: left;">
-          <h3 id="checkoutHeaderTitle" style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px; text-align: center;" data-i18n="checkout.title">Submit Demand</h3>
-          <p id="checkoutHeaderDesc" style="font-size:13px;color:var(--muted);margin-bottom:24px; text-align: center;" data-i18n="checkout.desc">Enter your details to request your card. We will contact you via WhatsApp.</p>
+          <h3 style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px; text-align: center;" data-i18n="checkout.title">Submit Demand</h3>
+          <p style="font-size:13px;color:var(--muted);margin-bottom:24px; text-align: center;" data-i18n="checkout.desc">Enter your details to request your card. We will contact you via WhatsApp.</p>
           
           <!-- Summary Banner -->
           <div id="checkoutSummary" class="tuner-summary" style="margin-bottom: 24px; background: rgba(0, 242, 255, 0.03);">
@@ -3739,32 +3737,6 @@
             <p id="checkoutError" style="color: var(--danger-text, #f87171); font-size: 12.5px; margin-top: 14px; text-align: center; display: none;"></p>
             <p id="checkoutSuccess" style="color: #4ade80; font-size: 13px; margin-top: 14px; text-align: center; display: none;" data-i18n="checkout.successMsg">Demand sent successfully! We will contact you shortly.</p>
           </form>
-
-          <!-- Thank You Screen (Initially Hidden) -->
-          <div id="checkoutSuccessScreen" style="display: none; text-align: center; padding: 10px 0;">
-            <div style="width: 64px; height: 64px; background: rgba(0, 242, 255, 0.08); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </div>
-            
-            <h3 id="thankYouTitle" style="font-family:'Space Grotesk',sans-serif; font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 8px;" data-i18n="checkout.thankYouTitle">Thank You!</h3>
-            
-            <p id="thankYouDesc" style="font-size: 13.5px; color: var(--muted); line-height: 1.6; margin-bottom: 20px;" data-i18n="checkout.thankYouDesc">
-              Your demand has been submitted successfully. Our team will contact you via WhatsApp shortly to finalize your card setup.
-            </p>
-
-            <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 24px; text-align: center;">
-              <div style="font-size: 12.5px; color: var(--muted); margin-bottom: 4px;" data-i18n="checkout.thankYouSummaryLabel">Requested Card Details</div>
-              <div id="thankYouSummaryInfo" style="font-size: 15px; font-weight: 600; color: var(--accent); font-family: 'Space Grotesk', sans-serif;">
-                <!-- Populated via JS -->
-              </div>
-            </div>
-
-            <button type="button" class="btn-buy-pkg" onclick="closeCheckoutThankYou()" style="margin: 0 auto; width: 100%; max-width: 220px;" data-i18n="checkout.thankYouCloseBtn">
-              Back to Pricing
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -4152,10 +4124,6 @@
         "checkout.btnBack": "Retour",
         "checkout.btnSubmit": "Envoyer la demande",
         "checkout.successMsg": "Demande envoyée avec succès ! Nous vous contacterons très prochainement.",
-        "checkout.thankYouTitle": "Merci !",
-        "checkout.thankYouDesc": "Votre demande de carte a été enregistrée avec succès. Notre équipe vous contactera sur WhatsApp pour finaliser l'activation et la livraison de votre carte.",
-        "checkout.thankYouSummaryLabel": "Détails de la carte demandée",
-        "checkout.thankYouCloseBtn": "Retour aux tarifs",
         "footer.copy": "2025 AQA Sports &mdash; Système de carte AQA Events. Une carte, chaque aventure."
       },
       en: {
@@ -4352,10 +4320,6 @@
         "checkout.btnBack": "Back",
         "checkout.btnSubmit": "Send Demand",
         "checkout.successMsg": "Demand sent successfully! We will contact you shortly.",
-        "checkout.thankYouTitle": "Thank You!",
-        "checkout.thankYouDesc": "Your demand has been submitted successfully. Our team will contact you via WhatsApp shortly to finalize your card setup.",
-        "checkout.thankYouSummaryLabel": "Requested Card Details",
-        "checkout.thankYouCloseBtn": "Back to Pricing",
         "footer.copy": "2025 AQA Sports &mdash; AQA Events Card system. One card, every adventure."
       },
       ar: {
@@ -4552,10 +4516,6 @@
         "checkout.btnBack": "رجوع",
         "checkout.btnSubmit": "إرسال الطلب",
         "checkout.successMsg": "تم إرسال الطلب بنجاح! سنتصل بك قريباً.",
-        "checkout.thankYouTitle": "شكراً لك!",
-        "checkout.thankYouDesc": "تم إرسال طلبك بنجاح. سيتواصل معك فريقنا عبر واتساب قريباً لإتمام إعداد بطاقتك وتوصيلها.",
-        "checkout.thankYouSummaryLabel": "تفاصيل البطاقة المطلوبة",
-        "checkout.thankYouCloseBtn": "العودة إلى الأسعار",
         "footer.copy": "2025 AQA Sports &mdash; نظام بطاقة AQA للفعاليات. بطاقة واحدة، لكل مغامرة."
       }
     };
@@ -5381,6 +5341,13 @@
       const grid = document.querySelector('.acts-grid');
       if (!grid) return;
 
+      const footerTexts = {
+        fr: "Inclus avec la carte AQA Events",
+        en: "Included with the AQA Events card",
+        ar: "مشمول مع بطاقة AQA Events"
+      };
+      const footerText = footerTexts[lang] || footerTexts['fr'];
+
       const hintTexts = {
         fr: "Touchez une carte pour la retourner",
         en: "Touch a card to flip",
@@ -5422,6 +5389,10 @@
               <div class="back-label">${data.meta}</div>
               <div class="back-title">${data.name}</div>
               <div class="back-desc">${data.desc}</div>
+              <div class="back-foot">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>
+                ${footerText}
+              </div>
             </div>
           </div>
         </div>`;
@@ -6187,30 +6158,12 @@
       }
       
       if (success) {
-        // Clear input values
+        succEl.style.display = 'block';
         document.getElementById('checkoutForm').reset();
-        
-        // Hide standard form elements
-        document.getElementById('checkoutHeaderTitle').style.display = 'none';
-        document.getElementById('checkoutHeaderDesc').style.display = 'none';
-        document.getElementById('checkoutSummary').style.display = 'none';
-        document.getElementById('checkoutForm').style.display = 'none';
-        
-        // Populate Summary details in Thank You screen
-        const summaryInfoEl = document.getElementById('thankYouSummaryInfo');
-        const summaryEl = document.getElementById('checkoutSummary');
-        if (summaryInfoEl && summaryEl) {
-          const firstDiv = summaryEl.querySelector('div');
-          const titleText = firstDiv ? firstDiv.innerText : '';
-          const formattedPrice = formatPriceNum(checkoutData.price, currentLang);
-          summaryInfoEl.innerText = titleText ? `${titleText} — ${formattedPrice}` : formattedPrice;
-        }
-        
-        // Refresh translations on the success screen elements
-        setLanguage(currentLang);
-        
-        // Display Thank You screen
-        document.getElementById('checkoutSuccessScreen').style.display = 'block';
+        setTimeout(() => {
+          succEl.style.display = 'none';
+          goBackToPricing();
+        }, 4000);
       } else {
         errEl.textContent = lastError;
         errEl.style.display = 'block';
@@ -6218,20 +6171,6 @@
       
       btn.disabled = false;
       btn.innerHTML = originalText;
-    }
-
-    function closeCheckoutThankYou() {
-      // Hide success screen
-      document.getElementById('checkoutSuccessScreen').style.display = 'none';
-      
-      // Restore standard form elements
-      document.getElementById('checkoutHeaderTitle').style.display = '';
-      document.getElementById('checkoutHeaderDesc').style.display = '';
-      document.getElementById('checkoutSummary').style.display = '';
-      document.getElementById('checkoutForm').style.display = '';
-      
-      // Navigate back to the pricing panels
-      goBackToPricing();
     }
 
     document.addEventListener('DOMContentLoaded', async () => {

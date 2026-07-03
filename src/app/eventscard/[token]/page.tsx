@@ -85,7 +85,7 @@ export default async function EventCardPage({
   return (
     <EventCardClient
       cardCode={card.cardCode}
-      clientFirstName={getFirstName(card.client.fullName)}
+      clientFirstName={card.client.fullName}
       balance={balance}
       history={history}
       credits={credits}
