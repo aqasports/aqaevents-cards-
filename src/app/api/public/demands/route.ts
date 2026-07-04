@@ -9,7 +9,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+
+  entry.count += 1;
+  return entry.count > 15;
+}
+
 export async function POST(request: NextRequest) {
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
+  if (isRateLimited(ip)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: corsHeaders });
+  }
+
   try {
     const body = await request.json();
     const { name, phone, email, creditType, packageId, amount } = body;
@@ -68,8 +90,8 @@ export async function POST(request: NextRequest) {
     });
     const totalMoneyQueue = pendingSum._sum.price ?? 0;
 
-    // Simulate WhatsApp notification to admin (+213540454907)
-    const adminPhone = "+213540454907";
+    // Simulate WhatsApp notification to admin (using env variable)
+    const adminPhone = process.env.ADMIN_NOTIFICATION_PHONE ?? "+213540454907";
     const adminMessage = `New AQA Card demand received!
 Client: ${demand.name}
 Phone: ${demand.phone}${demand.email ? `\nEmail: ${demand.email}` : ""}

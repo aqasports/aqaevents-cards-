@@ -24,7 +24,7 @@ export const updateInvoiceSchema = z.object({
 
 export const addCreditsSchema = z.object({
   packageId: z.string().optional(),
-  customAmount: z.number().optional(),
+  customAmount: z.number().max(500, "Custom credit amount cannot exceed 500 credits.").optional(),
   reason: z.string().optional(),
   invoice: z
     .object({

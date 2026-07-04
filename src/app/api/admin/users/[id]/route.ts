@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
   role: z.enum(["super_admin", "staff"]).optional(),
-  password: z.string().min(6).optional(),
+  password: z.string().min(12, "Password must be at least 12 characters.").optional(),
 });
 
 export async function PATCH(

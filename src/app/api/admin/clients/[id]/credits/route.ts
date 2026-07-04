@@ -17,7 +17,16 @@ export async function POST(
   const parsed = addCreditsSchema.safeParse(body);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  // Role-based custom credit limit: staff users can recharge at most 50 custom credits
+  const customAmount = parsed.data.customAmount;
+  if (customAmount && customAmount > 50 && session.user.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Forbidden: Staff members are restricted to a maximum of 50 custom credits per recharge. Please request a Super Admin to perform this action." },
+      { status: 403 }
+    );
   }
 
   try {
