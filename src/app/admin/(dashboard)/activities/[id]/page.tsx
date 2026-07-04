@@ -593,7 +593,7 @@ export default function ActivityDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           activityId: params.id,
-          sessionDate: fd.get("sessionDate"),
+          sessionDate: new Date(fd.get("sessionDate") as string).toISOString(),
           location: (fd.get("location") as string) || (fd.get("customLocation") as string) || undefined,
           capacity: fd.get("capacity") ? Number(fd.get("capacity")) : undefined,
         }),
