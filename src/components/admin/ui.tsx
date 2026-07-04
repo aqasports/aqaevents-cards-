@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { useLocale } from "@/lib/i18n";
 
 // ─── StatCard ────────────────────────────────────────────────────────────────
 export function StatCard({
@@ -114,6 +117,18 @@ export const Input = React.forwardRef<
     error?: string;
   }
 >(({ label, hint, error, ...props }, ref) => {
+  let locale: string | undefined = undefined;
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const locObj = useLocale();
+    locale = locObj.locale;
+  } catch (e) {
+    // fallback if context is not yet loaded
+  }
+
+  const isDateOrTime = props.type === "datetime-local" || props.type === "date" || props.type === "time";
+  const derivedLang = props.lang || (isDateOrTime ? (locale === "ar" ? "ar-EG" : locale === "fr" ? "fr" : "en-GB") : undefined);
+
   return (
     <label className="block text-sm">
       {label ? (
@@ -121,6 +136,7 @@ export const Input = React.forwardRef<
       ) : null}
       <input
         ref={ref}
+        lang={derivedLang}
         className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)] ${
           error
             ? "border-[var(--danger)] bg-[var(--danger-bg)]"
