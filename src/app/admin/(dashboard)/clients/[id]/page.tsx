@@ -15,6 +15,7 @@ import {
   Textarea,
   ConfirmModal,
 } from "@/components/admin/ui";
+import { formatDate, useLocale } from "@/lib/i18n";
 
 type Package = {
   id: string;
@@ -83,6 +84,7 @@ type ClientDetail = {
 };
 
 export default function ClientDetailPage() {
+  const { locale } = useLocale();
   const params = useParams<{ id: string }>();
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
@@ -733,7 +735,7 @@ export default function ClientDetailPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Last Activity</p>
           <p className="mt-2 text-sm font-semibold text-slate-700">
             {client.lastActivityDate
-              ? new Date(client.lastActivityDate).toLocaleDateString(undefined, { dateStyle: "medium" })
+              ? formatDate(client.lastActivityDate, locale)
               : "No activities yet"}
           </p>
         </Card>
@@ -784,7 +786,7 @@ export default function ClientDetailPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[var(--muted)]">Date Issued:</span>
-                        <span className="font-semibold">{new Date(activeCard.issuedAt).toLocaleDateString(undefined, { dateStyle: "long" })}</span>
+                        <span className="font-semibold">{formatDate(activeCard.issuedAt, locale)}</span>
                       </div>
                       {publicUrl && (
                         <div className="space-y-1">
@@ -1245,7 +1247,7 @@ export default function ClientDetailPage() {
                               {entry.reason ?? entry.package?.name ?? entry.type}
                             </p>
                             <p className="text-xs text-[var(--muted)] mt-0.5">
-                              {new Date(entry.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                              {formatDate(entry.createdAt, locale, true)}
                               {entry.createdBy ? ` · by ${entry.createdBy.name}` : ""}
                             </p>
                           </div>
@@ -1313,7 +1315,7 @@ export default function ClientDetailPage() {
                     <tr key={inv.id} className="hover:bg-slate-50/50">
                       <td className="px-5 py-3.5 font-mono font-bold text-slate-700">{inv.invoiceCode}</td>
                       <td className="px-5 py-3.5 text-xs text-slate-400">
-                        {new Date(inv.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                        {formatDate(inv.createdAt, locale)}
                       </td>
                       <td className="px-5 py-3.5 max-w-xs truncate">
                         <p className="font-semibold text-slate-800">{inv.items}</p>
@@ -1440,7 +1442,7 @@ export default function ClientDetailPage() {
                         {notif.status}
                       </span>
                       <span className="text-xs text-slate-400 font-medium">
-                        {new Date(notif.sentAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                        {formatDate(notif.sentAt, locale, true)}
                       </span>
                     </div>
                   </div>
@@ -1511,7 +1513,7 @@ export default function ClientDetailPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-slate-800 text-base">{item.activity.name}</p>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
-                          {new Date(item.redeemedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                          {formatDate(item.redeemedAt, locale, true)}
                           {item.session?.location ? ` · Location: ${item.session.location}` : ""}
                           {item.staff ? ` · by ${item.staff.name}` : ""}
                           {item.notes ? ` · "${item.notes}"` : ""}

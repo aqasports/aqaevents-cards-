@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { PageHeader, StatCard, Card, Badge, Alert } from "@/components/admin/ui";
-import { useTranslations } from "@/lib/i18n";
+import { useTranslations, formatDate } from "@/lib/i18n";
 
 type ClientCard = {
   cardCode: string;
@@ -72,7 +72,7 @@ export default function DashboardClient({
   returningClientsCount,
   lifetimeValue,
 }: DashboardClientProps) {
-  const { t, dir } = useTranslations("dashboard");
+  const { t, dir, locale } = useTranslations("dashboard");
 
   const lowBalanceNames = lowBalance.map((c) => c.fullName).join(", ");
   const alertText = t("lowBalanceAlert", { names: lowBalanceNames });
@@ -368,7 +368,7 @@ export default function DashboardClient({
                       {item.client.fullName}
                     </Link>
                     <p className="text-xs text-[var(--muted)]">
-                      {item.activity.name} · {new Date(item.redeemedAt).toLocaleString()}
+                      {item.activity.name} · {formatDate(item.redeemedAt, locale, true)}
                     </p>
                   </div>
                   <Badge tone="warning">−{item.creditsUsed}</Badge>

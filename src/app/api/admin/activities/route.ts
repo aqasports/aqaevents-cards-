@@ -5,12 +5,14 @@ import { createActivitySchema } from "@/modules/activities/validators";
 
 const activitiesService = new ActivitiesService();
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { error } = await requireAdminSession();
   if (error) return error;
 
+  const redeemable = request.nextUrl.searchParams.get("redeemable") === "true";
+
   try {
-    const activities = await activitiesService.getActivities();
+    const activities = await activitiesService.getActivities({ redeemableOnly: redeemable });
     return NextResponse.json(activities);
   } catch (err: unknown) {
     console.error("GET activities API error:", err);

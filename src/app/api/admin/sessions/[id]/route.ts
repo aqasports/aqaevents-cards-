@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
+import { BillingService } from "@/modules/invoices/service";
 
 const activitiesService = new ActivitiesService();
+const billingService = new BillingService();
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireAdminSession();
-  if (error) return error;
+  const { session, error } = await requireAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
   
@@ -17,10 +19,16 @@ export async function DELETE(
   const hard = searchParams.get("hard") === "true";
 
   try {
-    const session = await activitiesService.deleteSession(id, hard);
-    return NextResponse.json(hard ? { deleted: true, session } : session);
+    // Soft-delete (cancel): auto bulk-refund all registered clients first
+    if (!hard) {
+      await billingService.bulkRefundSession(id, session.user.id);
+    }
+
+    const result = await activitiesService.deleteSession(id, hard);
+    return NextResponse.json(hard ? { deleted: true, session: result } : result);
   } catch (err: unknown) {
     console.error("DELETE session API error:", err);
     return NextResponse.json({ error: "Failed to delete session" }, { status: 500 });
   }
 }
+

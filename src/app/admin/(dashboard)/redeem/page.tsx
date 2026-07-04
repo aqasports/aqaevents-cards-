@@ -12,6 +12,7 @@ import {
   EmptyState,
 } from "@/components/admin/ui";
 import { useTranslations } from "@/lib/i18n";
+import { formatDate } from "@/lib/i18n";
 
 type Activity = {
   id: string;
@@ -69,8 +70,8 @@ export default function RedeemPage() {
       };
 
       const now = ctx.currentTime;
-      playBeep(now, 880, 0.08); // High note A5
-      playBeep(now + 0.1, 880, 0.1); // High note A5 double beep
+      playBeep(now, 880, 0.08);
+      playBeep(now + 0.1, 880, 0.1);
     } catch (err) {
       console.warn("Failed to play success sound:", err);
     }
@@ -85,7 +86,7 @@ export default function RedeemPage() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(120, ctx.currentTime); // Low buzz
+      osc.frequency.setValueAtTime(120, ctx.currentTime);
       gain.gain.setValueAtTime(0.15, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
       osc.connect(gain);
@@ -97,7 +98,6 @@ export default function RedeemPage() {
     }
   }
 
-  // Haptic Vibrations
   function triggerSuccessHaptics() {
     if (typeof navigator !== "undefined" && navigator.vibrate) {
       navigator.vibrate([100, 50, 100]);
@@ -110,9 +110,9 @@ export default function RedeemPage() {
     }
   }
 
-  // Load activities and clients on mount, and focus search input
+  // Load only activities that have upcoming events + clients, then focus search
   useEffect(() => {
-    fetch("/api/admin/activities")
+    fetch("/api/admin/activities?redeemable=true")
       .then((r) => r.json())
       .then(setActivities);
 
@@ -125,6 +125,7 @@ export default function RedeemPage() {
       inputRef.current.focus();
     }
   }, []);
+
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -488,10 +489,7 @@ export default function RedeemPage() {
                   <option value="">{t("noSpecificSession")}</option>
                   {selectedActivity.sessions.map((session) => (
                     <option key={session.id} value={session.id}>
-                      {new Date(session.sessionDate).toLocaleString(undefined, {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                      })}
+                      {formatDate(session.sessionDate, locale, true)}
                       {session.location ? ` · ${session.location}` : ""}
                     </option>
                   ))}
@@ -518,7 +516,10 @@ export default function RedeemPage() {
       )}
 
       {!lookup && !loading && !message && (
-        <div className="max-w-2xl">
+        <div className="max-w-2xl space-y-4">
+          {activities.length === 0 && (
+            <Alert tone="info">{t("noActivitiesAvailable")}</Alert>
+          )}
           <Card>
             <EmptyState
               title={t("noCardScannedTitle")}

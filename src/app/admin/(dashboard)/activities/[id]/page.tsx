@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { formatDate, useLocale } from "@/lib/i18n";
 import {
   Alert,
   Badge,
@@ -487,8 +488,9 @@ export default function ActivityDetailPage() {
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"events" | "expenses" | "gallery" | "equipment">("events");
+  const [activeTab, setActiveTab] = useState<"events" | "history" | "expenses" | "gallery" | "equipment">("events");
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+  const { locale } = useLocale();
   const [showImageEdit, setShowImageEdit] = useState(false);
 
   // Event form states
@@ -500,6 +502,7 @@ export default function ActivityDetailPage() {
   const [showEventDropdown, setShowEventDropdown] = useState<{ [eventId: string]: boolean }>({});
   const [registeringEventId, setRegisteringEventId] = useState<string | null>(null);
   const [refundingRedemptionId, setRefundingRedemptionId] = useState<string | null>(null);
+  const [bulkRefundingSessionId, setBulkRefundingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [deletingActivity, setDeletingActivity] = useState(false);
@@ -605,20 +608,46 @@ export default function ActivityDetailPage() {
     } finally { setSubmittingEvent(false); }
   }
 
-  async function handleDeleteEvent(sessionId: string) {
+  async function handleDeleteEvent(sessionId: string, attendeeCount: number) {
+    const msg = attendeeCount > 0
+      ? `Cancel this event? All ${attendeeCount} registered client(s) will be automatically refunded their credits.`
+      : "Cancel this event? No clients are registered.";
     triggerConfirm(
       "Cancel Event",
-      "Remove this event? Registrations will be kept in history.",
+      msg,
       async () => {
         setDeletingSessionId(sessionId);
         try {
           const res = await fetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" });
           if (res.ok) {
-            setMessage({ text: "Event cancelled successfully.", tone: "success" });
-            await loadActivityData();
+            const refundMsg = attendeeCount > 0
+              ? `Event cancelled. ${attendeeCount} client(s) refunded.`
+              : "Event cancelled successfully.";
+            setMessage({ text: refundMsg, tone: "success" });
+            await Promise.all([loadActivityData(), loadClients()]);
           } else { setMessage({ text: "Failed to cancel event.", tone: "danger" }); }
         } finally { setDeletingSessionId(null); }
-      }
+      },
+      true
+    );
+  }
+
+  async function handleBulkRefundSession(sessionId: string, attendeeCount: number) {
+    triggerConfirm(
+      "Refund All Clients",
+      `Refund all ${attendeeCount} client(s) for this event? Their credits will be restored. This cannot be undone.`,
+      async () => {
+        setBulkRefundingSessionId(sessionId);
+        try {
+          const res = await fetch(`/api/admin/sessions/${sessionId}/refund-all`, { method: "POST" });
+          const data = await res.json();
+          if (res.ok) {
+            setMessage({ text: `${data.refunded} client(s) refunded, ${data.totalCreditsRestored} credit(s) restored.`, tone: "success" });
+            await Promise.all([loadActivityData(), loadClients()]);
+          } else { setMessage({ text: data.error || "Failed to refund all clients.", tone: "danger" }); }
+        } finally { setBulkRefundingSessionId(null); }
+      },
+      true
     );
   }
 
@@ -784,6 +813,7 @@ export default function ActivityDetailPage() {
 
   const TABS = [
     { key: "events", label: `Events (${upcomingSessions.length})` },
+    { key: "history", label: `History (${pastAndCancelledSessions.length})` },
     { key: "gallery", label: `Gallery (${galleryItems.length})` },
     { key: "equipment", label: `Equipment (${equipmentItems.length})` },
     { key: "expenses", label: `Expenses (${activity.expenses.length})` },
@@ -979,7 +1009,7 @@ export default function ActivityDetailPage() {
                         </svg>
                       </div>
                       <div>
-                        <p className="font-bold">{new Date(session.sessionDate).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</p>
+                        <p className="font-bold">{formatDate(session.sessionDate, locale, true)}</p>
                         <p className="text-xs text-[var(--muted)] mt-0.5 flex items-center gap-1">
                           <svg className="h-3.5 w-3.5 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -992,7 +1022,7 @@ export default function ActivityDetailPage() {
                     <div className="flex items-center gap-3">
                       <Badge tone="default">{session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}</Badge>
                       {session.capacity && <span className="text-xs text-[var(--muted)]">Cap: {session.capacity}</span>}
-                      <Button variant="ghost" size="sm" loading={deletingSessionId === session.id} onClick={(e) => { e.stopPropagation(); handleDeleteEvent(session.id); }} className="text-red-500 hover:text-red-700">
+                      <Button variant="ghost" size="sm" loading={deletingSessionId === session.id} onClick={(e) => { e.stopPropagation(); handleDeleteEvent(session.id, session.redemptions.length); }} className="text-red-500 hover:text-red-700">
                         Cancel
                       </Button>
                     </div>
@@ -1036,7 +1066,19 @@ export default function ActivityDetailPage() {
                         </div>
                       </div>
                       <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-2">Attendees ({session.redemptions.length})</h4>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Attendees ({session.redemptions.length})</h4>
+                          {session.redemptions.length > 0 && (
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              loading={bulkRefundingSessionId === session.id}
+                              onClick={() => handleBulkRefundSession(session.id, session.redemptions.length)}
+                            >
+                              Refund All ({session.redemptions.length})
+                            </Button>
+                          )}
+                        </div>
                         {session.redemptions.length === 0 ? (
                           <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">No clients registered.</p>
                         ) : (
@@ -1065,7 +1107,7 @@ export default function ActivityDetailPage() {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="text-[var(--muted)]">{new Date(red.redeemedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                  <span className="text-[var(--muted)]">{formatDate(red.redeemedAt, locale, true).split(" ")[1] ?? ""}</span>
                                   <Button variant="danger" size="sm" loading={refundingRedemptionId === red.id} onClick={() => handleRefundClient(red.id)}>Refund</Button>
                                 </div>
                               </li>
@@ -1079,57 +1121,13 @@ export default function ActivityDetailPage() {
               ))
             )}
 
-            {/* Past & Cancelled Events */}
+            {/* Past & Cancelled Events (summary in Events tab) */}
             {pastAndCancelledSessions.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-[var(--border)] space-y-4">
-                <h2 className="text-sm font-black uppercase tracking-wider text-[var(--muted)]">Past & Cancelled Events</h2>
-                <div className="space-y-3">
-                  {pastAndCancelledSessions.map((session) => (
-                    <div key={session.id} className="rounded-xl border border-[var(--border)] bg-slate-50/30 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-700">{new Date(session.sessionDate).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-[var(--muted)] flex items-center gap-1">
-                              <svg className="h-3.5 w-3.5 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              {session.location || "Unspecified"}
-                            </span>
-                            <span>·</span>
-                            <Badge tone={session.active ? "default" : "danger"} size="sm">
-                              {session.active ? "Past" : "Cancelled"}
-                            </Badge>
-                            <span>·</span>
-                            <span className="text-xs text-slate-500 font-semibold">{session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          loading={deletingSessionId === session.id} 
-                          onClick={() => handleHardDeleteEvent(session.id, session.redemptions.length)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold"
-                        >
-                          <span className="flex items-center gap-1">
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            Erase Permanently
-                          </span>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <div className="mt-6 pt-4 border-t border-[var(--border)]">
+                <p className="text-xs text-[var(--muted)] font-semibold">
+                  {pastAndCancelledSessions.length} past / cancelled event{pastAndCancelledSessions.length !== 1 ? "s" : ""} — view full history in the{" "}
+                  <button className="underline text-[var(--primary)]" onClick={() => setActiveTab("history")}>History tab</button>.
+                </p>
               </div>
             )}
           </div>
@@ -1182,6 +1180,138 @@ export default function ActivityDetailPage() {
               </div>
             </Card>
           </div>
+        </div>
+      )}
+
+      {/* ── History Tab ─────────────────────────────────────────────── */}
+      {activeTab === "history" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Event History</h2>
+            <span className="text-xs text-[var(--muted)] font-semibold">{pastAndCancelledSessions.length} event{pastAndCancelledSessions.length !== 1 ? "s" : ""}</span>
+          </div>
+          {pastAndCancelledSessions.length === 0 ? (
+            <Card>
+              <EmptyState
+                title="No past events"
+                description="Past and cancelled events will appear here after they occur."
+                icon={
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                }
+              />
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {pastAndCancelledSessions.map((session) => (
+                <div key={session.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden shadow-[var(--shadow-sm)]">
+                  {/* Session header */}
+                  <div
+                    onClick={() => setExpandedEventId(expandedEventId === session.id ? null : session.id)}
+                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                        session.active ? "bg-slate-100 text-slate-500" : "bg-red-50 text-red-400"
+                      }`}>
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-700">{formatDate(session.sessionDate, locale, true)}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-[var(--muted)] flex items-center gap-1">
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {session.location || "Unspecified"}
+                          </span>
+                          <Badge tone={session.active ? "default" : "danger"} size="sm">
+                            {session.active ? "Past" : "Cancelled"}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge tone={session.redemptions.length > 0 ? "default" : "warning"}>
+                        {session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}
+                      </Badge>
+                      <svg className={`h-4 w-4 text-[var(--muted)] transition-transform ${expandedEventId === session.id ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Expanded attendee list */}
+                  {expandedEventId === session.id && (
+                    <div className="border-t border-[var(--border)] bg-slate-50/50 p-4 space-y-4">
+                      {/* Attendees */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Attendees ({session.redemptions.length})</h4>
+                        </div>
+                        {session.redemptions.length === 0 ? (
+                          <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">No clients were registered.</p>
+                        ) : (
+                          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden">
+                            {session.redemptions.map((red) => (
+                              <li key={red.id} className="flex items-center justify-between px-3 py-2.5 text-xs">
+                                <div>
+                                  <p className="font-bold">{red.client.fullName}</p>
+                                  <p className="text-[10px] text-[var(--muted)] mt-0.5 flex items-center flex-wrap gap-2">
+                                    {red.client.phone && (
+                                      <span className="inline-flex items-center gap-0.5">
+                                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                        </svg>
+                                        {red.client.phone}
+                                      </span>
+                                    )}
+                                    {red.client.email && (
+                                      <span className="inline-flex items-center gap-0.5">
+                                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        {red.client.email}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                                <span className="text-[var(--muted)] tabular-nums">
+                                  {formatDate(red.redeemedAt, locale, true)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+
+                      {/* Permanently delete */}
+                      <div className="flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={deletingSessionId === session.id}
+                          onClick={() => handleHardDeleteEvent(session.id, session.redemptions.length)}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold"
+                        >
+                          <span className="flex items-center gap-1">
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Erase Permanently
+                          </span>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1299,7 +1429,7 @@ export default function ActivityDetailPage() {
                         <tr key={exp.id} className="hover:bg-slate-50/50">
                           <td className="px-5 py-3">
                             <p className="font-bold">{exp.name}</p>
-                            <p className="text-[10px] text-[var(--muted)]">{new Date(exp.createdAt).toLocaleDateString()}</p>
+                            <p className="text-[10px] text-[var(--muted)]">{formatDate(exp.createdAt, locale)}</p>
                           </td>
                           <td className="px-5 py-3 font-bold tabular-nums text-[var(--danger)]">{exp.amount.toLocaleString()} DA</td>
                           <td className="px-5 py-3 text-xs text-[var(--muted)] max-w-xs truncate">{exp.notes ?? "—"}</td>

@@ -615,6 +615,60 @@ export class BillingService {
 
     return { success: true, balance: newBalance };
   }
+
+  async bulkRefundSession(sessionId: string, adminId: string) {
+    // Fetch all redemptions for this session
+    const redemptions = await prisma.redemption.findMany({
+      where: { sessionId },
+      include: {
+        client: true,
+        activity: true,
+      },
+    });
+
+    if (redemptions.length === 0) {
+      return { refunded: 0, totalCreditsRestored: 0 };
+    }
+
+    let totalCreditsRestored = 0;
+
+    for (const redemption of redemptions) {
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.redemption.delete({ where: { id: redemption.id } });
+
+        const eventPayload: any = {
+          clientId: redemption.clientId,
+          redemption,
+          adminId,
+          tx,
+          postCommitActions: [],
+        };
+
+        await eventBus.emit(EVENTS.REDEMPTION_DELETED, eventPayload);
+
+        return { postCommitActions: eventPayload.postCommitActions };
+      });
+
+      if (result.postCommitActions) {
+        for (const action of result.postCommitActions) {
+          await action().catch((e: any) => console.error("Post-commit action error:", e));
+        }
+      }
+
+      totalCreditsRestored += redemption.creditsUsed;
+    }
+
+    await this.reportingRepo.createAudit({
+      data: {
+        userId: adminId,
+        action: "BULK_REFUND_SESSION",
+        target: `Session ${sessionId}`,
+        details: `Bulk refunded ${redemptions.length} client(s), restoring ${totalCreditsRestored} credits.`,
+      },
+    });
+
+    return { refunded: redemptions.length, totalCreditsRestored };
+  }
 }
 
 export class ProductsService {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { formatDate, useLocale } from "@/lib/i18n";
 import { Alert, Badge, Button, Card, EmptyState, PageHeader, ConfirmModal } from "@/components/admin/ui";
 
 type ClientRow = {
@@ -22,6 +23,7 @@ type ClientRow = {
 };
 
 export default function ClientsPage() {
+  const { locale } = useLocale();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -268,13 +270,13 @@ export default function ClientsPage() {
                       {(client.totalSpent ?? 0).toLocaleString()} DA
                     </td>
                     <td className="px-4 py-3 text-[var(--muted)] whitespace-nowrap">
-                      {client.lastActivityDate ? new Date(client.lastActivityDate).toLocaleDateString() : "—"}
+                      {client.lastActivityDate ? formatDate(client.lastActivityDate, locale) : "—"}
                     </td>
                     <td className="px-4 py-3 text-[var(--muted)] whitespace-nowrap">
                       {client.favoriteActivity ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-xs text-[var(--muted)] whitespace-nowrap">
-                      {new Date(client.createdAt).toLocaleDateString()}
+                      {formatDate(client.createdAt, locale)}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end items-center gap-2">

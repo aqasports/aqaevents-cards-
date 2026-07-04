@@ -102,6 +102,7 @@ const dictionaries = {
       clientNoCreditsAlert: "This client has no remaining credits.",
       noCardScannedTitle: "No card scanned yet",
       noCardScannedDesc: "Enter a card code or scan a QR code to find the client.",
+      noActivitiesAvailable: "No activities with upcoming events are available. Schedule an event in the Activities section first.",
     },
     print: {
       title: "Print QR Cards",
@@ -325,6 +326,7 @@ const dictionaries = {
       clientNoCreditsAlert: "Ce client n'a plus de crédits restants.",
       noCardScannedTitle: "Aucune carte scannée pour le moment",
       noCardScannedDesc: "Saisissez un code de carte ou scannez un code QR pour trouver le client.",
+      noActivitiesAvailable: "Aucune activité avec des événements à venir n'est disponible. Planifiez un événement dans la section Activités d'abord.",
     },
     print: {
       title: "Imprimer les Cartes QR",
@@ -548,6 +550,7 @@ const dictionaries = {
       clientNoCreditsAlert: "هذا الزبون ليس لديه رصيد متبقي.",
       noCardScannedTitle: "لم يتم مسح أي بطاقة بعد",
       noCardScannedDesc: "أدخل رمز البطاقة أو امسح رمز QR للعثور على الزبون.",
+      noActivitiesAvailable: "لا توجد أنشطة بأحداث قادمة متاحة. قم بجدولة حدث في قسم الأنشطة أولاً.",
     },
     print: {
       title: "طباعة بطاقات QR",
@@ -675,6 +678,32 @@ const dictionaries = {
     },
   },
 };
+
+// ─── Date Formatting Utility ──────────────────────────────────────────────────
+// Enforced date formats:
+//   EN / FR  →  dd/mm/yyyy  (e.g. 04/07/2026)
+//   AR       →  yyyy/mm/dd  (e.g. 2026/07/04)
+// When includeTime is true, appends HH:mm (24h).
+
+export function formatDate(
+  date: Date | string | null | undefined,
+  locale: Locale,
+  includeTime = false
+): string {
+  if (!date) return "—";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return "—";
+
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const HH = String(d.getHours()).padStart(2, "0");
+  const min = String(d.getMinutes()).padStart(2, "0");
+
+  const datePart = locale === "ar" ? `${yyyy}/${mm}/${dd}` : `${dd}/${mm}/${yyyy}`;
+  if (!includeTime) return datePart;
+  return `${datePart} ${HH}:${min}`;
+}
 
 type I18nContextProps = {
   locale: Locale;

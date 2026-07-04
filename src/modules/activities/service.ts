@@ -5,11 +5,24 @@ export class ActivitiesService {
   private activitiesRepo = new ActivitiesRepository();
   private reportingRepo = new ReportingRepository();
 
-  async getActivities() {
+  async getActivities(options?: { redeemableOnly?: boolean }) {
+    const now = new Date();
+    const where: any = {};
+    if (options?.redeemableOnly) {
+      // Only return activities that have at least one upcoming active session
+      where.sessions = {
+        some: {
+          active: true,
+          sessionDate: { gte: now },
+        },
+      };
+    }
+
     return this.activitiesRepo.findMany({
+      where,
       include: {
         sessions: {
-          where: { active: true, sessionDate: { gte: new Date() } },
+          where: { active: true, sessionDate: { gte: now } },
           orderBy: { sessionDate: "asc" },
           take: 5,
         },
