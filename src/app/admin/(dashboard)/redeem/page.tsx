@@ -10,9 +10,11 @@ import {
   PageHeader,
   Select,
   EmptyState,
+  ConfirmModal,
 } from "@/components/admin/ui";
 import { useTranslations } from "@/lib/i18n";
 import { formatDate } from "@/lib/i18n";
+import { useSession } from "next-auth/react";
 
 type Activity = {
   id: string;
@@ -36,6 +38,9 @@ type ClientDropdownItem = {
 
 export default function RedeemPage() {
   const { t, locale, dir } = useTranslations("redeem");
+  const { data: session } = useSession();
+  const isSuperAdmin = session?.user?.role === "super_admin";
+
   const [activities, setActivities] = useState<Activity[]>([]);
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [matches, setMatches] = useState<LookupResult[]>([]);
@@ -46,6 +51,13 @@ export default function RedeemPage() {
   const [loading, setLoading] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [selectedActivityId, setSelectedActivityId] = useState("");
+
+  const [showOverdraftConfirm, setShowOverdraftConfirm] = useState(false);
+  const [pendingRedeemData, setPendingRedeemData] = useState<{
+    activityId: string;
+    sessionId?: string;
+    notes?: string;
+  } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -221,21 +233,53 @@ export default function RedeemPage() {
 
   async function redeem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!lookup) return;
-    setRedeeming(true);
-    setMessage(null);
+    if (!lookup || !selectedActivityId) return;
 
     const formData = new FormData(event.currentTarget);
+    const activityId = formData.get("activityId") as string;
+    const sessionId = (formData.get("sessionId") as string) || undefined;
+    const notes = (formData.get("notes") as string) || undefined;
+
+    const activity = activities.find((a) => a.id === activityId);
+    if (!activity) return;
+
+    const isInsufficient = lookup.balance < activity.creditCost;
+
+    if (isInsufficient) {
+      if (isSuperAdmin) {
+        setPendingRedeemData({ activityId, sessionId, notes });
+        setShowOverdraftConfirm(true);
+        return;
+      } else {
+        setMessage({ text: t("insufficientBalance"), tone: "danger" });
+        playErrorSound();
+        triggerErrorHaptics();
+        return;
+      }
+    }
+
+    await executeRedeem(activityId, sessionId, notes, false);
+  }
+
+  async function executeRedeem(
+    activityId: string,
+    sessionId?: string,
+    notes?: string,
+    bypassBalanceCheck = false
+  ) {
+    setRedeeming(true);
+    setMessage(null);
 
     try {
       const res = await fetch("/api/admin/redemptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientId: lookup.client.id,
-          activityId: formData.get("activityId"),
-          sessionId: formData.get("sessionId") || undefined,
-          notes: formData.get("notes") || undefined,
+          clientId: lookup!.client.id,
+          activityId,
+          sessionId,
+          notes,
+          bypassBalanceCheck,
         }),
       });
 
@@ -259,7 +303,7 @@ export default function RedeemPage() {
         }),
         tone: "success",
       });
-      setLookup({ ...lookup, balance: data.balance });
+      setLookup({ ...lookup!, balance: data.balance });
 
       // Focus card code input again for the next scan!
       if (inputRef.current) {
@@ -267,8 +311,15 @@ export default function RedeemPage() {
       }
 
       // Reset form
-      (event.target as HTMLFormElement).reset();
+      const form = document.getElementById("redemption-form") as HTMLFormElement;
+      if (form) form.reset();
       setSelectedActivityId("");
+
+      // Refresh client list to get fresh balances
+      fetch("/api/admin/clients")
+        .then((r) => r.json())
+        .then(setClients)
+        .catch(console.error);
     } catch {
       setRedeeming(false);
       setMessage({ text: "Redemption request failed.", tone: "danger" });
@@ -502,14 +553,31 @@ export default function RedeemPage() {
                 placeholder={t("notesPlaceholder")}
               />
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={lookup.balance <= 0}
-                loading={redeeming}
-              >
-                {lookup.balance <= 0 ? t("insufficientBalance") : t("confirmRedemption")}
-              </Button>
+              {(() => {
+                const cost = selectedActivity ? selectedActivity.creditCost : 1;
+                const isInsufficient = lookup.balance < cost;
+                const disableButton = isInsufficient ? !isSuperAdmin : false;
+                
+                let buttonLabel = t("confirmRedemption");
+                if (isInsufficient) {
+                  if (isSuperAdmin) {
+                    buttonLabel = "Authorize Overdraft Redemption";
+                  } else {
+                    buttonLabel = t("insufficientBalance");
+                  }
+                }
+
+                return (
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={disableButton}
+                    loading={redeeming}
+                  >
+                    {buttonLabel}
+                  </Button>
+                );
+              })()}
             </form>
           </Card>
         </div>
@@ -534,6 +602,36 @@ export default function RedeemPage() {
           </Card>
         </div>
       )}
+
+      {/* Overdraft Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showOverdraftConfirm}
+        title="Authorize Overdraft Redemption"
+        message={`WARNING: This client has insufficient credits (${lookup?.balance} credits available, but this activity costs ${
+          activities.find((a) => a.id === pendingRedeemData?.activityId)?.creditCost
+        } credits).
+
+Do you want to proceed and allow a negative balance of ${
+          (lookup?.balance ?? 0) - (activities.find((a) => a.id === pendingRedeemData?.activityId)?.creditCost ?? 0)
+        } credits?`}
+        isDanger={true}
+        onConfirm={async () => {
+          setShowOverdraftConfirm(false);
+          if (pendingRedeemData) {
+            await executeRedeem(
+              pendingRedeemData.activityId,
+              pendingRedeemData.sessionId,
+              pendingRedeemData.notes,
+              true
+            );
+            setPendingRedeemData(null);
+          }
+        }}
+        onCancel={() => {
+          setShowOverdraftConfirm(false);
+          setPendingRedeemData(null);
+        }}
+      />
     </div>
   );
 }

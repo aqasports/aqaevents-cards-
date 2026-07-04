@@ -31,10 +31,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const { clientId, activityId, sessionId, notes } = parsed.data;
+  const { clientId, activityId, sessionId, notes, bypassBalanceCheck } = parsed.data;
+
+  const isSuperAdmin = session.user.role === "super_admin";
+  if (bypassBalanceCheck && !isSuperAdmin) {
+    return NextResponse.json({ error: "Unauthorized to bypass balance check" }, { status: 403 });
+  }
 
   try {
-    const result = await billingService.createRedemption(clientId, activityId, { sessionId, notes }, session.user.id);
+    const result = await billingService.createRedemption(
+      clientId,
+      activityId,
+      { sessionId, notes, bypassBalanceCheck },
+      session.user.id
+    );
     return NextResponse.json(result);
   } catch (err: unknown) {
     console.error("POST redemption API error:", err);
@@ -53,6 +63,12 @@ export async function POST(request: NextRequest) {
           { error: "Insufficient balance", balance: currentBalance, required: activity?.creditCost ?? 1 },
           { status: 400 },
         );
+      }
+      if (err.message === "NO_AVAILABLE_EVENTS") {
+        return NextResponse.json({ error: "Redemption is only allowed for activities with upcoming scheduled events." }, { status: 400 });
+      }
+      if (err.message === "SESSION_NOT_AVAILABLE") {
+        return NextResponse.json({ error: "The selected event is no longer available or has already passed." }, { status: 400 });
       }
     }
     

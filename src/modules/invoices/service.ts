@@ -528,6 +528,7 @@ export class BillingService {
     data: {
       sessionId?: string;
       notes?: string;
+      bypassBalanceCheck?: boolean;
     },
     adminId: string
   ) {
@@ -537,6 +538,33 @@ export class BillingService {
 
     if (!activity || !activity.active) {
       throw new Error("ACTIVITY_NOT_FOUND");
+    }
+
+    // Enforce that only activities with available (upcoming, active) events can be redeemed
+    const upcomingSessionsCount = await prisma.activitySession.count({
+      where: {
+        activityId,
+        active: true,
+        sessionDate: { gte: new Date() },
+      },
+    });
+
+    if (upcomingSessionsCount === 0) {
+      throw new Error("NO_AVAILABLE_EVENTS");
+    }
+
+    if (data.sessionId) {
+      const session = await prisma.activitySession.findFirst({
+        where: {
+          id: data.sessionId,
+          activityId,
+          active: true,
+          sessionDate: { gte: new Date() },
+        },
+      });
+      if (!session) {
+        throw new Error("SESSION_NOT_AVAILABLE");
+      }
     }
 
     const client = await this.clientsRepo.findUnique({
@@ -552,6 +580,7 @@ export class BillingService {
         activity,
         sessionId: data.sessionId,
         notes: data.notes,
+        bypassBalanceCheck: data.bypassBalanceCheck,
         adminId,
         tx,
         postCommitActions: [],

@@ -76,6 +76,7 @@ export const redeemSchema = z.object({
   activityId: z.string(),
   sessionId: z.string().optional(),
   notes: z.string().optional(),
+  bypassBalanceCheck: z.boolean().optional(),
 });
 
 export const updateLedgerSchema = z.object({

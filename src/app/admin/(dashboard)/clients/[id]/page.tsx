@@ -204,7 +204,7 @@ export default function ClientDetailPage() {
     fetch("/api/admin/packages")
       .then((r) => r.json())
       .then((data) => setPackages(data.filter((p: Package & { active: boolean }) => p.active)));
-    fetch("/api/admin/activities")
+    fetch("/api/admin/activities?redeemable=true")
       .then((r) => r.json())
       .then((data) => setActivities(data.filter((a: any) => a.active)));
   }, [loadClient]);
