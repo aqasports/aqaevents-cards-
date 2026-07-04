@@ -243,3 +243,18 @@ model CardDemand {
   @@index([status])
   @@index([createdAt])
 }
+
+model ActivityProposal {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  userName    String
+  userPhone   String
+  userEmail   String?
+  status      String   @default("pending") // "pending", "reviewed", "archived"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}

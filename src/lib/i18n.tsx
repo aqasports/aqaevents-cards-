@@ -20,6 +20,7 @@ const dictionaries = {
       settings: "Settings",
       signOut: "Sign out",
       demands: "Demands",
+      proposals: "Proposals",
     },
     dashboard: {
       title: "Dashboard",
@@ -244,6 +245,7 @@ const dictionaries = {
       settings: "Paramètres",
       signOut: "Se déconnecter",
       demands: "Demandes",
+      proposals: "Propositions",
     },
     dashboard: {
       title: "Tableau de bord",
@@ -468,6 +470,7 @@ const dictionaries = {
       settings: "الإعدادات",
       signOut: "تسجيل الخروج",
       demands: "الطلبات",
+      proposals: "المقترحات",
     },
     dashboard: {
       title: "لوحة التحكم",
