@@ -209,8 +209,8 @@ export default function ClientDetailPage() {
       .then((data) => setActivities(data.filter((a: any) => a.active)));
   }, [loadClient]);
 
-  async function handleRedeemActivity(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleRedeemActivity(e?: FormEvent<HTMLFormElement>, creditsUsed?: number) {
+    if (e) e.preventDefault();
     if (!redeemActivityId) return;
     setSubmittingRedeem(true);
     setMessage(null);
@@ -223,6 +223,7 @@ export default function ClientDetailPage() {
           activityId: redeemActivityId,
           sessionId: redeemSessionId || undefined,
           notes: redeemNotes || undefined,
+          creditsUsed,
         }),
       });
       if (res.ok) {
@@ -1493,6 +1494,16 @@ export default function ClientDetailPage() {
 
                 <Button type="submit" className="w-full" loading={submittingRedeem} variant="primary">
                   Confirm Activity Redemption
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => handleRedeemActivity(undefined, 0.7)}
+                  className="w-full mt-2"
+                  loading={submittingRedeem}
+                  variant="secondary"
+                  disabled={!redeemActivityId}
+                >
+                  Redeem Kid (0.7 Credits)
                 </Button>
               </form>
             </Card>

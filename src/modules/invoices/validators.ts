@@ -77,6 +77,7 @@ export const redeemSchema = z.object({
   sessionId: z.string().optional(),
   notes: z.string().optional(),
   bypassBalanceCheck: z.boolean().optional(),
+  creditsUsed: z.number().optional(),
 });
 
 export const updateLedgerSchema = z.object({

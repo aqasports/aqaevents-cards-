@@ -529,6 +529,7 @@ export class BillingService {
       sessionId?: string;
       notes?: string;
       bypassBalanceCheck?: boolean;
+      creditsUsed?: number;
     },
     adminId: string
   ) {
@@ -581,6 +582,7 @@ export class BillingService {
         sessionId: data.sessionId,
         notes: data.notes,
         bypassBalanceCheck: data.bypassBalanceCheck,
+        creditsUsed: data.creditsUsed,
         adminId,
         tx,
         postCommitActions: [],

@@ -57,6 +57,7 @@ export default function RedeemPage() {
     activityId: string;
     sessionId?: string;
     notes?: string;
+    creditsUsed?: number;
   } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -261,11 +262,46 @@ export default function RedeemPage() {
     await executeRedeem(activityId, sessionId, notes, false);
   }
 
+  async function handleRedeemKid() {
+    if (!lookup || !selectedActivityId) return;
+
+    const form = document.getElementById("redemption-form") as HTMLFormElement;
+    let sessionId: string | undefined = undefined;
+    let notes: string | undefined = undefined;
+    if (form) {
+      const formData = new FormData(form);
+      sessionId = (formData.get("sessionId") as string) || undefined;
+      notes = (formData.get("notes") as string) || undefined;
+    }
+
+    const activity = activities.find((a) => a.id === selectedActivityId);
+    if (!activity) return;
+
+    const cost = 0.7;
+    const isInsufficient = lookup.balance < cost;
+
+    if (isInsufficient) {
+      if (isSuperAdmin) {
+        setPendingRedeemData({ activityId: selectedActivityId, sessionId, notes, creditsUsed: cost });
+        setShowOverdraftConfirm(true);
+        return;
+      } else {
+        setMessage({ text: t("insufficientBalance"), tone: "danger" });
+        playErrorSound();
+        triggerErrorHaptics();
+        return;
+      }
+    }
+
+    await executeRedeem(selectedActivityId, sessionId, notes, false, cost);
+  }
+
   async function executeRedeem(
     activityId: string,
     sessionId?: string,
     notes?: string,
-    bypassBalanceCheck = false
+    bypassBalanceCheck = false,
+    creditsUsed?: number
   ) {
     setRedeeming(true);
     setMessage(null);
@@ -280,6 +316,7 @@ export default function RedeemPage() {
           sessionId,
           notes,
           bypassBalanceCheck,
+          creditsUsed,
         }),
       });
 
@@ -568,14 +605,26 @@ export default function RedeemPage() {
                 }
 
                 return (
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={disableButton}
-                    loading={redeeming}
-                  >
-                    {buttonLabel}
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={disableButton}
+                      loading={redeeming}
+                    >
+                      {buttonLabel}
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleRedeemKid}
+                      className="w-full"
+                      variant="secondary"
+                      disabled={!selectedActivityId || (lookup.balance < 0.7 && !isSuperAdmin)}
+                      loading={redeeming}
+                    >
+                      {t("redeemKid")}
+                    </Button>
+                  </div>
                 );
               })()}
             </form>
@@ -608,11 +657,11 @@ export default function RedeemPage() {
         isOpen={showOverdraftConfirm}
         title="Authorize Overdraft Redemption"
         message={`WARNING: This client has insufficient credits (${lookup?.balance} credits available, but this activity costs ${
-          activities.find((a) => a.id === pendingRedeemData?.activityId)?.creditCost
+          pendingRedeemData?.creditsUsed ?? activities.find((a) => a.id === pendingRedeemData?.activityId)?.creditCost
         } credits).
 
 Do you want to proceed and allow a negative balance of ${
-          (lookup?.balance ?? 0) - (activities.find((a) => a.id === pendingRedeemData?.activityId)?.creditCost ?? 0)
+          (lookup?.balance ?? 0) - (pendingRedeemData?.creditsUsed ?? activities.find((a) => a.id === pendingRedeemData?.activityId)?.creditCost ?? 0)
         } credits?`}
         isDanger={true}
         onConfirm={async () => {
@@ -622,7 +671,8 @@ Do you want to proceed and allow a negative balance of ${
               pendingRedeemData.activityId,
               pendingRedeemData.sessionId,
               pendingRedeemData.notes,
-              true
+              true,
+              pendingRedeemData.creditsUsed
             );
             setPendingRedeemData(null);
           }

@@ -294,7 +294,8 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
 // Ledger Listener
 eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
   const currentBalance = await billingRepo.sumLedgerDelta(payload.client.id, payload.tx);
-  if (currentBalance < payload.activity.creditCost && !payload.bypassBalanceCheck) {
+  const cost = payload.creditsUsed ?? payload.activity.creditCost;
+  if (currentBalance < cost && !payload.bypassBalanceCheck) {
     throw new Error("INSUFFICIENT_BALANCE");
   }
 
@@ -304,7 +305,7 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
         clientId: payload.client.id,
         activityId: payload.activity.id,
         sessionId: payload.sessionId || null,
-        creditsUsed: payload.activity.creditCost,
+        creditsUsed: cost,
         staffId: payload.adminId,
         notes: payload.notes || null,
       },
@@ -316,15 +317,16 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
     payload.tx
   );
 
+  const isKidRedemption = cost === 0.7;
   const ledger = await billingRepo.createLedger(
     {
       data: {
         clientId: payload.client.id,
         cardId: payload.client.cards[0]?.id || null,
         redemptionId: redemption.id,
-        delta: -payload.activity.creditCost,
+        delta: -cost,
         type: "debit",
-        reason: `Redeemed ${payload.activity.name}`,
+        reason: isKidRedemption ? `Redeemed ${payload.activity.name} (Kid)` : `Redeemed ${payload.activity.name}`,
         createdById: payload.adminId,
       },
     },
@@ -345,12 +347,13 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
   payload.postCommitActions = payload.postCommitActions ?? [];
   payload.postCommitActions.push(async () => {
     const newBalance = await getClientBalance(payload.client.id);
+    const cost = payload.redemptionResult?.creditsUsed ?? payload.activity.creditCost;
     await reportingRepo.createAudit({
       data: {
         userId: payload.adminId,
         action: "REDEEM_ACTIVITY",
         target: `Client ${payload.client.fullName}`,
-        details: `Redeemed activity "${payload.activity.name}" for ${payload.client.fullName}. Credits deducted: -${payload.activity.creditCost}. New Balance: ${newBalance} credits.`,
+        details: `Redeemed activity "${payload.activity.name}" for ${payload.client.fullName}. Credits deducted: -${cost}. New Balance: ${newBalance} credits.`,
       },
     });
   });
@@ -361,7 +364,8 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
   payload.postCommitActions = payload.postCommitActions ?? [];
   payload.postCommitActions.push(async () => {
     const newBalance = await getClientBalance(payload.client.id);
-    const notificationMessage = `Hello ${payload.client.fullName}, activity "${payload.activity.name}" was successfully redeemed. -${payload.activity.creditCost} credits applied. Your remaining balance is: ${newBalance} credits.`;
+    const cost = payload.redemptionResult?.creditsUsed ?? payload.activity.creditCost;
+    const notificationMessage = `Hello ${payload.client.fullName}, activity "${payload.activity.name}" was successfully redeemed. -${cost} credits applied. Your remaining balance is: ${newBalance} credits.`;
 
     if (payload.client.phone) {
       await sendSimulatedNotification(payload.client.id, "sms", payload.client.phone, `AQA Sports: ${notificationMessage}`);

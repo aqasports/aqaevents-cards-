@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const { clientId, activityId, sessionId, notes, bypassBalanceCheck } = parsed.data;
+  const { clientId, activityId, sessionId, notes, bypassBalanceCheck, creditsUsed } = parsed.data;
 
   const isSuperAdmin = session.user.role === "super_admin";
   if (bypassBalanceCheck && !isSuperAdmin) {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const result = await billingService.createRedemption(
       clientId,
       activityId,
-      { sessionId, notes, bypassBalanceCheck },
+      { sessionId, notes, bypassBalanceCheck, creditsUsed },
       session.user.id
     );
     return NextResponse.json(result);
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         const currentBalance = await getClientBalance(clientId);
         const activity = await prisma.activity.findUnique({ where: { id: activityId } });
         return NextResponse.json(
-          { error: "Insufficient balance", balance: currentBalance, required: activity?.creditCost ?? 1 },
+          { error: "Insufficient balance", balance: currentBalance, required: creditsUsed ?? activity?.creditCost ?? 1 },
           { status: 400 },
         );
       }

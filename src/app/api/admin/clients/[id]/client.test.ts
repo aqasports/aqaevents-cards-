@@ -19,9 +19,12 @@ vi.mock("@/lib/prisma", () => ({
     },
     card: {
       deleteMany: vi.fn(),
+      updateMany: vi.fn(),
     },
     client: {
       delete: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -33,6 +36,8 @@ vi.mock("@/lib/prisma", () => ({
 describe("Clients DELETE API", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(prisma.client.update).mockResolvedValue({ id: "client-1" } as any);
+    vi.mocked(prisma.card.updateMany).mockResolvedValue({ count: 1 } as any);
   });
 
   it("should return 401/403 if unauthorized or not super_admin", async () => {
@@ -54,6 +59,11 @@ describe("Clients DELETE API", () => {
       session: { user: { id: "admin-1", role: "super_admin" } } as any,
       error: null,
     });
+
+    vi.mocked(prisma.client.findUnique).mockResolvedValue({
+      id: "client-1",
+      fullName: "John Doe",
+    } as any);
 
     vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
       const mockTx = {
@@ -80,7 +90,7 @@ describe("Clients DELETE API", () => {
     const res = await DELETE(request, { params: Promise.resolve({ id: "client-1" }) });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.ok).toBe(true);
+    expect(body.success).toBe(true);
   });
 
   it("should successfully delete client and linked records", async () => {
@@ -88,6 +98,11 @@ describe("Clients DELETE API", () => {
       session: { user: { id: "admin-1", role: "super_admin" } } as any,
       error: null,
     });
+
+    vi.mocked(prisma.client.findUnique).mockResolvedValue({
+      id: "client-1",
+      fullName: "John Doe",
+    } as any);
 
     vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
       const mockTx = {
@@ -111,6 +126,6 @@ describe("Clients DELETE API", () => {
     const res = await DELETE(request, { params: Promise.resolve({ id: "client-1" }) });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.ok).toBe(true);
+    expect(body.success).toBe(true);
   });
 });
