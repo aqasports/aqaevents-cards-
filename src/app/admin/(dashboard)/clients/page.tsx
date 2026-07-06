@@ -13,6 +13,8 @@ type ClientRow = {
   balance: number;
   card: { cardCode: string; publicToken: string } | null;
   createdAt: string;
+  archived: boolean;
+  archivedAt: string | null;
   
   // CRM Fields
   leadSource: string | null;
@@ -49,10 +51,12 @@ export default function ClientsPage() {
     setConfirmConfig({ isOpen: true, title, message, onConfirm, isDanger });
   };
 
-  async function loadClients() {
+  async function loadClients(tab = activeCrmTab) {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/clients");
+      const isArchived = tab === "archived";
+      const url = isArchived ? "/api/admin/clients?archived=true" : "/api/admin/clients";
+      const res = await fetch(url);
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
         setClients(data);
@@ -69,13 +73,13 @@ export default function ClientsPage() {
   }
 
   useEffect(() => {
-    loadClients();
-  }, []);
+    loadClients(activeCrmTab);
+  }, [activeCrmTab]);
 
   async function handleDelete(client: ClientRow) {
     triggerConfirm(
-      "Delete Client",
-      `Are you sure you want to delete ${client.fullName}? This will permanently remove their active card, credit ledger, and redemption history.`,
+      "Archive Client",
+      `Are you sure you want to archive ${client.fullName}? Their active card will be voided. Their invoice and transaction history will be preserved. You can restore this client later from the Archived tab.`,
       async () => {
         setDeletingId(client.id);
         setMessage(null);
@@ -86,19 +90,83 @@ export default function ClientsPage() {
           });
           if (res.ok) {
             setMessage({
-              text: `Client ${client.fullName} has been successfully deleted.`,
+              text: `Client ${client.fullName} has been successfully archived.`,
               tone: "success",
             });
-            await loadClients();
+            await loadClients(activeCrmTab);
           } else {
             const errData = await res.json();
             setMessage({
-              text: errData.error || "Failed to delete client.",
+              text: errData.error || "Failed to archive client.",
               tone: "danger",
             });
           }
         } catch {
-          setMessage({ text: "Failed to delete client.", tone: "danger" });
+          setMessage({ text: "Failed to archive client.", tone: "danger" });
+        } finally {
+          setDeletingId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
+
+  async function handleUnarchive(client: ClientRow) {
+    triggerConfirm(
+      "Restore Client",
+      `Are you sure you want to restore ${client.fullName}? This will mark them as active again.`,
+      async () => {
+        try {
+          const res = await fetch(`/api/admin/clients/${client.id}/unarchive`, {
+            method: "POST",
+          });
+          if (res.ok) {
+            setMessage({
+              text: `Client ${client.fullName} has been successfully restored.`,
+              tone: "success",
+            });
+            await loadClients(activeCrmTab);
+          } else {
+            const errData = await res.json();
+            setMessage({
+              text: errData.error || "Failed to restore client.",
+              tone: "danger",
+            });
+          }
+        } catch {
+          setMessage({ text: "Failed to restore client.", tone: "danger" });
+        }
+      }
+    );
+  }
+
+  async function handleForceDelete(client: ClientRow) {
+    triggerConfirm(
+      "Delete Client Permanently",
+      `Are you sure you want to PERMANENTLY delete ${client.fullName} and ALL of their invoices, cards, redemptions, and credit history? This action is irreversible and will erase financial records.`,
+      async () => {
+        setDeletingId(client.id);
+        setMessage(null);
+
+        try {
+          const res = await fetch(`/api/admin/clients/${client.id}?force=true&deleteRelated=true`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            setMessage({
+              text: `Client ${client.fullName} and all related records have been permanently deleted.`,
+              tone: "success",
+            });
+            await loadClients(activeCrmTab);
+          } else {
+            const errData = await res.json();
+            setMessage({
+              text: errData.error || "Failed to permanently delete client.",
+              tone: "danger",
+            });
+          }
+        } catch {
+          setMessage({ text: "Failed to permanently delete client.", tone: "danger" });
         } finally {
           setDeletingId(null);
         }
@@ -162,6 +230,7 @@ export default function ClientsPage() {
               { id: "vip", label: "VIP Clients" },
               { id: "high-value", label: "High-Value" },
               { id: "inactive", label: "Inactive" },
+              { id: "archived", label: "Archived" },
             ].map((tabInfo) => (
               <button
                 key={tabInfo.id}
@@ -280,21 +349,45 @@ export default function ClientsPage() {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end items-center gap-2">
-                        <Link
-                          href={`/admin/clients/${client.id}`}
-                          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary-light)] transition-colors"
-                        >
-                          View
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          loading={deletingId === client.id}
-                          onClick={() => handleDelete(client)}
-                          className="text-[var(--danger)] hover:bg-red-50"
-                        >
-                          Delete
-                        </Button>
+                        {client.archived ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUnarchive(client)}
+                              className="text-emerald-600 hover:bg-emerald-50"
+                            >
+                              Restore
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              loading={deletingId === client.id}
+                              onClick={() => handleForceDelete(client)}
+                              className="text-red-600 hover:bg-red-50 font-semibold"
+                            >
+                              Delete Permanently
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Link
+                              href={`/admin/clients/${client.id}`}
+                              className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary-light)] transition-colors"
+                            >
+                              View
+                            </Link>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              loading={deletingId === client.id}
+                              onClick={() => handleDelete(client)}
+                              className="text-[var(--danger)] hover:bg-red-50"
+                            >
+                              Archive
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

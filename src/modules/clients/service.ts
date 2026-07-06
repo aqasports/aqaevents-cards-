@@ -24,12 +24,21 @@ export class ClientsService {
     return code;
   }
 
-  async getClients(search?: string, limit?: number) {
-    const where = search
-      ? {
-          OR: [{ fullName: { contains: search, mode: "insensitive" as const } }],
-        }
-      : undefined;
+  async getClients(search?: string, limit?: number, archived?: string) {
+    const where: any = {};
+
+    if (search) {
+      where.OR = [{ fullName: { contains: search, mode: "insensitive" as const } }];
+    }
+
+    if (archived === "true") {
+      where.archived = true;
+    } else if (archived === "all") {
+      // Do not filter on archived
+    } else {
+      // Default: only active (unarchived) clients
+      where.archived = false;
+    }
 
     const clients = await this.clientsRepo.findMany({
       where,
@@ -59,6 +68,8 @@ export class ClientsService {
       totalSpent: client.totalSpent,
       lastActivityDate: client.lastActivityDate,
       favoriteActivity: client.favoriteActivity,
+      archived: client.archived,
+      archivedAt: client.archivedAt,
     }));
   }
 
@@ -189,40 +200,98 @@ export class ClientsService {
     return client;
   }
 
-  async deleteClient(id: string, adminId: string) {
-    await prisma.$transaction(async (tx) => {
-      await this.billingRepo.deleteRedemptionMany(
-        {
-          where: { clientId: id },
-        },
-        tx
-      );
+  async deleteClient(id: string, adminId: string, options?: { force?: boolean; deleteRelated?: boolean }) {
+    const client = await this.clientsRepo.findUnique({ where: { id } });
+    if (!client) throw new Error("Client not found");
 
-      await this.cardsRepo.deleteMany(
-        {
-          where: { clientId: id },
-        },
-        tx
-      );
+    if (options?.force) {
+      if (options.deleteRelated) {
+        // Delete all related records first to bypass foreign key constraints safely
+        await prisma.$transaction(async (tx) => {
+          await tx.notificationLog.deleteMany({ where: { clientId: id } });
+          await tx.ledgerEntry.deleteMany({ where: { clientId: id } });
+          await tx.invoice.deleteMany({ where: { clientId: id } });
+          await tx.redemption.deleteMany({ where: { clientId: id } });
+          await tx.card.deleteMany({ where: { clientId: id } });
+          await tx.client.delete({ where: { id } });
+        });
 
-      await this.clientsRepo.delete(
-        {
-          where: { id },
+        await this.reportingRepo.createAudit({
+          data: {
+            userId: adminId,
+            action: "DELETE_CLIENT_FORCE",
+            target: `Client ${client.fullName} (ID: ${id})`,
+            details: `Permanently force-deleted client and all related records (invoices, ledger history, redemptions, cards, notifications).`,
+          },
+        });
+
+        return { success: true, action: "deleted" };
+      } else {
+        // Delete directly. Since schema onDelete: Restrict is applied, this will fail if they have related records
+        await this.clientsRepo.delete({ where: { id } });
+
+        await this.reportingRepo.createAudit({
+          data: {
+            userId: adminId,
+            action: "DELETE_CLIENT_FORCE",
+            target: `Client ${client.fullName} (ID: ${id})`,
+            details: `Force-deleted client directly without related records.`,
+          },
+        });
+
+        return { success: true, action: "deleted" };
+      }
+    } else {
+      // Default: Soft delete / Archive
+      await this.clientsRepo.update({
+        where: { id },
+        data: {
+          archived: true,
+          archivedAt: new Date(),
         },
-        tx
-      );
+      });
+
+      // Void any active cards this client has
+      await prisma.card.updateMany({
+        where: { clientId: id, status: "active" },
+        data: { status: "voided" },
+      });
+
+      await this.reportingRepo.createAudit({
+        data: {
+          userId: adminId,
+          action: "ARCHIVE_CLIENT",
+          target: `Client ${client.fullName} (ID: ${id})`,
+          details: `Soft-deleted/Archived client and voided all active cards.`,
+        },
+      });
+
+      return { success: true, action: "archived" };
+    }
+  }
+
+  async unarchiveClient(id: string, adminId: string) {
+    const client = await this.clientsRepo.findUnique({ where: { id } });
+    if (!client) throw new Error("Client not found");
+
+    await this.clientsRepo.update({
+      where: { id },
+      data: {
+        archived: false,
+        archivedAt: null,
+      },
     });
 
     await this.reportingRepo.createAudit({
       data: {
         userId: adminId,
-        action: "DELETE_CLIENT",
-        target: `Client ID ${id}`,
-        details: `Deleted client ID ${id} and related cards, redemptions, invoices, ledger entries, and notifications.`,
+        action: "UNARCHIVE_CLIENT",
+        target: `Client ${client.fullName} (ID: ${id})`,
+        details: `Restored/Unarchived client.`,
       },
     });
 
-    return { ok: true };
+    return { success: true };
   }
 
   async reissueCard(clientId: string, newCardCode?: string | null, adminId?: string) {

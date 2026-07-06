@@ -13,9 +13,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search") || undefined;
   const limit = parseInt(searchParams.get("limit") ?? "0", 10) || undefined;
+  const archived = searchParams.get("archived") || undefined;
 
   try {
-    const clients = await clientsService.getClients(search, limit);
+    const clients = await clientsService.getClients(search, limit, archived);
     return NextResponse.json(clients);
   } catch (err: unknown) {
     console.error("GET clients API error:", err);

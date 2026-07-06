@@ -117,8 +117,8 @@ export class CardsService {
         where: {
           fullName: {
             contains: trimmedQuery,
-            mode: "insensitive" as const,
-          },
+            mode: "insensitive",
+          } as any,
         },
         include: {
           cards: {
@@ -132,12 +132,12 @@ export class CardsService {
       if (clients.length === 0) return null;
 
       if (clients.length === 1) {
-        const singleClient = clients[0];
+        const singleClient = clients[0] as any;
         return getSingleResult(singleClient.cards[0] || null, singleClient);
       }
 
       const matches = await Promise.all(
-        clients.map(async (c) => {
+        clients.map(async (c: any) => {
           const balance = await this.billingRepo.sumLedgerDelta(c.id);
           return {
             card: c.cards[0] || null,

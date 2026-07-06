@@ -51,16 +51,19 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { session, error } = await requireSuperAdminSession();
   if (error || !session) return error;
 
   const { id } = await params;
+  const { searchParams } = new URL(request.url);
+  const force = searchParams.get("force") === "true";
+  const deleteRelated = searchParams.get("deleteRelated") === "true";
 
   try {
-    const result = await clientsService.deleteClient(id, session.user.id);
+    const result = await clientsService.deleteClient(id, session.user.id, { force, deleteRelated });
     return NextResponse.json(result);
   } catch (err: unknown) {
     console.error("DELETE client API error:", err);

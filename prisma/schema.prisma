@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider  = "sqlite"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
@@ -28,6 +28,8 @@ model Client {
   email     String?
   phone     String?
   notes     String?
+  archived   Boolean  @default(false)
+  archivedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -133,7 +135,7 @@ model LedgerEntry {
   createdById  String?
   createdAt    DateTime @default(now())
 
-  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
   card       Card?       @relation(fields: [cardId], references: [id], onDelete: SetNull)
   package    Package?    @relation(fields: [packageId], references: [id], onDelete: SetNull)
   redemption Redemption? @relation(fields: [redemptionId], references: [id], onDelete: Cascade)
@@ -153,7 +155,7 @@ model Redemption {
   redeemedAt  DateTime @default(now())
   notes       String?
 
-  client        Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
   activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
   session       ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   staff         AdminUser?       @relation(fields: [staffId], references: [id], onDelete: SetNull)
@@ -175,7 +177,7 @@ model Invoice {
   paidAt      DateTime?
   createdAt   DateTime  @default(now())
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
   @@index([clientId])
   @@index([createdAt])

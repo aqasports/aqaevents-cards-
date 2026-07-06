@@ -9,7 +9,9 @@
     "lint": "next lint",
     "test": "vitest run",
     "db:generate": "node prisma/prepare.js && prisma generate",
-    "db:push": "node prisma/prepare.js && prisma db push",
+    "db:push:local": "node prisma/prepare.js && prisma db push",
+    "db:migrate": "node prisma/prepare.js && prisma migrate dev",
+    "db:backup": "tsx scripts/backup.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "node prisma/prepare.js && prisma studio",
     "postinstall": "node prisma/prepare.js && prisma generate"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/api-auth";
+import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { updateExpenseSchema } from "@/modules/activities/validators";
 
@@ -40,8 +40,8 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
 

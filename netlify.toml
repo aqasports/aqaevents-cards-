@@ -1,6 +1,7 @@
 [build]
-  command = "node prisma/prepare.js && npx prisma db push --skip-generate && npx prisma generate && npm run build"
+  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && npm run build"
   publish = ".next"
+
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

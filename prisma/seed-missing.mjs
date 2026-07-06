@@ -1,6 +1,15 @@
 // Seed the 4 missing AQA activities using direct DB connection
 import { PrismaClient } from '@prisma/client';
 
+// --- PRODUCTION SAFETY GUARD ---
+const dbUrl = process.env.DATABASE_URL || '';
+if (dbUrl.includes('supabase.com') || dbUrl.includes('neon.tech') || dbUrl.includes('amazonaws.com')) {
+  console.error('\n  BLOCKED: This seed script cannot run against a production database.');
+  console.error('  Your DATABASE_URL points to a remote hosted database.');
+  console.error('  Use the local Docker database instead: docker-compose up -d\n');
+  process.exit(1);
+}
+
 const prisma = new PrismaClient({
   datasources: {
     db: {
