@@ -380,7 +380,7 @@ export default function RedeemPage() {
           {t("findClientCard")}
         </h3>
         <form onSubmit={lookupCard} className="flex gap-3">
-          <div className="flex-1 search-container relative">
+          <div className="flex-1 search-container relative z-30">
             <Input
               ref={inputRef}
               value={search}

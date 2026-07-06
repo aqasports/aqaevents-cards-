@@ -912,7 +912,7 @@ function CreateInvoiceModal({
           )}
 
           {/* Client Search */}
-          <div className="relative" ref={dropdownRef}>
+          <div className="relative z-30" ref={dropdownRef}>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
               Client *
             </label>

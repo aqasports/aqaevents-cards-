@@ -1000,8 +1000,8 @@ export default function ActivityDetailPage() {
               </Card>
             ) : (
               upcomingSessions.map((session) => (
-                <div key={session.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden shadow-[var(--shadow-sm)]">
-                  <div onClick={() => setExpandedEventId(expandedEventId === session.id ? null : session.id)} className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition">
+                <div key={session.id} className={`rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] ${expandedEventId === session.id ? "" : "overflow-hidden"}`}>
+                  <div onClick={() => setExpandedEventId(expandedEventId === session.id ? null : session.id)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition ${expandedEventId === session.id ? "rounded-t-xl" : "rounded-xl"}`}>
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1032,7 +1032,7 @@ export default function ActivityDetailPage() {
                       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add Client</h4>
                         <div className="flex flex-col sm:flex-row gap-3">
-                          <div className={`relative event-search-container-${session.id} flex-1`}>
+                          <div className={`relative event-search-container-${session.id} flex-1 z-30`}>
                             <input
                               type="text"
                               placeholder="Type client name…"
