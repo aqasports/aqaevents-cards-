@@ -50,3 +50,7 @@ next-env.d.ts
 # local database backups
 /backups
 
+# prisma migration lock
+migration_lock.toml
+
+
