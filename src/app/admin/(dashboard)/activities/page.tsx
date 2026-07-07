@@ -17,7 +17,9 @@ import {
 
 type Expense = { name: string; amount: number };
 
-type Session = { id: string; sessionDate: string; location: string | null };
+type SessionExpense = { id: string; amount: number };
+
+type Session = { id: string; sessionDate: string; location: string | null; active: boolean; sessionExpenses: SessionExpense[] };
 
 type Activity = {
   id: string;
@@ -660,7 +662,7 @@ export default function ActivitiesPage() {
                     {/* Financial Performance / Profitability */}
                     {(() => {
                       const totalRev = activity._count.redemptions * activity.creditCost * RATE;
-                      const totalExp = activity.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+                      const totalExp = activity.sessions.reduce((sum, s) => sum + (s.sessionExpenses?.reduce((sSum, exp) => sSum + exp.amount, 0) || 0), 0);
                       const netProfit = totalRev - totalExp;
                       const margin = totalRev > 0 ? Math.round((netProfit / totalRev) * 100) : 0;
                       return (

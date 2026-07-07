@@ -29,6 +29,15 @@ type Redemption = {
   client: { id: string; fullName: string; phone: string | null; email: string | null };
 };
 
+type SessionExpense = {
+  id: string;
+  activityExpenseId: string;
+  quantity: number;
+  amount: number;
+  createdAt: string;
+  activityExpense: ActivityExpense;
+};
+
 type EventSession = {
   id: string;
   sessionDate: string;
@@ -36,6 +45,7 @@ type EventSession = {
   capacity: number | null;
   active: boolean;
   redemptions: Redemption[];
+  sessionExpenses: SessionExpense[];
 };
 
 type ActivityExpense = {
@@ -545,6 +555,13 @@ export default function ActivityDetailPage() {
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [deletingActivity, setDeletingActivity] = useState(false);
 
+  // Session Expense form states
+  const [selectedExpenseTemplate, setSelectedExpenseTemplate] = useState<{ [sessionId: string]: string }>({});
+  const [expenseQuantity, setExpenseQuantity] = useState<{ [sessionId: string]: string }>({});
+  const [expenseOverrideAmount, setExpenseOverrideAmount] = useState<{ [sessionId: string]: string }>({});
+  const [addingExpenseForSession, setAddingExpenseForSession] = useState<{ [sessionId: string]: boolean }>({});
+  const [deletingSessionExpenseId, setDeletingSessionExpenseId] = useState<string | null>(null);
+
   // Confirm Modal state
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -779,6 +796,70 @@ export default function ActivityDetailPage() {
     );
   }
 
+  async function handleAddSessionExpense(sessionId: string) {
+    const activityExpenseId = selectedExpenseTemplate[sessionId];
+    const qtyStr = expenseQuantity[sessionId] || "1";
+    const quantity = parseFloat(qtyStr);
+    const amountStr = expenseOverrideAmount[sessionId] || "";
+    const amount = amountStr ? parseInt(amountStr) : undefined;
+
+    if (!activityExpenseId) return;
+
+    setAddingExpenseForSession((p) => ({ ...p, [sessionId]: true }));
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}/expenses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activityExpenseId,
+          quantity: isNaN(quantity) ? 1 : quantity,
+          amount,
+        }),
+      });
+
+      if (res.ok) {
+        setMessage({ text: "Session expense added successfully.", tone: "success" });
+        setSelectedExpenseTemplate((p) => ({ ...p, [sessionId]: "" }));
+        setExpenseQuantity((p) => ({ ...p, [sessionId]: "1" }));
+        setExpenseOverrideAmount((p) => ({ ...p, [sessionId]: "" }));
+        await loadActivityData();
+      } else {
+        const errData = await res.json();
+        setMessage({ text: errData.error || "Failed to add session expense.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Failed to add session expense.", tone: "danger" });
+    } finally {
+      setAddingExpenseForSession((p) => ({ ...p, [sessionId]: false }));
+    }
+  }
+
+  async function handleDeleteSessionExpense(sessionId: string, sessionExpenseId: string) {
+    setDeletingSessionExpenseId(sessionExpenseId);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}/expenses/${sessionExpenseId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setMessage({ text: "Session expense removed successfully.", tone: "success" });
+        await loadActivityData();
+      } else {
+        setMessage({ text: "Failed to remove session expense.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Failed to remove session expense.", tone: "danger" });
+    } finally {
+      setDeletingSessionExpenseId(null);
+    }
+  }
+
   async function handleRegisterClient(eventId: string) {
     const clientId = selectedClientForEvent[eventId];
     if (!clientId) return;
@@ -906,7 +987,7 @@ export default function ActivityDetailPage() {
   const limitTime = new Date(now.getTime() - 10 * 60 * 60 * 1000);
   const upcomingSessions = activity.sessions.filter((s) => s.active && new Date(s.sessionDate) >= limitTime);
   const pastAndCancelledSessions = activity.sessions.filter((s) => !s.active || new Date(s.sessionDate) < limitTime);
-  const totalExpenses = activity.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const totalExpenses = activity.sessions.reduce((sum, s) => sum + (s.sessionExpenses?.reduce((sSum, exp) => sSum + exp.amount, 0) || 0), 0);
   const totalRevenue = activity._count.redemptions * activity.creditCost * RATE;
   const netProfit = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
@@ -1219,6 +1300,133 @@ export default function ActivityDetailPage() {
                             ))}
                           </ul>
                         )}
+                      </div>
+
+                      {/* Event Expenses Section */}
+                      <div className="pt-4 border-t border-[var(--border)]">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Event Expenses</h4>
+                          <span className="text-xs font-semibold text-slate-700">
+                            Total: {session.sessionExpenses?.reduce((sum, exp) => sum + exp.amount, 0).toLocaleString("fr-DZ")} DA
+                          </span>
+                        </div>
+
+                        {/* List of current expenses for this session */}
+                        {!session.sessionExpenses || session.sessionExpenses.length === 0 ? (
+                          <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg mb-3">
+                            No expenses recorded for this event.
+                          </p>
+                        ) : (
+                          <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-white mb-3">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="border-b border-[var(--border)] bg-slate-50 font-semibold text-slate-500">
+                                  <th className="px-3 py-2">Item</th>
+                                  <th className="px-3 py-2 text-right">Unit Price</th>
+                                  <th className="px-3 py-2 text-center">Qty</th>
+                                  <th className="px-3 py-2 text-right">Total</th>
+                                  <th className="px-3 py-2 text-right">Action</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[var(--border)]">
+                                {session.sessionExpenses.map((exp) => (
+                                  <tr key={exp.id} className="hover:bg-slate-50/50">
+                                    <td className="px-3 py-2 font-medium text-slate-800">{exp.activityExpense.name}</td>
+                                    <td className="px-3 py-2 text-right text-slate-500">
+                                      {exp.activityExpense.amount > 0 ? `${exp.activityExpense.amount.toLocaleString()} DA` : "Variable"}
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-slate-600">{exp.quantity}</td>
+                                    <td className="px-3 py-2 text-right font-semibold text-slate-900">{exp.amount.toLocaleString()} DA</td>
+                                    <td className="px-3 py-2 text-right">
+                                      <button
+                                        type="button"
+                                        disabled={deletingSessionExpenseId === exp.id}
+                                        onClick={() => handleDeleteSessionExpense(session.id, exp.id)}
+                                        className="text-red-500 hover:text-red-700 font-semibold disabled:opacity-50"
+                                      >
+                                        Delete
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {/* Add expense to session form */}
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                          <h5 className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">Record New Event Expense</h5>
+                          {activity.expenses.length === 0 ? (
+                            <p className="text-xs text-[var(--muted)]">
+                              Please add expense templates in the Expenses tab first.
+                            </p>
+                          ) : (
+                            <div className="flex flex-col md:flex-row gap-3 items-end">
+                              <div className="flex-1 w-full">
+                                <label className="block text-[10px] text-slate-500 mb-1">Expense Element</label>
+                                <select
+                                  value={selectedExpenseTemplate[session.id] || ""}
+                                  onChange={(e) => {
+                                    setSelectedExpenseTemplate((p) => ({ ...p, [session.id]: e.target.value }));
+                                    setExpenseOverrideAmount((p) => ({ ...p, [session.id]: "" }));
+                                  }}
+                                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--primary)]"
+                                >
+                                  <option value="">Select template...</option>
+                                  {activity.expenses.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                      {t.name} ({t.amount > 0 ? `${t.amount.toLocaleString()} DA` : "Variable"})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="w-20 shrink-0">
+                                <label className="block text-[10px] text-slate-500 mb-1">Quantity</label>
+                                <input
+                                  type="number"
+                                  min="0.01"
+                                  step="any"
+                                  value={expenseQuantity[session.id] || "1"}
+                                  onChange={(e) => setExpenseQuantity((p) => ({ ...p, [session.id]: e.target.value }))}
+                                  className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-center"
+                                />
+                              </div>
+
+                              {(() => {
+                                const selectedId = selectedExpenseTemplate[session.id];
+                                const selectedTpl = activity.expenses.find((e) => e.id === selectedId);
+                                const isVariable = selectedTpl && selectedTpl.amount === 0;
+                                if (isVariable) {
+                                  return (
+                                    <div className="w-28 shrink-0">
+                                      <label className="block text-[10px] text-slate-500 mb-1">Total Cost (DA)</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="Enter cost..."
+                                        value={expenseOverrideAmount[session.id] || ""}
+                                        onChange={(e) => setExpenseOverrideAmount((p) => ({ ...p, [session.id]: e.target.value }))}
+                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--primary)]"
+                                      />
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+
+                              <Button
+                                size="sm"
+                                onClick={() => handleAddSessionExpense(session.id)}
+                                loading={addingExpenseForSession[session.id]}
+                                disabled={!selectedExpenseTemplate[session.id]}
+                              >
+                                Add Expense
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1630,17 +1838,17 @@ export default function ActivityDetailPage() {
       {activeTab === "expenses" && (
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div className="space-y-4">
-            <h2 className="text-lg font-bold">Expenses & Invoices</h2>
+            <h2 className="text-lg font-bold">Predefined Expense Elements (Templates)</h2>
             <Card padding={false} className="overflow-hidden">
               {activity.expenses.length === 0 ? (
-                <p className="py-8 text-center text-sm text-[var(--muted)]">No expenses recorded yet.</p>
+                <p className="py-8 text-center text-sm text-[var(--muted)]">No predefined expense elements yet.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-sm">
                     <thead>
                       <tr className="border-b border-[var(--border)] bg-slate-50 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                         <th className="px-5 py-3">Expense Item</th>
-                        <th className="px-5 py-3">Amount</th>
+                        <th className="px-5 py-3">Unit Cost</th>
                         <th className="px-5 py-3">Notes</th>
                         <th className="px-5 py-3 text-right">Actions</th>
                       </tr>
@@ -1652,7 +1860,9 @@ export default function ActivityDetailPage() {
                             <p className="font-bold">{exp.name}</p>
                             <p className="text-[10px] text-[var(--muted)]">{formatDate(exp.createdAt, locale)}</p>
                           </td>
-                          <td className="px-5 py-3 font-bold tabular-nums text-[var(--danger)]">{exp.amount.toLocaleString()} DA</td>
+                          <td className="px-5 py-3 font-bold tabular-nums text-slate-700">
+                            {exp.amount > 0 ? `${exp.amount.toLocaleString()} DA` : "Variable"}
+                          </td>
                           <td className="px-5 py-3 text-xs text-[var(--muted)] max-w-xs truncate">{exp.notes ?? "—"}</td>
                           <td className="px-5 py-3 text-right">
                             <Button variant="ghost" size="sm" onClick={() => handleDeleteExpense(exp.id)} loading={deletingExpenseId === exp.id} className="text-red-500 hover:text-red-700">Delete</Button>
@@ -1666,13 +1876,13 @@ export default function ActivityDetailPage() {
             </Card>
           </div>
           <div className="space-y-4">
-            <h2 className="text-lg font-bold">Record Expense</h2>
+            <h2 className="text-lg font-bold">Create Expense Element</h2>
             <Card>
               <form onSubmit={handleAddExpense} className="space-y-4">
-                <Input label="Expense Title" name="name" placeholder="e.g. Instructor fee" required />
-                <Input label="Cost (DA)" name="amount" type="number" min={1} placeholder="e.g. 1500" required />
-                <Textarea label="Notes" name="notes" placeholder="Payment mode, details…" />
-                <Button type="submit" className="w-full" loading={submittingExpense}>Record Expense</Button>
+                <Input label="Expense Title / Item" name="name" placeholder="e.g. Boat place, Coach, Water" required />
+                <Input label="Unit Cost (DA) - Set 0 for Variable" name="amount" type="number" min={0} placeholder="e.g. 1500 (or 0 for variable)" required />
+                <Textarea label="Notes" name="notes" placeholder="Details about this expense element..." />
+                <Button type="submit" className="w-full" loading={submittingExpense}>Create Element</Button>
               </form>
             </Card>
           </div>

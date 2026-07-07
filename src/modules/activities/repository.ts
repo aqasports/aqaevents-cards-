@@ -68,4 +68,17 @@ export class ActivitiesRepository {
   async deleteExpense(args: Prisma.ActivityExpenseDeleteArgs, tx?: Prisma.TransactionClient): Promise<any> {
     return this.db(tx).activityExpense.delete(args);
   }
+
+  // SessionExpense CRUD
+  async findSessionExpenseMany(args?: Prisma.SessionExpenseFindManyArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).sessionExpense.findMany(args);
+  }
+
+  async createSessionExpense(args: Prisma.SessionExpenseCreateArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).sessionExpense.create(args);
+  }
+
+  async deleteSessionExpense(args: Prisma.SessionExpenseDeleteArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).sessionExpense.delete(args);
+  }
 }

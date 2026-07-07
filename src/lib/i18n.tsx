@@ -21,6 +21,7 @@ const dictionaries = {
       signOut: "Sign out",
       demands: "Demands",
       proposals: "Proposals",
+      events: "Events",
     },
     dashboard: {
       title: "Dashboard",
@@ -248,6 +249,7 @@ const dictionaries = {
       signOut: "Se déconnecter",
       demands: "Demandes",
       proposals: "Propositions",
+      events: "Événements",
     },
     dashboard: {
       title: "Tableau de bord",
@@ -475,6 +477,7 @@ const dictionaries = {
       signOut: "تسجيل الخروج",
       demands: "الطلبات",
       proposals: "المقترحات",
+      events: "الفعاليات",
     },
     dashboard: {
       title: "لوحة التحكم",

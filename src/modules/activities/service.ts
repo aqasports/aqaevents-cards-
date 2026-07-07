@@ -23,9 +23,14 @@ export class ActivitiesService {
       where,
       include: {
         sessions: {
-          where: { active: true, sessionDate: { gte: tenHoursAgo } },
+          include: {
+            sessionExpenses: {
+              include: {
+                activityExpense: true
+              }
+            }
+          },
           orderBy: { sessionDate: "asc" },
-          take: 5,
         },
         expenses: true,
         _count: { select: { redemptions: true } },
@@ -55,6 +60,11 @@ export class ActivitiesService {
                 },
               },
               orderBy: { redeemedAt: "desc" },
+            },
+            sessionExpenses: {
+              include: {
+                activityExpense: true,
+              },
             },
           },
           orderBy: { sessionDate: "asc" },
@@ -183,8 +193,18 @@ export class ActivitiesService {
 
     return this.activitiesRepo.findSessionMany({
       where,
-      include: { activity: true },
-      orderBy: { sessionDate: "asc" },
+      include: {
+        activity: true,
+        redemptions: {
+          select: { id: true }
+        },
+        sessionExpenses: {
+          include: {
+            activityExpense: true
+          }
+        }
+      },
+      orderBy: { sessionDate: "desc" }, // Order newest first for clear viewing of recent/upcoming events
     });
   }
 
@@ -243,6 +263,46 @@ export class ActivitiesService {
 
   async deleteExpense(id: string) {
     return this.activitiesRepo.deleteExpense({
+      where: { id },
+    });
+  }
+
+  // Session Expense Operations
+  async getSessionExpenses(sessionId: string) {
+    return this.activitiesRepo.findSessionExpenseMany({
+      where: { sessionId },
+      include: {
+        activityExpense: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async createSessionExpense(data: { sessionId: string; activityExpenseId: string; quantity: number; amount?: number }) {
+    let finalAmount = data.amount;
+    if (finalAmount === undefined || finalAmount === null) {
+      const expenseTemplate = await this.activitiesRepo.findExpenseUnique({
+        where: { id: data.activityExpenseId },
+      });
+      if (!expenseTemplate) throw new Error("EXPENSE_TEMPLATE_NOT_FOUND");
+      finalAmount = Math.round(data.quantity * expenseTemplate.amount);
+    }
+
+    return this.activitiesRepo.createSessionExpense({
+      data: {
+        sessionId: data.sessionId,
+        activityExpenseId: data.activityExpenseId,
+        quantity: data.quantity,
+        amount: finalAmount,
+      },
+      include: {
+        activityExpense: true,
+      },
+    });
+  }
+
+  async deleteSessionExpense(id: string) {
+    return this.activitiesRepo.deleteSessionExpense({
       where: { id },
     });
   }

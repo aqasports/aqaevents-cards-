@@ -11,9 +11,11 @@ export async function GET(request: NextRequest) {
 
   const activityId = request.nextUrl.searchParams.get("activityId");
   const from = request.nextUrl.searchParams.get("from");
+  const activeOnlyParam = request.nextUrl.searchParams.get("activeOnly");
+  const activeOnly = activeOnlyParam === "false" ? false : true;
 
   try {
-    const sessions = await activitiesService.getSessions({ activityId, from, activeOnly: true });
+    const sessions = await activitiesService.getSessions({ activityId, from, activeOnly });
     return NextResponse.json(sessions);
   } catch (err: unknown) {
     console.error("GET sessions API error:", err);
