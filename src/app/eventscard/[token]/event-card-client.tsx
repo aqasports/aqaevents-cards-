@@ -379,23 +379,50 @@ export function EventCardClient({
             </>
           )}
 
-          <div className="text-center">
-            {balance === 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 border border-red-500/30 px-4 py-1.5 text-xs font-semibold text-red-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
-                {t("noCredits")} — {t("purchaseNewPackage")}
-              </span>
-            ) : balance <= 2 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 px-4 py-1.5 text-xs font-semibold text-amber-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                {t("lowCredits")}
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-4 py-1.5 text-xs font-semibold text-emerald-200">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                {t("goodToGo")}
-              </span>
+          <div className="text-center flex flex-col items-center gap-3">
+            <div>
+              {balance === 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 border border-red-500/30 px-4 py-1.5 text-xs font-semibold text-red-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
+                  {t("noCredits")} — {t("purchaseNewPackage")}
+                </span>
+              ) : balance <= 2 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 border border-amber-500/30 px-4 py-1.5 text-xs font-semibold text-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  {t("lowCredits")}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-4 py-1.5 text-xs font-semibold text-emerald-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {t("goodToGo")}
+                </span>
+              )}
+            </div>
+
+            {credits.length === 0 && (
+              <button
+                type="button"
+                onClick={() => setIsCreditModalOpen(true)}
+                className="w-full max-w-xs rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 active:scale-[0.98] text-slate-950 text-xs font-black py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(34,211,238,0.2)]"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>{t("demandCreditBtn")}</span>
+              </button>
             )}
+
+            <a
+              href="https://aqasports.com/events"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full max-w-xs rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-500/30 text-white text-xs font-bold py-3 px-6 transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <svg className="h-4 w-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              <span>{t("visitEventsPortal")}</span>
+            </a>
           </div>
         </div>
 

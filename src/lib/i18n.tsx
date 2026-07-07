@@ -197,6 +197,7 @@ const dictionaries = {
       estimatedPrice: "Total Price",
       submitRequest: "Submit Request",
       cancel: "Cancel",
+      visitEventsPortal: "Visit Event Portal",
     },
     demands: {
       title: "Card Demands",
@@ -423,6 +424,7 @@ const dictionaries = {
       estimatedPrice: "Prix total",
       submitRequest: "Envoyer la demande",
       cancel: "Annuler",
+      visitEventsPortal: "Visiter le portail d'événements",
     },
     demands: {
       title: "Demandes de Cartes",
@@ -649,6 +651,7 @@ const dictionaries = {
       estimatedPrice: "السعر الإجمالي",
       submitRequest: "إرسال الطلب",
       cancel: "إلغاء",
+      visitEventsPortal: "زيارة بوابة الفعاليات",
     },
     demands: {
       title: "طلبات البطاقات",
