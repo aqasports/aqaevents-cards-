@@ -542,11 +542,12 @@ export class BillingService {
     }
 
     // Enforce that only activities with available (upcoming, active) events can be redeemed
+    const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
     const upcomingSessionsCount = await prisma.activitySession.count({
       where: {
         activityId,
         active: true,
-        sessionDate: { gte: new Date() },
+        sessionDate: { gte: tenHoursAgo },
       },
     });
 
@@ -560,7 +561,7 @@ export class BillingService {
           id: data.sessionId,
           activityId,
           active: true,
-          sessionDate: { gte: new Date() },
+          sessionDate: { gte: tenHoursAgo },
         },
       });
       if (!session) {

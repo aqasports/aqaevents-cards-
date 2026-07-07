@@ -903,8 +903,9 @@ export default function ActivityDetailPage() {
   }
 
   const now = new Date();
-  const upcomingSessions = activity.sessions.filter((s) => s.active && new Date(s.sessionDate) >= now);
-  const pastAndCancelledSessions = activity.sessions.filter((s) => !s.active || new Date(s.sessionDate) < now);
+  const limitTime = new Date(now.getTime() - 10 * 60 * 60 * 1000);
+  const upcomingSessions = activity.sessions.filter((s) => s.active && new Date(s.sessionDate) >= limitTime);
+  const pastAndCancelledSessions = activity.sessions.filter((s) => !s.active || new Date(s.sessionDate) < limitTime);
   const totalExpenses = activity.expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const totalRevenue = activity._count.redemptions * activity.creditCost * RATE;
   const netProfit = totalRevenue - totalExpenses;

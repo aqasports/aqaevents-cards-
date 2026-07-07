@@ -7,13 +7,14 @@ export class ActivitiesService {
 
   async getActivities(options?: { redeemableOnly?: boolean }) {
     const now = new Date();
+    const tenHoursAgo = new Date(now.getTime() - 10 * 60 * 60 * 1000);
     const where: any = {};
     if (options?.redeemableOnly) {
       // Only return activities that have at least one upcoming active session
       where.sessions = {
         some: {
           active: true,
-          sessionDate: { gte: now },
+          sessionDate: { gte: tenHoursAgo },
         },
       };
     }
@@ -22,7 +23,7 @@ export class ActivitiesService {
       where,
       include: {
         sessions: {
-          where: { active: true, sessionDate: { gte: now } },
+          where: { active: true, sessionDate: { gte: tenHoursAgo } },
           orderBy: { sessionDate: "asc" },
           take: 5,
         },
