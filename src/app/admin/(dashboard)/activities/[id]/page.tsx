@@ -480,6 +480,36 @@ function EquipmentManager({
   );
 }
 
+const DAYS_OF_WEEK = [
+  { label: "Sun", value: 0 },
+  { label: "Mon", value: 1 },
+  { label: "Tue", value: 2 },
+  { label: "Wed", value: 3 },
+  { label: "Thu", value: 4 },
+  { label: "Fri", value: 5 },
+  { label: "Sat", value: 6 },
+];
+
+function getNextFourDates(selectedDays: number[], timeStr: string): Date[] {
+  const dates: Date[] = [];
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  let current = new Date();
+  let safetyCounter = 0;
+  while (dates.length < 4 && safetyCounter < 100) {
+    safetyCounter++;
+    const day = current.getDay();
+    if (selectedDays.includes(day)) {
+      const candidateDate = new Date(current);
+      candidateDate.setHours(hours, minutes, 0, 0);
+      if (candidateDate > new Date()) {
+        dates.push(candidateDate);
+      }
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
+
 // ─── Main Detail Page ─────────────────────────────────────────────────────────
 
 export default function ActivityDetailPage() {
@@ -492,6 +522,14 @@ export default function ActivityDetailPage() {
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const { locale } = useLocale();
   const [showImageEdit, setShowImageEdit] = useState(false);
+
+  // Bulk session auto-generate states
+  const [scheduleMode, setScheduleMode] = useState<"single" | "bulk">("single");
+  const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const [bulkTime, setBulkTime] = useState("10:00");
+  const [bulkLocation, setBulkLocation] = useState("");
+  const [bulkCustomLocation, setBulkCustomLocation] = useState("");
+  const [bulkCapacity, setBulkCapacity] = useState("");
 
   // Event form states
   const [submittingEvent, setSubmittingEvent] = useState(false);
@@ -606,6 +644,70 @@ export default function ActivityDetailPage() {
         setMessage({ text: "Failed to schedule event.", tone: "danger" });
       }
     } finally { setSubmittingEvent(false); }
+  }
+
+  async function handleScheduleBulkEvents(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (selectedDays.length === 0) {
+      setMessage({ text: "Please select at least one day of the week.", tone: "danger" });
+      return;
+    }
+    if (!bulkTime) {
+      setMessage({ text: "Please specify the time.", tone: "danger" });
+      return;
+    }
+
+    setSubmittingEvent(true);
+    setMessage(null);
+
+    const actualLocation = bulkLocation || bulkCustomLocation || undefined;
+    const actualCapacity = bulkCapacity ? Number(bulkCapacity) : undefined;
+
+    const dates = getNextFourDates(selectedDays, bulkTime);
+    if (dates.length < 4) {
+      setMessage({ text: "Failed to calculate 4 future dates.", tone: "danger" });
+      setSubmittingEvent(false);
+      return;
+    }
+
+    try {
+      let successCount = 0;
+      for (const d of dates) {
+        const res = await fetch("/api/admin/sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            activityId: params.id,
+            sessionDate: d.toISOString(),
+            location: actualLocation,
+            capacity: actualCapacity,
+          }),
+        });
+        if (res.ok) {
+          successCount++;
+        }
+      }
+
+      if (successCount === 4) {
+        setMessage({ text: "Successfully scheduled 4 upcoming events.", tone: "success" });
+        setSelectedDays([]);
+        setBulkTime("10:00");
+        setBulkLocation("");
+        setBulkCustomLocation("");
+        setBulkCapacity("");
+        await loadActivityData();
+      } else if (successCount > 0) {
+        setMessage({ text: `Scheduled ${successCount} of 4 events successfully.`, tone: "success" });
+        await loadActivityData();
+      } else {
+        setMessage({ text: "Failed to schedule events.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "An error occurred while generating events.", tone: "danger" });
+    } finally {
+      setSubmittingEvent(false);
+    }
   }
 
   async function handleDeleteEvent(sessionId: string, attendeeCount: number) {
@@ -1138,25 +1240,139 @@ export default function ActivityDetailPage() {
           <div className="space-y-4">
             <h2 className="text-lg font-bold">Schedule Event</h2>
             <Card>
-              <form onSubmit={handleScheduleEvent} className="space-y-4">
-                <Input label="Date & Time" name="sessionDate" type="datetime-local" required />
-                {predefinedPlaces.length > 0 ? (
-                  <Select label="Location" name="location" defaultValue="">
-                    <option value="">Select predefined place…</option>
-                    {predefinedPlaces.map((place, idx) => <option key={idx} value={place}>{place}</option>)}
-                  </Select>
-                ) : (
-                  <Input label="Location" name="location" placeholder="e.g. Oued Fès" required />
-                )}
-                {predefinedPlaces.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-xs font-medium text-[var(--muted)] block">Or custom location</span>
-                    <input type="text" name="customLocation" placeholder="e.g. Sebou River" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(e) => { const sel = document.getElementsByName("location")[0] as HTMLSelectElement; if (sel && e.target.value) sel.value = ""; }} />
+              {activity?.eventType !== "whatsapp" && activity?.eventType !== "variable" && (
+                <div className="flex border-b border-[var(--border)] mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode("single")}
+                    className={`flex-1 pb-2.5 text-xs font-bold uppercase tracking-wider text-center border-b-2 transition-colors ${
+                      scheduleMode === "single"
+                        ? "border-[var(--primary)] text-[var(--primary)]"
+                        : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    Single Event
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode("bulk")}
+                    className={`flex-1 pb-2.5 text-xs font-bold uppercase tracking-wider text-center border-b-2 transition-colors ${
+                      scheduleMode === "bulk"
+                        ? "border-[var(--primary)] text-[var(--primary)]"
+                        : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    Auto-Generate 4 Events
+                  </button>
+                </div>
+              )}
+
+              {scheduleMode === "single" ? (
+                <form onSubmit={handleScheduleEvent} className="space-y-4">
+                  <Input label="Date & Time" name="sessionDate" type="datetime-local" required />
+                  {predefinedPlaces.length > 0 ? (
+                    <Select label="Location" name="location" defaultValue="">
+                      <option value="">Select predefined place…</option>
+                      {predefinedPlaces.map((place, idx) => <option key={idx} value={place}>{place}</option>)}
+                    </Select>
+                  ) : (
+                    <Input label="Location" name="location" placeholder="e.g. Oued Fès" required />
+                  )}
+                  {predefinedPlaces.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-xs font-medium text-[var(--muted)] block">Or custom location</span>
+                      <input type="text" name="customLocation" placeholder="e.g. Sebou River" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(e) => { const sel = document.getElementsByName("location")[0] as HTMLSelectElement; if (sel && e.target.value) sel.value = ""; }} />
+                    </div>
+                  )}
+                  <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />
+                  <Button type="submit" className="w-full" loading={submittingEvent}>Schedule Event</Button>
+                </form>
+              ) : (
+                <form onSubmit={handleScheduleBulkEvents} className="space-y-4">
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide block">Days of the Week</span>
+                    <div className="flex flex-wrap gap-2">
+                      {DAYS_OF_WEEK.map((day) => {
+                        const isSelected = selectedDays.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedDays(selectedDays.filter((d) => d !== day.value));
+                              } else {
+                                setSelectedDays([...selectedDays, day.value]);
+                              }
+                            }}
+                            className={`flex-1 min-w-[50px] py-1.5 px-2 rounded-lg text-xs font-bold text-center border transition-all ${
+                              isSelected
+                                ? "bg-[var(--primary)] border-[var(--primary)] text-white"
+                                : "bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] hover:bg-slate-50"
+                            }`}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                )}
-                <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />
-                <Button type="submit" className="w-full" loading={submittingEvent}>Schedule Event</Button>
-              </form>
+
+                  <Input
+                    label="Event Time"
+                    type="time"
+                    value={bulkTime}
+                    onChange={(e) => setBulkTime(e.target.value)}
+                    required
+                  />
+
+                  {predefinedPlaces.length > 0 ? (
+                    <Select
+                      label="Location"
+                      value={bulkLocation}
+                      onChange={(e) => {
+                        setBulkLocation(e.target.value);
+                        if (e.target.value) setBulkCustomLocation("");
+                      }}
+                    >
+                      <option value="">Select predefined place…</option>
+                      {predefinedPlaces.map((place, idx) => <option key={idx} value={place}>{place}</option>)}
+                    </Select>
+                  ) : (
+                    <Input
+                      label="Location"
+                      value={bulkLocation}
+                      onChange={(e) => setBulkLocation(e.target.value)}
+                      placeholder="e.g. Oued Fès"
+                      required
+                    />
+                  )}
+                  {predefinedPlaces.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-xs font-medium text-[var(--muted)] block">Or custom location</span>
+                      <input
+                        type="text"
+                        value={bulkCustomLocation}
+                        placeholder="e.g. Sebou River"
+                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]"
+                        onChange={(e) => {
+                          setBulkCustomLocation(e.target.value);
+                          if (e.target.value) setBulkLocation("");
+                        }}
+                      />
+                    </div>
+                  )}
+                  <Input
+                    label="Capacity"
+                    type="number"
+                    min={1}
+                    value={bulkCapacity}
+                    onChange={(e) => setBulkCapacity(e.target.value)}
+                    placeholder="e.g. 12"
+                  />
+                  <Button type="submit" className="w-full" loading={submittingEvent}>Generate & Schedule 4 Events</Button>
+                </form>
+              )}
             </Card>
 
             {/* Price reference mini-card */}
