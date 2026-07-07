@@ -77,7 +77,8 @@ export default function EditActivityPage() {
       setPlaces(data.places ?? "");
       setDuration(data.duration ?? "");
       setActive(data.active);
-      setEventType(data.eventType ?? "fixed");
+      const loadedType = data.eventType === "whatsapp" ? "variable" : (data.eventType ?? "fixed");
+      setEventType(loadedType);
       setLoading(false);
     } catch (err) {
       console.error(err);
@@ -264,12 +265,12 @@ export default function EditActivityPage() {
           </Select>
 
           <Select
-            label="Event Type"
+            label="Event Frequency"
             value={eventType}
             onChange={(e) => setEventType(e.target.value)}
           >
-            <option value="fixed">aqasports.com/events (Fixed)</option>
-            <option value="whatsapp">WhatsApp group variable</option>
+            <option value="fixed">Fixed (e.g., each Sunday)</option>
+            <option value="variable">Planned according to a variable (announced via WhatsApp group)</option>
           </Select>
 
           <div className="flex flex-wrap gap-3 pt-3 border-t border-[var(--border)]">

@@ -353,14 +353,14 @@ export default function ActivitiesPage() {
               />
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Event Type</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Event Frequency</label>
                 <select
                   name="eventType"
                   defaultValue="fixed"
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 >
-                  <option value="fixed">aqasports.com/events (Fixed)</option>
-                  <option value="whatsapp">WhatsApp group variable</option>
+                  <option value="fixed">Fixed (e.g., each Sunday)</option>
+                  <option value="variable">Planned according to a variable (announced via WhatsApp group)</option>
                 </select>
               </div>
 
@@ -551,9 +551,9 @@ export default function ActivitiesPage() {
                         </span>
                       )}
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm ${
-                        activity.eventType === "whatsapp" ? "bg-amber-500" : "bg-sky-500"
+                        (activity.eventType === "whatsapp" || activity.eventType === "variable") ? "bg-amber-500" : "bg-sky-500"
                       }`}>
-                        {activity.eventType === "whatsapp" ? "WhatsApp Variable" : "aqasports.com Fixed"}
+                        {(activity.eventType === "whatsapp" || activity.eventType === "variable") ? "Variable (announced via WhatsApp group)" : "Fixed (e.g., each Sunday)"}
                       </span>
                     </div>
                   </div>
