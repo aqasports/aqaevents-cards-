@@ -1325,75 +1325,42 @@ export default function ActivityDetailPage() {
                         </div>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
-                            {session.club && (
-                              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                {session.club.name}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <select
-                              value={session.clubId || ""}
-                              onChange={async (e) => {
-                                const newClubId = e.target.value || null;
-                                await handleUpdateSessionClub(session.id, newClubId);
-                              }}
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none text-[var(--foreground)]"
+                      {session.clubId && (
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                              Club Check-ins ({sessionCheckIns[session.id]?.length || 0}) — {session.club?.name}
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => loadSessionCheckIns(session.id)}
+                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
                             >
-                              <option value="">— No Partner Club (Direct Check-in) —</option>
-                              {clubs.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
+                              Refresh
+                            </button>
+                          </div>
+                          {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
+                            <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
+                              No check-ins recorded yet.
+                            </p>
+                          ) : (
+                            <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                              {sessionCheckIns[session.id].map((ci) => (
+                                <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
+                                  <div>
+                                    <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-slate-500 font-medium">
+                                      {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                  </div>
+                                </li>
                               ))}
-                            </select>
-                          </div>
-                          <p className="text-[10px] text-[var(--muted)] leading-relaxed">
-                            Assigning a partner club enables public QR/card check-ins at that club's terminal.
-                          </p>
+                            </ul>
+                          )}
                         </div>
-
-                        {session.clubId && (
-                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-                                Club Check-ins ({sessionCheckIns[session.id]?.length || 0})
-                              </h4>
-                              <button
-                                type="button"
-                                onClick={() => loadSessionCheckIns(session.id)}
-                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
-                              >
-                                Refresh
-                              </button>
-                            </div>
-                            {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
-                              <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
-                                No check-ins recorded yet.
-                              </p>
-                            ) : (
-                              <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
-                                {sessionCheckIns[session.id].map((ci) => (
-                                  <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
-                                    <div>
-                                      <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-slate-500 font-medium">
-                                        {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
-                                      </span>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      )}
 
                       <div>
 
@@ -1638,14 +1605,16 @@ export default function ActivityDetailPage() {
                       <input type="text" name="customLocation" placeholder="e.g. Sebou River" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(e) => { const sel = document.getElementsByName("location")[0] as HTMLSelectElement; if (sel && e.target.value) sel.value = ""; }} />
                     </div>
                   )}
-                  <Select label="Partner Club (Optional)" name="clubId" defaultValue="">
-                    <option value="">— Select Partner Club —</option>
-                    {clubs.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Select>
+                  {activity?.requiresCheck && (
+                    <Select label="Partner Club (Optional)" name="clubId" defaultValue="">
+                      <option value="">— Select Partner Club —</option>
+                      {clubs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                   <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />
                   <Button type="submit" className="w-full" loading={submittingEvent}>Schedule Event</Button>
                 </form>
@@ -1724,18 +1693,20 @@ export default function ActivityDetailPage() {
                       />
                     </div>
                   )}
-                  <Select
-                    label="Partner Club (Optional)"
-                    value={bulkClubId}
-                    onChange={(e) => setBulkClubId(e.target.value)}
-                  >
-                    <option value="">— Select Partner Club —</option>
-                    {clubs.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Select>
+                  {activity?.requiresCheck && (
+                    <Select
+                      label="Partner Club (Optional)"
+                      value={bulkClubId}
+                      onChange={(e) => setBulkClubId(e.target.value)}
+                    >
+                      <option value="">— Select Partner Club —</option>
+                      {clubs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                   <Input
                     label="Capacity"
                     type="number"
@@ -1842,75 +1813,42 @@ export default function ActivityDetailPage() {
                   {/* Expanded attendee list */}
                   {expandedEventId === session.id && (
                     <div className="border-t border-[var(--border)] bg-slate-50/50 p-4 space-y-4">
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2.5">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
-                            {session.club && (
-                              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                {session.club.name}
-                              </span>
-                            )}
-                          </div>
-                          <div>
-                            <select
-                              value={session.clubId || ""}
-                              onChange={async (e) => {
-                                const newClubId = e.target.value || null;
-                                await handleUpdateSessionClub(session.id, newClubId);
-                              }}
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none text-[var(--foreground)]"
+                      {session.clubId && (
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                              Club Check-ins ({sessionCheckIns[session.id]?.length || 0}) — {session.club?.name}
+                            </h4>
+                            <button
+                              type="button"
+                              onClick={() => loadSessionCheckIns(session.id)}
+                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
                             >
-                              <option value="">— No Partner Club (Direct Check-in) —</option>
-                              {clubs.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
+                              Refresh
+                            </button>
+                          </div>
+                          {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
+                            <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
+                              No check-ins recorded yet.
+                            </p>
+                          ) : (
+                            <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                              {sessionCheckIns[session.id].map((ci) => (
+                                <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
+                                  <div>
+                                    <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="text-slate-500 font-medium">
+                                      {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
+                                    </span>
+                                  </div>
+                                </li>
                               ))}
-                            </select>
-                          </div>
-                          <p className="text-[10px] text-[var(--muted)] leading-relaxed">
-                            Assigning a partner club enables public QR/card check-ins at that club's terminal.
-                          </p>
+                            </ul>
+                          )}
                         </div>
-
-                        {session.clubId && (
-                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-                                Club Check-ins ({sessionCheckIns[session.id]?.length || 0})
-                              </h4>
-                              <button
-                                type="button"
-                                onClick={() => loadSessionCheckIns(session.id)}
-                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
-                              >
-                                Refresh
-                              </button>
-                            </div>
-                            {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
-                              <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
-                                No check-ins recorded yet.
-                              </p>
-                            ) : (
-                              <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
-                                {sessionCheckIns[session.id].map((ci) => (
-                                  <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
-                                    <div>
-                                      <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-slate-500 font-medium">
-                                        {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
-                                      </span>
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      )}
 
                       {/* Attendees */}
                       <div>

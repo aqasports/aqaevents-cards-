@@ -23,6 +23,7 @@ const dictionaries = {
       demands: "Demands",
       proposals: "Proposals",
       events: "Events",
+      terminal: "Terminal Check-in",
     },
     dashboard: {
       title: "Dashboard",
@@ -252,6 +253,7 @@ const dictionaries = {
       demands: "Demandes",
       proposals: "Propositions",
       events: "Événements",
+      terminal: "Terminal de présence",
     },
     dashboard: {
       title: "Tableau de bord",
@@ -481,6 +483,7 @@ const dictionaries = {
       demands: "الطلبات",
       proposals: "المقترحات",
       events: "الفعاليات",
+      terminal: "محطة الحضور",
     },
     dashboard: {
       title: "لوحة التحكم",

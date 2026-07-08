@@ -2,9 +2,52 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { BillingService } from "@/modules/invoices/service";
+import { prisma } from "@/lib/prisma";
 
 const activitiesService = new ActivitiesService();
 const billingService = new BillingService();
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { error } = await requireAdminSession();
+  if (error) return error;
+
+  const { id } = await params;
+
+  try {
+    const session = await prisma.activitySession.findUnique({
+      where: { id },
+      include: {
+        activity: true,
+        club: true,
+        redemptions: {
+          include: {
+            client: {
+              select: {
+                id: true,
+                fullName: true,
+                phone: true,
+                email: true,
+              },
+            },
+          },
+          orderBy: { redeemedAt: "desc" },
+        },
+      },
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Session not found" }, { status: 404 });
+    }
+
+    return NextResponse.json(session);
+  } catch (err: unknown) {
+    console.error("GET session details API error:", err);
+    return NextResponse.json({ error: "Failed to fetch session details" }, { status: 500 });
+  }
+}
 
 export async function DELETE(
   request: NextRequest,
