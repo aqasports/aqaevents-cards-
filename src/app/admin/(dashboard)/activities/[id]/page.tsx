@@ -84,6 +84,8 @@ type ActivityDetail = {
   active: boolean;
   eventType: string;
   requiresCheck: boolean;
+  clubId?: string | null;
+  club?: { id: string; name: string } | null;
   sessions: EventSession[];
   expenses: ActivityExpense[];
   _count: { redemptions: number };
@@ -629,25 +631,7 @@ export default function ActivityDetailPage() {
     }
   }, []);
 
-  async function handleAssignClub(sessionId: string, clubId: string | null) {
-    try {
-      const res = await fetch(`/api/admin/sessions/${sessionId}/club`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clubId }),
-      });
-      if (res.ok) {
-        await loadActivityData();
-        setMessage({ text: "Club assigned successfully.", tone: "success" });
-      } else {
-        const data = await res.json();
-        setMessage({ text: data.error || "Failed to assign club.", tone: "danger" });
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage({ text: "Error assigning club.", tone: "danger" });
-    }
-  }
+
 
   const toggleExpandEvent = useCallback((sessionId: string) => {
     if (expandedEventId === sessionId) {
@@ -1313,65 +1297,51 @@ export default function ActivityDetailPage() {
                       {activity?.requiresCheck && (
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Club Assignment</h4>
-                              {session.club && (
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
+                              {activity.club && (
                                 <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                  {session.club.name}
+                                  {activity.club.name}
                                 </span>
                               )}
                             </div>
-                            <select
-                              value={session.clubId || ""}
-                              onChange={(e) => handleAssignClub(session.id, e.target.value || null)}
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--primary)]"
-                            >
-                              <option value="">— Select Partner Club —</option>
-                              {clubs.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
+                            <p className="text-[11px] text-[var(--muted)] mt-2">
+                              Scanning attendance is managed via the partner club terminal.
+                            </p>
                           </div>
 
-                          {session.clubId && (
-                            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-                                  Club Check-ins ({sessionCheckIns[session.id]?.length || 0})
-                                </h4>
-                                <button
-                                  type="button"
-                                  onClick={() => loadSessionCheckIns(session.id)}
-                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
-                                >
-                                  Refresh
-                                </button>
-                              </div>
-                              {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
-                                <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
-                                  No check-ins recorded yet.
-                                </p>
-                              ) : (
-                                <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
-                                  {sessionCheckIns[session.id].map((ci) => (
-                                    <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
-                                      <div>
-                                        <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
-                                        <p className="text-[10px] text-[var(--muted)]">
-                                          Card: <span className="font-mono">{ci.card?.cardCode || "N/A"}</span>
-                                        </p>
-                                      </div>
-                                      <div className="text-right">
-                                        <span className="text-slate-500 font-medium">{new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}</span>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
+                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                                Club Check-ins ({sessionCheckIns[session.id]?.length || 0})
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => loadSessionCheckIns(session.id)}
+                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
+                              >
+                                Refresh
+                              </button>
                             </div>
-                          )}
+                            {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
+                              <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
+                                No check-ins recorded yet.
+                              </p>
+                            ) : (
+                              <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                                {sessionCheckIns[session.id].map((ci) => (
+                                  <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
+                                    <div>
+                                      <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-slate-500 font-medium">{new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}</span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -1805,65 +1775,51 @@ export default function ActivityDetailPage() {
                       {activity?.requiresCheck && (
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Club Assignment</h4>
-                              {session.club && (
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
+                              {activity.club && (
                                 <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                  {session.club.name}
+                                  {activity.club.name}
                                 </span>
                               )}
                             </div>
-                            <select
-                              value={session.clubId || ""}
-                              onChange={(e) => handleAssignClub(session.id, e.target.value || null)}
-                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--primary)]"
-                            >
-                              <option value="">— Select Partner Club —</option>
-                              {clubs.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.name}
-                                </option>
-                              ))}
-                            </select>
+                            <p className="text-[11px] text-[var(--muted)] mt-2">
+                              Scanning attendance is managed via the partner club terminal.
+                            </p>
                           </div>
 
-                          {session.clubId && (
-                            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
-                                  Club Check-ins ({sessionCheckIns[session.id]?.length || 0})
-                                </h4>
-                                <button
-                                  type="button"
-                                  onClick={() => loadSessionCheckIns(session.id)}
-                                  className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
-                                >
-                                  Refresh
-                                </button>
-                              </div>
-                              {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
-                                <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
-                                  No check-ins recorded yet.
-                                </p>
-                              ) : (
-                                <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
-                                  {sessionCheckIns[session.id].map((ci) => (
-                                    <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
-                                      <div>
-                                        <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
-                                        <p className="text-[10px] text-[var(--muted)]">
-                                          Card: <span className="font-mono">{ci.card?.cardCode || "N/A"}</span>
-                                        </p>
-                                      </div>
-                                      <div className="text-right">
-                                        <span className="text-slate-500 font-medium">{new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}</span>
-                                      </div>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
+                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                                Club Check-ins ({sessionCheckIns[session.id]?.length || 0})
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => loadSessionCheckIns(session.id)}
+                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
+                              >
+                                Refresh
+                              </button>
                             </div>
-                          )}
+                            {(!sessionCheckIns[session.id] || sessionCheckIns[session.id].length === 0) ? (
+                              <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
+                                No check-ins recorded yet.
+                              </p>
+                            ) : (
+                              <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
+                                {sessionCheckIns[session.id].map((ci) => (
+                                  <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
+                                    <div>
+                                      <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-slate-500 font-medium">{new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}</span>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
                       )}
 

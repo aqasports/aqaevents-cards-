@@ -43,6 +43,7 @@ export class ActivitiesService {
     return this.activitiesRepo.findUnique({
       where: { id },
       include: {
+        club: { select: { id: true, name: true } },
         expenses: {
           orderBy: { createdAt: "desc" },
         },
