@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       sessionDate: new Date(parsed.data.sessionDate),
       location: parsed.data.location,
       capacity: parsed.data.capacity,
+      clubId: parsed.data.clubId,
     });
     return NextResponse.json(session, { status: 201 });
   } catch (err: unknown) {

@@ -32,3 +32,28 @@ export async function DELETE(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { session, error } = await requireAdminSession();
+  if (error || !session) return error;
+
+  const { id } = await params;
+  const body = await request.json();
+
+  try {
+    const result = await activitiesService.updateSession(id, {
+      location: body.location !== undefined ? body.location : undefined,
+      capacity: body.capacity !== undefined ? body.capacity : undefined,
+      clubId: body.clubId !== undefined ? body.clubId : undefined,
+      sessionDate: body.sessionDate ? new Date(body.sessionDate) : undefined,
+      active: body.active !== undefined ? body.active : undefined,
+    });
+    return NextResponse.json(result);
+  } catch (err: unknown) {
+    console.error("PATCH session API error:", err);
+    return NextResponse.json({ error: "Failed to update session" }, { status: 500 });
+  }
+}
+

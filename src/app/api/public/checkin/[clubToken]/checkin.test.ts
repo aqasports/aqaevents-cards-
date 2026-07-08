@@ -14,6 +14,9 @@ vi.mock("@/lib/prisma", () => ({
     activity: {
       findUnique: vi.fn(),
     },
+    activitySession: {
+      findFirst: vi.fn(),
+    },
     redemption: {
       findFirst: vi.fn(),
     },
@@ -44,12 +47,20 @@ describe("Public Check-In POST API", () => {
     name: "Kayaking",
     clubId: "club-1",
     requiresCheck: true,
+    active: true,
   };
 
   it("should match redemption even if sessionId is null when terminal requests a session", async () => {
     vi.mocked(prisma.club.findUnique).mockResolvedValue(mockClub as any);
     vi.mocked(prisma.card.findUnique).mockResolvedValue(mockCard as any);
     vi.mocked(prisma.activity.findUnique).mockResolvedValue(mockActivity as any);
+    vi.mocked(prisma.activitySession.findFirst).mockResolvedValue({
+      id: "session-1",
+      clubId: "club-1",
+      active: true,
+      activityId: "act-1",
+      activity: mockActivity,
+    } as any);
 
     // Mock findFirst for redemption to return a redemption that has no session (sessionId: null)
     const mockRedemption = { id: "red-1", clientId: "client-1", activityId: "act-1", sessionId: null };
@@ -93,6 +104,13 @@ describe("Public Check-In POST API", () => {
     vi.mocked(prisma.club.findUnique).mockResolvedValue(mockClub as any);
     vi.mocked(prisma.card.findUnique).mockResolvedValue(mockCard as any);
     vi.mocked(prisma.activity.findUnique).mockResolvedValue(mockActivity as any);
+    vi.mocked(prisma.activitySession.findFirst).mockResolvedValue({
+      id: "session-1",
+      clubId: "club-1",
+      active: true,
+      activityId: "act-1",
+      activity: mockActivity,
+    } as any);
 
     const mockRedemption = { id: "red-1", clientId: "client-1", activityId: "act-1", sessionId: "session-1" };
     vi.mocked(prisma.redemption.findFirst).mockResolvedValue(mockRedemption as any);
@@ -123,6 +141,13 @@ describe("Public Check-In POST API", () => {
     vi.mocked(prisma.club.findUnique).mockResolvedValue(mockClub as any);
     vi.mocked(prisma.card.findUnique).mockResolvedValue(mockCard as any);
     vi.mocked(prisma.activity.findUnique).mockResolvedValue(mockActivity as any);
+    vi.mocked(prisma.activitySession.findFirst).mockResolvedValue({
+      id: "session-1",
+      clubId: "club-1",
+      active: true,
+      activityId: "act-1",
+      activity: mockActivity,
+    } as any);
 
     // No redemption found
     vi.mocked(prisma.redemption.findFirst).mockResolvedValue(null);

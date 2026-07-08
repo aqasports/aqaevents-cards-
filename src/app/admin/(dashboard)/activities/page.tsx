@@ -191,27 +191,6 @@ export default function ActivitiesPage() {
   // Form: credit cost live calculator
   const [formCreditCost, setFormCreditCost] = useState<number | string>(1);
 
-  // Form: requiresCheck toggle
-  const [formRequiresCheck, setFormRequiresCheck] = useState(false);
-  const [formClubId, setFormClubId] = useState("");
-  const [clubs, setClubs] = useState<any[]>([]);
-  const [loadingClubs, setLoadingClubs] = useState(false);
-
-  const loadClubs = useCallback(async () => {
-    setLoadingClubs(true);
-    try {
-      const res = await fetch("/api/admin/clubs");
-      if (res.ok) {
-        const data = await res.json();
-        setClubs(data.filter((c: any) => c.isActive));
-      }
-    } catch (err) {
-      console.error("Failed to load clubs:", err);
-    } finally {
-      setLoadingClubs(false);
-    }
-  }, []);
-
   async function loadActivities() {
     try {
       const res = await fetch("/api/admin/activities");
@@ -232,8 +211,7 @@ export default function ActivitiesPage() {
 
   useEffect(() => {
     loadActivities();
-    loadClubs();
-  }, [loadClubs]);
+  }, []);
   function handleAddTempExpense() {
     if (!newExpName || !newExpAmount) return;
     const amount = parseFloat(newExpAmount);
@@ -264,7 +242,6 @@ export default function ActivitiesPage() {
         places: fd.get("places") || undefined,
         duration: fd.get("duration") || undefined,
         eventType: fd.get("eventType") || "fixed",
-        requiresCheck: formRequiresCheck,
         expenses: tempExpenses,
       }),
     });
@@ -275,7 +252,6 @@ export default function ActivitiesPage() {
       (event.target as HTMLFormElement).reset();
       setTempExpenses([]);
       setFormCreditCost(1);
-      setFormRequiresCheck(false);
       await loadActivities();
     } else {
       setMessage({ text: "Failed to create activity.", tone: "danger" });
@@ -403,58 +379,7 @@ export default function ActivitiesPage() {
                 </select>
               </div>
 
-              {/* Requires Club Check-In Toggle */}
-              <div className="rounded-xl border border-[var(--border)] bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <svg className="h-4 w-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span className="text-sm font-semibold text-slate-700">Requires Club Check-In</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Enable if this activity is hosted by a third-party club. Sessions can be assigned to a club terminal for attendance scanning.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setFormRequiresCheck((v) => !v)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                      formRequiresCheck ? "bg-indigo-500" : "bg-slate-200"
-                    }`}
-                    role="switch"
-                    aria-checked={formRequiresCheck}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
-                        formRequiresCheck ? "translate-x-5" : "translate-x-0"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
 
-              {formRequiresCheck && (
-                <div>
-                  <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
-                    Partner Club
-                  </label>
-                  <select
-                    value={formClubId}
-                    onChange={(e) => setFormClubId(e.target.value)}
-                    required={formRequiresCheck}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none text-[var(--foreground)]"
-                  >
-                    <option value="">— Select Partner Club —</option>
-                    {clubs.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Expenses Inline Builder */}
               <div className="border-t border-dashed border-[var(--border)] pt-3">

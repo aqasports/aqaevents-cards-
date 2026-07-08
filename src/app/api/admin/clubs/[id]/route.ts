@@ -5,6 +5,7 @@ import { z } from "zod";
 
 const updateClubSchema = z.object({
   name: z.string().min(2).optional(),
+  logoUrl: z.string().optional().nullable(),
   contactName: z.string().optional().nullable(),
   contactEmail: z.string().email().or(z.literal("")).optional().nullable(),
   contactPhone: z.string().optional().nullable(),
@@ -24,8 +25,12 @@ export async function GET(
     const club = await prisma.club.findUnique({
       where: { id },
       include: {
-        activities: {
-          select: { id: true, name: true, active: true },
+        sessions: {
+          where: { active: true },
+          include: {
+            activity: { select: { id: true, name: true } },
+          },
+          orderBy: { sessionDate: "asc" },
         },
         _count: { select: { checkIns: true } },
       },
@@ -61,6 +66,7 @@ export async function PATCH(
       where: { id },
       data: {
         ...(parsed.data.name !== undefined && { name: parsed.data.name }),
+        ...(parsed.data.logoUrl !== undefined && { logoUrl: parsed.data.logoUrl }),
         ...(parsed.data.contactName !== undefined && { contactName: parsed.data.contactName }),
         ...(parsed.data.contactEmail !== undefined && { contactEmail: parsed.data.contactEmail || null }),
         ...(parsed.data.contactPhone !== undefined && { contactPhone: parsed.data.contactPhone }),

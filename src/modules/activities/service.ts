@@ -228,14 +228,14 @@ export class ActivitiesService {
     });
   }
 
-  async createSession(data: { activityId: string; sessionDate: Date; location?: string | null; capacity?: number | null }) {
+  async createSession(data: { activityId: string; sessionDate: Date; location?: string | null; capacity?: number | null; clubId?: string | null }) {
     return this.activitiesRepo.createSession({
       data,
       include: { activity: true },
     });
   }
 
-  async updateSession(id: string, data: { sessionDate?: Date; location?: string | null; capacity?: number | null; active?: boolean }) {
+  async updateSession(id: string, data: { sessionDate?: Date; location?: string | null; capacity?: number | null; active?: boolean; clubId?: string | null }) {
     return this.activitiesRepo.updateSession({
       where: { id },
       data,

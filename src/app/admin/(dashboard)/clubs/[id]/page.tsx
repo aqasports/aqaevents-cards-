@@ -6,21 +6,23 @@ import { useRouter } from "next/navigation";
 import { Button, Card, PageHeader, Input, Alert, Badge } from "@/components/admin/ui";
 import QRCode from "qrcode";
 
-type Activity = {
+type ClubSession = {
   id: string;
-  name: string;
-  active: boolean;
+  sessionDate: string;
+  location: string | null;
+  activity: { id: string; name: string };
 };
 
 type ClubDetail = {
   id: string;
   name: string;
+  logoUrl: string | null;
   contactName: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
   terminalToken: string;
   isActive: boolean;
-  activities: Activity[];
+  sessions: ClubSession[];
   _count: { checkIns: number };
 };
 
@@ -111,6 +113,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
 
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name") as string;
+    const logoUrl = formData.get("logoUrl") as string;
     const contactName = formData.get("contactName") as string;
     const contactEmail = formData.get("contactEmail") as string;
     const contactPhone = formData.get("contactPhone") as string;
@@ -122,6 +125,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          logoUrl: logoUrl.trim() || null,
           contactName: contactName.trim() || null,
           contactEmail: contactEmail.trim() || null,
           contactPhone: contactPhone.trim() || null,
@@ -251,6 +255,13 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
               />
 
               <Input
+                label="Club Logo URL"
+                name="logoUrl"
+                defaultValue={club.logoUrl || ""}
+                placeholder="e.g. https://example.com/logo.png"
+              />
+
+              <Input
                 label="Contact Name"
                 name="contactName"
                 defaultValue={club.contactName || ""}
@@ -341,7 +352,9 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
                   className="w-full h-[38px] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none text-[var(--foreground)]"
                 >
                   <option value="">All Activities</option>
-                  {club.activities.map((act) => (
+                  {Array.from(
+                    new Map(club.sessions.map((s) => [s.activity.id, s.activity])).values()
+                  ).map((act) => (
                     <option key={act.id} value={act.id}>
                       {act.name}
                     </option>
@@ -395,6 +408,12 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
               Place this QR code at the desk or share the URL with the club representative. Scanning grants access to check-ins without password requirements.
             </p>
 
+            {club.logoUrl && (
+              <div className="mb-4 flex justify-center">
+                <img src={club.logoUrl} alt={`${club.name} Logo`} className="h-16 w-16 object-contain rounded-lg border border-[var(--border)] p-1 bg-white" />
+              </div>
+            )}
+
             {qrUrl ? (
               <div className="inline-block p-3 bg-white border border-[var(--border)] rounded-2xl shadow-sm mb-4">
                 <img src={qrUrl} alt="Terminal QR Code" className="mx-auto" />
@@ -425,26 +444,28 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
           </Card>
 
           <Card>
-            <h3 className="text-base font-bold mb-3">Linked Activities</h3>
+            <h3 className="text-base font-bold mb-3">Linked Events</h3>
             <p className="text-xs text-[var(--muted)] mb-4">
-              Activities assigned to this club. Toggled in the Activities form page.
+              Upcoming scheduled sessions assigned to this club.
             </p>
 
-            {club.activities.length === 0 ? (
+            {club.sessions.length === 0 ? (
               <div className="py-6 text-center border border-dashed rounded-xl border-[var(--border)]">
-                <p className="text-xs text-[var(--muted)]">No activities linked.</p>
+                <p className="text-xs text-[var(--muted)]">No active sessions linked.</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {club.activities.map((act) => (
+                {club.sessions.map((s) => (
                   <div
-                    key={act.id}
+                    key={s.id}
                     className="p-3 rounded-lg border border-[var(--border)] bg-slate-50 flex items-center justify-between"
                   >
-                    <span className="font-semibold text-xs">{act.name}</span>
-                    <Badge tone={act.active ? "success" : "default"}>
-                      {act.active ? "Active" : "Inactive"}
-                    </Badge>
+                    <div>
+                      <span className="font-semibold text-xs block">{s.activity.name}</span>
+                      <span className="text-[10px] text-[var(--muted)]">
+                        {new Date(s.sessionDate).toLocaleDateString()} {s.location ? `at ${s.location}` : ""}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>

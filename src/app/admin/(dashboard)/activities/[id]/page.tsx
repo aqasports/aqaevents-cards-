@@ -545,6 +545,7 @@ export default function ActivityDetailPage() {
   const [bulkLocation, setBulkLocation] = useState("");
   const [bulkCustomLocation, setBulkCustomLocation] = useState("");
   const [bulkCapacity, setBulkCapacity] = useState("");
+  const [bulkClubId, setBulkClubId] = useState("");
 
   // Event form states
   const [submittingEvent, setSubmittingEvent] = useState(false);
@@ -638,11 +639,12 @@ export default function ActivityDetailPage() {
       setExpandedEventId(null);
     } else {
       setExpandedEventId(sessionId);
-      if (activity?.requiresCheck) {
+      const session = activity?.sessions.find((s: any) => s.id === sessionId);
+      if (session?.clubId) {
         loadSessionCheckIns(sessionId);
       }
     }
-  }, [expandedEventId, activity?.requiresCheck, loadSessionCheckIns]);
+  }, [expandedEventId, activity?.sessions, loadSessionCheckIns]);
 
 
   useEffect(() => {
@@ -693,6 +695,7 @@ export default function ActivityDetailPage() {
           sessionDate: new Date(fd.get("sessionDate") as string).toISOString(),
           location: (fd.get("location") as string) || (fd.get("customLocation") as string) || undefined,
           capacity: fd.get("capacity") ? Number(fd.get("capacity")) : undefined,
+          clubId: (fd.get("clubId") as string) || undefined,
         }),
       });
       if (res.ok) {
@@ -721,6 +724,7 @@ export default function ActivityDetailPage() {
 
     const actualLocation = bulkLocation || bulkCustomLocation || undefined;
     const actualCapacity = bulkCapacity ? Number(bulkCapacity) : undefined;
+    const actualClubId = bulkClubId || undefined;
 
     const dates = getNextFourDates(selectedDays, bulkTime);
     if (dates.length < 4) {
@@ -740,6 +744,7 @@ export default function ActivityDetailPage() {
             sessionDate: d.toISOString(),
             location: actualLocation,
             capacity: actualCapacity,
+            clubId: actualClubId,
           }),
         });
         if (res.ok) {
@@ -754,9 +759,16 @@ export default function ActivityDetailPage() {
         setBulkLocation("");
         setBulkCustomLocation("");
         setBulkCapacity("");
+        setBulkClubId("");
         await loadActivityData();
       } else if (successCount > 0) {
         setMessage({ text: `Scheduled ${successCount} of 4 events successfully.`, tone: "success" });
+        setSelectedDays([]);
+        setBulkTime("10:00");
+        setBulkLocation("");
+        setBulkCustomLocation("");
+        setBulkCapacity("");
+        setBulkClubId("");
         await loadActivityData();
       } else {
         setMessage({ text: "Failed to schedule events.", tone: "danger" });
@@ -766,6 +778,25 @@ export default function ActivityDetailPage() {
       setMessage({ text: "An error occurred while generating events.", tone: "danger" });
     } finally {
       setSubmittingEvent(false);
+    }
+  }
+
+  async function handleUpdateSessionClub(sessionId: string, clubId: string | null) {
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clubId }),
+      });
+      if (res.ok) {
+        setMessage({ text: "Session partner club updated.", tone: "success" });
+        await loadActivityData();
+      } else {
+        setMessage({ text: "Failed to update session partner club.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Failed to update session partner club.", tone: "danger" });
     }
   }
 
@@ -1294,22 +1325,39 @@ export default function ActivityDetailPage() {
                         </div>
                       </div>
 
-                      {activity?.requiresCheck && (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
-                              {activity.club && (
-                                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                  {activity.club.name}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-[var(--muted)] mt-2">
-                              Scanning attendance is managed via the partner club terminal.
-                            </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
+                            {session.club && (
+                              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                {session.club.name}
+                              </span>
+                            )}
                           </div>
+                          <div>
+                            <select
+                              value={session.clubId || ""}
+                              onChange={async (e) => {
+                                const newClubId = e.target.value || null;
+                                await handleUpdateSessionClub(session.id, newClubId);
+                              }}
+                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none text-[var(--foreground)]"
+                            >
+                              <option value="">— No Partner Club (Direct Check-in) —</option>
+                              {clubs.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <p className="text-[10px] text-[var(--muted)] leading-relaxed">
+                            Assigning a partner club enables public QR/card check-ins at that club's terminal.
+                          </p>
+                        </div>
 
+                        {session.clubId && (
                           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
@@ -1335,15 +1383,17 @@ export default function ActivityDetailPage() {
                                       <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
                                     </div>
                                     <div className="text-right">
-                                      <span className="text-slate-500 font-medium">{new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}</span>
+                                      <span className="text-slate-500 font-medium">
+                                        {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
+                                      </span>
                                     </div>
                                   </li>
                                 ))}
                               </ul>
                             )}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       <div>
 
@@ -1588,6 +1638,14 @@ export default function ActivityDetailPage() {
                       <input type="text" name="customLocation" placeholder="e.g. Sebou River" className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)]" onChange={(e) => { const sel = document.getElementsByName("location")[0] as HTMLSelectElement; if (sel && e.target.value) sel.value = ""; }} />
                     </div>
                   )}
+                  <Select label="Partner Club (Optional)" name="clubId" defaultValue="">
+                    <option value="">— Select Partner Club —</option>
+                    {clubs.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
                   <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />
                   <Button type="submit" className="w-full" loading={submittingEvent}>Schedule Event</Button>
                 </form>
@@ -1666,6 +1724,18 @@ export default function ActivityDetailPage() {
                       />
                     </div>
                   )}
+                  <Select
+                    label="Partner Club (Optional)"
+                    value={bulkClubId}
+                    onChange={(e) => setBulkClubId(e.target.value)}
+                  >
+                    <option value="">— Select Partner Club —</option>
+                    {clubs.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
                   <Input
                     label="Capacity"
                     type="number"
@@ -1772,22 +1842,39 @@ export default function ActivityDetailPage() {
                   {/* Expanded attendee list */}
                   {expandedEventId === session.id && (
                     <div className="border-t border-[var(--border)] bg-slate-50/50 p-4 space-y-4">
-                      {activity?.requiresCheck && (
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
-                              {activity.club && (
-                                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-                                  {activity.club.name}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-[var(--muted)] mt-2">
-                              Scanning attendance is managed via the partner club terminal.
-                            </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Partner Club</h4>
+                            {session.club && (
+                              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                {session.club.name}
+                              </span>
+                            )}
                           </div>
+                          <div>
+                            <select
+                              value={session.clubId || ""}
+                              onChange={async (e) => {
+                                const newClubId = e.target.value || null;
+                                await handleUpdateSessionClub(session.id, newClubId);
+                              }}
+                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs outline-none text-[var(--foreground)]"
+                            >
+                              <option value="">— No Partner Club (Direct Check-in) —</option>
+                              {clubs.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <p className="text-[10px] text-[var(--muted)] leading-relaxed">
+                            Assigning a partner club enables public QR/card check-ins at that club's terminal.
+                          </p>
+                        </div>
 
+                        {session.clubId && (
                           <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
@@ -1813,15 +1900,17 @@ export default function ActivityDetailPage() {
                                       <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
                                     </div>
                                     <div className="text-right">
-                                      <span className="text-slate-500 font-medium">{new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}</span>
+                                      <span className="text-slate-500 font-medium">
+                                        {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
+                                      </span>
                                     </div>
                                   </li>
                                 ))}
                               </ul>
                             )}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {/* Attendees */}
                       <div>

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 const createClubSchema = z.object({
   name: z.string().min(2),
+  logoUrl: z.string().optional().nullable(),
   contactName: z.string().optional().nullable(),
   contactEmail: z.string().email().or(z.literal("")).optional().nullable(),
   contactPhone: z.string().optional().nullable(),
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
     const club = await prisma.club.create({
       data: {
         name: parsed.data.name,
+        logoUrl: parsed.data.logoUrl || null,
         contactName: parsed.data.contactName ?? null,
         contactEmail: parsed.data.contactEmail || null,
         contactPhone: parsed.data.contactPhone ?? null,

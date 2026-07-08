@@ -293,6 +293,7 @@ model ActivityProposal {
 model Club {
   id            String   @id @default(cuid())
   name          String
+  logoUrl       String?
   contactName   String?
   contactEmail  String?
   contactPhone  String?

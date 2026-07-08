@@ -17,6 +17,7 @@ export default function NewClubPage() {
 
     const formData = new FormData(event.currentTarget);
     const name = formData.get("name") as string;
+    const logoUrl = formData.get("logoUrl") as string;
     const contactName = formData.get("contactName") as string;
     const contactEmail = formData.get("contactEmail") as string;
     const contactPhone = formData.get("contactPhone") as string;
@@ -27,6 +28,7 @@ export default function NewClubPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          logoUrl: logoUrl.trim() || null,
           contactName: contactName.trim() || null,
           contactEmail: contactEmail.trim() || null,
           contactPhone: contactPhone.trim() || null,
@@ -69,6 +71,12 @@ export default function NewClubPage() {
             placeholder="e.g. Rockwall Climbing Co."
             required
             autoFocus
+          />
+
+          <Input
+            label="Club Logo URL"
+            name="logoUrl"
+            placeholder="e.g. https://example.com/logo.png"
           />
 
           <Input

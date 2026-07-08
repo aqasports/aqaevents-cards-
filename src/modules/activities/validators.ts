@@ -17,10 +17,7 @@ export const createActivitySchema = z.object({
     amount: z.number().int().positive(),
     notes: z.string().optional().nullable(),
   })).optional(),
-}).refine(
-  (data) => !data.requiresCheck || !!data.clubId,
-  { message: "clubId is required when requiresCheck is true", path: ["clubId"] }
-);
+});
 
 export const updateActivitySchema = z.object({
   name: z.string().min(2).optional(),
@@ -42,6 +39,7 @@ export const createSessionSchema = z.object({
   sessionDate: z.string(),
   location: z.string().optional(),
   capacity: z.number().int().positive().optional(),
+  clubId: z.string().cuid().nullable().optional(),
 });
 
 export const createExpenseSchema = z.object({

@@ -57,21 +57,38 @@ export async function GET(
       return NextResponse.json({ error: "Terminal not found or inactive" }, { status: 404 });
     }
 
-    // Fetch activities run by this club where check-in is required
-    const activities = await prisma.activity.findMany({
+    // Fetch all active sessions hosted/checked by this club
+    const sessions = await prisma.activitySession.findMany({
       where: {
         clubId: club.id,
-        requiresCheck: true,
         active: true,
       },
       include: {
-        sessions: {
-          where: { active: true },
-          orderBy: { sessionDate: "asc" },
-        },
+        activity: true,
       },
-      orderBy: { name: "asc" },
+      orderBy: { sessionDate: "asc" },
     });
+
+    // Group sessions by activity
+    const activityMap = new Map<string, { id: string; name: string; sessions: any[] }>();
+    for (const session of sessions) {
+      const act = session.activity;
+      if (!act.active) continue;
+      if (!activityMap.has(act.id)) {
+        activityMap.set(act.id, {
+          id: act.id,
+          name: act.name,
+          sessions: [],
+        });
+      }
+      activityMap.get(act.id)!.sessions.push({
+        id: session.id,
+        date: session.sessionDate.toISOString().split("T")[0],
+        location: session.location,
+      });
+    }
+
+    const activitiesList = Array.from(activityMap.values());
 
     // Fetch today's SUCCESS check-ins for the roster
     const todayStart = new Date();
@@ -98,14 +115,8 @@ export async function GET(
 
     return NextResponse.json({
       club: { name: club.name },
-      activities: activities.map((act) => ({
-        id: act.id,
-        name: act.name,
-        sessions: act.sessions.map((s) => ({
-          id: s.id,
-          date: s.sessionDate.toISOString().split("T")[0],
-          location: s.location,
-        })),
+      activities: activitiesList.map((act) => ({
+        ...act,
         roster: roster.filter((r) => r.activityId === act.id),
       })),
     });
@@ -169,15 +180,28 @@ export async function POST(
       return NextResponse.json({ status: "INVALID_CARD", message: "Card not recognized." });
     }
 
-    // 5. Confirm activity belongs to club and requires check
-    const activity = await prisma.activity.findUnique({
-      where: { id: activityId },
-      select: { id: true, name: true, clubId: true, requiresCheck: true },
+    // 5. Confirm activity session exists, is active, and belongs to this club
+    if (!sessionId) {
+      return NextResponse.json({ status: "INVALID_CARD", message: "Session is required for check-in." });
+    }
+
+    const session = await prisma.activitySession.findFirst({
+      where: {
+        id: sessionId,
+        clubId: club.id,
+        active: true,
+        activityId,
+      },
+      include: {
+        activity: true,
+      },
     });
 
-    if (!activity || activity.clubId !== club.id || !activity.requiresCheck) {
-      return NextResponse.json({ status: "INVALID_CARD", message: "Card not recognized." });
+    if (!session || !session.activity || !session.activity.active) {
+      return NextResponse.json({ status: "INVALID_CARD", message: "Session not recognized or not active at this club." });
     }
+
+    const activity = session.activity;
 
     // 6. Query most recent matching Redemption
     const redemption = await prisma.redemption.findFirst({
