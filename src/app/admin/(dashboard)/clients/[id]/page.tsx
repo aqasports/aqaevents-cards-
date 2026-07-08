@@ -139,6 +139,12 @@ export default function ClientDetailPage() {
   const [deletingLedgerId, setDeletingLedgerId] = useState<string | null>(null);
   const [refundingRedemptionId, setRefundingRedemptionId] = useState<string | null>(null);
 
+  // Reissue Card modal states
+  const [isReissueModalOpen, setIsReissueModalOpen] = useState(false);
+  const [reissueMode, setReissueMode] = useState<"auto" | "preprinted">("auto");
+  const [reissueCardCode, setReissueCardCode] = useState("");
+  const [reissueError, setReissueError] = useState<string | null>(null);
+
   // Storing state for editing individual credit history (ledger) records
   const [editingLedgerId, setEditingLedgerId] = useState<string | null>(null);
   const [editDelta, setEditDelta] = useState<number>(0);
@@ -611,28 +617,44 @@ export default function ClientDetailPage() {
     );
   }
 
-  async function reissueCard() {
-    triggerConfirm(
-      "Reissue Card",
-      "Replace this card? The old card will be deactivated and a new QR token generated.",
-      async () => {
-        setReissuingCard(true);
-        try {
-          const res = await fetch(`/api/admin/clients/${params.id}/reissue-card`, { method: "POST" });
-          if (res.ok) {
-            setMessage({ text: "New card issued. Old card has been deactivated.", tone: "success" });
-            await loadClient();
-          } else {
-            setMessage({ text: "Failed to reissue card.", tone: "danger" });
-          }
-        } catch {
-          setMessage({ text: "Network error reissuing card.", tone: "danger" });
-        } finally {
-          setReissuingCard(false);
-        }
-      },
-      true // isDanger
-    );
+  function reissueCard() {
+    setReissueMode("auto");
+    setReissueCardCode("");
+    setReissueError(null);
+    setIsReissueModalOpen(true);
+  }
+
+  async function handleReissueSubmit() {
+    if (reissueMode === "preprinted" && !reissueCardCode.trim()) {
+      setReissueError("Please enter a valid card code.");
+      return;
+    }
+
+    setReissuingCard(true);
+    setReissueError(null);
+    try {
+      const res = await fetch(`/api/admin/clients/${params.id}/reissue-card`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          newCardCode: reissueMode === "preprinted" ? reissueCardCode.trim().toUpperCase() : null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage({ text: "New card issued. Old card has been deactivated.", tone: "success" });
+        setIsReissueModalOpen(false);
+        await loadClient();
+      } else {
+        setReissueError(data.error ?? "Failed to reissue card.");
+      }
+    } catch {
+      setReissueError("Network error reissuing card.");
+    } finally {
+      setReissuingCard(false);
+    }
   }
 
   async function saveContact(event: FormEvent<HTMLFormElement>) {
@@ -1562,6 +1584,110 @@ export default function ClientDetailPage() {
         }}
         onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
       />
+
+      {isReissueModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-slate-50/50">
+              <h3 className="font-bold text-[var(--foreground)] flex items-center gap-2">
+                <svg className="h-5 w-5 text-[var(--primary)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m-2 2a2 2 0 00-2-2m2-2a2 2 0 00-2 2m2 2h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Reissue Client Card
+              </h3>
+              <button
+                onClick={() => setIsReissueModalOpen(false)}
+                type="button"
+                className="h-7 w-7 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] transition"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Body */}
+            <div className="p-5 text-sm text-[var(--muted)] leading-relaxed space-y-4">
+              <p>
+                Replace this card? The current card will be deactivated. The client&apos;s active credits and history will remain unchanged.
+              </p>
+
+              {reissueError && (
+                <Alert tone="danger">
+                  {reissueError}
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Card Issuance Mode</span>
+                <div className="flex flex-col gap-2 sm:flex-row sm:gap-6 mt-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
+                    <input
+                      type="radio"
+                      name="reissueMode"
+                      checked={reissueMode === "auto"}
+                      onChange={() => {
+                        setReissueMode("auto");
+                        setReissueError(null);
+                      }}
+                      className="accent-[var(--primary)] h-4 w-4"
+                    />
+                    Auto-generate code
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
+                    <input
+                      type="radio"
+                      name="reissueMode"
+                      checked={reissueMode === "preprinted"}
+                      onChange={() => {
+                        setReissueMode("preprinted");
+                        setReissueError(null);
+                      }}
+                      className="accent-[var(--primary)] h-4 w-4"
+                    />
+                    Link pre-printed card
+                  </label>
+                </div>
+              </div>
+
+              {reissueMode === "preprinted" && (
+                <div className="space-y-1">
+                  <Input
+                    label="Pre-printed Card Code"
+                    placeholder="e.g. AQA-989751"
+                    value={reissueCardCode}
+                    onChange={(e) => {
+                      setReissueCardCode(e.target.value);
+                      setReissueError(null);
+                    }}
+                    required
+                  />
+                </div>
+              )}
+            </div>
+            {/* Footer */}
+            <div className="flex gap-3 px-5 py-4 border-t border-[var(--border)] bg-slate-50/20">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                type="button"
+                onClick={() => setIsReissueModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                type="button"
+                loading={reissuingCard}
+                onClick={handleReissueSubmit}
+              >
+                Confirm Reissue
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
