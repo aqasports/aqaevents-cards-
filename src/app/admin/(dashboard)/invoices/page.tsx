@@ -782,7 +782,7 @@ function CreateInvoiceModal({
   const [customCredits, setCustomCredits] = useState("");
   const [items, setItems] = useState("");
   const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<"paid" | "unpaid">("paid");
+  const [status, setStatus] = useState<"paid" | "unpaid">("unpaid");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1246,6 +1246,9 @@ export default function InvoicesPage() {
   }, [loadInvoices]);
 
   useEffect(() => {
+    if (tab === "invoices") {
+      loadInvoices();
+    }
     if (tab === "expenses" || tab === "bookkeeping") {
       loadExpenses();
       loadActivities();
@@ -1253,7 +1256,7 @@ export default function InvoicesPage() {
     if (tab === "bookkeeping") {
       loadReportsSummary();
     }
-  }, [tab, loadExpenses, loadActivities, loadReportsSummary]);
+  }, [tab, loadInvoices, loadExpenses, loadActivities, loadReportsSummary]);
 
   const handleCreatedInvoice = () => {
     loadInvoices();
@@ -1574,9 +1577,31 @@ export default function InvoicesPage() {
                         </td>
                         <td className="py-3.5 px-4 text-right font-black text-slate-900">{fmt(inv.amount)}</td>
                         <td className="py-3.5 px-4 text-center">
-                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${STATUS_COLORS[inv.status]}`}>
-                            {inv.status}
-                          </span>
+                          {inv.status === "refunded" ? (
+                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${STATUS_COLORS[inv.status]}`}>
+                              {inv.status}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                inv.status === "unpaid" ? markPaid(inv.id) : markRefunded(inv.id)
+                              }
+                              disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-refund"}
+                              title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to Refund"}
+                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide transition hover:opacity-80 active:scale-95 cursor-pointer ${STATUS_COLORS[inv.status]}`}
+                            >
+                              {inv.status === "unpaid" ? (
+                                <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              ) : (
+                                <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {inv.status}
+                            </button>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
@@ -1600,32 +1625,7 @@ export default function InvoicesPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                               </svg>
                             </button>
-                            {/* Mark Paid */}
-                            {inv.status === "unpaid" && (
-                              <button
-                                onClick={() => markPaid(inv.id)}
-                                disabled={actionLoading === inv.id + "-paid"}
-                                title="Mark as Paid"
-                                className="flex h-7 w-7 items-center justify-center rounded-lg text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 transition"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              </button>
-                            )}
-                            {/* Refund */}
-                            {inv.status === "paid" && (
-                              <button
-                                onClick={() => markRefunded(inv.id)}
-                                disabled={actionLoading === inv.id + "-refund"}
-                                title="Refund Invoice"
-                                className="flex h-7 w-7 items-center justify-center rounded-lg text-amber-500 hover:bg-amber-50 hover:text-amber-700 transition"
-                              >
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                                </svg>
-                              </button>
-                            )}
+
                             {/* Delete */}
                             <button
                               onClick={() => deleteInvoice(inv.id)}
