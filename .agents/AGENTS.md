@@ -59,3 +59,6 @@
 - All new API endpoints that mutate data must include input validation (zod).
 - All delete operations must be scoped to specific IDs -- never use `deleteMany({})` without a where clause.
 - Test all changes against the local Docker database, not production.
+
+## Automatic Deployment Policy
+- Whenever you finish implementing, fixing, or polishing a task, you must automatically stage all changed files, commit them with a descriptive commit message, push to the remote GitHub repository (git push origin main), and trigger a production deployment to Netlify (npx netlify deploy --build --prod). Always verify that the deployment completes successfully.
