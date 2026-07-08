@@ -76,18 +76,19 @@ model Package {
 }
 
 model Activity {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  creditCost  Float    @default(1.0)
-  imageUrl    String?
-  places      String?
-  duration    String? // e.g. "2h", "Half day", "Full day"
-  gallery     String? // JSON: [{type:"image"|"video", url:string, caption:string?}]
-  equipment   String? // JSON: [{name:string, type:"rent"|"buy"|"provided", price:number?}]
-  active      Boolean  @default(true)
-  eventType   String   @default("fixed")
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  creditCost    Float    @default(1.0)
+  imageUrl      String?
+  places        String?
+  duration      String? // e.g. "2h", "Half day", "Full day"
+  gallery       String? // JSON: [{type:"image"|"video", url:string, caption:string?}]
+  equipment     String? // JSON: [{name:string, type:"rent"|"buy"|"provided", price:number?}]
+  active        Boolean  @default(true)
+  eventType     String   @default("fixed")
+  requiresCheck Boolean  @default(false) // Whether club check-in scanning is required
+  createdAt     DateTime @default(now())
 
   sessions    ActivitySession[]
   redemptions Redemption[]
@@ -115,14 +116,18 @@ model ActivitySession {
   location    String?
   capacity    Int?
   active      Boolean  @default(true)
+  clubId      String?  // Optional: club assigned to host/check this session
   createdAt   DateTime @default(now())
 
   activity        Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  club            Club?            @relation(fields: [clubId], references: [id], onDelete: SetNull)
   redemptions     Redemption[]
   sessionExpenses SessionExpense[]
+  clubCheckIns    ClubCheckIn[]
 
   @@index([activityId])
   @@index([sessionDate])
+  @@index([clubId])
 }
 
 model SessionExpense {
@@ -276,4 +281,39 @@ model ActivityProposal {
 
   @@index([status])
   @@index([createdAt])
+}
+
+// ─── Club Check-In System ────────────────────────────────────────────────────
+
+// A Club is a third-party organisation that hosts AQA sessions on-site.
+// Each club has a unique secret token that generates a terminal URL.
+// The terminal allows a club agent to scan AQA cards and record attendance.
+model Club {
+  id        String   @id @default(cuid())
+  name      String
+  contact   String?  // Phone or email of the club contact
+  token     String   @unique @default(cuid()) // Secret token for the terminal URL
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  sessions ActivitySession[]
+  checkIns ClubCheckIn[]
+}
+
+// Records a single card scan / attendance confirmation at a club terminal.
+model ClubCheckIn {
+  id        String   @id @default(cuid())
+  clubId    String
+  sessionId String
+  cardId    String
+  clientId  String
+  checkedAt DateTime @default(now())
+
+  club    Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  session ActivitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, cardId]) // Prevents double check-in
+  @@index([clubId])
+  @@index([sessionId])
+  @@index([checkedAt])
 }

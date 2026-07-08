@@ -61,6 +61,7 @@ export class ActivitiesService {
               },
               orderBy: { redeemedAt: "desc" },
             },
+            club: true,
             sessionExpenses: {
               include: {
                 activityExpense: true,
@@ -84,6 +85,7 @@ export class ActivitiesService {
       duration?: string | null;
       gallery?: string | null;
       equipment?: string | null;
+      requiresCheck?: boolean;
       expenses?: Array<{
         name: string;
         amount: number;
@@ -135,6 +137,7 @@ export class ActivitiesService {
       gallery?: string | null;
       equipment?: string | null;
       active?: boolean;
+      requiresCheck?: boolean;
     },
     adminId?: string
   ) {
@@ -198,6 +201,7 @@ export class ActivitiesService {
         redemptions: {
           select: { id: true }
         },
+        club: true,
         sessionExpenses: {
           include: {
             activityExpense: true

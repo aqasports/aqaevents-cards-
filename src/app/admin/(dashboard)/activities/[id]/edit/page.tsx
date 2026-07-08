@@ -26,6 +26,7 @@ type ActivityDetail = {
   duration: string | null;
   active: boolean;
   eventType: string;
+  requiresCheck?: boolean;
 };
 
 export default function EditActivityPage() {
@@ -46,6 +47,7 @@ export default function EditActivityPage() {
   const [duration, setDuration] = useState("");
   const [active, setActive] = useState(true);
   const [eventType, setEventType] = useState("fixed");
+  const [requiresCheck, setRequiresCheck] = useState(false);
 
   // Confirm modal state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -77,6 +79,7 @@ export default function EditActivityPage() {
       setPlaces(data.places ?? "");
       setDuration(data.duration ?? "");
       setActive(data.active);
+      setRequiresCheck(data.requiresCheck ?? false);
       const loadedType = data.eventType === "whatsapp" ? "variable" : (data.eventType ?? "fixed");
       setEventType(loadedType);
       setLoading(false);
@@ -109,6 +112,7 @@ export default function EditActivityPage() {
           duration: duration || null,
           active: active,
           eventType: eventType,
+          requiresCheck: requiresCheck,
         }),
       });
 
@@ -272,6 +276,38 @@ export default function EditActivityPage() {
             <option value="fixed">Fixed (e.g., each Sunday)</option>
             <option value="variable">Planned according to a variable (announced via WhatsApp group)</option>
           </Select>
+
+          {/* Requires Club Check-In Toggle */}
+          <div className="rounded-xl border border-[var(--border)] bg-slate-50 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <svg className="h-4 w-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-slate-700">Requires Club Check-In</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Enable if this activity is hosted by a third-party club. Sessions can be assigned to a club terminal for attendance scanning.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRequiresCheck((v) => !v)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                  requiresCheck ? "bg-indigo-500" : "bg-slate-200"
+                }`}
+                role="switch"
+                aria-checked={requiresCheck}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                    requiresCheck ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
 
           <div className="flex flex-wrap gap-3 pt-3 border-t border-[var(--border)]">
             <Button

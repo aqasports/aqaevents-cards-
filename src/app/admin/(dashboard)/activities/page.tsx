@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Button,
@@ -33,9 +33,21 @@ type Activity = {
   equipment: string | null;
   active: boolean;
   eventType: string;
+  requiresCheck: boolean;
   sessions: Session[];
   expenses: { id: string; name: string; amount: number }[];
   _count: { redemptions: number };
+};
+
+type Club = {
+  id: string;
+  name: string;
+  contact: string | null;
+  token: string;
+  active: boolean;
+  createdAt: string;
+  sessions: { id: string; sessionDate: string; activity: { id: string; name: string } }[];
+  _count: { checkIns: number };
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -179,6 +191,78 @@ export default function ActivitiesPage() {
   // Form: credit cost live calculator
   const [formCreditCost, setFormCreditCost] = useState<number | string>(1);
 
+  // Form: requiresCheck toggle
+  const [formRequiresCheck, setFormRequiresCheck] = useState(false);
+
+  // Clubs tab state
+  const [leftTab, setLeftTab] = useState<"add" | "clubs">("add");
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [loadingClubs, setLoadingClubs] = useState(false);
+  const [newClubName, setNewClubName] = useState("");
+  const [newClubContact, setNewClubContact] = useState("");
+  const [creatingClub, setCreatingClub] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  const loadClubs = useCallback(async () => {
+    setLoadingClubs(true);
+    try {
+      const res = await fetch("/api/admin/clubs");
+      if (res.ok) {
+        const data = await res.json();
+        setClubs(data);
+      }
+    } finally {
+      setLoadingClubs(false);
+    }
+  }, []);
+
+  async function createClub(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!newClubName.trim()) return;
+    setCreatingClub(true);
+    try {
+      const res = await fetch("/api/admin/clubs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newClubName.trim(), contact: newClubContact.trim() || null }),
+      });
+      if (res.ok) {
+        setNewClubName("");
+        setNewClubContact("");
+        await loadClubs();
+        setMessage({ text: "Club created successfully.", tone: "success" });
+      } else {
+        setMessage({ text: "Failed to create club.", tone: "danger" });
+      }
+    } finally {
+      setCreatingClub(false);
+    }
+  }
+
+  async function deleteClub(clubId: string, clubName: string) {
+    triggerConfirm(
+      "Delete Club",
+      `This will permanently delete "${clubName}" and unlink all assigned sessions. Check-in records will also be removed.`,
+      async () => {
+        const res = await fetch(`/api/admin/clubs/${clubId}`, { method: "DELETE" });
+        if (res.ok) {
+          await loadClubs();
+          setMessage({ text: "Club deleted.", tone: "success" });
+        } else {
+          setMessage({ text: "Failed to delete club.", tone: "danger" });
+        }
+      },
+      true
+    );
+  }
+
+  async function copyTerminalUrl(token: string) {
+    const url = `${window.location.origin}/check/${token}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedToken(token);
+    setTimeout(() => setCopiedToken(null), 2000);
+  }
+
   async function loadActivities() {
     try {
       const res = await fetch("/api/admin/activities");
@@ -198,6 +282,7 @@ export default function ActivitiesPage() {
   }
 
   useEffect(() => { loadActivities(); }, []);
+  useEffect(() => { if (leftTab === "clubs") loadClubs(); }, [leftTab, loadClubs]);
 
   function handleAddTempExpense() {
     if (!newExpName || !newExpAmount) return;
@@ -229,6 +314,7 @@ export default function ActivitiesPage() {
         places: fd.get("places") || undefined,
         duration: fd.get("duration") || undefined,
         eventType: fd.get("eventType") || "fixed",
+        requiresCheck: formRequiresCheck,
         expenses: tempExpenses,
       }),
     });
@@ -239,6 +325,7 @@ export default function ActivitiesPage() {
       (event.target as HTMLFormElement).reset();
       setTempExpenses([]);
       setFormCreditCost(1);
+      setFormRequiresCheck(false);
       await loadActivities();
     } else {
       setMessage({ text: "Failed to create activity.", tone: "danger" });
@@ -301,8 +388,28 @@ export default function ActivitiesPage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-        {/* ── Create Form ─────────────────────────────────────── */}
+        {/* ── Left Panel ──────────────────────────────────────── */}
         <div className="space-y-4">
+
+          {/* Tab switcher */}
+          <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 gap-1">
+            {([["add", "Add Activity"], ["clubs", "Clubs"]] as const).map(([tab, label]) => (
+              <button
+                key={tab}
+                onClick={() => setLeftTab(tab)}
+                className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
+                  leftTab === tab
+                    ? "bg-[var(--primary)] text-white shadow-sm"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Add Activity Tab ──────────────────────────────── */}
+          {leftTab === "add" && (
           <Card>
             <h3 className="mb-4 text-base font-semibold">Add Activity</h3>
             <form onSubmit={createActivity} className="space-y-4">
@@ -366,6 +473,38 @@ export default function ActivitiesPage() {
                 </select>
               </div>
 
+              {/* Requires Club Check-In Toggle */}
+              <div className="rounded-xl border border-[var(--border)] bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <svg className="h-4 w-4 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="text-sm font-semibold text-slate-700">Requires Club Check-In</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Enable if this activity is hosted by a third-party club. Sessions can be assigned to a club terminal for attendance scanning.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormRequiresCheck((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                      formRequiresCheck ? "bg-indigo-500" : "bg-slate-200"
+                    }`}
+                    role="switch"
+                    aria-checked={formRequiresCheck}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                        formRequiresCheck ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
               {/* Expenses Inline Builder */}
               <div className="border-t border-dashed border-[var(--border)] pt-3">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
@@ -416,8 +555,151 @@ export default function ActivitiesPage() {
               </Button>
             </form>
           </Card>
+          )}
 
-          {/* Price Reference Card */}
+          {/* ── Clubs Tab ────────────────────────────────────────── */}
+          {leftTab === "clubs" && (
+            <div className="space-y-4">
+              <Card>
+                <h3 className="mb-3 text-base font-semibold flex items-center gap-2">
+                  <svg className="h-4 w-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Partner Clubs
+                </h3>
+                <p className="text-xs text-slate-400 mb-4">
+                  Each club receives a unique terminal URL. A club agent opens the URL to scan AQA cards and record attendance for their assigned sessions.
+                </p>
+                <form onSubmit={createClub} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Club Name</label>
+                    <input
+                      type="text"
+                      value={newClubName}
+                      onChange={(e) => setNewClubName(e.target.value)}
+                      placeholder="e.g. Club Orca"
+                      required
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Contact (Phone or Email)</label>
+                    <input
+                      type="text"
+                      value={newClubContact}
+                      onChange={(e) => setNewClubContact(e.target.value)}
+                      placeholder="Optional contact info"
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" loading={creatingClub}>
+                    Add Club
+                  </Button>
+                </form>
+              </Card>
+
+              {/* Club list */}
+              {loadingClubs ? (
+                <div className="space-y-3">
+                  {[1, 2].map((n) => (
+                    <div key={n} className="h-24 rounded-xl bg-[var(--border)]/20 animate-pulse" />
+                  ))}
+                </div>
+              ) : clubs.length === 0 ? (
+                <Card>
+                  <div className="py-6 text-center">
+                    <svg className="h-8 w-8 mx-auto text-slate-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <p className="text-sm text-slate-400">No clubs added yet.</p>
+                  </div>
+                </Card>
+              ) : (
+                <div className="space-y-3">
+                  {clubs.map((club) => (
+                    <Card key={club.id} className="p-0">
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-2 w-2 rounded-full shrink-0 ${club.active ? "bg-green-500" : "bg-slate-300"}`} />
+                              <span className="font-bold text-sm text-[var(--foreground)] truncate">{club.name}</span>
+                            </div>
+                            {club.contact && (
+                              <p className="text-xs text-[var(--muted)] mt-0.5 ml-4">{club.contact}</p>
+                            )}
+                            <div className="flex gap-3 mt-2 ml-4 text-xs text-slate-400">
+                              <span>{club.sessions.length} session{club.sessions.length !== 1 ? "s" : ""} assigned</span>
+                              <span>{club._count.checkIns} check-in{club._count.checkIns !== 1 ? "s" : ""}</span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                            onClick={() => deleteClub(club.id, club.name)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+
+                        {/* Sessions assigned */}
+                        {club.sessions.length > 0 && (
+                          <div className="mt-3 space-y-1">
+                            {club.sessions.slice(0, 3).map((s) => (
+                              <div key={s.id} className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 rounded-lg px-2.5 py-1.5">
+                                <svg className="h-3 w-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span className="font-medium">{s.activity.name}</span>
+                                <span className="text-slate-300">—</span>
+                                <span>{new Date(s.sessionDate).toLocaleDateString("fr-DZ", { day: "numeric", month: "short", year: "numeric" })}</span>
+                              </div>
+                            ))}
+                            {club.sessions.length > 3 && (
+                              <p className="text-[10px] text-slate-400 px-2.5">+{club.sessions.length - 3} more sessions</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Terminal URL copy */}
+                        <div className="mt-3 pt-3 border-t border-[var(--border)] flex items-center gap-2">
+                          <div className="flex-1 rounded-lg bg-slate-50 border border-[var(--border)] px-2.5 py-1.5 text-[11px] font-mono text-slate-500 truncate">
+                            {typeof window !== "undefined"
+                              ? `${window.location.origin}/check/${club.token}`
+                              : `/check/${club.token}`}
+                          </div>
+                          <button
+                            onClick={() => copyTerminalUrl(club.token)}
+                            className="shrink-0 flex items-center gap-1 rounded-lg border border-[var(--border)] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition"
+                          >
+                            {copiedToken === club.token ? (
+                              <>
+                                <svg className="h-3 w-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                                Copy URL
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Price Reference Card (only in Add tab) */}
+          {leftTab === "add" && (
           <Card>
             <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
               <svg className="h-4 w-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -435,9 +717,10 @@ export default function ActivitiesPage() {
               ))}
             </div>
           </Card>
+          )}
 
           {/* Disabled activities */}
-          {disabledActivities.length > 0 && (
+          {leftTab === "add" && disabledActivities.length > 0 && (
             <Card>
               <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
                 Disabled ({disabledActivities.length})
@@ -557,6 +840,14 @@ export default function ActivitiesPage() {
                       }`}>
                         {(activity.eventType === "whatsapp" || activity.eventType === "variable") ? "Variable (announced via WhatsApp group)" : "Fixed (e.g., each Sunday)"}
                       </span>
+                      {activity.requiresCheck && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
+                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Club Check-In
+                        </span>
+                      )}
                     </div>
                   </div>
 

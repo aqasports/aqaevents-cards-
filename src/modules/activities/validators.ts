@@ -10,7 +10,9 @@ export const createActivitySchema = z.object({
   gallery: z.string().optional().nullable(),
   equipment: z.string().optional().nullable(),
   eventType: z.string().optional().default("fixed"),
+  requiresCheck: z.boolean().optional().default(false),
   expenses: z.array(z.object({
+
     name: z.string().min(1),
     amount: z.number().int().positive(),
     notes: z.string().optional().nullable(),
@@ -28,6 +30,7 @@ export const updateActivitySchema = z.object({
   equipment: z.string().optional().nullable(),
   active: z.boolean().optional(),
   eventType: z.string().optional(),
+  requiresCheck: z.boolean().optional(),
 });
 
 export const createSessionSchema = z.object({
