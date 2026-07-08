@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { createActivitySchema } from "@/modules/activities/validators";
+import { prisma } from "@/lib/prisma";
 
 const activitiesService = new ActivitiesService();
 
@@ -31,8 +32,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
+  let { requiresCheck, clubId } = parsed.data;
+  if (requiresCheck) {
+    if (!clubId) {
+      return NextResponse.json({ error: "A club must be selected when check-in is required." }, { status: 400 });
+    }
+    const club = await prisma.club.findUnique({
+      where: { id: clubId },
+      select: { isActive: true },
+    });
+    if (!club || !club.isActive) {
+      return NextResponse.json({ error: "Selected club is invalid or inactive." }, { status: 400 });
+    }
+  } else {
+    clubId = null;
+  }
+
   try {
-    const activity = await activitiesService.createActivity(parsed.data, session.user.id);
+    const activity = await activitiesService.createActivity(
+      { ...parsed.data, clubId },
+      session.user.id
+    );
     return NextResponse.json(activity, { status: 201 });
   } catch (err: unknown) {
     console.error("POST activity API error:", err);

@@ -27,6 +27,7 @@ type ActivityDetail = {
   active: boolean;
   eventType: string;
   requiresCheck?: boolean;
+  clubId?: string | null;
 };
 
 export default function EditActivityPage() {
@@ -48,6 +49,8 @@ export default function EditActivityPage() {
   const [active, setActive] = useState(true);
   const [eventType, setEventType] = useState("fixed");
   const [requiresCheck, setRequiresCheck] = useState(false);
+  const [clubId, setClubId] = useState("");
+  const [clubs, setClubs] = useState<any[]>([]);
 
   // Confirm modal state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -67,6 +70,18 @@ export default function EditActivityPage() {
     setConfirmConfig({ isOpen: true, title, message, onConfirm, isDanger });
   };
 
+  const loadClubs = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/clubs");
+      if (res.ok) {
+        const data = await res.json();
+        setClubs(data.filter((c: any) => c.isActive));
+      }
+    } catch (err) {
+      console.error("Failed to load clubs:", err);
+    }
+  }, []);
+
   const loadActivity = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/activities/${params.id}`);
@@ -80,6 +95,7 @@ export default function EditActivityPage() {
       setDuration(data.duration ?? "");
       setActive(data.active);
       setRequiresCheck(data.requiresCheck ?? false);
+      setClubId(data.clubId || "");
       const loadedType = data.eventType === "whatsapp" ? "variable" : (data.eventType ?? "fixed");
       setEventType(loadedType);
       setLoading(false);
@@ -91,8 +107,9 @@ export default function EditActivityPage() {
   }, [params.id]);
 
   useEffect(() => {
+    loadClubs();
     loadActivity();
-  }, [loadActivity]);
+  }, [loadActivity, loadClubs]);
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,6 +130,7 @@ export default function EditActivityPage() {
           active: active,
           eventType: eventType,
           requiresCheck: requiresCheck,
+          clubId: requiresCheck && clubId ? clubId : null,
         }),
       });
 
@@ -308,6 +326,27 @@ export default function EditActivityPage() {
               </button>
             </div>
           </div>
+
+          {requiresCheck && (
+            <div>
+              <label className="block text-sm font-medium text-[var(--foreground)] mb-1.5">
+                Partner Club
+              </label>
+              <select
+                value={clubId}
+                onChange={(e) => setClubId(e.target.value)}
+                required={requiresCheck}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none text-[var(--foreground)]"
+              >
+                <option value="">— Select Partner Club —</option>
+                {clubs.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3 pt-3 border-t border-[var(--border)]">
             <Button

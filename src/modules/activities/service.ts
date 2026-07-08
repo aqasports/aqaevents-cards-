@@ -86,6 +86,7 @@ export class ActivitiesService {
       gallery?: string | null;
       equipment?: string | null;
       requiresCheck?: boolean;
+      clubId?: string | null;
       expenses?: Array<{
         name: string;
         amount: number;
@@ -138,6 +139,7 @@ export class ActivitiesService {
       equipment?: string | null;
       active?: boolean;
       requiresCheck?: boolean;
+      clubId?: string | null;
     },
     adminId?: string
   ) {

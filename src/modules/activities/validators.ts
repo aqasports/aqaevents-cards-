@@ -11,6 +11,7 @@ export const createActivitySchema = z.object({
   equipment: z.string().optional().nullable(),
   eventType: z.string().optional().default("fixed"),
   requiresCheck: z.boolean().optional().default(false),
+  clubId: z.string().cuid().nullable().optional(),
   expenses: z.array(z.object({
 
     name: z.string().min(1),
@@ -31,6 +32,7 @@ export const updateActivitySchema = z.object({
   active: z.boolean().optional(),
   eventType: z.string().optional(),
   requiresCheck: z.boolean().optional(),
+  clubId: z.string().cuid().nullable().optional(),
 });
 
 export const createSessionSchema = z.object({

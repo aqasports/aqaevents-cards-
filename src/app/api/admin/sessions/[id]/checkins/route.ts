@@ -14,38 +14,36 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const checkIns = await prisma.clubCheckIn.findMany({
-      where: { sessionId: id },
+    const checkIns = await prisma.checkIn.findMany({
+      where: {
+        sessionId: id,
+        status: "SUCCESS",
+      },
       select: {
         id: true,
-        checkedAt: true,
+        scannedAt: true,
         clientId: true,
-        cardId: true,
+        client: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+          },
+        },
         club: { select: { id: true, name: true } },
       },
-      orderBy: { checkedAt: "asc" },
+      orderBy: { scannedAt: "asc" },
     });
 
-    // Fetch client names
-    const clientIds = [...new Set(checkIns.map((c: any) => c.clientId as string))];
-    const clients = await prisma.client.findMany({
-      where: { id: { in: clientIds } },
-      select: { id: true, fullName: true, phone: true },
-    });
-    const clientMap = Object.fromEntries(clients.map((c: any) => [c.id, c]));
-
-    // Fetch card codes
-    const cardIds = [...new Set(checkIns.map((c: any) => c.cardId as string))];
-    const cards = await prisma.card.findMany({
-      where: { id: { in: cardIds } },
-      select: { id: true, cardCode: true },
-    });
-    const cardMap = Object.fromEntries(cards.map((c: any) => [c.id, c]));
-
-    const enriched = checkIns.map((ci: any) => ({
-      ...ci,
-      client: clientMap[ci.clientId] ?? null,
-      card: cardMap[ci.cardId] ?? null,
+    // Match the format expected by the frontend:
+    // { id, checkedAt: scannedAt, clientId, card: null, client, club }
+    const enriched = checkIns.map((ci) => ({
+      id: ci.id,
+      checkedAt: ci.scannedAt,
+      clientId: ci.clientId,
+      card: null, // Card ID is not directly tracked on CheckIn but client is populated
+      client: ci.client,
+      club: ci.club,
     }));
 
     return NextResponse.json(enriched);

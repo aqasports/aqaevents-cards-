@@ -15,6 +15,10 @@ export function generateCardCode(): string {
   return `AQA-${cardCodeAlphabet()}`;
 }
 
+export function generateClubTerminalToken(): string {
+  return tokenAlphabet();
+}
+
 export function getEventCardUrl(token: string): string {
   const base = process.env.PUBLIC_SITE_URL ?? "http://localhost:3000";
   return `${base.replace(/\/$/, "")}/eventscard/${token}`;

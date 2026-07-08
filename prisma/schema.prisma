@@ -45,6 +45,7 @@ model Client {
   redemptions      Redemption[]
   invoices         Invoice[]
   notificationLogs NotificationLog[]
+  checkIns         CheckIn[]
 }
 
 model Card {
@@ -88,6 +89,9 @@ model Activity {
   active        Boolean  @default(true)
   eventType     String   @default("fixed")
   requiresCheck Boolean  @default(false) // Whether club check-in scanning is required
+  clubId        String?
+  club          Club?    @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  checkIns      CheckIn[]
   createdAt     DateTime @default(now())
 
   sessions    ActivitySession[]
@@ -123,7 +127,7 @@ model ActivitySession {
   club            Club?            @relation(fields: [clubId], references: [id], onDelete: SetNull)
   redemptions     Redemption[]
   sessionExpenses SessionExpense[]
-  clubCheckIns    ClubCheckIn[]
+  checkIns        CheckIn[]
 
   @@index([activityId])
   @@index([sessionDate])
@@ -182,6 +186,7 @@ model Redemption {
   session       ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   staff         AdminUser?       @relation(fields: [staffId], references: [id], onDelete: SetNull)
   ledgerEntries LedgerEntry[]
+  checkIns      CheckIn[]
 
   @@index([clientId])
   @@index([redeemedAt])
@@ -285,35 +290,45 @@ model ActivityProposal {
 
 // ─── Club Check-In System ────────────────────────────────────────────────────
 
-// A Club is a third-party organisation that hosts AQA sessions on-site.
-// Each club has a unique secret token that generates a terminal URL.
-// The terminal allows a club agent to scan AQA cards and record attendance.
 model Club {
-  id        String   @id @default(cuid())
-  name      String
-  contact   String?  // Phone or email of the club contact
-  token     String   @unique @default(cuid()) // Secret token for the terminal URL
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  contactName   String?
+  contactEmail  String?
+  contactPhone  String?
+  terminalToken String   @unique
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  sessions ActivitySession[]
-  checkIns ClubCheckIn[]
+  activities    Activity[]
+  sessions      ActivitySession[]
+  checkIns      CheckIn[]
 }
 
-// Records a single card scan / attendance confirmation at a club terminal.
-model ClubCheckIn {
-  id        String   @id @default(cuid())
-  clubId    String
-  sessionId String
-  cardId    String
-  clientId  String
-  checkedAt DateTime @default(now())
+enum CheckInStatus {
+  SUCCESS
+  DUPLICATE
+  NOT_REDEEMED
+  INVALID_CARD
+}
 
-  club    Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
-  session ActivitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+model CheckIn {
+  id           String        @id @default(cuid())
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  activityId   String
+  activity     Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  sessionId    String?
+  session      ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  clubId       String
+  club         Club          @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  redemptionId String?
+  redemption   Redemption?   @relation(fields: [redemptionId], references: [id], onDelete: SetNull)
+  status       CheckInStatus @default(SUCCESS)
+  scannedAt    DateTime      @default(now())
+  scannedIp    String?
 
-  @@unique([sessionId, cardId]) // Prevents double check-in
-  @@index([clubId])
-  @@index([sessionId])
-  @@index([checkedAt])
+  @@index([clubId, scannedAt])
+  @@index([clientId, activityId])
 }
