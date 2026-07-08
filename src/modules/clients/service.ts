@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, isSqlite } from "@/lib/prisma";
 import { getClientBalances, getClientBalance } from "@/lib/balance";
 import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { sendSimulatedNotification } from "@/lib/notifications";
@@ -28,7 +28,14 @@ export class ClientsService {
     const where: any = {};
 
     if (search) {
-      where.OR = [{ fullName: { contains: search, mode: "insensitive" as const } }];
+      where.OR = [
+        {
+          fullName: {
+            contains: search,
+            ...(isSqlite ? {} : { mode: "insensitive" as const }),
+          },
+        },
+      ];
     }
 
     if (archived === "true") {

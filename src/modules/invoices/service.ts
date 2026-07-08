@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, isSqlite } from "@/lib/prisma";
 import { getClientBalance } from "@/lib/balance";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { syncClientCRM } from "@/lib/crm";
@@ -7,6 +7,7 @@ import { ClientsRepository } from "../clients/repository";
 import { ReportingRepository } from "../reports/repository";
 import { Prisma } from "@prisma/client";
 import { eventBus, EVENTS } from "@/lib/events";
+
 
 export class BillingService {
   private billingRepo = new BillingRepository();
@@ -40,8 +41,20 @@ export class BillingService {
     }
     if (search) {
       where.OR = [
-        { invoiceCode: { contains: search, mode: "insensitive" as const } },
-        { client: { fullName: { contains: search, mode: "insensitive" as const } } },
+        {
+          invoiceCode: {
+            contains: search,
+            ...(isSqlite ? {} : { mode: "insensitive" as const }),
+          },
+        },
+        {
+          client: {
+            fullName: {
+              contains: search,
+              ...(isSqlite ? {} : { mode: "insensitive" as const }),
+            },
+          },
+        },
       ];
     }
 

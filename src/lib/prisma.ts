@@ -1,12 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import "@/modules/subscribers";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+const url = process.env.DATABASE_URL;
+export const isSqlite = !url || url.startsWith("file:") || url.startsWith("sqlite:");
+
 function createPrismaClient() {
-  const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error("DATABASE_URL environment variable is not set");
   }
@@ -24,3 +25,6 @@ export const prisma: PrismaClient =
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
+
+import "@/modules/subscribers";
+

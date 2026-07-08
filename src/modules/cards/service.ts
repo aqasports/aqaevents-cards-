@@ -1,9 +1,10 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, isSqlite } from "@/lib/prisma";
 import { generatePublicToken, getEventCardUrl } from "@/lib/tokens";
 import { CardsRepository } from "./repository";
 import { BillingRepository } from "../invoices/repository";
 import QRCode from "qrcode";
 import { Prisma } from "@prisma/client";
+
 
 export class CardsService {
   private cardsRepo = new CardsRepository();
@@ -117,7 +118,7 @@ export class CardsService {
         where: {
           fullName: {
             contains: trimmedQuery,
-            mode: "insensitive",
+            ...(isSqlite ? {} : { mode: "insensitive" as const }),
           } as any,
         },
         include: {
