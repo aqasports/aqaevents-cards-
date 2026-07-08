@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdminSession } from "@/lib/api-auth";
+import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generateClubTerminalToken } from "@/lib/tokens";
 import { z } from "zod";
@@ -12,7 +12,7 @@ const createClubSchema = z.object({
 });
 
 export async function GET() {
-  const { error } = await requireSuperAdminSession();
+  const { error } = await requireAdminSession();
   if (error) return error;
 
   try {

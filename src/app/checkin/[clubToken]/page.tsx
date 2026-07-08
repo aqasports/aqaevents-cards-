@@ -179,20 +179,25 @@ export default function CheckinTerminalPage({ params }: { params: Promise<{ club
           playAudioFeedback("error");
         }
 
+        const resolvedClientName = data.client?.name as string | undefined;
+        const resolvedActivityName = data.activity?.name as string | undefined;
+        const resolvedTimestamp =
+          status === "DUPLICATE" ? data.originalCheckedInAt : data.checkedInAt;
+
         setScanResult({
           status,
-          clientName: data.clientName,
-          activityName: data.activityName,
-          timestamp: data.timestamp || new Date().toISOString(),
+          clientName: resolvedClientName,
+          activityName: resolvedActivityName,
+          timestamp: resolvedTimestamp || new Date().toISOString(),
           errorMessage: data.message,
         });
 
         // Add to local roster immediately if successful
-        if (status === "SUCCESS" && data.clientName) {
+        if (status === "SUCCESS" && resolvedClientName) {
           setLiveRoster((prev) => [
             {
-              clientName: data.clientName,
-              checkedInAt: data.timestamp || new Date().toISOString(),
+              clientName: resolvedClientName,
+              checkedInAt: resolvedTimestamp || new Date().toISOString(),
               activityId: selectedActivityId,
               sessionId: selectedSessionId || null,
             },

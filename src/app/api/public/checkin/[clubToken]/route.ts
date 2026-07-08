@@ -184,7 +184,11 @@ export async function POST(
       where: {
         clientId: card.client.id,
         activityId: activity.id,
-        ...(sessionId ? { sessionId } : {}),
+        // Accept a redemption tagged with this exact session, OR one redeemed
+        // without a session (sessionId is optional in /admin/redeem) - otherwise
+        // legitimately redeemed clients get rejected just because staff didn't
+        // pick a session at redemption time.
+        ...(sessionId ? { OR: [{ sessionId }, { sessionId: null }] } : {}),
       },
       orderBy: { redeemedAt: "desc" },
     });

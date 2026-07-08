@@ -13,12 +13,14 @@ export const createActivitySchema = z.object({
   requiresCheck: z.boolean().optional().default(false),
   clubId: z.string().cuid().nullable().optional(),
   expenses: z.array(z.object({
-
     name: z.string().min(1),
     amount: z.number().int().positive(),
     notes: z.string().optional().nullable(),
   })).optional(),
-});
+}).refine(
+  (data) => !data.requiresCheck || !!data.clubId,
+  { message: "clubId is required when requiresCheck is true", path: ["clubId"] }
+);
 
 export const updateActivitySchema = z.object({
   name: z.string().min(2).optional(),

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdminSession } from "@/lib/api-auth";
+import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireSuperAdminSession();
+  const { error } = await requireAdminSession();
   if (error) return error;
 
   const { id } = await params;

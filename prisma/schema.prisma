@@ -306,13 +306,6 @@ model Club {
   checkIns      CheckIn[]
 }
 
-enum CheckInStatus {
-  SUCCESS
-  DUPLICATE
-  NOT_REDEEMED
-  INVALID_CARD
-}
-
 model CheckIn {
   id           String        @id @default(cuid())
   clientId     String
@@ -325,7 +318,7 @@ model CheckIn {
   club         Club          @relation(fields: [clubId], references: [id], onDelete: Cascade)
   redemptionId String?
   redemption   Redemption?   @relation(fields: [redemptionId], references: [id], onDelete: SetNull)
-  status       CheckInStatus @default(SUCCESS)
+  status       String        @default("SUCCESS")
   scannedAt    DateTime      @default(now())
   scannedIp    String?
 

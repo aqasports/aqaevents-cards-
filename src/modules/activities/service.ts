@@ -144,6 +144,19 @@ export class ActivitiesService {
     },
     adminId?: string
   ) {
+    // Fetch current activity to validate merged state
+    const current = await this.activitiesRepo.findUnique({ where: { id } });
+    if (!current) {
+      throw new Error("Activity not found");
+    }
+
+    const mergedRequiresCheck = data.requiresCheck !== undefined ? data.requiresCheck : current.requiresCheck;
+    const mergedClubId = data.clubId !== undefined ? data.clubId : current.clubId;
+
+    if (mergedRequiresCheck && !mergedClubId) {
+      throw new Error("Club is required when Club Check-in is enabled");
+    }
+
     const activity = await this.activitiesRepo.update({
       where: { id },
       data,
