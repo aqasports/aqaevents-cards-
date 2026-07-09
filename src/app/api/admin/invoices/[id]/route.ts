@@ -60,7 +60,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const result = await billingService.deleteInvoice(id);
+    const result = await billingService.deleteInvoice(id, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
     console.error("DELETE invoice API error:", err);

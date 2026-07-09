@@ -9,6 +9,7 @@ type HistoryItem = {
   creditsUsed: number;
   redeemedAt: Date | string;
   location: string | null;
+  amountDa?: number | null;
 };
 
 type CreditItem = {
@@ -537,9 +538,16 @@ export function EventCardClient({
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-semibold text-white/60 bg-white/10 rounded-full px-2 py-0.5">
-                    −{item.creditsUsed}
-                  </span>
+                  <div className="flex flex-col items-end shrink-0">
+                    <span className="text-xs font-semibold text-white/60 bg-white/10 rounded-full px-2 py-0.5">
+                      −{item.creditsUsed}
+                    </span>
+                    {item.amountDa !== null && item.amountDa !== undefined && (
+                      <span className="text-[10px] text-white/40 mt-1 font-semibold">
+                        {item.amountDa.toLocaleString()} DA
+                      </span>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -831,6 +839,15 @@ export function EventCardClient({
 
 function ActivityIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
   const lower = name.toLowerCase();
+
+  // 0. Store/Gear/Purchase
+  if (lower.includes("store") || lower.includes("purchase") || lower.includes("gear") || lower.includes("product")) {
+    return (
+      <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+      </svg>
+    );
+  }
 
   // 1. Kayaking
   if (lower.includes("kayak")) {

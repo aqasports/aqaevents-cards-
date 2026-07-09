@@ -48,13 +48,28 @@ export default async function EventCardPage({
 
   const balance = await getClientBalance(card.clientId);
 
-  const history = card.client.redemptions.map((r) => ({
-    activity: r.activity.name,
-    date: r.session?.sessionDate ?? r.redeemedAt,
-    creditsUsed: r.creditsUsed,
-    redeemedAt: r.redeemedAt,
-    location: r.session?.location ?? null,
-  }));
+  const history = [
+    ...card.client.redemptions.map((r) => ({
+      activity: r.activity.name,
+      date: r.session?.sessionDate ?? r.redeemedAt,
+      creditsUsed: r.creditsUsed,
+      redeemedAt: r.redeemedAt,
+      location: r.session?.location ?? null,
+      amountDa: null as number | null,
+    })),
+    ...card.client.ledgerEntries
+      .filter((e) => e.delta < 0)
+      .map((e) => ({
+        activity: e.reason ?? "Store Purchase",
+        date: e.createdAt.toISOString(),
+        creditsUsed: Math.abs(e.delta),
+        redeemedAt: e.createdAt.toISOString(),
+        location: "AQA Store",
+        amountDa: Math.abs(e.delta) * 1900,
+      })),
+  ];
+
+  history.sort((a, b) => new Date(b.redeemedAt).getTime() - new Date(a.redeemedAt).getTime());
 
   const credits = card.client.ledgerEntries
     .filter((e) => e.delta > 0)

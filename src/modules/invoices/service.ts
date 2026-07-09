@@ -168,6 +168,27 @@ export class BillingService {
       return { invoice: result.invoice, ledgerEntry: result.ledgerEntry, balance };
     } else {
       const result = await prisma.$transaction(async (tx) => {
+        let isCardPayment = false;
+        let cardCreditsToDeduct = 0;
+        if (data.category === "sale" && data.notes) {
+          try {
+            const parsed = JSON.parse(data.notes);
+            if (parsed.type === "sale" && parsed.paymentMethod === "card") {
+              isCardPayment = true;
+              cardCreditsToDeduct = data.amount / 1900;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (isCardPayment && data.status === "paid") {
+          const currentBalance = await getClientBalance(data.clientId);
+          if (currentBalance < cardCreditsToDeduct) {
+            throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
+          }
+        }
+
         const invoiceCode = await this.uniqueInvoiceCode(tx);
         const invoice = await this.billingRepo.createInvoice(
           {
@@ -184,7 +205,23 @@ export class BillingService {
           },
           tx
         );
-        return { invoice, ledgerEntry: null };
+
+        let ledgerEntry = null;
+        if (isCardPayment && data.status === "paid") {
+          const activeCard = client.cards[0] ?? null;
+          ledgerEntry = await tx.ledgerEntry.create({
+            data: {
+              clientId: data.clientId,
+              cardId: activeCard?.id ?? null,
+              delta: -cardCreditsToDeduct,
+              type: "debit",
+              reason: `Store Purchase: ${data.items} (Invoice ${invoiceCode})`,
+              createdById: adminId,
+            },
+          });
+        }
+
+        return { invoice, ledgerEntry };
       });
 
       await syncClientCRM(data.clientId);
@@ -259,9 +296,29 @@ export class BillingService {
                     createdById: adminId,
                   },
                 });
+              } else if (metadata && metadata.type === "sale" && metadata.paymentMethod === "card") {
+                const cardCreditsToDeduct = invoice.amount / 1900;
+                const currentBalance = await getClientBalance(invoice.clientId);
+                if (currentBalance < cardCreditsToDeduct) {
+                  throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
+                }
+                const activeCard = invoice.client.cards[0];
+                await tx.ledgerEntry.create({
+                  data: {
+                    clientId: invoice.clientId,
+                    cardId: activeCard?.id ?? null,
+                    delta: -cardCreditsToDeduct,
+                    type: "debit",
+                    reason: `Store Purchase: ${invoice.items} (Invoice ${invoice.invoiceCode})`,
+                    createdById: adminId,
+                  },
+                });
               }
-            } catch (e) {
-              // Ignore if notes is not JSON
+            } catch (e: any) {
+              if (e instanceof Error && e.message.includes("Insufficient")) {
+                throw e;
+              }
+              // Ignore other non-JSON notes parsing errors
             }
           }
         } else if (data.status === "unpaid") {
@@ -269,26 +326,48 @@ export class BillingService {
         }
 
         // Refund reversal logic
-        if (data.status === "refunded" && invoice.status === "paid" && invoice.category !== "adhoc" && invoice.category !== "sale") {
-          const matchingEntry = await tx.ledgerEntry.findFirst({
-            where: {
-              clientId: invoice.clientId,
-              reason: { contains: invoice.invoiceCode },
-            },
-            orderBy: { createdAt: "desc" },
-          });
-
-          if (matchingEntry && matchingEntry.delta > 0) {
-            await tx.ledgerEntry.create({
-              data: {
+        if (data.status === "refunded" && invoice.status === "paid") {
+          if (invoice.category !== "adhoc" && invoice.category !== "sale") {
+            const matchingEntry = await tx.ledgerEntry.findFirst({
+              where: {
                 clientId: invoice.clientId,
-                cardId: invoice.client.cards[0]?.id ?? null,
-                delta: -matchingEntry.delta,
-                type: "debit",
-                reason: `Refund: Invoice ${invoice.invoiceCode} reversed`,
-                createdById: adminId,
+                reason: { contains: invoice.invoiceCode },
               },
+              orderBy: { createdAt: "desc" },
             });
+
+            if (matchingEntry && matchingEntry.delta > 0) {
+              await tx.ledgerEntry.create({
+                data: {
+                  clientId: invoice.clientId,
+                  cardId: invoice.client.cards[0]?.id ?? null,
+                  delta: -matchingEntry.delta,
+                  type: "debit",
+                  reason: `Refund: Invoice ${invoice.invoiceCode} reversed`,
+                  createdById: adminId,
+                },
+              });
+            }
+          } else if (invoice.category === "sale" && invoice.notes) {
+            try {
+              const parsed = JSON.parse(invoice.notes);
+              if (parsed.type === "sale" && parsed.paymentMethod === "card") {
+                const cardCreditsToRefund = invoice.amount / 1900;
+                const activeCard = invoice.client.cards[0];
+                await tx.ledgerEntry.create({
+                  data: {
+                    clientId: invoice.clientId,
+                    cardId: activeCard?.id ?? null,
+                    delta: cardCreditsToRefund,
+                    type: "credit",
+                    reason: `Refund: Sale Invoice ${invoice.invoiceCode} returned`,
+                    createdById: adminId,
+                  },
+                });
+              }
+            } catch {
+              // ignore
+            }
           }
         }
       }
@@ -310,11 +389,47 @@ export class BillingService {
     return { invoice: result, balance };
   }
 
-  async deleteInvoice(id: string) {
-    const invoice = await this.billingRepo.findInvoiceUnique({ where: { id } });
+  async deleteInvoice(id: string, adminId?: string | null) {
+    const invoice = await this.billingRepo.findInvoiceUnique({
+      where: { id },
+      include: {
+        client: {
+          include: {
+            cards: {
+              where: { status: "active" },
+              take: 1
+            }
+          }
+        }
+      }
+    });
     if (!invoice) throw new Error("Invoice not found");
 
-    await this.billingRepo.deleteInvoice({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      if (invoice.category === "sale" && invoice.notes && invoice.status === "paid") {
+        try {
+          const parsed = JSON.parse(invoice.notes);
+          if (parsed.type === "sale" && parsed.paymentMethod === "card") {
+            const cardCreditsToRefund = invoice.amount / 1900;
+            const activeCard = invoice.client.cards[0] ?? null;
+            await tx.ledgerEntry.create({
+              data: {
+                clientId: invoice.clientId,
+                cardId: activeCard?.id ?? null,
+                delta: cardCreditsToRefund,
+                type: "credit",
+                reason: `Cancelled Sale: Invoice ${invoice.invoiceCode} deleted`,
+                createdById: adminId,
+              },
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+      await tx.invoice.delete({ where: { id } });
+    });
+
     await syncClientCRM(invoice.clientId);
     return { success: true };
   }

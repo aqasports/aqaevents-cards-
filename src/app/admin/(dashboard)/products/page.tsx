@@ -34,14 +34,16 @@ export default function ProductsPage() {
 
   // Sell POS States
   const [clientSearch, setClientSearch] = useState("");
-  const [clientOptions, setClientOptions] = useState<{ id: string; fullName: string; phone: string | null; email: string | null }[]>([]);
-  const [selectedClient, setSelectedClient] = useState<{ id: string; fullName: string; phone: string | null; email: string | null } | null>(null);
+  const [clientOptions, setClientOptions] = useState<{ id: string; fullName: string; phone: string | null; email: string | null; balance?: number }[]>([]);
+  const [selectedClient, setSelectedClient] = useState<{ id: string; fullName: string; phone: string | null; email: string | null; balance?: number } | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   // Cart state
   const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<"paid" | "unpaid">("paid");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [delivered, setDelivered] = useState(true);
   const [saleNotes, setSaleNotes] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [sellSubmitting, setSellSubmitting] = useState(false);
@@ -148,6 +150,18 @@ export default function ProductsPage() {
       return;
     }
 
+    if (paymentMethod === "card") {
+      const creditsNeeded = cartTotal / 1900;
+      const clientBalance = selectedClient.balance ?? 0;
+      if (clientBalance < creditsNeeded) {
+        setMessage({
+          text: `Insufficient credit balance. Client has ${clientBalance.toFixed(2)} credits, but this sale requires ${creditsNeeded.toFixed(2)} credits.`,
+          tone: "danger"
+        });
+        return;
+      }
+    }
+
     setSellSubmitting(true);
     setMessage(null);
 
@@ -163,6 +177,8 @@ export default function ProductsPage() {
         price: item.product.price,
         quantity: item.quantity,
       })),
+      paymentMethod,
+      delivered,
       originalNotes: saleNotes,
     });
 
@@ -176,7 +192,7 @@ export default function ProductsPage() {
           category: "sale",
           items: itemsSummary,
           notes: saleNotesJson,
-          status: paymentStatus,
+          status: paymentMethod === "card" ? "paid" : paymentStatus,
         }),
       });
 
@@ -191,6 +207,8 @@ export default function ProductsPage() {
         setClientSearch("");
         setSaleNotes("");
         setPaymentStatus("paid");
+        setPaymentMethod("cash");
+        setDelivered(true);
         setViewMode("catalog");
       } else {
         const data = await res.json();
@@ -601,7 +619,13 @@ export default function ProductsPage() {
                   <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/50 px-4 py-3 text-sm">
                     <div>
                       <div className="font-bold text-slate-800">{selectedClient.fullName}</div>
-                      {selectedClient.phone && <div className="text-xs text-slate-500 mt-0.5">{selectedClient.phone}</div>}
+                      <div className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500 mt-0.5">
+                        {selectedClient.phone && <span>{selectedClient.phone}</span>}
+                        {selectedClient.phone && <span>·</span>}
+                        <span className="font-bold text-blue-700 bg-blue-100/60 rounded px-1.5 py-0.5">
+                          Balance: {(selectedClient.balance ?? 0).toFixed(2)} credits
+                        </span>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -721,33 +745,103 @@ export default function ProductsPage() {
                   <span className="text-blue-700 font-black text-lg">{cartTotal.toLocaleString()} DA</span>
                 </div>
 
-                {/* Status selector */}
+                {/* Payment Method selector */}
                 <div className="space-y-2 pt-2">
-                  <label className="text-xs font-semibold text-[var(--muted)]">Payment Status</label>
+                  <label className="text-xs font-semibold text-[var(--muted)]">Payment Method</label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setPaymentStatus("paid")}
+                      onClick={() => setPaymentMethod("cash")}
                       className={`rounded-xl border px-4 py-2.5 text-xs font-bold uppercase transition ${
-                        paymentStatus === "paid"
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-extrabold"
+                        paymentMethod === "cash"
+                          ? "border-blue-500 bg-blue-50 text-blue-700 font-extrabold"
                           : "border-slate-200 text-slate-500 hover:border-slate-300"
                       }`}
                     >
-                      Paid
+                      Cash / Standard
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPaymentStatus("unpaid")}
+                      onClick={() => setPaymentMethod("card")}
                       className={`rounded-xl border px-4 py-2.5 text-xs font-bold uppercase transition ${
-                        paymentStatus === "unpaid"
-                          ? "border-amber-400 bg-amber-50 text-amber-700 font-extrabold"
+                        paymentMethod === "card"
+                          ? "border-violet-500 bg-violet-50 text-violet-700 font-extrabold"
                           : "border-slate-200 text-slate-500 hover:border-slate-300"
                       }`}
                     >
-                      On Credit (Unpaid)
+                      AQA Event Card
                     </button>
                   </div>
+                </div>
+
+                {/* Status selector (only for cash payments) */}
+                {paymentMethod === "cash" ? (
+                  <div className="space-y-2 pt-2">
+                    <label className="text-xs font-semibold text-[var(--muted)]">Payment Status</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentStatus("paid")}
+                        className={`rounded-xl border px-4 py-2.5 text-xs font-bold uppercase transition ${
+                          paymentStatus === "paid"
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 font-extrabold"
+                            : "border-slate-200 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        Paid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentStatus("unpaid")}
+                        className={`rounded-xl border px-4 py-2.5 text-xs font-bold uppercase transition ${
+                          paymentStatus === "unpaid"
+                            ? "border-amber-400 bg-amber-50 text-amber-700 font-extrabold"
+                            : "border-slate-200 text-slate-500 hover:border-slate-300"
+                        }`}
+                      >
+                        On Credit (Unpaid)
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3 text-xs space-y-2">
+                    <div className="flex justify-between items-center text-slate-700 font-medium">
+                      <span>Equivalent Credits to Deduct:</span>
+                      <span className="font-bold text-violet-700">{(cartTotal / 1900).toFixed(2)} credits</span>
+                    </div>
+                    {selectedClient && (
+                      <div className="flex justify-between items-center text-slate-500">
+                        <span>Client Credit Balance:</span>
+                        <span className={`font-bold ${
+                          (selectedClient.balance ?? 0) < (cartTotal / 1900) ? "text-red-600" : "text-slate-700"
+                        }`}>
+                          {(selectedClient.balance ?? 0).toFixed(2)} credits
+                        </span>
+                      </div>
+                    )}
+                    {selectedClient && (selectedClient.balance ?? 0) < (cartTotal / 1900) && (
+                      <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-600 font-semibold leading-relaxed">
+                        Insufficient credit balance on AQA Event Card.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Delivery Status selector */}
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3 bg-slate-50/50 text-xs">
+                  <span className="font-semibold text-slate-700">Delivery Status</span>
+                  <label className="relative inline-flex items-center cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={delivered}
+                      onChange={(e) => setDelivered(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    <span className="ml-2.5 font-bold text-slate-800 min-w-[75px] text-right">
+                      {delivered ? "Delivered" : "Pending"}
+                    </span>
+                  </label>
                 </div>
 
                 {/* Sale Notes */}
@@ -764,7 +858,11 @@ export default function ProductsPage() {
                 <Button
                   onClick={handleCompleteSale}
                   loading={sellSubmitting}
-                  disabled={!selectedClient || cart.length === 0}
+                  disabled={
+                    !selectedClient ||
+                    cart.length === 0 ||
+                    (paymentMethod === "card" && (selectedClient.balance ?? 0) < (cartTotal / 1900))
+                  }
                   className="w-full py-3 mt-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl"
                 >
                   Record Sale

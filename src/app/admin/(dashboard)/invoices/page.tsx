@@ -1756,6 +1756,12 @@ export default function InvoicesPage() {
                         <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                           Purchased Items
                         </th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Delivery
+                        </th>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Method
+                        </th>
                         <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                           Amount
                         </th>
@@ -1770,11 +1776,21 @@ export default function InvoicesPage() {
                     <tbody className="divide-y divide-slate-100">
                       {salesList.map((inv) => {
                         let saleItems: { name: string; quantity: number; price: number }[] = [];
+                        let delivered = true;
+                        let paymentMethod = "cash";
                         if (inv.notes) {
                           try {
                             const parsed = JSON.parse(inv.notes);
-                            if (parsed.type === "sale" && Array.isArray(parsed.items)) {
-                              saleItems = parsed.items;
+                            if (parsed.type === "sale") {
+                              if (Array.isArray(parsed.items)) {
+                                saleItems = parsed.items;
+                              }
+                              if (parsed.delivered !== undefined) {
+                                delivered = parsed.delivered;
+                              }
+                              if (parsed.paymentMethod !== undefined) {
+                                paymentMethod = parsed.paymentMethod;
+                              }
                             }
                           } catch {
                             // fallback
@@ -1805,6 +1821,24 @@ export default function InvoicesPage() {
                               ) : (
                                 <div className="text-xs text-slate-600 italic">{inv.items}</div>
                               )}
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                delivered 
+                                  ? "bg-slate-100 text-slate-700" 
+                                  : "bg-orange-100 text-orange-700"
+                              }`}>
+                                {delivered ? "Delivered" : "Pending"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-left">
+                              <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                                paymentMethod === "card"
+                                  ? "bg-violet-100 text-violet-700"
+                                  : "bg-slate-100 text-slate-700"
+                              }`}>
+                                {paymentMethod === "card" ? "Event Card" : "Cash"}
+                              </span>
                             </td>
                             <td className="py-3.5 px-4 text-right font-black text-slate-900">{fmt(inv.amount)}</td>
                             <td className="py-3.5 px-4 text-center">
