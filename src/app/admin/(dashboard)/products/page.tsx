@@ -89,13 +89,15 @@ export default function ProductsPage() {
   async function loadSales() {
     setSalesLoading(true);
     try {
-      const res = await fetch("/api/admin/invoices?category=sale");
+      const res = await fetch("/api/admin/invoices");
       const data = await res.json();
+      let list = [];
       if (res.ok && Array.isArray(data)) {
-        setSalesList(data);
+        list = data;
       } else if (res.ok && data && Array.isArray(data.invoices)) {
-        setSalesList(data.invoices);
+        list = data.invoices;
       }
+      setSalesList(list.filter((inv: any) => inv.category === "sale"));
     } catch {
       // ignore
     } finally {
