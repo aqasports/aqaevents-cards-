@@ -36,9 +36,20 @@ export default function ReportsPage() {
       fetch("/api/admin/reports/summary").then((r) => r.json()),
       fetch("/api/admin/reports/analytics").then((r) => r.json()),
     ]).then(([redemptionsData, summaryData, analyticsData]) => {
-      setRedemptions(redemptionsData);
-      setSummary(summaryData);
-      setAnalytics(analyticsData);
+      setRedemptions(redemptionsData.map((r: any) => ({
+        ...r,
+        creditsUsed: Number(r.creditsUsed.toFixed(2))
+      })));
+      setSummary({
+        ...summaryData,
+        totalCreditsSold: Number(summaryData.totalCreditsSold.toFixed(2)),
+        totalCreditsUsed: Number(summaryData.totalCreditsUsed.toFixed(2)),
+      });
+      setAnalytics(analyticsData.map((d: any) => ({
+        ...d,
+        sales: Number(d.sales.toFixed(2)),
+        redemptions: Number(d.redemptions.toFixed(2)),
+      })));
       setLoading(false);
     });
   }, []);
@@ -99,7 +110,10 @@ export default function ReportsPage() {
     activityBreakdown[r.activity.id].count++;
     activityBreakdown[r.activity.id].credits += r.creditsUsed;
   }
-  const activityList = Object.values(activityBreakdown).sort((a, b) => b.count - a.count);
+  const activityList = Object.values(activityBreakdown).map((act) => ({
+    ...act,
+    credits: Number(act.credits.toFixed(2)),
+  })).sort((a, b) => b.count - a.count);
 
   function exportCSV() {
     const rows = [
@@ -148,7 +162,7 @@ export default function ReportsPage() {
             { label: "Credits sold", value: summary.totalCreditsSold, color: "text-[var(--success)]" },
             {
               label: "Credits remaining",
-              value: summary.totalCreditsSold - summary.totalCreditsUsed,
+              value: Number((summary.totalCreditsSold - summary.totalCreditsUsed).toFixed(2)),
               color: "text-[var(--foreground)]",
             },
           ].map((stat) => (
