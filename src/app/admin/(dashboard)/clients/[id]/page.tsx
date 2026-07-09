@@ -775,7 +775,7 @@ export default function ClientDetailPage() {
                 ? "text-[var(--warning)]"
                 : "text-[var(--success)]"
             }`}>
-              {client.balance}
+              {Number(client.balance.toFixed(2))}
             </span>
             <span className="text-xs text-[var(--muted)] font-medium">activities</span>
           </div>
@@ -1330,7 +1330,7 @@ export default function ClientDetailPage() {
                           <div className="flex items-center justify-between gap-4 shrink-0 mt-2 md:mt-0">
                             <Badge tone={entry.delta > 0 ? "success" : "default"}>
                               {entry.delta > 0 ? "+" : ""}
-                              {entry.delta}
+                              {Number(entry.delta.toFixed(2))}
                             </Badge>
                             <div className="flex items-center gap-1.5">
                               <Button

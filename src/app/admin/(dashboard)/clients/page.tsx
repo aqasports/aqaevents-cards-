@@ -329,7 +329,7 @@ export default function ClientsPage() {
                             : "success"
                         }
                       >
-                        {client.balance} credit{client.balance !== 1 ? "s" : ""}
+                        {Number(client.balance.toFixed(2))} credit{Number(client.balance.toFixed(2)) !== 1 ? "s" : ""}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-[var(--muted)] whitespace-nowrap">

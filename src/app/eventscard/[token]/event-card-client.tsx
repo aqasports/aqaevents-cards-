@@ -127,6 +127,10 @@ export function EventCardClient({
 
   const total = totalAll > 0 ? totalAll : (balance > 0 ? balance : 1);
   const used = Math.max(0, total - balance);
+
+  const formattedBalance = Number(balance.toFixed(2));
+  const formattedTotal = Number(total.toFixed(2));
+  const formattedUsed = Number(used.toFixed(2));
   const percentage =
     total > 0
       ? Math.max(
@@ -244,11 +248,11 @@ export function EventCardClient({
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center leading-none text-center">
                         <span className="text-sm font-black text-white drop-shadow">
-                          {balance}
+                          {formattedBalance}
                         </span>
                         <div className="h-[0.5px] w-4 bg-white/20 my-0.5" />
                         <span className="text-[8px] font-bold text-white/50">
-                          {total}
+                          {formattedTotal}
                         </span>
                       </div>
                     </div>
@@ -348,21 +352,21 @@ export function EventCardClient({
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center leading-none text-center">
                     <span className="text-4xl font-black tracking-tight text-white drop-shadow">
-                      {balance}
+                      {formattedBalance}
                     </span>
                     <div className="h-[1.5px] w-8 bg-white/20 my-1.5" />
                     <span className="text-white/40 text-xs font-bold uppercase tracking-wider">
-                      {total}
+                      {formattedTotal}
                     </span>
                   </div>
                 </div>
 
                 <div className="text-center mt-5 space-y-1">
                   <h3 className="text-base font-bold text-white tracking-wide">
-                    {balance} / {total} {balance === 1 ? t("oneRemaining") : t("remaining")}
+                    {formattedBalance} / {formattedTotal} {formattedBalance === 1 ? t("oneRemaining") : t("remaining")}
                   </h3>
                   <p className="text-xs text-white/50">
-                    {used} {t("used")} · {t("usedProgress")} ({100 - percentage}% {t("used")})
+                    {formattedUsed} {t("used")} · {t("usedProgress")} ({100 - percentage}% {t("used")})
                   </p>
                 </div>
 
