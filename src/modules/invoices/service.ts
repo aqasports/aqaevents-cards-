@@ -836,29 +836,175 @@ export class ProductsService {
   private reportingRepo = new ReportingRepository();
 
   async getProducts() {
-    return this.productsRepo.findProductMany({
+    const products = await this.productsRepo.findProductMany({
       orderBy: [
         { active: "desc" },
         { sortOrder: "asc" },
         { createdAt: "desc" },
       ],
     });
+
+    const salesInvoices = await prisma.invoice.findMany({
+      where: {
+        category: "sale",
+        status: { in: ["paid", "unpaid"] },
+      },
+      select: {
+        notes: true,
+      },
+    });
+
+    const soldCounts: Record<string, number> = {};
+    for (const inv of salesInvoices) {
+      if (inv.notes) {
+        try {
+          const parsed = JSON.parse(inv.notes);
+          if (parsed.type === "sale" && Array.isArray(parsed.items)) {
+            for (const item of parsed.items) {
+              if (item.productId && typeof item.quantity === "number") {
+                soldCounts[item.productId] = (soldCounts[item.productId] || 0) + item.quantity;
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    return products.map((p: any) => {
+      const soldCount = soldCounts[p.id] || 0;
+      let stockLimit = 0;
+      let descriptionText = p.description || "";
+      if (p.description && p.description.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(p.description);
+          stockLimit = parsed.stockLimit ?? 0;
+          descriptionText = parsed.text ?? "";
+        } catch {
+          // ignore
+        }
+      }
+      return {
+        ...p,
+        soldCount,
+        stockLimit,
+        descriptionText,
+      };
+    });
   }
 
   async getAdvertisedProducts() {
-    return this.productsRepo.findProductMany({
+    const products = await this.productsRepo.findProductMany({
       where: { active: true, advertised: true },
       orderBy: [
         { sortOrder: "asc" },
         { createdAt: "desc" },
       ],
     });
+
+    const salesInvoices = await prisma.invoice.findMany({
+      where: {
+        category: "sale",
+        status: { in: ["paid", "unpaid"] },
+      },
+      select: {
+        notes: true,
+      },
+    });
+
+    const soldCounts: Record<string, number> = {};
+    for (const inv of salesInvoices) {
+      if (inv.notes) {
+        try {
+          const parsed = JSON.parse(inv.notes);
+          if (parsed.type === "sale" && Array.isArray(parsed.items)) {
+            for (const item of parsed.items) {
+              if (item.productId && typeof item.quantity === "number") {
+                soldCounts[item.productId] = (soldCounts[item.productId] || 0) + item.quantity;
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    return products.map((p: any) => {
+      const soldCount = soldCounts[p.id] || 0;
+      let stockLimit = 0;
+      let descriptionText = p.description || "";
+      if (p.description && p.description.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(p.description);
+          stockLimit = parsed.stockLimit ?? 0;
+          descriptionText = parsed.text ?? "";
+        } catch {
+          // ignore
+        }
+      }
+      return {
+        ...p,
+        soldCount,
+        stockLimit,
+        descriptionText,
+      };
+    });
   }
 
   async getProduct(id: string) {
-    return this.productsRepo.findProductUnique({
+    const p = await this.productsRepo.findProductUnique({
       where: { id },
     });
+    if (!p) return null;
+
+    const salesInvoices = await prisma.invoice.findMany({
+      where: {
+        category: "sale",
+        status: { in: ["paid", "unpaid"] },
+      },
+      select: {
+        notes: true,
+      },
+    });
+
+    let soldCount = 0;
+    for (const inv of salesInvoices) {
+      if (inv.notes) {
+        try {
+          const parsed = JSON.parse(inv.notes);
+          if (parsed.type === "sale" && Array.isArray(parsed.items)) {
+            for (const item of parsed.items) {
+              if (item.productId === id && typeof item.quantity === "number") {
+                soldCount += item.quantity;
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    let stockLimit = 0;
+    let descriptionText = p.description || "";
+    if (p.description && p.description.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(p.description);
+        stockLimit = parsed.stockLimit ?? 0;
+        descriptionText = parsed.text ?? "";
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      ...p,
+      soldCount,
+      stockLimit,
+      descriptionText,
+    };
   }
 
   async createProduct(

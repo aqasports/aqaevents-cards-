@@ -20,6 +20,9 @@ type Product = {
   advertised: boolean;
   active: boolean;
   sortOrder: number;
+  soldCount?: number;
+  stockLimit?: number;
+  descriptionText?: string;
 };
 
 export default function ProductsPage() {
@@ -30,7 +33,7 @@ export default function ProductsPage() {
   const [newSortOrder, setNewSortOrder] = useState(1);
 
   // View mode tab state
-  const [viewMode, setViewMode] = useState<"catalog" | "sell">("catalog");
+  const [viewMode, setViewMode] = useState<"catalog" | "sell" | "sales">("catalog");
 
   // Sell POS States
   const [clientSearch, setClientSearch] = useState("");
@@ -47,6 +50,8 @@ export default function ProductsPage() {
   const [saleNotes, setSaleNotes] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [sellSubmitting, setSellSubmitting] = useState(false);
+  const [salesList, setSalesList] = useState<any[]>([]);
+  const [salesLoading, setSalesLoading] = useState(false);
 
   // Inline editing states
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,6 +61,8 @@ export default function ProductsPage() {
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editAdvertised, setEditAdvertised] = useState(true);
   const [editSortOrder, setEditSortOrder] = useState(1);
+  const [editStockLimit, setEditStockLimit] = useState(0);
+  const [editDescriptionText, setEditDescriptionText] = useState("");
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [orderingId, setOrderingId] = useState<string | null>(null);
@@ -78,6 +85,29 @@ export default function ProductsPage() {
       setLoading(false);
     }
   }
+
+  async function loadSales() {
+    setSalesLoading(true);
+    try {
+      const res = await fetch("/api/admin/invoices?category=sale");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setSalesList(data);
+      } else if (res.ok && data && Array.isArray(data.invoices)) {
+        setSalesList(data.invoices);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSalesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (viewMode === "sales") {
+      loadSales();
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     loadProducts();
@@ -111,10 +141,20 @@ export default function ProductsPage() {
   function addToCart(product: Product) {
     setCart((current) => {
       const existing = current.find((item) => item.product.id === product.id);
+      const remainingStock = product.stockLimit && product.stockLimit > 0
+        ? Math.max(0, product.stockLimit - (product.soldCount || 0))
+        : null;
+
       if (existing) {
+        if (remainingStock !== null && existing.quantity >= remainingStock) {
+          return current;
+        }
         return current.map((item) =>
           item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
+      }
+      if (remainingStock !== null && remainingStock <= 0) {
+        return current;
       }
       return [...current, { product, quantity: 1 }];
     });
@@ -126,6 +166,12 @@ export default function ProductsPage() {
         .map((item) => {
           if (item.product.id === productId) {
             const newQty = item.quantity + delta;
+            const remainingStock = item.product.stockLimit && item.product.stockLimit > 0
+              ? Math.max(0, item.product.stockLimit - (item.product.soldCount || 0))
+              : null;
+            if (remainingStock !== null && newQty > remainingStock) {
+              return item;
+            }
             return { ...item, quantity: newQty };
           }
           return item;
@@ -148,6 +194,20 @@ export default function ProductsPage() {
     if (cart.length === 0) {
       setMessage({ text: "Cart is empty.", tone: "danger" });
       return;
+    }
+
+    // Validate stock levels before proceeding
+    for (const item of cart) {
+      if (item.product.stockLimit && item.product.stockLimit > 0) {
+        const remainingStock = Math.max(0, item.product.stockLimit - (item.product.soldCount || 0));
+        if (item.quantity > remainingStock) {
+          setMessage({
+            text: `Insufficient stock for ${item.product.name}. Only ${remainingStock} items left in stock.`,
+            tone: "danger"
+          });
+          return;
+        }
+      }
     }
 
     if (paymentMethod === "card") {
@@ -229,13 +289,17 @@ export default function ProductsPage() {
     setMessage(null);
 
     const formData = new FormData(event.currentTarget);
+    const stockLimit = Number(formData.get("stockLimit")) || 0;
+    const text = formData.get("descriptionText") as string || "";
+    const description = JSON.stringify({ stockLimit, text });
+
     const res = await fetch("/api/admin/products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: formData.get("name"),
         price: Number(formData.get("price")),
-        description: formData.get("description") || null,
+        description,
         imageUrl: formData.get("imageUrl") || null,
         advertised: formData.get("advertised") === "true",
         sortOrder: Number(formData.get("sortOrder")) || 0,
@@ -259,13 +323,15 @@ export default function ProductsPage() {
     setEditSubmitting(true);
     setMessage(null);
 
+    const description = JSON.stringify({ stockLimit: editStockLimit, text: editDescriptionText });
+
     const res = await fetch(`/api/admin/products/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: editName,
         price: editPrice,
-        description: editDescription || null,
+        description,
         imageUrl: editImageUrl || null,
         advertised: editAdvertised,
         sortOrder: editSortOrder,
@@ -360,7 +426,8 @@ export default function ProductsPage() {
     setEditingId(product.id);
     setEditName(product.name);
     setEditPrice(product.price);
-    setEditDescription(product.description || "");
+    setEditStockLimit(product.stockLimit || 0);
+    setEditDescriptionText(product.descriptionText || product.description || "");
     setEditImageUrl(product.imageUrl || "");
     setEditAdvertised(product.advertised);
     setEditSortOrder(product.sortOrder);
@@ -408,6 +475,19 @@ export default function ProductsPage() {
         >
           Record a Sale (Store POS)
         </button>
+        <button
+          onClick={() => {
+            setViewMode("sales");
+            setMessage(null);
+          }}
+          className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 -mb-px transition ${
+            viewMode === "sales"
+              ? "border-blue-600 text-blue-600 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Sales History Log
+        </button>
       </div>
 
       {message && (
@@ -440,8 +520,16 @@ export default function ProductsPage() {
                 />
                 <Input
                   label="Description"
-                  name="description"
+                  name="descriptionText"
                   placeholder="e.g. Anti-fog, UV protection"
+                />
+                <Input
+                  label="Stock Limit"
+                  name="stockLimit"
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 50 (0 for unlimited)"
+                  defaultValue={0}
                 />
                 <Input
                   label="Image URL (Optional)"
@@ -524,8 +612,15 @@ export default function ProductsPage() {
                               />
                               <Input
                                 label="Description"
-                                value={editDescription}
-                                onChange={(e) => setEditDescription(e.target.value)}
+                                value={editDescriptionText}
+                                onChange={(e) => setEditDescriptionText(e.target.value)}
+                              />
+                              <Input
+                                label="Stock Limit"
+                                type="number"
+                                min={0}
+                                value={editStockLimit}
+                                onChange={(e) => setEditStockLimit(Number(e.target.value) || 0)}
                               />
                               <Input
                                 label="Image URL"
@@ -918,34 +1013,196 @@ export default function ProductsPage() {
               }
               return (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {filteredProducts.map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={() => addToCart(p)}
-                      className="flex flex-col justify-between cursor-pointer rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)] hover:border-blue-500 hover:shadow-md hover:scale-[1.01] transition duration-200"
-                    >
-                      <div className="space-y-2">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 font-bold shrink-0">
-                          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                          </svg>
+                  {filteredProducts.map((p) => {
+                    const remainingStock = p.stockLimit && p.stockLimit > 0 
+                      ? Math.max(0, p.stockLimit - (p.soldCount || 0)) 
+                      : null;
+                    const inCartCount = cart.find(item => item.product.id === p.id)?.quantity || 0;
+                    const available = remainingStock !== null ? Math.max(0, remainingStock - inCartCount) : 99999;
+                    const isOutOfStock = remainingStock !== null && remainingStock <= 0;
+                    const isCartLimitReached = remainingStock !== null && available <= 0;
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => {
+                          if (isCartLimitReached) return;
+                          addToCart(p);
+                        }}
+                        className={`flex flex-col justify-between rounded-2xl border bg-[var(--surface)] p-4 shadow-[var(--shadow-sm)] transition duration-200 ${
+                          isCartLimitReached
+                            ? "border-slate-100 opacity-60 cursor-not-allowed"
+                            : "border-[var(--border)] cursor-pointer hover:border-blue-500 hover:shadow-md hover:scale-[1.01]"
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 font-bold shrink-0">
+                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                              </svg>
+                            </div>
+                            {remainingStock !== null ? (
+                              remainingStock === 0 ? (
+                                <Badge tone="danger" size="sm">Out of Stock</Badge>
+                              ) : remainingStock <= 5 ? (
+                                <Badge tone="warning" size="sm">Low Stock ({remainingStock})</Badge>
+                              ) : (
+                                <Badge tone="default" size="sm">Stock: {remainingStock}</Badge>
+                              )
+                            ) : (
+                              <Badge tone="default" size="sm">Unlimited</Badge>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-slate-800 text-sm line-clamp-1">{p.name}</h4>
+                            <p className="text-xs text-[var(--muted)] mt-0.5 line-clamp-2 h-8">{p.descriptionText || p.description || "No description"}</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-bold text-slate-800 text-sm line-clamp-1">{p.name}</h4>
-                          <p className="text-xs text-[var(--muted)] mt-0.5 line-clamp-2 h-8">{p.description || "No description"}</p>
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-50 mt-3 shrink-0">
+                          <span className="font-black text-[var(--foreground)] text-sm">{p.price.toLocaleString()} DA</span>
+                          <span className={`text-xs font-bold transition ${
+                            isCartLimitReached ? "text-slate-400" : "text-blue-600 hover:text-blue-700"
+                          }`}>
+                            {isOutOfStock ? "Out of Stock" : isCartLimitReached ? "Limit Reached" : "+ Add to Cart"}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between pt-3 border-t border-slate-50 mt-3 shrink-0">
-                        <span className="font-black text-[var(--foreground)] text-sm">{p.price.toLocaleString()} DA</span>
-                        <span className="text-xs font-bold text-blue-600 hover:text-blue-700 transition">+ Add to Cart</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               );
             })()}
           </div>
         </div>
+      )}
+
+      {/* Sales History Log Mode */}
+      {viewMode === "sales" && (
+        <Card className="p-0 overflow-hidden">
+          <div className="border-b border-slate-200 bg-slate-50/50 px-6 py-4 flex items-center justify-between">
+            <h3 className="font-bold text-slate-800 text-sm">Store Sales History Log</h3>
+            <Button variant="secondary" size="sm" onClick={loadSales} loading={salesLoading}>
+              Refresh Sales
+            </Button>
+          </div>
+          {salesLoading ? (
+            <p className="py-8 text-center text-sm text-[var(--muted)]">Loading sales history...</p>
+          ) : salesList.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[var(--muted)]">No sales recorded yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Invoice
+                    </th>
+                    <th className="text-left py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Client
+                    </th>
+                    <th className="text-left py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Purchased Items
+                    </th>
+                    <th className="text-center py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Delivery
+                    </th>
+                    <th className="text-left py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Method
+                    </th>
+                    <th className="text-right py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Amount
+                    </th>
+                    <th className="text-center py-3 px-6 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {salesList.map((inv: any) => {
+                    let saleItems: { name: string; quantity: number; price: number }[] = [];
+                    let delivered = true;
+                    let paymentMethod = "cash";
+                    if (inv.notes) {
+                      try {
+                        const parsed = JSON.parse(inv.notes);
+                        if (parsed.type === "sale") {
+                          if (Array.isArray(parsed.items)) {
+                            saleItems = parsed.items;
+                          }
+                          if (parsed.delivered !== undefined) {
+                            delivered = parsed.delivered;
+                          }
+                          if (parsed.paymentMethod !== undefined) {
+                            paymentMethod = parsed.paymentMethod;
+                          }
+                        }
+                      } catch {
+                        // fallback
+                      }
+                    }
+
+                    return (
+                      <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="py-3.5 px-6 font-mono text-xs text-slate-700">
+                          <div className="font-bold">{inv.invoiceCode}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {new Date(inv.createdAt).toLocaleString()}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-6">
+                          <div className="font-bold text-slate-800">{inv.client.fullName}</div>
+                          {inv.client.phone && <div className="text-[10px] text-slate-400 mt-0.5">{inv.client.phone}</div>}
+                        </td>
+                        <td className="py-3.5 px-6">
+                          {saleItems.length > 0 ? (
+                            <div className="space-y-1">
+                              {saleItems.map((item, idx) => (
+                                <div key={idx} className="text-xs text-slate-600 flex items-center gap-1.5">
+                                  <span className="font-bold text-slate-800">{item.name}</span>
+                                  <span className="text-slate-400 font-semibold">x{item.quantity}</span>
+                                  <span className="text-[10px] text-slate-400 font-medium">({item.price.toLocaleString()} DA)</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-slate-600 italic">{inv.items}</div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-6 text-center">
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                            delivered 
+                              ? "bg-slate-100 text-slate-700" 
+                              : "bg-orange-100 text-orange-700"
+                          }`}>
+                            {delivered ? "Delivered" : "Pending"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-6 text-left">
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                            paymentMethod === "card"
+                              ? "bg-violet-100 text-violet-700"
+                              : "bg-slate-100 text-slate-700"
+                          }`}>
+                            {paymentMethod === "card" ? "Event Card" : "Cash"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-6 text-right font-black text-slate-900">
+                          {inv.amount.toLocaleString()} DA
+                        </td>
+                        <td className="py-3.5 px-6 text-center">
+                          <span className="inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide bg-emerald-100 text-emerald-800">
+                            {inv.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
       )}
     </div>
   );
@@ -992,10 +1249,25 @@ function ProductRow({
             {product.advertised && product.active && (
               <Badge tone="success" size="sm">Advertised</Badge>
             )}
+            {product.active && (() => {
+              if (product.stockLimit && product.stockLimit > 0) {
+                const sold = product.soldCount || 0;
+                const remaining = Math.max(0, product.stockLimit - sold);
+                if (remaining === 0) {
+                  return <Badge tone="danger" size="sm">Out of Stock</Badge>;
+                } else if (remaining <= 5) {
+                  return <Badge tone="warning" size="sm">Low Stock: {remaining} left</Badge>;
+                } else {
+                  return <Badge tone="default" size="sm">Stock: {remaining} / {product.stockLimit}</Badge>;
+                }
+              } else {
+                return <Badge tone="default" size="sm">Stock: Unlimited</Badge>;
+              }
+            })()}
             {!product.active && <Badge tone="default" size="sm">Archived</Badge>}
           </div>
           <p className="text-xs text-[var(--muted)]">
-            {product.description || "No description"}
+            {product.descriptionText || product.description || "No description"}
             {" · "}
             <span className="font-bold text-[var(--foreground)]">{product.price.toLocaleString()} DA</span>
           </p>
