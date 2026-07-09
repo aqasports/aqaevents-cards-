@@ -175,7 +175,7 @@ export class BillingService {
             const parsed = JSON.parse(data.notes);
             if (parsed.type === "sale" && parsed.paymentMethod === "card") {
               isCardPayment = true;
-              cardCreditsToDeduct = data.amount / 1900;
+              cardCreditsToDeduct = parsed.creditsDeducted ?? (Math.floor((data.amount / 1900) * 100) / 100);
             }
           } catch {
             // ignore
@@ -297,7 +297,7 @@ export class BillingService {
                   },
                 });
               } else if (metadata && metadata.type === "sale" && metadata.paymentMethod === "card") {
-                const cardCreditsToDeduct = invoice.amount / 1900;
+                const cardCreditsToDeduct = metadata.creditsDeducted ?? (Math.floor((invoice.amount / 1900) * 100) / 100);
                 const currentBalance = await getClientBalance(invoice.clientId, tx);
                 if (currentBalance < cardCreditsToDeduct) {
                   throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
@@ -352,7 +352,7 @@ export class BillingService {
             try {
               const parsed = JSON.parse(invoice.notes);
               if (parsed.type === "sale" && parsed.paymentMethod === "card") {
-                const cardCreditsToRefund = invoice.amount / 1900;
+                const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / 1900) * 100) / 100);
                 const activeCard = invoice.client.cards[0];
                 await tx.ledgerEntry.create({
                   data: {
@@ -410,7 +410,7 @@ export class BillingService {
         try {
           const parsed = JSON.parse(invoice.notes);
           if (parsed.type === "sale" && parsed.paymentMethod === "card") {
-            const cardCreditsToRefund = invoice.amount / 1900;
+            const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / 1900) * 100) / 100);
             const activeCard = invoice.client.cards[0] ?? null;
             await tx.ledgerEntry.create({
               data: {

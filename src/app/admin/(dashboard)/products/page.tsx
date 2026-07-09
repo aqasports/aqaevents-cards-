@@ -151,7 +151,7 @@ export default function ProductsPage() {
     }
 
     if (paymentMethod === "card") {
-      const creditsNeeded = cartTotal / 1900;
+      const creditsNeeded = Math.floor((cartTotal / 1900) * 100) / 100;
       const clientBalance = selectedClient.balance ?? 0;
       if (clientBalance < creditsNeeded) {
         setMessage({
@@ -169,6 +169,7 @@ export default function ProductsPage() {
       .map((item) => `${item.product.name} (x${item.quantity})`)
       .join(", ");
 
+    const creditsDeducted = paymentMethod === "card" ? Math.floor((cartTotal / 1900) * 100) / 100 : undefined;
     const saleNotesJson = JSON.stringify({
       type: "sale",
       items: cart.map((item) => ({
@@ -179,6 +180,7 @@ export default function ProductsPage() {
       })),
       paymentMethod,
       delivered,
+      creditsDeducted,
       originalNotes: saleNotes,
     });
 
@@ -803,29 +805,33 @@ export default function ProductsPage() {
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3 text-xs space-y-2">
-                    <div className="flex justify-between items-center text-slate-700 font-medium">
-                      <span>Equivalent Credits to Deduct:</span>
-                      <span className="font-bold text-violet-700">{(cartTotal / 1900).toFixed(2)} credits</span>
+                ) : (() => {
+                  const creditsNeeded = Math.floor((cartTotal / 1900) * 100) / 100;
+                  const balance = selectedClient?.balance ?? 0;
+                  return (
+                    <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3 text-xs space-y-2">
+                      <div className="flex justify-between items-center text-slate-700 font-medium">
+                        <span>Equivalent Credits to Deduct:</span>
+                        <span className="font-bold text-violet-700">{creditsNeeded.toFixed(2)} credits</span>
+                      </div>
+                      {selectedClient && (
+                        <div className="flex justify-between items-center text-slate-500">
+                          <span>Client Credit Balance:</span>
+                          <span className={`font-bold ${
+                            balance < creditsNeeded ? "text-red-600" : "text-slate-700"
+                          }`}>
+                            {balance.toFixed(2)} credits
+                          </span>
+                        </div>
+                      )}
+                      {selectedClient && balance < creditsNeeded && (
+                        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-600 font-semibold leading-relaxed">
+                          Insufficient credit balance on AQA Event Card.
+                        </div>
+                      )}
                     </div>
-                    {selectedClient && (
-                      <div className="flex justify-between items-center text-slate-500">
-                        <span>Client Credit Balance:</span>
-                        <span className={`font-bold ${
-                          (selectedClient.balance ?? 0) < (cartTotal / 1900) ? "text-red-600" : "text-slate-700"
-                        }`}>
-                          {(selectedClient.balance ?? 0).toFixed(2)} credits
-                        </span>
-                      </div>
-                    )}
-                    {selectedClient && (selectedClient.balance ?? 0) < (cartTotal / 1900) && (
-                      <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-600 font-semibold leading-relaxed">
-                        Insufficient credit balance on AQA Event Card.
-                      </div>
-                    )}
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* Delivery Status selector */}
                 <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3 bg-slate-50/50 text-xs">

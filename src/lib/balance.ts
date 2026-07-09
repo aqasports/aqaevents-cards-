@@ -6,7 +6,8 @@ export async function getClientBalance(clientId: string, tx?: any): Promise<numb
     where: { clientId },
     _sum: { delta: true },
   });
-  return result._sum.delta ?? 0;
+  const rawBalance = result._sum.delta ?? 0;
+  return Math.ceil(rawBalance * 100) / 100;
 }
 
 export async function getClientBalances(
@@ -21,6 +22,9 @@ export async function getClientBalances(
   });
 
   return new Map(
-    entries.map((entry) => [entry.clientId, entry._sum.delta ?? 0]),
+    entries.map((entry) => [
+      entry.clientId,
+      Math.ceil((entry._sum.delta ?? 0) * 100) / 100
+    ]),
   );
 }
