@@ -568,6 +568,12 @@ export default function ActivityDetailPage() {
   const [addingExpenseForSession, setAddingExpenseForSession] = useState<{ [sessionId: string]: boolean }>({});
   const [deletingSessionExpenseId, setDeletingSessionExpenseId] = useState<string | null>(null);
 
+  // Session Expense inline editing states
+  const [editingSessionExpenseId, setEditingSessionExpenseId] = useState<string | null>(null);
+  const [editingSessionExpenseQty, setEditingSessionExpenseQty] = useState<string>("");
+  const [editingSessionExpenseAmount, setEditingSessionExpenseAmount] = useState<string>("");
+  const [savingSessionExpenseId, setSavingSessionExpenseId] = useState<string | null>(null);
+
   // Clubs and Check-ins states
   const [clubs, setClubs] = useState<any[]>([]);
   const [sessionCheckIns, setSessionCheckIns] = useState<{ [sessionId: string]: any[] }>({});
@@ -930,6 +936,60 @@ export default function ActivityDetailPage() {
       setMessage({ text: "Failed to remove session expense.", tone: "danger" });
     } finally {
       setDeletingSessionExpenseId(null);
+    }
+  }
+
+  function startEditSessionExpense(exp: any) {
+    setEditingSessionExpenseId(exp.id);
+    setEditingSessionExpenseQty(exp.quantity.toString());
+    setEditingSessionExpenseAmount(exp.amount.toString());
+  }
+
+  function cancelEditSessionExpense() {
+    setEditingSessionExpenseId(null);
+    setEditingSessionExpenseQty("");
+    setEditingSessionExpenseAmount("");
+  }
+
+  async function handleUpdateSessionExpense(sessionId: string, sessionExpenseId: string) {
+    const qty = parseFloat(editingSessionExpenseQty);
+    const amount = parseInt(editingSessionExpenseAmount);
+
+    if (isNaN(qty) || qty <= 0) {
+      setMessage({ text: "Quantity must be a positive number.", tone: "danger" });
+      return;
+    }
+    if (isNaN(amount) || amount < 0) {
+      setMessage({ text: "Total cost must be a non-negative number.", tone: "danger" });
+      return;
+    }
+
+    setSavingSessionExpenseId(sessionExpenseId);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}/expenses/${sessionExpenseId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          quantity: qty,
+          amount: amount,
+        }),
+      });
+
+      if (res.ok) {
+        setMessage({ text: "Session expense updated successfully.", tone: "success" });
+        cancelEditSessionExpense();
+        await loadActivityData();
+      } else {
+        const errData = await res.json();
+        setMessage({ text: errData.error || "Failed to update session expense.", tone: "danger" });
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage({ text: "Failed to update session expense.", tone: "danger" });
+    } finally {
+      setSavingSessionExpenseId(null);
     }
   }
 
@@ -1441,26 +1501,92 @@ export default function ActivityDetailPage() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-[var(--border)]">
-                                {session.sessionExpenses.map((exp) => (
-                                  <tr key={exp.id} className="hover:bg-slate-50/50">
-                                    <td className="px-3 py-2 font-medium text-slate-800">{exp.activityExpense.name}</td>
-                                    <td className="px-3 py-2 text-right text-slate-500">
-                                      {exp.activityExpense.amount > 0 ? `${exp.activityExpense.amount.toLocaleString()} DA` : "Variable"}
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-slate-600">{exp.quantity}</td>
-                                    <td className="px-3 py-2 text-right font-semibold text-slate-900">{exp.amount.toLocaleString()} DA</td>
-                                    <td className="px-3 py-2 text-right">
-                                      <button
-                                        type="button"
-                                        disabled={deletingSessionExpenseId === exp.id}
-                                        onClick={() => handleDeleteSessionExpense(session.id, exp.id)}
-                                        className="text-red-500 hover:text-red-700 font-semibold disabled:opacity-50"
-                                      >
-                                        Delete
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
+                                {session.sessionExpenses.map((exp) => {
+                                  const isEditing = editingSessionExpenseId === exp.id;
+                                  return (
+                                    <tr key={exp.id} className="hover:bg-slate-50/50">
+                                      <td className="px-3 py-2 font-medium text-slate-800">{exp.activityExpense.name}</td>
+                                      <td className="px-3 py-2 text-right text-slate-500">
+                                        {exp.activityExpense.amount > 0 ? `${exp.activityExpense.amount.toLocaleString()} DA` : "Variable"}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        {isEditing ? (
+                                          <input
+                                            type="number"
+                                            min="0.01"
+                                            step="any"
+                                            value={editingSessionExpenseQty}
+                                            onChange={(e) => {
+                                              const newQty = e.target.value;
+                                              setEditingSessionExpenseQty(newQty);
+                                              if (exp.activityExpense.amount > 0) {
+                                                const parsedQty = parseFloat(newQty);
+                                                if (!isNaN(parsedQty)) {
+                                                  setEditingSessionExpenseAmount(Math.round(parsedQty * exp.activityExpense.amount).toString());
+                                                }
+                                              }
+                                            }}
+                                            className="w-16 rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-1.5 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                                          />
+                                        ) : (
+                                          <span className="text-slate-600">{exp.quantity}</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        {isEditing ? (
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={editingSessionExpenseAmount}
+                                            onChange={(e) => setEditingSessionExpenseAmount(e.target.value)}
+                                            className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[var(--primary)] font-semibold"
+                                          />
+                                        ) : (
+                                          <span className="font-semibold text-slate-900">{exp.amount.toLocaleString()} DA</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2 text-right">
+                                        {isEditing ? (
+                                          <div className="flex justify-end gap-2">
+                                            <button
+                                              type="button"
+                                              disabled={savingSessionExpenseId === exp.id}
+                                              onClick={() => handleUpdateSessionExpense(session.id, exp.id)}
+                                              className="text-emerald-600 hover:text-emerald-800 font-semibold disabled:opacity-50"
+                                            >
+                                              {savingSessionExpenseId === exp.id ? "Saving..." : "Save"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={cancelEditSessionExpense}
+                                              className="text-slate-500 hover:text-slate-700 font-semibold"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex justify-end gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => startEditSessionExpense(exp)}
+                                              className="text-blue-600 hover:text-blue-800 font-semibold"
+                                            >
+                                              Edit
+                                            </button>
+                                            <button
+                                              type="button"
+                                              disabled={deletingSessionExpenseId === exp.id}
+                                              onClick={() => handleDeleteSessionExpense(session.id, exp.id)}
+                                              className="text-red-500 hover:text-red-700 font-semibold disabled:opacity-50"
+                                            >
+                                              Delete
+                                            </button>
+                                          </div>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

@@ -62,3 +62,8 @@ export const createSessionExpenseSchema = z.object({
   quantity: z.number().nonnegative().default(1),
   amount: z.number().int().nonnegative().optional(), // Entered override amount or calculated amount
 });
+
+export const updateSessionExpenseSchema = z.object({
+  quantity: z.number().nonnegative().optional(),
+  amount: z.number().int().nonnegative().optional(),
+});

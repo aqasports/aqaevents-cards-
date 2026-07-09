@@ -74,8 +74,16 @@ export class ActivitiesRepository {
     return this.db(tx).sessionExpense.findMany(args);
   }
 
+  async findSessionExpenseUnique(args: Prisma.SessionExpenseFindUniqueArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).sessionExpense.findUnique(args);
+  }
+
   async createSessionExpense(args: Prisma.SessionExpenseCreateArgs, tx?: Prisma.TransactionClient): Promise<any> {
     return this.db(tx).sessionExpense.create(args);
+  }
+
+  async updateSessionExpense(args: Prisma.SessionExpenseUpdateArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).sessionExpense.update(args);
   }
 
   async deleteSessionExpense(args: Prisma.SessionExpenseDeleteArgs, tx?: Prisma.TransactionClient): Promise<any> {

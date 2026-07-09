@@ -321,6 +321,33 @@ export class ActivitiesService {
     });
   }
 
+  async updateSessionExpense(id: string, data: { quantity?: number; amount?: number }) {
+    let finalAmount = data.amount;
+    if (finalAmount === undefined || finalAmount === null) {
+      const sessionExpense = await this.activitiesRepo.findSessionExpenseUnique({
+        where: { id },
+        include: { activityExpense: true },
+      });
+      if (sessionExpense) {
+        const qty = data.quantity !== undefined ? data.quantity : sessionExpense.quantity;
+        const templateAmount = sessionExpense.activityExpense.amount;
+        if (templateAmount > 0) {
+          finalAmount = Math.round(qty * templateAmount);
+        } else {
+          finalAmount = sessionExpense.amount;
+        }
+      }
+    }
+
+    return this.activitiesRepo.updateSessionExpense({
+      where: { id },
+      data: {
+        quantity: data.quantity,
+        amount: finalAmount,
+      },
+    });
+  }
+
   async deleteSessionExpense(id: string) {
     return this.activitiesRepo.deleteSessionExpense({
       where: { id },
