@@ -223,10 +223,33 @@ export default function ClientDetailPage() {
     loadClient();
     fetch("/api/admin/packages")
       .then((r) => r.json())
-      .then((data) => setPackages(data.filter((p: Package & { active: boolean }) => p.active)));
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setPackages(data.filter((p: Package & { active: boolean }) => p.active));
+        } else {
+          console.error("Packages response is not an array:", data);
+          setPackages([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching packages:", err);
+        setPackages([]);
+      });
+
     fetch("/api/admin/activities?redeemable=true")
       .then((r) => r.json())
-      .then((data) => setActivities(data.filter((a: any) => a.active)));
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setActivities(data.filter((a: any) => a.active));
+        } else {
+          console.error("Activities response is not an array:", data);
+          setActivities([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching activities:", err);
+        setActivities([]);
+      });
   }, [loadClient]);
 
   async function handleRedeemActivity(e?: FormEvent<HTMLFormElement>, creditsUsed?: number) {

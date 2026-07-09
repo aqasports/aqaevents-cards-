@@ -796,7 +796,18 @@ function CreateInvoiceModal({
   useEffect(() => {
     fetch("/api/admin/packages")
       .then((r) => r.json())
-      .then((data) => setPackages(data.filter((p: Package & { active: boolean }) => p.active)));
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setPackages(data.filter((p: Package & { active: boolean }) => p.active));
+        } else {
+          console.error("Packages response is not an array:", data);
+          setPackages([]);
+        }
+      })
+      .catch((err) => {
+        console.error("Error fetching packages:", err);
+        setPackages([]);
+      });
   }, []);
 
   useEffect(() => {
