@@ -35,7 +35,7 @@ type Invoice = {
   invoiceCode: string;
   amount: number;
   status: "paid" | "unpaid" | "refunded";
-  category: "package" | "custom" | "adhoc";
+  category: "package" | "custom" | "adhoc" | "sale";
   items: string;
   notes: string | null;
   paidAt: string | null;
@@ -120,6 +120,7 @@ const CAT_LABELS: Record<string, string> = {
   package: "Package",
   custom: "Custom Credits",
   adhoc: "Ad-hoc",
+  sale: "Store Sale",
 };
 
 // ─── Print Invoice Modal ───────────────────────────────────────────────────────
@@ -272,11 +273,34 @@ function PrintModal({ invoice, onClose }: { invoice: Invoice; onClose: () => voi
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-b border-slate-100">
-                    <td className="py-3 px-3">{invoice.items}</td>
-                    <td className="py-3 px-3 text-slate-500">{CAT_LABELS[invoice.category]}</td>
-                    <td className="py-3 px-3 text-right font-semibold">{fmt(invoice.amount)}</td>
-                  </tr>
+                  {(() => {
+                    if (invoice.category === "sale" && invoice.notes) {
+                      try {
+                        const parsed = JSON.parse(invoice.notes);
+                        if (parsed.type === "sale" && Array.isArray(parsed.items)) {
+                          return parsed.items.map((item: any, idx: number) => (
+                            <tr key={idx} className="border-b border-slate-100">
+                              <td className="py-3 px-3">
+                                <div className="font-semibold text-slate-800">{item.name}</div>
+                                <div className="text-xs text-slate-400">Unit Price: {fmt(item.price)}</div>
+                              </td>
+                              <td className="py-3 px-3 text-slate-500">Qty: {item.quantity}</td>
+                              <td className="py-3 px-3 text-right font-semibold">{fmt(item.price * item.quantity)}</td>
+                            </tr>
+                          ));
+                        }
+                      } catch {
+                        // ignore and fall back
+                      }
+                    }
+                    return (
+                      <tr className="border-b border-slate-100">
+                        <td className="py-3 px-3">{invoice.items}</td>
+                        <td className="py-3 px-3 text-slate-500">{CAT_LABELS[invoice.category]}</td>
+                        <td className="py-3 px-3 text-right font-semibold">{fmt(invoice.amount)}</td>
+                      </tr>
+                    );
+                  })()}
                   {invoice.notes && (
                     <tr>
                       <td colSpan={3} className="py-2 px-3 text-xs text-slate-400 italic">
@@ -331,7 +355,7 @@ function EditInvoiceModal({
   onSaved: () => void;
 }) {
   const [amount, setAmount] = useState(String(invoice.amount));
-  const [category, setCategory] = useState(invoice.category);
+  const [category, setCategory] = useState<"package" | "custom" | "adhoc" | "sale">(invoice.category);
   const [items, setItems] = useState(invoice.items);
   const [notes, setNotes] = useState(() => {
     const raw = invoice.notes ?? "";
@@ -430,12 +454,13 @@ function EditInvoiceModal({
             <Select
               label="Category"
               value={category}
-              onChange={(e) => setCategory(e.target.value as "package" | "custom" | "adhoc")}
+              onChange={(e) => setCategory(e.target.value as "package" | "custom" | "adhoc" | "sale")}
               required
             >
               <option value="package">Package</option>
               <option value="custom">Custom Credits</option>
               <option value="adhoc">Ad-hoc</option>
+              <option value="sale">Store Sale</option>
             </Select>
           </div>
 
@@ -1158,7 +1183,7 @@ function CreateInvoiceModal({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function InvoicesPage() {
-  const [tab, setTab] = useState<"invoices" | "expenses" | "bookkeeping">("invoices");
+  const [tab, setTab] = useState<"invoices" | "sales" | "expenses" | "bookkeeping">("invoices");
   
   // Invoice states
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -1257,7 +1282,7 @@ export default function InvoicesPage() {
   }, [loadInvoices]);
 
   useEffect(() => {
-    if (tab === "invoices") {
+    if (tab === "invoices" || tab === "sales") {
       loadInvoices();
     }
     if (tab === "expenses" || tab === "bookkeeping") {
@@ -1463,6 +1488,15 @@ export default function InvoicesPage() {
             )
           },
           {
+            id: "sales",
+            label: "Store Sales Log",
+            icon: (
+              <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+            )
+          },
+          {
             id: "expenses",
             label: "Operational Expenses",
             icon: (
@@ -1483,7 +1517,7 @@ export default function InvoicesPage() {
         ].map((t) => (
           <button
             key={t.id}
-            onClick={() => setTab(t.id as "invoices" | "expenses" | "bookkeeping")}
+            onClick={() => setTab(t.id as "invoices" | "sales" | "expenses" | "bookkeeping")}
             className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 -mb-px transition ${
               tab === t.id
                 ? "border-blue-600 text-blue-600"
@@ -1499,166 +1533,341 @@ export default function InvoicesPage() {
       {/* Tab Panels */}
 
       {/* ── Tab: Invoices ──────────────────────────────────────────────── */}
-      {tab === "invoices" && (
-        <div className="space-y-4">
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              type="text"
-              placeholder="Search client name or invoice code…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-            />
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 p-1 bg-slate-50">
-              {["all", "paid", "unpaid", "refunded"].map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`rounded-lg px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
-                    statusFilter === s
-                      ? "bg-white shadow text-slate-800 font-extrabold"
-                      : "text-slate-500 hover:text-slate-700"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+      {tab === "invoices" && (() => {
+        const nonSaleInvoices = invoices.filter((inv) => inv.category !== "sale");
+        return (
+          <div className="space-y-4">
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                placeholder="Search client name or invoice code…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+              <div className="flex items-center gap-1 rounded-xl border border-slate-200 p-1 bg-slate-50">
+                {["all", "paid", "unpaid", "refunded"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`rounded-lg px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                      statusFilter === s
+                        ? "bg-white shadow text-slate-800 font-extrabold"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Invoices List Table */}
+            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="h-8 w-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+                </div>
+              ) : nonSaleInvoices.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <svg className="h-12 w-12 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+                  </svg>
+                  <p className="font-semibold text-sm">No invoices found</p>
+                  <p className="text-xs mt-1">Create your first invoice to get started</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Invoice
+                        </th>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Client
+                        </th>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">
+                          Description
+                        </th>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">
+                          Category
+                        </th>
+                        <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {nonSaleInvoices.map((inv) => (
+                        <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="py-3.5 px-4 font-mono text-xs text-slate-700">
+                            <div className="font-bold">{inv.invoiceCode}</div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">{dateFmt(inv.createdAt)}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-800">{inv.client.fullName}</div>
+                            {inv.client.phone && <div className="text-[10px] text-slate-400 mt-0.5">{inv.client.phone}</div>}
+                          </td>
+                          <td className="py-3.5 px-4 hidden md:table-cell text-slate-600 max-w-xs truncate" title={inv.items}>
+                            {inv.items}
+                          </td>
+                          <td className="py-3.5 px-4 hidden sm:table-cell">
+                            <Badge tone="default">{CAT_LABELS[inv.category]}</Badge>
+                          </td>
+                          <td className="py-3.5 px-4 text-right font-black text-slate-900">{fmt(inv.amount)}</td>
+                          <td className="py-3.5 px-4 text-center">
+                            {inv.status === "refunded" ? (
+                              <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${STATUS_COLORS[inv.status]}`}>
+                                {inv.status}
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() =>
+                                  inv.status === "unpaid" ? markPaid(inv.id) : markRefunded(inv.id)
+                                }
+                                disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-refund"}
+                                title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to Refund"}
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide transition hover:opacity-80 active:scale-95 cursor-pointer ${STATUS_COLORS[inv.status]}`}
+                              >
+                                {inv.status === "unpaid" ? (
+                                  <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                ) : (
+                                  <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                                {inv.status}
+                              </button>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Edit */}
+                              <button
+                                onClick={() => setEditInvoice(inv)}
+                                title="Edit Details"
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                              {/* Print */}
+                              <button
+                                onClick={() => setPrintInvoice(inv)}
+                                title="Print Invoice"
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                              </button>
+
+                              {/* Delete */}
+                              <button
+                                onClick={() => deleteInvoice(inv.id)}
+                                disabled={actionLoading === inv.id + "-delete"}
+                                title="Delete Invoice"
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
+        );
+      })()}
 
-          {/* Invoices List Table */}
-          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-            {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <div className="h-8 w-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+      {/* ── Tab: Sales ────────────────────────────────────────────────── */}
+      {tab === "sales" && (() => {
+        const salesList = invoices.filter((inv) => inv.category === "sale");
+        return (
+          <div className="space-y-4">
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                placeholder="Search client name or sale code…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+              />
+              <div className="flex items-center gap-1 rounded-xl border border-slate-200 p-1 bg-slate-50">
+                {["all", "paid", "unpaid"].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`rounded-lg px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider transition ${
+                      statusFilter === s
+                        ? "bg-white shadow text-slate-800 font-extrabold"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
-            ) : invoices.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                <svg className="h-12 w-12 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                </svg>
-                <p className="font-semibold text-sm">No invoices found</p>
-                <p className="text-xs mt-1">Create your first invoice to get started</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200">
-                    <tr>
-                      <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Invoice
-                      </th>
-                      <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Client
-                      </th>
-                      <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">
-                        Description
-                      </th>
-                      <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">
-                        Category
-                      </th>
-                      <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                      <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {invoices.map((inv) => (
-                      <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="py-3.5 px-4 font-mono text-xs text-slate-700">
-                          <div className="font-bold">{inv.invoiceCode}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">{dateFmt(inv.createdAt)}</div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-800">{inv.client.fullName}</div>
-                          {inv.client.phone && <div className="text-[10px] text-slate-400 mt-0.5">{inv.client.phone}</div>}
-                        </td>
-                        <td className="py-3.5 px-4 hidden md:table-cell text-slate-600 max-w-xs truncate" title={inv.items}>
-                          {inv.items}
-                        </td>
-                        <td className="py-3.5 px-4 hidden sm:table-cell">
-                          <Badge tone="default">{CAT_LABELS[inv.category]}</Badge>
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-black text-slate-900">{fmt(inv.amount)}</td>
-                        <td className="py-3.5 px-4 text-center">
-                          {inv.status === "refunded" ? (
-                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${STATUS_COLORS[inv.status]}`}>
-                              {inv.status}
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() =>
-                                inv.status === "unpaid" ? markPaid(inv.id) : markRefunded(inv.id)
-                              }
-                              disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-refund"}
-                              title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to Refund"}
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide transition hover:opacity-80 active:scale-95 cursor-pointer ${STATUS_COLORS[inv.status]}`}
-                            >
-                              {inv.status === "unpaid" ? (
-                                <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              ) : (
-                                <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              )}
-                              {inv.status}
-                            </button>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Edit */}
-                            <button
-                              onClick={() => setEditInvoice(inv)}
-                              title="Edit Details"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition"
-                            >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            {/* Print */}
-                            <button
-                              onClick={() => setPrintInvoice(inv)}
-                              title="Print Invoice"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                            >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                              </svg>
-                            </button>
+            </div>
 
-                            {/* Delete */}
-                            <button
-                              onClick={() => deleteInvoice(inv.id)}
-                              disabled={actionLoading === inv.id + "-delete"}
-                              title="Delete Invoice"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition"
-                            >
-                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
+            {/* Sales List Table */}
+            <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+              {loading ? (
+                <div className="flex items-center justify-center py-20">
+                  <div className="h-8 w-8 rounded-full border-4 border-blue-500 border-t-transparent animate-spin" />
+                </div>
+              ) : salesList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <svg className="h-12 w-12 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                  <p className="font-semibold text-sm">No sales found</p>
+                  <p className="text-xs mt-1">Record a sale in the Products page to get started</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Invoice
+                        </th>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Client
+                        </th>
+                        <th className="text-left py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Purchased Items
+                        </th>
+                        <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Amount
+                        </th>
+                        <th className="text-center py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="text-right py-3 px-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {salesList.map((inv) => {
+                        let saleItems: { name: string; quantity: number; price: number }[] = [];
+                        if (inv.notes) {
+                          try {
+                            const parsed = JSON.parse(inv.notes);
+                            if (parsed.type === "sale" && Array.isArray(parsed.items)) {
+                              saleItems = parsed.items;
+                            }
+                          } catch {
+                            // fallback
+                          }
+                        }
+
+                        return (
+                          <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                            <td className="py-3.5 px-4 font-mono text-xs text-slate-700">
+                              <div className="font-bold">{inv.invoiceCode}</div>
+                              <div className="text-[10px] text-slate-400 mt-0.5">{dateFmt(inv.createdAt)}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-800">{inv.client.fullName}</div>
+                              {inv.client.phone && <div className="text-[10px] text-slate-400 mt-0.5">{inv.client.phone}</div>}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {saleItems.length > 0 ? (
+                                <div className="space-y-1">
+                                  {saleItems.map((item, idx) => (
+                                    <div key={idx} className="text-xs text-slate-600 flex items-center gap-1.5">
+                                      <span className="font-bold text-slate-800">{item.name}</span>
+                                      <span className="text-slate-400 font-semibold">x{item.quantity}</span>
+                                      <span className="text-[10px] text-slate-400 font-medium">({fmt(item.price)})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-slate-600 italic">{inv.items}</div>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-right font-black text-slate-900">{fmt(inv.amount)}</td>
+                            <td className="py-3.5 px-4 text-center">
+                              {inv.status === "refunded" ? (
+                                <span className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${STATUS_COLORS[inv.status]}`}>
+                                  {inv.status}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() =>
+                                    inv.status === "unpaid" ? markPaid(inv.id) : markRefunded(inv.id)
+                                  }
+                                  disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-refund"}
+                                  title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to Refund"}
+                                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide transition hover:opacity-80 active:scale-95 cursor-pointer ${STATUS_COLORS[inv.status]}`}
+                                >
+                                  {inv.status}
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => setEditInvoice(inv)}
+                                  title="Edit Details"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-blue-500 hover:bg-blue-50 hover:text-blue-700 transition"
+                                >
+                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => setPrintInvoice(inv)}
+                                  title="Print Invoice"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
+                                >
+                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => deleteInvoice(inv.id)}
+                                  disabled={actionLoading === inv.id + "-delete"}
+                                  title="Delete Invoice"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition"
+                                >
+                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── Tab: Expenses ──────────────────────────────────────────────── */}
       {tab === "expenses" && (

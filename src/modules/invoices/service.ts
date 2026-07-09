@@ -110,7 +110,7 @@ export class BillingService {
     data: {
       clientId: string;
       amount: number;
-      category: "package" | "custom" | "adhoc";
+      category: "package" | "custom" | "adhoc" | "sale";
       items: string;
       notes?: string;
       status: "paid" | "unpaid";
@@ -127,8 +127,8 @@ export class BillingService {
 
     if (!client) throw new Error("Client not found");
 
-    const shouldRecharge = data.creditDelta && data.creditDelta !== 0 && data.category !== "adhoc";
-    const hasPackage = !!data.packageId && data.category !== "adhoc";
+    const shouldRecharge = data.creditDelta && data.creditDelta !== 0 && data.category !== "adhoc" && data.category !== "sale";
+    const hasPackage = !!data.packageId && data.category !== "adhoc" && data.category !== "sale";
 
     if (shouldRecharge || hasPackage) {
       const result = await prisma.$transaction(async (tx) => {
@@ -200,7 +200,7 @@ export class BillingService {
       status?: "paid" | "unpaid" | "refunded";
       notes?: string | null;
       amount?: number;
-      category?: "package" | "custom" | "adhoc";
+      category?: "package" | "custom" | "adhoc" | "sale";
       items?: string;
       createdAt?: string;
       paidAt?: string | null;
@@ -269,7 +269,7 @@ export class BillingService {
         }
 
         // Refund reversal logic
-        if (data.status === "refunded" && invoice.status === "paid" && invoice.category !== "adhoc") {
+        if (data.status === "refunded" && invoice.status === "paid" && invoice.category !== "adhoc" && invoice.category !== "sale") {
           const matchingEntry = await tx.ledgerEntry.findFirst({
             where: {
               clientId: invoice.clientId,

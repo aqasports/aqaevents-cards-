@@ -3,7 +3,7 @@ import { z } from "zod";
 export const createInvoiceSchema = z.object({
   clientId: z.string(),
   amount: z.number().positive(),
-  category: z.enum(["package", "custom", "adhoc"]),
+  category: z.enum(["package", "custom", "adhoc", "sale"]),
   items: z.string().min(1),
   notes: z.string().optional(),
   status: z.enum(["paid", "unpaid"]).default("paid"),
@@ -16,7 +16,7 @@ export const updateInvoiceSchema = z.object({
   status: z.enum(["paid", "unpaid", "refunded"]).optional(),
   notes: z.string().optional().nullable(),
   amount: z.number().positive().optional(),
-  category: z.enum(["package", "custom", "adhoc"]).optional(),
+  category: z.enum(["package", "custom", "adhoc", "sale"]).optional(),
   items: z.string().min(1).optional(),
   createdAt: z.string().optional(),
   paidAt: z.string().nullable().optional(),

@@ -1,7 +1,7 @@
 export interface InvoiceCreatePayload {
   clientId: string;
   amount: number;
-  category: "package" | "custom" | "adhoc";
+  category: "package" | "custom" | "adhoc" | "sale";
   items: string;
   notes?: string;
   status: "paid" | "unpaid";
@@ -14,7 +14,7 @@ export interface InvoiceUpdatePayload {
   status?: "paid" | "unpaid" | "refunded";
   notes?: string | null;
   amount?: number;
-  category?: "package" | "custom" | "adhoc";
+  category?: "package" | "custom" | "adhoc" | "sale";
   items?: string;
   createdAt?: string;
   paidAt?: string | null;
