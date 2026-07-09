@@ -82,28 +82,28 @@ export default function Scanner({
 
   return (
     <div className="space-y-4">
-      <div className="relative aspect-square w-full max-w-md mx-auto overflow-hidden rounded-2xl border-2 border-[var(--border)] bg-slate-950 shadow-inner">
+      <div className="relative aspect-square w-full max-w-md mx-auto overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 shadow-[0_0_30px_rgba(14,165,233,0.1)] backdrop-blur-md">
         <div id={containerId} className="w-full h-full" />
         
         {/* Scanning Target Overlay */}
         {cameraPermission === "granted" && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="w-60 h-60 border-2 border-[var(--primary)] rounded-2xl relative">
-              <div className="absolute -top-1.5 -left-1.5 w-6 h-6 border-t-4 border-l-4 border-[var(--primary)] rounded-tl-md" />
-              <div className="absolute -top-1.5 -right-1.5 w-6 h-6 border-t-4 border-r-4 border-[var(--primary)] rounded-tr-md" />
-              <div className="absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 border-[var(--primary)] rounded-bl-md" />
-              <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 border-[var(--primary)] rounded-br-md" />
+            <div className="w-60 h-60 border-2 border-cyan-500/30 rounded-2xl relative shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+              <div className="absolute -top-1.5 -left-1.5 w-6 h-6 border-t-4 border-l-4 border-cyan-400 rounded-tl-md" />
+              <div className="absolute -top-1.5 -right-1.5 w-6 h-6 border-t-4 border-r-4 border-cyan-400 rounded-tr-md" />
+              <div className="absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 border-cyan-400 rounded-bl-md" />
+              <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 border-cyan-400 rounded-br-md" />
               {!isPaused && (
-                <div className="absolute left-0 right-0 h-0.5 bg-[var(--primary)] shadow-[0_0_8px_var(--primary)] animate-bounce" style={{ top: "10%" }} />
+                <div className="absolute left-0 right-0 h-0.5 bg-cyan-400 shadow-[0_0_12px_#00f2ff] animate-bounce" style={{ top: "10%" }} />
               )}
             </div>
           </div>
         )}
 
         {cameraPermission === "pending" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 text-white p-4 text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-700 border-t-[var(--primary)] mb-3" />
-            <p className="text-sm font-semibold">Requesting camera access...</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white p-4 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-800 border-t-cyan-400 mb-3" />
+            <p className="text-sm font-semibold text-slate-350">Requesting camera access...</p>
           </div>
         )}
 
@@ -113,23 +113,23 @@ export default function Scanner({
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
             <p className="text-sm font-bold text-white mb-1">Camera Access Denied</p>
-            <p className="text-xs">Please allow camera permissions in your browser settings to scan AQA cards.</p>
+            <p className="text-xs text-slate-500">Please allow camera permissions in your browser settings to scan AQA cards.</p>
           </div>
         )}
       </div>
 
       {cameras.length > 1 && (
         <div className="max-w-md mx-auto">
-          <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+          <label className="block text-xs font-bold text-slate-450 mb-1.5 uppercase tracking-wide">
             Select Camera
           </label>
           <select
             value={selectedCameraId}
             onChange={(e) => setSelectedCameraId(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-[var(--primary)]"
+            className="w-full rounded-xl border border-white/10 bg-slate-900/60 text-white px-3 py-2 text-xs outline-none focus:ring-1 focus:ring-cyan-500 backdrop-blur-md cursor-pointer"
           >
             {cameras.map((camera) => (
-              <option key={camera.id} value={camera.id}>
+              <option key={camera.id} value={camera.id} className="bg-slate-900 text-white">
                 {camera.label || `Camera ${camera.id.slice(0, 5)}`}
               </option>
             ))}

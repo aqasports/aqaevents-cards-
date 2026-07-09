@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { getClientBalance } from "@/lib/balance";
 
 const checkInSchema = z.object({
   scannedValue: z.string().min(1),
@@ -50,6 +51,7 @@ export async function GET(
         id: true,
         name: true,
         isActive: true,
+        logoUrl: true,
       },
     });
 
@@ -114,7 +116,7 @@ export async function GET(
     }));
 
     return NextResponse.json({
-      club: { name: club.name },
+      club: { name: club.name, logoUrl: club.logoUrl },
       activities: activitiesList.map((act) => ({
         ...act,
         roster: roster.filter((r) => r.activityId === act.id),
@@ -218,7 +220,23 @@ export async function POST(
     });
 
     if (!redemption) {
-      return NextResponse.json({ status: "NOT_REDEEMED", message: "This card hasn't redeemed this activity." });
+      const balance = await getClientBalance(card.client.id);
+      const totalCredits = card.client.ledgerEntries
+        .filter((e) => e.delta > 0)
+        .reduce((sum, item) => sum + item.delta, 0);
+
+      return NextResponse.json({
+        status: "NOT_REDEEMED",
+        client: {
+          name: getFirstNameWithInitial(card.client.fullName),
+          fullName: card.client.fullName,
+          cardCode: card.cardCode,
+          balance,
+          totalCredits: totalCredits > 0 ? totalCredits : (balance > 0 ? balance : 1),
+          publicToken: card.publicToken,
+        },
+        message: "This card hasn't redeemed this activity.",
+      });
     }
 
     // 7. Check for duplicate SUCCESS check-in
@@ -231,9 +249,21 @@ export async function POST(
     });
 
     if (existingCheckIn) {
+      const balance = await getClientBalance(card.client.id);
+      const totalCredits = card.client.ledgerEntries
+        .filter((e) => e.delta > 0)
+        .reduce((sum, item) => sum + item.delta, 0);
+
       return NextResponse.json({
         status: "DUPLICATE",
-        client: { name: getFirstNameWithInitial(card.client.fullName) },
+        client: {
+          name: getFirstNameWithInitial(card.client.fullName),
+          fullName: card.client.fullName,
+          cardCode: card.cardCode,
+          balance,
+          totalCredits: totalCredits > 0 ? totalCredits : (balance > 0 ? balance : 1),
+          publicToken: card.publicToken,
+        },
         originalCheckedInAt: existingCheckIn.scannedAt.toISOString(),
       });
     }
@@ -252,9 +282,21 @@ export async function POST(
       },
     });
 
+    const balance = await getClientBalance(card.client.id);
+    const totalCredits = card.client.ledgerEntries
+      .filter((e) => e.delta > 0)
+      .reduce((sum, item) => sum + item.delta, 0);
+
     return NextResponse.json({
       status: "SUCCESS",
-      client: { name: getFirstNameWithInitial(card.client.fullName) },
+      client: {
+        name: getFirstNameWithInitial(card.client.fullName),
+        fullName: card.client.fullName,
+        cardCode: card.cardCode,
+        balance,
+        totalCredits: totalCredits > 0 ? totalCredits : (balance > 0 ? balance : 1),
+        publicToken: card.publicToken,
+      },
       activity: { name: activity.name },
       checkedInAt: checkIn.scannedAt.toISOString(),
     });

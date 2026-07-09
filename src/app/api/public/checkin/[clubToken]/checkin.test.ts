@@ -27,6 +27,10 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/lib/balance", () => ({
+  getClientBalance: vi.fn().mockResolvedValue(10),
+}));
+
 describe("Public Check-In POST API", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -36,10 +40,13 @@ describe("Public Check-In POST API", () => {
   const mockCard = {
     id: "card-1",
     status: "active",
+    publicToken: "token-1",
+    cardCode: "AQA-1111-2222",
     client: {
       id: "client-1",
       fullName: "Jane Doe",
       archived: false,
+      ledgerEntries: [],
     },
   };
   const mockActivity = {

@@ -68,7 +68,10 @@ export default function ClubsListPage() {
     }
   }
 
-  useEffect(() => { loadClubs(); }, []);
+  useEffect(() => {
+    loadClubs();
+    localStorage.setItem("aqa_last_viewed_clubs_time", new Date().toISOString());
+  }, []);
 
   async function handleToggleActive(id: string, currentStatus: boolean) {
     try {

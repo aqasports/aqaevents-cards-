@@ -162,6 +162,7 @@ export function AdminNav() {
   const [pendingCount, setPendingCount] = useState(0);
   const [pendingDemandsCount, setPendingDemandsCount] = useState(0);
   const [pendingProposalsCount, setPendingProposalsCount] = useState(0);
+  const [newCheckInsCount, setNewCheckInsCount] = useState(0);
 
   useEffect(() => {
     async function fetchPendingCount() {
@@ -197,14 +198,34 @@ export function AdminNav() {
         console.error("Failed to fetch pending proposals count:", err);
       }
     }
+    async function fetchNewCheckInsCount() {
+      try {
+        const since = localStorage.getItem("aqa_last_viewed_clubs_time");
+        if (!since) {
+          const nowStr = new Date().toISOString();
+          localStorage.setItem("aqa_last_viewed_clubs_time", nowStr);
+          setNewCheckInsCount(0);
+          return;
+        }
+        const res = await fetch(`/api/admin/clubs/new-checkins-count?since=${encodeURIComponent(since)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setNewCheckInsCount(data.count);
+        }
+      } catch (err) {
+        console.error("Failed to fetch new check-ins count:", err);
+      }
+    }
     fetchPendingCount();
     fetchPendingDemandsCount();
     fetchPendingProposalsCount();
+    fetchNewCheckInsCount();
 
     const interval = setInterval(() => {
       fetchPendingCount();
       fetchPendingDemandsCount();
       fetchPendingProposalsCount();
+      fetchNewCheckInsCount();
     }, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -249,6 +270,11 @@ export function AdminNav() {
             {link.key === "proposals" && pendingProposalsCount > 0 && (
               <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.4)] leading-none">
                 {pendingProposalsCount}
+              </span>
+            )}
+            {link.key === "clubs" && newCheckInsCount > 0 && (
+              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.4)] leading-none">
+                {newCheckInsCount}
               </span>
             )}
           </Link>
@@ -331,6 +357,9 @@ export function AdminNav() {
 
         {/* Small pending demand badge indicator in header */}
         <div className="flex items-center gap-1.5">
+          {newCheckInsCount > 0 && (
+            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.8)]" />
+          )}
           {pendingProposalsCount > 0 && (
             <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
           )}

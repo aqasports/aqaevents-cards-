@@ -91,6 +91,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
 
   useEffect(() => {
     Promise.all([loadClubDetails(), loadCheckIns()]).finally(() => setLoading(false));
+    localStorage.setItem("aqa_last_viewed_clubs_time", new Date().toISOString());
   }, [id]);
 
   useEffect(() => {
