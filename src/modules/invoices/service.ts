@@ -183,7 +183,7 @@ export class BillingService {
         }
 
         if (isCardPayment && data.status === "paid") {
-          const currentBalance = await getClientBalance(data.clientId);
+          const currentBalance = await getClientBalance(data.clientId, tx);
           if (currentBalance < cardCreditsToDeduct) {
             throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
           }
@@ -298,7 +298,7 @@ export class BillingService {
                 });
               } else if (metadata && metadata.type === "sale" && metadata.paymentMethod === "card") {
                 const cardCreditsToDeduct = invoice.amount / 1900;
-                const currentBalance = await getClientBalance(invoice.clientId);
+                const currentBalance = await getClientBalance(invoice.clientId, tx);
                 if (currentBalance < cardCreditsToDeduct) {
                   throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
                 }

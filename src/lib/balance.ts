@@ -1,7 +1,8 @@
 import { prisma } from "./prisma";
 
-export async function getClientBalance(clientId: string): Promise<number> {
-  const result = await prisma.ledgerEntry.aggregate({
+export async function getClientBalance(clientId: string, tx?: any): Promise<number> {
+  const db = tx ?? prisma;
+  const result = await db.ledgerEntry.aggregate({
     where: { clientId },
     _sum: { delta: true },
   });
