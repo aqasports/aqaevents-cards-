@@ -89,6 +89,7 @@ export default function ClientDetailPage() {
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [tab, setTab] = useState<"overview" | "transactions" | "invoices" | "notifications" | "activities" | "store">("overview");
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -180,7 +181,7 @@ export default function ClientDetailPage() {
   const [changeOption, setChangeOption] = useState<"refund" | "convert">("refund");
   const [paidMoney, setPaidMoney] = useState("");
 
-  const activeCard = client?.cards.find((c) => c.status === "active");
+  const activeCard = client?.cards?.find((c) => c.status === "active");
   const publicUrl = activeCard
     ? `${typeof window !== "undefined" ? window.location.origin : ""}/eventscard/${activeCard.publicToken}`
     : null;
@@ -199,10 +200,23 @@ export default function ClientDetailPage() {
   }, [publicUrl]);
 
   const loadClient = useCallback(async () => {
-    const res = await fetch(`/api/admin/clients/${params.id}`);
-    const data = await res.json();
-    setClient(data);
-    setLoading(false);
+    try {
+      const res = await fetch(`/api/admin/clients/${params.id}`);
+      const data = await res.json();
+      if (res.ok) {
+        setClient(data);
+        setError(null);
+      } else {
+        setError(data.error ?? "Failed to fetch client details.");
+        setClient(null);
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Network error. Failed to fetch client details.");
+      setClient(null);
+    } finally {
+      setLoading(false);
+    }
   }, [params.id]);
 
   useEffect(() => {
@@ -684,12 +698,28 @@ export default function ClientDetailPage() {
     }
   }
 
-  if (loading || !client) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
           <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--primary)]" />
           <p className="text-sm text-[var(--muted)]">Loading client…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !client) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 bg-red-50/50 border border-red-200 rounded-xl text-center space-y-4">
+        <h3 className="text-lg font-bold text-red-800">Error Loading Client</h3>
+        <p className="text-sm text-red-600">{error || "Client not found or failed to load."}</p>
+        <div className="pt-2">
+          <Link href="/admin/clients">
+            <Button variant="secondary" size="sm">
+              ← Back to clients
+            </Button>
+          </Link>
         </div>
       </div>
     );
