@@ -74,9 +74,9 @@ export default async function AdminDashboardPage() {
     }),
   ]);
 
-  const creditsSold = totalCreditsSold._sum.delta ?? 0;
-  const creditsUsed = Math.abs(totalCreditsUsed._sum.delta ?? 0);
-  const creditsRemaining = creditsSold - creditsUsed;
+  const creditsSold = Number((totalCreditsSold._sum.delta ?? 0).toFixed(2));
+  const creditsUsed = Number(Math.abs(totalCreditsUsed._sum.delta ?? 0).toFixed(2));
+  const creditsRemaining = Number((creditsSold - creditsUsed).toFixed(2));
 
   const revenueToday = revenueTodayAggregate._sum.amount ?? 0;
   const revenueThisMonth = revenueThisMonthAggregate._sum.amount ?? 0;
@@ -166,7 +166,7 @@ export default async function AdminDashboardPage() {
   const lowBalance = lowBalanceClients
     .map((client) => ({
       ...client,
-      balance: client.ledgerEntries.reduce((sum, e) => sum + e.delta, 0),
+      balance: Number(client.ledgerEntries.reduce((sum, e) => sum + e.delta, 0).toFixed(2)),
     }))
     .filter((client) => client.balance <= 1 && client.balance >= 0)
     .slice(0, 5);
