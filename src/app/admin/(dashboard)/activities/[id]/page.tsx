@@ -2126,6 +2126,45 @@ export default function ActivityDetailPage() {
                   {/* Expanded attendee list */}
                   {expandedEventId === session.id && (
                     <div className="border-t border-[var(--border)] bg-slate-50/50 p-4 space-y-4">
+
+                      {/* Add Client to past event */}
+                      <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add Client</h4>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <div className={`relative event-search-container-${session.id} flex-1 z-30`}>
+                            <input
+                              type="text"
+                              placeholder="Type client name…"
+                              value={searchQueryForEvent[session.id] || ""}
+                              onChange={(e) => { setSearchQueryForEvent((p) => ({ ...p, [session.id]: e.target.value })); setShowEventDropdown((p) => ({ ...p, [session.id]: true })); if (!e.target.value) setSelectedClientForEvent((p) => ({ ...p, [session.id]: "" })); }}
+                              onFocus={() => setShowEventDropdown((p) => ({ ...p, [session.id]: true }))}
+                              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+                            />
+                            {showEventDropdown[session.id] && (
+                              <div className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+                                {(() => {
+                                  const q = (searchQueryForEvent[session.id] || "").toLowerCase();
+                                  const matching = q ? clients.filter((c) => c.fullName.toLowerCase().split(/\s+/).some((p) => p.startsWith(q))) : clients;
+                                  if (matching.length === 0) return <p className="p-3 text-xs text-[var(--muted)] text-center">No clients match</p>;
+                                  return matching.map((c) => (
+                                    <button key={c.id} type="button"
+                                      onClick={() => { setSelectedClientForEvent((p) => ({ ...p, [session.id]: c.id })); setSearchQueryForEvent((p) => ({ ...p, [session.id]: c.fullName })); setShowEventDropdown((p) => ({ ...p, [session.id]: false })); }}
+                                      className="w-full px-3 py-2.5 text-left text-xs hover:bg-slate-50 transition flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                                    >
+                                      <span className="font-bold">{c.fullName}</span>
+                                      <Badge tone={c.balance === 0 ? "danger" : c.balance <= 2 ? "warning" : "success"} size="sm">{c.balance} credits</Badge>
+                                    </button>
+                                  ));
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                          <Button onClick={() => handleRegisterClient(session.id)} loading={registeringEventId === session.id} disabled={!selectedClientForEvent[session.id]} className="shrink-0">
+                            Register
+                          </Button>
+                        </div>
+                      </div>
+
                       {session.clubId && (
                         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
                           <div className="flex items-center justify-between mb-2">
@@ -2196,9 +2235,12 @@ export default function ActivityDetailPage() {
                                     )}
                                   </p>
                                 </div>
-                                <span className="text-[var(--muted)] tabular-nums">
-                                  {formatDate(red.redeemedAt, locale, true)}
-                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[var(--muted)] tabular-nums">
+                                    {formatDate(red.redeemedAt, locale, true)}
+                                  </span>
+                                  <Button variant="danger" size="sm" loading={refundingRedemptionId === red.id} onClick={() => handleRefundClient(red.id)}>Remove</Button>
+                                </div>
                               </li>
                             ))}
                           </ul>
