@@ -115,6 +115,178 @@ function parseEquipment(raw: string | null): EquipmentItem[] {
   try { return JSON.parse(raw); } catch { return []; }
 }
 
+function toInputDateTime(d: string | null | undefined): string {
+  if (!d) return "";
+  const date = new Date(d);
+  const pad = (num: number) => String(num).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// ─── Edit Session Modal ────────────────────────────────────────────────────────
+
+function EditSessionModal({
+  session,
+  clubs,
+  predefinedPlaces,
+  onClose,
+  onSaved,
+}: {
+  session: EventSession;
+  clubs: any[];
+  predefinedPlaces: string[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [sessionDate, setSessionDate] = useState(toInputDateTime(session.sessionDate));
+  const [location, setLocation] = useState(session.location ?? "");
+  const [capacity, setCapacity] = useState(session.capacity !== null ? String(session.capacity) : "");
+  const [clubId, setClubId] = useState(session.clubId ?? "");
+  const [active, setActive] = useState(session.active);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!sessionDate) {
+      setError("Please select a date and time.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/sessions/${session.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionDate: new Date(sessionDate).toISOString(),
+          location: location.trim() || null,
+          capacity: capacity ? parseInt(capacity) : null,
+          clubId: clubId || null,
+          active,
+        }),
+      });
+
+      setSaving(false);
+      if (res.ok) {
+        onSaved();
+        onClose();
+      } else {
+        const data = await res.json();
+        setError(data.error ?? "Failed to update event.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Network error. Please try again.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+          <h2 className="text-lg font-bold text-slate-800">Edit Event</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 font-bold"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {error && <Alert tone="danger">{error}</Alert>}
+
+          <Input
+            label="Date & Time"
+            type="datetime-local"
+            value={sessionDate}
+            onChange={(e) => setSessionDate(e.target.value)}
+            required
+          />
+
+          <div className="space-y-1.5">
+            <Input
+              label="Location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g. Oued Fès"
+            />
+            {predefinedPlaces.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                <span className="text-[10px] text-slate-400 font-medium self-center">Quick Select:</span>
+                {predefinedPlaces.map((place, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setLocation(place)}
+                    className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded transition"
+                  >
+                    {place}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Select
+            label="Partner Club"
+            value={clubId}
+            onChange={(e) => setClubId(e.target.value)}
+          >
+            <option value="">— Select Partner Club —</option>
+            {clubs.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+
+          <Input
+            label="Capacity"
+            type="number"
+            min={1}
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            placeholder="e.g. 12"
+          />
+
+          <Select
+            label="Event Status"
+            value={active ? "true" : "false"}
+            onChange={(e) => setActive(e.target.value === "true")}
+          >
+            <option value="true">Active / Past</option>
+            <option value="false">Cancelled</option>
+          </Select>
+
+          <div className="flex gap-3 pt-4 border-t border-slate-100">
+            <Button
+              type="submit"
+              className="flex-1"
+              loading={saving}
+            >
+              Save Changes
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ─── Image Edit Modal ─────────────────────────────────────────────────────────
 
 function ImageEditModal({
@@ -558,6 +730,7 @@ export default function ActivityDetailPage() {
   const [refundingRedemptionId, setRefundingRedemptionId] = useState<string | null>(null);
   const [bulkRefundingSessionId, setBulkRefundingSessionId] = useState<string | null>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [editingSession, setEditingSession] = useState<EventSession | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [deletingActivity, setDeletingActivity] = useState(false);
 
@@ -1341,7 +1514,10 @@ export default function ActivityDetailPage() {
                     <div className="flex items-center gap-3">
                       <Badge tone="default">{session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}</Badge>
                       {session.capacity && <span className="text-xs text-[var(--muted)]">Cap: {session.capacity}</span>}
-                      <Button variant="ghost" size="sm" loading={deletingSessionId === session.id} onClick={(e) => { e.stopPropagation(); handleDeleteEvent(session.id, session.redemptions.length); }} className="text-red-500 hover:text-red-700">
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditingSession(session); }} className="text-indigo-600 hover:text-indigo-800 font-bold">
+                        Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" loading={deletingSessionId === session.id} onClick={(e) => { e.stopPropagation(); handleDeleteEvent(session.id, session.redemptions.length); }} className="text-red-500 hover:text-red-700 font-bold">
                         Cancel
                       </Button>
                     </div>
@@ -1930,6 +2106,17 @@ export default function ActivityDetailPage() {
                       <Badge tone={session.redemptions.length > 0 ? "default" : "warning"}>
                         {session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingSession(session);
+                        }}
+                        className="text-indigo-600 hover:text-indigo-800 font-bold"
+                      >
+                        Edit
+                      </Button>
                       <svg className={`h-4 w-4 text-[var(--muted)] transition-transform ${expandedEventId === session.id ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
@@ -2195,6 +2382,17 @@ export default function ActivityDetailPage() {
           activityId={params.id}
           current={activity.imageUrl}
           onClose={() => setShowImageEdit(false)}
+          onSaved={loadActivityData}
+        />
+      )}
+
+      {/* Edit Session Modal */}
+      {editingSession && (
+        <EditSessionModal
+          session={editingSession}
+          clubs={clubs}
+          predefinedPlaces={predefinedPlaces}
+          onClose={() => setEditingSession(null)}
           onSaved={loadActivityData}
         />
       )}
