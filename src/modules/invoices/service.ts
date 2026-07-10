@@ -670,18 +670,21 @@ export class BillingService {
       throw new Error("ACTIVITY_NOT_FOUND");
     }
 
-    // Enforce that only activities with available (upcoming, active) events can be redeemed
-    const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
-    const upcomingSessionsCount = await prisma.activitySession.count({
-      where: {
-        activityId,
-        active: true,
-        sessionDate: { gte: tenHoursAgo },
-      },
-    });
+    // When a specific session is provided by an admin, skip the upcoming-only guard
+    // so that clients can be added to past/cancelled sessions manually.
+    if (!data.sessionId) {
+      const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+      const upcomingSessionsCount = await prisma.activitySession.count({
+        where: {
+          activityId,
+          active: true,
+          sessionDate: { gte: tenHoursAgo },
+        },
+      });
 
-    if (upcomingSessionsCount === 0) {
-      throw new Error("NO_AVAILABLE_EVENTS");
+      if (upcomingSessionsCount === 0) {
+        throw new Error("NO_AVAILABLE_EVENTS");
+      }
     }
 
     if (data.sessionId) {
@@ -689,8 +692,6 @@ export class BillingService {
         where: {
           id: data.sessionId,
           activityId,
-          active: true,
-          sessionDate: { gte: tenHoursAgo },
         },
       });
       if (!session) {
