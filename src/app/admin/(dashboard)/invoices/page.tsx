@@ -1336,6 +1336,24 @@ export default function InvoicesPage() {
     );
   }
 
+  async function markUnpaid(id: string) {
+    triggerConfirm(
+      "Mark as Unpaid",
+      "Mark this invoice as unpaid? This will reverse any credited balance.",
+      async () => {
+        setActionLoading(id + "-unpaid");
+        await fetch(`/api/admin/invoices/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "unpaid" }),
+        });
+        setActionLoading(null);
+        loadInvoices();
+      },
+      true // isDanger
+    );
+  }
+
   async function deleteInvoice(id: string) {
     triggerConfirm(
       "Delete Invoice",
@@ -1631,10 +1649,10 @@ export default function InvoicesPage() {
                             ) : (
                               <button
                                 onClick={() =>
-                                  inv.status === "unpaid" ? markPaid(inv.id) : markRefunded(inv.id)
+                                  inv.status === "unpaid" ? markPaid(inv.id) : markUnpaid(inv.id)
                                 }
-                                disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-refund"}
-                                title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to Refund"}
+                                disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-unpaid"}
+                                title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to mark as Unpaid"}
                                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide transition hover:opacity-80 active:scale-95 cursor-pointer ${STATUS_COLORS[inv.status]}`}
                               >
                                 {inv.status === "unpaid" ? (
@@ -1849,10 +1867,10 @@ export default function InvoicesPage() {
                               ) : (
                                 <button
                                   onClick={() =>
-                                    inv.status === "unpaid" ? markPaid(inv.id) : markRefunded(inv.id)
+                                    inv.status === "unpaid" ? markPaid(inv.id) : markUnpaid(inv.id)
                                   }
-                                  disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-refund"}
-                                  title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to Refund"}
+                                  disabled={actionLoading === inv.id + "-paid" || actionLoading === inv.id + "-unpaid"}
+                                  title={inv.status === "unpaid" ? "Click to mark as Paid" : "Click to mark as Unpaid"}
                                   className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wide transition hover:opacity-80 active:scale-95 cursor-pointer ${STATUS_COLORS[inv.status]}`}
                                 >
                                   {inv.status}

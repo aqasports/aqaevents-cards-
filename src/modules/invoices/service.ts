@@ -325,8 +325,9 @@ export class BillingService {
           updateData.paidAt = null;
         }
 
-        // Refund reversal logic
-        if (data.status === "refunded" && invoice.status === "paid") {
+        // Refund/Unpaid reversal logic
+        if ((data.status === "refunded" || data.status === "unpaid") && invoice.status === "paid") {
+          const actionWord = data.status === "refunded" ? "Refund" : "Unpaid";
           if (invoice.category !== "adhoc" && invoice.category !== "sale") {
             const matchingEntry = await tx.ledgerEntry.findFirst({
               where: {
@@ -343,7 +344,7 @@ export class BillingService {
                   cardId: invoice.client.cards[0]?.id ?? null,
                   delta: -matchingEntry.delta,
                   type: "debit",
-                  reason: `Refund: Invoice ${invoice.invoiceCode} reversed`,
+                  reason: `${actionWord}: Invoice ${invoice.invoiceCode} reversed`,
                   createdById: adminId,
                 },
               });
@@ -360,7 +361,7 @@ export class BillingService {
                     cardId: activeCard?.id ?? null,
                     delta: cardCreditsToRefund,
                     type: "credit",
-                    reason: `Refund: Sale Invoice ${invoice.invoiceCode} returned`,
+                    reason: `${actionWord}: Sale Invoice ${invoice.invoiceCode} returned`,
                     createdById: adminId,
                   },
                 });

@@ -368,7 +368,7 @@ export default function ClientDetailPage() {
     }
   }
 
-  async function handleUpdateInvoiceStatus(invoiceId: string, status: "paid" | "refunded") {
+  async function handleUpdateInvoiceStatus(invoiceId: string, status: "paid" | "unpaid" | "refunded") {
     setUpdatingInvoiceId(invoiceId);
     setMessage(null);
     try {
@@ -1443,10 +1443,10 @@ export default function ClientDetailPage() {
                             <Button
                               size="sm"
                               variant="secondary"
-                              onClick={() => handleUpdateInvoiceStatus(inv.id, "refunded")}
+                              onClick={() => handleUpdateInvoiceStatus(inv.id, "unpaid")}
                               loading={updatingInvoiceId === inv.id}
                             >
-                              Refund
+                              Mark Unpaid
                             </Button>
                           )}
                           <Button
