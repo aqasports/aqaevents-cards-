@@ -48,6 +48,9 @@ export default function EditActivityPage() {
   const [duration, setDuration] = useState("");
   const [active, setActive] = useState(true);
   const [eventType, setEventType] = useState("fixed");
+  const [clubs, setClubs] = useState<{ id: string; name: string }[]>([]);
+  const [clubId, setClubId] = useState<string | null>(null);
+
 
   // Confirm modal state
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -81,6 +84,7 @@ export default function EditActivityPage() {
       setActive(data.active);
       const loadedType = data.eventType === "whatsapp" ? "variable" : (data.eventType ?? "fixed");
       setEventType(loadedType);
+      setClubId(data.clubId ?? null);
       setLoading(false);
     } catch (err) {
       console.error(err);
@@ -90,8 +94,21 @@ export default function EditActivityPage() {
   }, [params.id]);
 
   useEffect(() => {
+    async function loadClubs() {
+      try {
+        const res = await fetch("/api/admin/clubs");
+        if (res.ok) {
+          const data = await res.json();
+          setClubs(data);
+        }
+      } catch (err) {
+        console.error("Failed to load clubs:", err);
+      }
+    }
+    loadClubs();
     loadActivity();
   }, [loadActivity]);
+
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,6 +128,8 @@ export default function EditActivityPage() {
           duration: duration || null,
           active: active,
           eventType: eventType,
+          requiresCheck: !!clubId,
+          clubId: clubId,
         }),
       });
 
@@ -274,6 +293,20 @@ export default function EditActivityPage() {
             <option value="fixed">Fixed (e.g., each Sunday)</option>
             <option value="variable">Planned according to a variable (announced via WhatsApp group)</option>
           </Select>
+
+          <Select
+            label="Partner Club (Optional)"
+            value={clubId || ""}
+            onChange={(e) => setClubId(e.target.value || null)}
+          >
+            <option value="">— No Partner Club (Unspecified) —</option>
+            {clubs.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+
 
 
 

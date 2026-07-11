@@ -268,7 +268,15 @@ export async function POST(
       });
     }
 
-    // 8. Create CheckIn row
+    // 8. Link redemption to this session if it's not already linked
+    if (redemption.sessionId !== sessionId) {
+      await prisma.redemption.update({
+        where: { id: redemption.id },
+        data: { sessionId },
+      });
+    }
+
+    // 9. Create CheckIn row
     const scannedIp = ip !== "unknown" ? ip : null;
     const checkIn = await prisma.checkIn.create({
       data: {
