@@ -49,6 +49,7 @@ type Props = {
   packages: Package[];
   products: Product[];
   publicToken: string;
+  isNotPaid?: boolean;
 };
 
 export function EventCardClient({
@@ -61,6 +62,7 @@ export function EventCardClient({
   packages,
   products,
   publicToken,
+  isNotPaid = false,
 }: Props) {
   const { t, locale, setLocale, dir } = useTranslations("publicCard");
   const [isFlipped, setIsFlipped] = useState(false);
@@ -215,7 +217,7 @@ export function EventCardClient({
                         {cardCode}
                       </p>
                     </div>
-                    <div className="relative flex items-center justify-center w-16 h-16 shrink-0">
+                    <div className={`relative flex items-center justify-center w-16 h-16 shrink-0 ${isNotPaid ? "animate-not-paid-blink" : ""}`}>
                       <svg className="w-16 h-16 transform -rotate-90">
                         <circle
                           className="text-white/10"
@@ -227,33 +229,50 @@ export function EventCardClient({
                           cy="32"
                         />
                         <circle
-                          className="text-cyan-400 transition-all duration-1000 ease-out"
+                          className="transition-all duration-1000 ease-out"
                           strokeWidth="4.5"
                           strokeDasharray="144.5"
-                          strokeDashoffset={144.5 - (percentage / 100) * 144.5}
+                          strokeDashoffset={isNotPaid ? 0 : 144.5 - (percentage / 100) * 144.5}
                           strokeLinecap="round"
-                          stroke="url(#cardGradient)"
+                          stroke={isNotPaid ? "url(#cardNotPaidGradient)" : "url(#cardGradient)"}
                           fill="transparent"
                           r="23"
                           cx="32"
                           cy="32"
-                          style={{ filter: "drop-shadow(0 0 3px rgba(34, 211, 238, 0.45))" }}
+                          style={{ filter: isNotPaid ? "drop-shadow(0 0 4px rgba(239,68,68,0.6))" : "drop-shadow(0 0 3px rgba(34, 211, 238, 0.45))" }}
                         />
                         <defs>
                           <linearGradient id="cardGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                             <stop offset="0%" stopColor="#22d3ee" />
                             <stop offset="100%" stopColor="#0ea5e9" />
                           </linearGradient>
+                          <linearGradient id="cardNotPaidGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="#ef4444" />
+                            <stop offset="100%" stopColor="#dc2626" />
+                          </linearGradient>
                         </defs>
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center leading-none text-center">
-                        <span className="text-sm font-black text-white drop-shadow">
-                          {formattedBalance}
-                        </span>
-                        <div className="h-[0.5px] w-4 bg-white/20 my-0.5" />
-                        <span className="text-[8px] font-bold text-white/50">
-                          {formattedTotal}
-                        </span>
+                        {isNotPaid ? (
+                          <>
+                            <svg className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                            </svg>
+                            <span className="text-[7px] font-black text-red-400 uppercase tracking-tight mt-0.5">
+                              Not Paid
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-sm font-black text-white drop-shadow">
+                              {formattedBalance}
+                            </span>
+                            <div className="h-[0.5px] w-4 bg-white/20 my-0.5" />
+                            <span className="text-[8px] font-bold text-white/50">
+                              {formattedTotal}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -318,9 +337,17 @@ export function EventCardClient({
               </div>
 
               {/* Circular Progress Ring Card */}
-              <div className="bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-md relative overflow-hidden flex flex-col items-center">
-                <div className="relative flex items-center justify-center">
-                  <svg className="w-36 h-36 transform -rotate-90 drop-shadow-[0_0_12px_rgba(34,211,238,0.25)]">
+              <div className={`border rounded-3xl p-6 backdrop-blur-md relative overflow-hidden flex flex-col items-center transition-all duration-500 ${
+                isNotPaid
+                  ? "bg-red-500/5 border-red-500/30"
+                  : "bg-white/5 border-white/10"
+              }`}>
+                <div className={`relative flex items-center justify-center ${isNotPaid ? "animate-not-paid-blink" : ""}`}>
+                  <svg className={`w-36 h-36 transform -rotate-90 ${
+                    isNotPaid
+                      ? "drop-shadow-[0_0_18px_rgba(239,68,68,0.45)]"
+                      : "drop-shadow-[0_0_12px_rgba(34,211,238,0.25)]"
+                  }`}>
                     <circle
                       className="text-white/5"
                       strokeWidth="10"
@@ -331,12 +358,12 @@ export function EventCardClient({
                       cy="72"
                     />
                     <circle
-                      className="text-cyan-400 transition-all duration-1000 ease-out"
+                      className="transition-all duration-1000 ease-out"
                       strokeWidth="10"
                       strokeDasharray="339.3"
-                      strokeDashoffset={339.3 - (percentage / 100) * 339.3}
+                      strokeDashoffset={isNotPaid ? 0 : 339.3 - (percentage / 100) * 339.3}
                       strokeLinecap="round"
-                      stroke="url(#widgetGradient)"
+                      stroke={isNotPaid ? "url(#notPaidGradient)" : "url(#widgetGradient)"}
                       fill="transparent"
                       r="54"
                       cx="72"
@@ -348,26 +375,57 @@ export function EventCardClient({
                         <stop offset="50%" stopColor="#0ea5e9" />
                         <stop offset="100%" stopColor="#3b82f6" />
                       </linearGradient>
+                      <linearGradient id="notPaidGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#ef4444" />
+                        <stop offset="50%" stopColor="#dc2626" />
+                        <stop offset="100%" stopColor="#b91c1c" />
+                      </linearGradient>
                     </defs>
                   </svg>
                   <div className="absolute flex flex-col items-center justify-center leading-none text-center">
-                    <span className="text-4xl font-black tracking-tight text-white drop-shadow">
-                      {formattedBalance}
-                    </span>
-                    <div className="h-[1.5px] w-8 bg-white/20 my-1.5" />
-                    <span className="text-white/40 text-xs font-bold uppercase tracking-wider">
-                      {formattedTotal}
-                    </span>
+                    {isNotPaid ? (
+                      <>
+                        <svg className="h-10 w-10 text-red-400 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                        <span className="text-xs font-black text-red-400 uppercase tracking-widest">
+                          Not Paid
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-4xl font-black tracking-tight text-white drop-shadow">
+                          {formattedBalance}
+                        </span>
+                        <div className="h-[1.5px] w-8 bg-white/20 my-1.5" />
+                        <span className="text-white/40 text-xs font-bold uppercase tracking-wider">
+                          {formattedTotal}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 <div className="text-center mt-5 space-y-1">
-                  <h3 className="text-base font-bold text-white tracking-wide">
-                    {formattedBalance} / {formattedTotal} {formattedBalance === 1 ? t("oneRemaining") : t("remaining")}
-                  </h3>
-                  <p className="text-xs text-white/50">
-                    {formattedUsed} {t("used")} · {t("usedProgress")} ({100 - percentage}% {t("used")})
-                  </p>
+                  {isNotPaid ? (
+                    <>
+                      <h3 className="text-base font-bold text-red-400 tracking-wide">
+                        Payment Required
+                      </h3>
+                      <p className="text-xs text-red-400/60">
+                        Please contact AQA Sports to settle your balance.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-base font-bold text-white tracking-wide">
+                        {formattedBalance} / {formattedTotal} {formattedBalance === 1 ? t("oneRemaining") : t("remaining")}
+                      </h3>
+                      <p className="text-xs text-white/50">
+                        {formattedUsed} {t("used")} · {t("usedProgress")} ({100 - percentage}% {t("used")})
+                      </p>
+                    </>
+                  )}
                 </div>
 
                 <button
@@ -386,7 +444,12 @@ export function EventCardClient({
 
           <div className="text-center flex flex-col items-center gap-3">
             <div>
-              {balance === 0 ? (
+              {isNotPaid ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-red-500/20 border border-red-500/40 px-5 py-2 text-sm font-black text-red-300 animate-not-paid-blink">
+                  <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                  Not Paid
+                </span>
+              ) : balance === 0 ? (
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-red-500/20 border border-red-500/30 px-4 py-1.5 text-xs font-semibold text-red-200">
                   <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
                   {t("noCredits")} — {t("purchaseNewPackage")}

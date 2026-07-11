@@ -107,6 +107,10 @@ export default function ClientDetailPage() {
   const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
   const [deletingInvoiceId, setDeletingInvoiceId] = useState<string | null>(null);
 
+  // Not Paid flag state
+  const [isNotPaid, setIsNotPaid] = useState(false);
+  const [togglingNotPaid, setTogglingNotPaid] = useState(false);
+
   const loadNotifications = useCallback(async () => {
     setLoadingNotifications(true);
     setNotificationsError("");
@@ -221,6 +225,11 @@ export default function ClientDetailPage() {
 
   useEffect(() => {
     loadClient();
+    // Load not-paid flag status
+    fetch(`/api/admin/clients/${params.id}/not-paid`)
+      .then((r) => r.json())
+      .then((data) => { if (typeof data.isNotPaid === "boolean") setIsNotPaid(data.isNotPaid); })
+      .catch(() => {});
     fetch("/api/admin/packages")
       .then((r) => r.json())
       .then((data) => {
@@ -251,6 +260,31 @@ export default function ClientDetailPage() {
         setActivities([]);
       });
   }, [loadClient]);
+
+  async function toggleNotPaid() {
+    setTogglingNotPaid(true);
+    setMessage(null);
+    try {
+      const method = isNotPaid ? "DELETE" : "POST";
+      const res = await fetch(`/api/admin/clients/${params.id}/not-paid`, { method });
+      if (res.ok) {
+        const data = await res.json();
+        setIsNotPaid(data.isNotPaid);
+        setMessage({
+          text: data.isNotPaid
+            ? "Client marked as Not Paid. The client portal will now show a Not Paid alert."
+            : "Not Paid flag cleared. Client portal restored to normal.",
+          tone: "success",
+        });
+      } else {
+        setMessage({ text: "Failed to update Not Paid status.", tone: "danger" });
+      }
+    } catch {
+      setMessage({ text: "Network error updating Not Paid status.", tone: "danger" });
+    } finally {
+      setTogglingNotPaid(false);
+    }
+  }
 
   async function handleRedeemActivity(e?: FormEvent<HTMLFormElement>, creditsUsed?: number) {
     if (e) e.preventDefault();
@@ -807,13 +841,47 @@ export default function ClientDetailPage() {
           </p>
         </Card>
 
-        <Card className="bg-slate-50 border-slate-200">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Last Activity</p>
-          <p className="mt-2 text-sm font-semibold text-slate-700">
-            {client.lastActivityDate
-              ? formatDate(client.lastActivityDate, locale)
-              : "No activities yet"}
-          </p>
+        {/* Not Paid flag card */}
+        <Card className={`border-2 transition-all duration-300 ${
+          isNotPaid
+            ? "bg-red-50 border-red-300"
+            : "bg-slate-50 border-slate-200"
+        }`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">Payment Status</p>
+          {isNotPaid && (
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-sm font-black text-red-600 uppercase tracking-wide">Not Paid</span>
+            </div>
+          )}
+          <button
+            id="toggle-not-paid-btn"
+            onClick={toggleNotPaid}
+            disabled={togglingNotPaid}
+            className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all border ${
+              isNotPaid
+                ? "bg-red-100 border-red-300 text-red-700 hover:bg-red-200"
+                : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+            } disabled:opacity-60`}
+          >
+            {togglingNotPaid ? (
+              <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            ) : isNotPaid ? (
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            )}
+            {isNotPaid ? "Clear Not Paid" : "Mark as Not Paid"}
+          </button>
+          {!isNotPaid && (
+            <p className="text-[10px] text-slate-400 mt-1.5 text-center">
+              Flags the client portal with a red alert.
+            </p>
+          )}
         </Card>
       </div>
 

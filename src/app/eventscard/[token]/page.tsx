@@ -51,6 +51,13 @@ export default async function EventCardPage({
 
   const balance = await getClientBalance(card.clientId);
 
+  // Check if admin has flagged this client as "not paid"
+  const notPaidFlag = await prisma.invoice.findFirst({
+    where: { clientId: card.clientId, category: "not_paid_flag" },
+    select: { id: true },
+  });
+  const isNotPaid = !!notPaidFlag;
+
   const history = card.client.ledgerEntries
     .filter((e) => e.delta < 0)
     .map((e) => {
@@ -104,6 +111,7 @@ export default async function EventCardPage({
       packages={activePackages}
       products={advertisedProducts}
       publicToken={card.publicToken}
+      isNotPaid={isNotPaid}
     />
   );
 }
