@@ -7,6 +7,9 @@ class Invoice {
   final DateTime createdAt;
   final String? clientId;
   final String? clientName;
+  final String? category;
+  final String? items;
+  final String? notes;
 
   const Invoice({
     required this.id,
@@ -17,6 +20,9 @@ class Invoice {
     required this.createdAt,
     this.clientId,
     this.clientName,
+    this.category,
+    this.items,
+    this.notes,
   });
 
   factory Invoice.fromJson(Map<String, dynamic> json) => Invoice(
@@ -28,6 +34,9 @@ class Invoice {
         createdAt: DateTime.parse(json['createdAt'] as String),
         clientId: json['clientId'] as String?,
         clientName: json['client']?['fullName'] as String?,
+        category: json['category'] as String?,
+        items: json['items'] as String?,
+        notes: json['notes'] as String?,
       );
 
   bool get isPending => status == 'pending';

@@ -14,7 +14,7 @@ final sessionsProvider = FutureProvider<List<ActivitySession>>((ref) async {
   final list = res.data as List<dynamic>;
   final activities = list.map((e) => Activity.fromJson(e as Map<String, dynamic>)).toList();
   final sessions = activities
-      .expand((a) => a.sessions ?? <ActivitySession>[])
+      .expand((a) => (a.sessions ?? <ActivitySession>[]).map((s) => s.copyWith(activityName: a.name)))
       .toList()
     ..sort((a, b) => a.sessionDate.compareTo(b.sessionDate));
   return sessions;
@@ -115,7 +115,7 @@ class _SessionTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Session', style: TextStyle(color: isPast ? AppTheme.muted : AppTheme.foreground, fontWeight: FontWeight.w700)),
+                Text(session.activityName ?? 'Session', style: TextStyle(color: isPast ? AppTheme.muted : AppTheme.foreground, fontWeight: FontWeight.w700)),
                 if (session.location != null)
                   Text(session.location!, style: const TextStyle(color: AppTheme.muted, fontSize: 12)),
                 if (session.capacity != null)

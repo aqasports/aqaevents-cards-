@@ -26,9 +26,14 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
   ActivitySession? _selectedSession;
   String? _error;
 
+  final _notesCtrl = TextEditingController();
+  final _creditsCtrl = TextEditingController(text: '1');
+
   @override
   void dispose() {
     _scanner.dispose();
+    _notesCtrl.dispose();
+    _creditsCtrl.dispose();
     super.dispose();
   }
 
@@ -89,10 +94,13 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
     setState(() => _loading = true);
     try {
       final api = ref.read(apiClientProvider);
+      final creds = double.tryParse(_creditsCtrl.text) ?? 1.0;
       await api.post(ApiConfig.redemptions, data: {
         'clientId': _foundClient!.id,
         'activityId': _selectedActivity!.id,
         if (_selectedSession != null) 'sessionId': _selectedSession!.id,
+        'notes': _notesCtrl.text.trim(),
+        'creditsUsed': creds,
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -121,6 +129,8 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
       _selectedSession = null;
       _error = null;
     });
+    _notesCtrl.clear();
+    _creditsCtrl.text = '1';
     _scanner.start();
   }
 
@@ -300,6 +310,7 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
                 onTap: () => setState(() {
                   _selectedActivity = act;
                   _selectedSession = null;
+                  _creditsCtrl.text = act.creditCost.toString();
                 }),
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -404,6 +415,20 @@ class _RedeemScreenState extends ConsumerState<RedeemScreen> {
               );
             }),
           ],
+          
+          const SizedBox(height: 20),
+          TextField(
+            controller: _creditsCtrl,
+            decoration: const InputDecoration(labelText: 'Credits to Use'),
+            keyboardType: TextInputType.number,
+            style: const TextStyle(color: AppTheme.foreground),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _notesCtrl,
+            decoration: const InputDecoration(labelText: 'Redemption Notes (e.g. wet weather)'),
+            style: const TextStyle(color: AppTheme.foreground),
+          ),
 
           const SizedBox(height: 24),
           if (_error != null)

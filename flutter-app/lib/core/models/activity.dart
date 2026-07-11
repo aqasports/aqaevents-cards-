@@ -42,6 +42,7 @@ class ActivitySession {
   final DateTime sessionDate;
   final String? location;
   final int? capacity;
+  final String? activityName;
 
   const ActivitySession({
     required this.id,
@@ -49,6 +50,7 @@ class ActivitySession {
     required this.sessionDate,
     this.location,
     this.capacity,
+    this.activityName,
   });
 
   factory ActivitySession.fromJson(Map<String, dynamic> json) => ActivitySession(
@@ -57,5 +59,23 @@ class ActivitySession {
         sessionDate: DateTime.parse(json['sessionDate'] as String),
         location: json['location'] as String?,
         capacity: json['capacity'] as int?,
+        activityName: json['activityName'] as String?,
+      );
+
+  ActivitySession copyWith({
+    String? id,
+    String? activityId,
+    DateTime? sessionDate,
+    String? location,
+    int? capacity,
+    String? activityName,
+  }) =>
+      ActivitySession(
+        id: id ?? this.id,
+        activityId: activityId ?? this.activityId,
+        sessionDate: sessionDate ?? this.sessionDate,
+        location: location ?? this.location,
+        capacity: capacity ?? this.capacity,
+        activityName: activityName ?? this.activityName,
       );
 }

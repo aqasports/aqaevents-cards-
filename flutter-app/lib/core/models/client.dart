@@ -55,7 +55,7 @@ class ClientCard {
   factory ClientCard.fromJson(Map<String, dynamic> json) => ClientCard(
         id: json['id'] as String,
         cardCode: json['cardCode'] as String,
-        isActive: json['isActive'] as bool? ?? true,
-        qrToken: json['qrToken'] as String?,
+        isActive: json['isActive'] as bool? ?? (json['status'] == 'active'),
+        qrToken: json['publicToken'] as String? ?? json['qrToken'] as String?,
       );
 }

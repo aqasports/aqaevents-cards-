@@ -6,6 +6,8 @@ class Package {
   final int totalCredits;
   final int price;
   final bool active;
+  final int sortOrder;
+  final int salesCount;
 
   const Package({
     required this.id,
@@ -15,6 +17,8 @@ class Package {
     required this.totalCredits,
     required this.price,
     required this.active,
+    required this.sortOrder,
+    required this.salesCount,
   });
 
   factory Package.fromJson(Map<String, dynamic> json) => Package(
@@ -25,6 +29,8 @@ class Package {
         totalCredits: json['totalCredits'] as int? ?? 0,
         price: json['price'] as int? ?? 0,
         active: json['active'] as bool? ?? true,
+        sortOrder: json['sortOrder'] as int? ?? 0,
+        salesCount: (json['_count'] as Map<String, dynamic>?)?['ledgerEntries'] as int? ?? 0,
       );
 
   String get formattedPrice {

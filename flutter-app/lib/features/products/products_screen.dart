@@ -2,51 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/endpoints.dart';
+import '../../core/models/product.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-class _Product {
-  final String id;
-  final String name;
-  final int price;
-  final String? description;
-  final String? imageUrl;
-  final bool active;
-  final bool advertised;
-
-  const _Product({
-    required this.id,
-    required this.name,
-    required this.price,
-    this.description,
-    this.imageUrl,
-    required this.active,
-    required this.advertised,
-  });
-
-  factory _Product.fromJson(Map<String, dynamic> json) => _Product(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        price: json['price'] as int,
-        description: json['description'] as String?,
-        imageUrl: json['imageUrl'] as String?,
-        active: json['active'] as bool? ?? true,
-        advertised: json['advertised'] as bool? ?? true,
-      );
-
-  String get formattedPrice {
-    if (price >= 1000) return '${(price / 1000).toStringAsFixed(price % 1000 == 0 ? 0 : 1)} k DA';
-    return '$price DA';
-  }
-}
-
-final productsProvider = FutureProvider<List<_Product>>((ref) async {
+final productsProvider = FutureProvider<List<Product>>((ref) async {
   final api = ref.read(apiClientProvider);
   final res = await api.get(ApiConfig.products);
   final list = res.data as List<dynamic>;
-  return list.map((e) => _Product.fromJson(e as Map<String, dynamic>)).toList();
+  return list.map((e) => Product.fromJson(e as Map<String, dynamic>)).toList();
 });
 
 class ProductsScreen extends ConsumerWidget {
@@ -88,7 +54,7 @@ class ProductsScreen extends ConsumerWidget {
 }
 
 class _ProductCard extends StatelessWidget {
-  final _Product product;
+  final Product product;
   const _ProductCard({required this.product});
 
   @override
