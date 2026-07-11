@@ -788,7 +788,13 @@ export default function ActivityDetailPage() {
   const loadClients = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/clients");
-      if (res.ok) setClients(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          data.sort((a: any, b: any) => a.fullName.localeCompare(b.fullName));
+        }
+        setClients(data);
+      }
     } catch (err) { console.error(err); }
   }, []);
 
@@ -1617,7 +1623,7 @@ export default function ActivityDetailPage() {
                           <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">No clients registered.</p>
                         ) : (
                           <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden">
-                            {session.redemptions.map((red) => (
+                            {[...session.redemptions].sort((a, b) => a.client.fullName.localeCompare(b.client.fullName)).map((red) => (
                               <li key={red.id} className="flex items-center justify-between px-3 py-2.5 text-xs">
                                 <div>
                                   <p className="font-bold">{red.client.fullName}</p>
@@ -2212,7 +2218,7 @@ export default function ActivityDetailPage() {
                           <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">No clients were registered.</p>
                         ) : (
                           <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden">
-                            {session.redemptions.map((red) => (
+                            {[...session.redemptions].sort((a, b) => a.client.fullName.localeCompare(b.client.fullName)).map((red) => (
                               <li key={red.id} className="flex items-center justify-between px-3 py-2.5 text-xs">
                                 <div>
                                   <p className="font-bold">{red.client.fullName}</p>
