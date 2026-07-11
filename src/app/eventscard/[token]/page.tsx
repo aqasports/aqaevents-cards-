@@ -27,13 +27,16 @@ export default async function EventCardPage({
     include: {
       client: {
         include: {
-          redemptions: {
-            include: { activity: true, session: true },
-            orderBy: { redeemedAt: "desc" },
-            take: 50,
-          },
           ledgerEntries: {
-            include: { package: true },
+            include: {
+              package: true,
+              redemption: {
+                include: {
+                  activity: true,
+                  session: true,
+                },
+              },
+            },
             orderBy: { createdAt: "desc" },
             take: 20,
           },
@@ -48,26 +51,19 @@ export default async function EventCardPage({
 
   const balance = await getClientBalance(card.clientId);
 
-  const history = [
-    ...card.client.redemptions.map((r) => ({
-      activity: r.activity.name,
-      date: r.session?.sessionDate ?? r.redeemedAt,
-      creditsUsed: r.creditsUsed,
-      redeemedAt: r.redeemedAt,
-      location: r.session?.location ?? null,
-      amountDa: null as number | null,
-    })),
-    ...card.client.ledgerEntries
-      .filter((e) => e.delta < 0)
-      .map((e) => ({
-        activity: e.reason ?? "Store Purchase",
-        date: e.createdAt.toISOString(),
+  const history = card.client.ledgerEntries
+    .filter((e) => e.delta < 0)
+    .map((e) => {
+      const r = e.redemption;
+      return {
+        activity: r ? r.activity.name : (e.reason ?? "Store Purchase"),
+        date: r ? (r.session?.sessionDate ?? r.redeemedAt) : e.createdAt,
         creditsUsed: Math.abs(e.delta),
-        redeemedAt: e.createdAt.toISOString(),
-        location: "AQA Store",
+        redeemedAt: r ? r.redeemedAt : e.createdAt,
+        location: r ? (r.session?.location ?? null) : "AQA Store",
         amountDa: Math.abs(e.delta) * 1900,
-      })),
-  ];
+      };
+    });
 
   history.sort((a, b) => new Date(b.redeemedAt).getTime() - new Date(a.redeemedAt).getTime());
 
