@@ -264,8 +264,10 @@ export default function ClientDetailPage() {
   useEffect(() => {
     if (redeemActivityId) {
       const activity = activities.find((a) => a.id === redeemActivityId);
-      if (activity && activity.sessions && activity.sessions.length > 0) {
-        setRedeemSessionId(activity.sessions[0].id);
+      const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+      const upcoming = activity?.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+      if (upcoming.length > 0) {
+        setRedeemSessionId(upcoming[0].id);
       } else {
         setRedeemSessionId("");
       }
@@ -307,8 +309,12 @@ export default function ClientDetailPage() {
     try {
       const activity = activities.find((a) => a.id === redeemActivityId);
       let resolvedSessionId = redeemSessionId || undefined;
-      if (!resolvedSessionId && activity && activity.sessions && activity.sessions.length > 0) {
-        resolvedSessionId = activity.sessions[0].id;
+      if (!resolvedSessionId && activity) {
+        const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+        const upcoming = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+        if (upcoming.length > 0) {
+          resolvedSessionId = upcoming[0].id;
+        }
       }
 
       const res = await fetch("/api/admin/redemptions", {
@@ -1649,7 +1655,10 @@ export default function ClientDetailPage() {
 
                 {redeemActivityId && (() => {
                   const selectedActivity = activities.find((a) => a.id === redeemActivityId);
-                  if (!selectedActivity || !selectedActivity.sessions || selectedActivity.sessions.length === 0) return null;
+                  if (!selectedActivity || !selectedActivity.sessions) return null;
+                  const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+                  const upcoming = selectedActivity.sessions.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo);
+                  if (upcoming.length === 0) return null;
                   return (
                     <Select
                       label="Select Event Session"
@@ -1657,7 +1666,7 @@ export default function ClientDetailPage() {
                       onChange={(e) => setRedeemSessionId(e.target.value)}
                     >
                       <option value="">No specific event session</option>
-                      {selectedActivity.sessions.map((session: any) => (
+                      {upcoming.map((session: any) => (
                         <option key={session.id} value={session.id}>
                           {formatDate(session.sessionDate, locale, true)}
                           {session.location ? ` · ${session.location}` : ""}

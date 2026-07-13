@@ -312,8 +312,12 @@ export default function RedeemPage() {
     const activity = activities.find((a) => a.id === selectedActivityId);
     if (!activity) return;
 
-    if (!sessionId && activity.sessions && activity.sessions.length > 0) {
-      sessionId = activity.sessions[0].id;
+    if (!sessionId) {
+      const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+      const upcomingSessions = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+      if (upcomingSessions.length > 0) {
+        sessionId = upcomingSessions[0].id;
+      }
     }
 
     const cost = 0.7;
@@ -343,7 +347,9 @@ export default function RedeemPage() {
     const cost = creditsUsed ?? activity.creditCost;
     const isInsufficient = lookup.balance < cost;
 
-    const nextSession = activity.sessions && activity.sessions.length > 0 ? activity.sessions[0].id : undefined;
+    const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+    const upcomingSessions = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+    const nextSession = upcomingSessions.length > 0 ? upcomingSessions[0].id : undefined;
 
     if (isInsufficient) {
       if (isSuperAdmin) {
@@ -721,11 +727,16 @@ export default function RedeemPage() {
                               <Badge tone="primary" size="sm">
                                 {cost} {cost === 1 ? "Credit" : "Credits"}
                               </Badge>
-                              {activity.sessions && activity.sessions.length > 0 && (
-                                <Badge tone="info" size="sm">
-                                  {formatDate(activity.sessions[0].sessionDate, locale, true).split(" ")[0]}
-                                </Badge>
-                              )}
+                              {(() => {
+                                const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+                                const upcoming = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+                                if (upcoming.length === 0) return null;
+                                return (
+                                  <Badge tone="info" size="sm">
+                                    {formatDate(upcoming[0].sessionDate, locale, true).split(" ")[0]}
+                                  </Badge>
+                                );
+                              })()}
                             </div>
                           </div>
                           <div className="mt-4 flex gap-2">
@@ -787,17 +798,22 @@ export default function RedeemPage() {
                       ))}
                     </Select>
 
-                    {selectedActivity && selectedActivity.sessions.length > 0 && (
-                      <Select label={t("sessionLabel")} name="sessionId" defaultValue="">
-                        <option value="">{t("noSpecificSession")}</option>
-                        {selectedActivity.sessions.map((session) => (
-                          <option key={session.id} value={session.id}>
-                            {formatDate(session.sessionDate, locale, true)}
-                            {session.location ? ` · ${session.location}` : ""}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
+                    {selectedActivity && (() => {
+                      const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+                      const upcoming = selectedActivity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+                      if (upcoming.length === 0) return null;
+                      return (
+                        <Select label={t("sessionLabel")} name="sessionId" defaultValue={upcoming[0].id}>
+                          <option value="">{t("noSpecificSession")}</option>
+                          {upcoming.map((session) => (
+                            <option key={session.id} value={session.id}>
+                              {formatDate(session.sessionDate, locale, true)}
+                              {session.location ? ` · ${session.location}` : ""}
+                            </option>
+                          ))}
+                        </Select>
+                      );
+                    })()}
 
                     <Input
                       label={t("notesLabel")}
