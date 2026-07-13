@@ -112,6 +112,16 @@ export default function UsersPage() {
   const [selectedCoachId, setSelectedCoachId] = useState<string | null>(null);
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
 
+  // Coach Form/Editor state
+  const [editingCoachId, setEditingCoachId] = useState<string | null>(null);
+  const [coachName, setCoachName] = useState("");
+  const [coachType, setCoachType] = useState<"coach" | "staff">("coach");
+  const [coachEmail, setCoachEmail] = useState("");
+  const [coachPhone, setCoachPhone] = useState("");
+  const [coachBaseRate, setCoachBaseRate] = useState("2000");
+  const [coachBonusPerAttendee, setCoachBonusPerAttendee] = useState("150");
+  const [coachNotes, setCoachNotes] = useState("");
+
   // Report state
   const [reportCoachId, setReportCoachId] = useState("");
   const [reportStartDate, setReportStartDate] = useState("");
@@ -287,25 +297,67 @@ export default function UsersPage() {
   }
 
   // Coach and Salary manager handlers
-  function addCoach(event: FormEvent<HTMLFormElement>) {
+  function handleCoachSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    
-    const newCoach: Coach = {
-      id: "coach_" + Math.random().toString(36).substr(2, 9),
-      name: formData.get("name") as string,
-      type: formData.get("type") as "coach" | "staff",
-      email: formData.get("email") as string || "",
-      phone: formData.get("phone") as string || "",
-      baseRate: Number(formData.get("baseRate")) || 0,
-      bonusPerAttendee: Number(formData.get("bonusPerAttendee")) || 0,
-      notes: formData.get("notes") as string || "",
-      createdAt: new Date().toISOString(),
-    };
+    if (editingCoachId) {
+      setCoaches((prev) =>
+        prev.map((c) => {
+          if (c.id === editingCoachId) {
+            return {
+              ...c,
+              name: coachName,
+              type: coachType,
+              email: coachEmail,
+              phone: coachPhone,
+              baseRate: Number(coachBaseRate) || 0,
+              bonusPerAttendee: Number(coachBonusPerAttendee) || 0,
+              notes: coachNotes,
+            };
+          }
+          return c;
+        })
+      );
+      setMessage({ text: `Updated ${coachName} successfully.`, tone: "success" });
+      resetCoachForm();
+    } else {
+      const newCoach: Coach = {
+        id: "coach_" + Math.random().toString(36).substr(2, 9),
+        name: coachName,
+        type: coachType,
+        email: coachEmail,
+        phone: coachPhone,
+        baseRate: Number(coachBaseRate) || 0,
+        bonusPerAttendee: Number(coachBonusPerAttendee) || 0,
+        notes: coachNotes,
+        createdAt: new Date().toISOString(),
+      };
 
-    setCoaches((prev) => [newCoach, ...prev]);
-    setMessage({ text: `Added ${newCoach.name} successfully.`, tone: "success" });
-    (event.target as HTMLFormElement).reset();
+      setCoaches((prev) => [newCoach, ...prev]);
+      setMessage({ text: `Added ${newCoach.name} successfully.`, tone: "success" });
+      resetCoachForm();
+    }
+  }
+
+  function resetCoachForm() {
+    setEditingCoachId(null);
+    setCoachName("");
+    setCoachType("coach");
+    setCoachEmail("");
+    setCoachPhone("");
+    setCoachBaseRate("2000");
+    setCoachBonusPerAttendee("150");
+    setCoachNotes("");
+  }
+
+  function startEditCoach(coach: Coach) {
+    setEditingCoachId(coach.id);
+    setCoachName(coach.name);
+    setCoachType(coach.type);
+    setCoachEmail(coach.email);
+    setCoachPhone(coach.phone);
+    setCoachBaseRate(coach.baseRate.toString());
+    setCoachBonusPerAttendee(coach.bonusPerAttendee.toString());
+    setCoachNotes(coach.notes);
   }
 
   function removeCoach(coach: Coach) {
@@ -510,7 +562,8 @@ export default function UsersPage() {
   }
 
   const selectedCoach = coaches.find((c) => c.id === selectedCoachId);
-  const { matchingSessions, totalSessions, totalAttendees, totalPayout } = getReportData();
+  const { coach: reportCoach, matchingSessions, totalSessions, totalAttendees, totalPayout } = getReportData();
+  const hasBonus = reportCoach && reportCoach.bonusPerAttendee > 0;
 
   return (
     <div className="space-y-6">
@@ -689,17 +742,26 @@ export default function UsersPage() {
       {/* TAB 2: COACH & STAFF PROFILES */}
       {activeTab === "coaches" && (
         <div className="grid gap-6 lg:grid-cols-[360px_1fr] animate-fade-in">
-          {/* Add Coach form */}
+          {/* Add/Edit Coach form */}
           <Card>
-            <h3 className="mb-4 text-base font-semibold">Add Coach or Instructor</h3>
-            <form onSubmit={addCoach} className="space-y-4">
+            <h3 className="mb-4 text-base font-semibold">
+              {editingCoachId ? "Edit Profile" : "Add Coach or Instructor"}
+            </h3>
+            <form onSubmit={handleCoachSubmit} className="space-y-4">
               <Input
                 label="Full name"
                 name="name"
                 placeholder="e.g. Karim Bensmail"
+                value={coachName}
+                onChange={(e) => setCoachName(e.target.value)}
                 required
               />
-              <Select label="Staff type" name="type" defaultValue="coach">
+              <Select
+                label="Staff type"
+                name="type"
+                value={coachType}
+                onChange={(e) => setCoachType(e.target.value as any)}
+              >
                 <option value="coach">Coach / Instructor</option>
                 <option value="staff">Administrative Staff</option>
               </Select>
@@ -707,11 +769,15 @@ export default function UsersPage() {
                 label="Email (optional)"
                 name="email"
                 type="email"
+                value={coachEmail}
+                onChange={(e) => setCoachEmail(e.target.value)}
                 placeholder="e.g. karim@aqasports.com"
               />
               <Input
                 label="Phone (optional)"
                 name="phone"
+                value={coachPhone}
+                onChange={(e) => setCoachPhone(e.target.value)}
                 placeholder="e.g. 0550123456"
               />
               <div className="grid grid-cols-2 gap-4">
@@ -719,7 +785,8 @@ export default function UsersPage() {
                   label="Base pay / event"
                   name="baseRate"
                   type="number"
-                  defaultValue="2000"
+                  value={coachBaseRate}
+                  onChange={(e) => setCoachBaseRate(e.target.value)}
                   min="0"
                   required
                   hint="DA per session"
@@ -728,7 +795,8 @@ export default function UsersPage() {
                   label="Bonus / attendee"
                   name="bonusPerAttendee"
                   type="number"
-                  defaultValue="150"
+                  value={coachBonusPerAttendee}
+                  onChange={(e) => setCoachBonusPerAttendee(e.target.value)}
                   min="0"
                   required
                   hint="DA per client"
@@ -737,11 +805,24 @@ export default function UsersPage() {
               <Textarea
                 label="Notes / Qualifications"
                 name="notes"
+                value={coachNotes}
+                onChange={(e) => setCoachNotes(e.target.value)}
                 placeholder="Specialties, certifications, schedule preferences..."
               />
-              <Button type="submit" className="w-full cursor-pointer">
-                Add profile
-              </Button>
+              {editingCoachId ? (
+                <div className="flex gap-2">
+                  <Button type="button" variant="secondary" onClick={resetCoachForm} className="flex-1 cursor-pointer">
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="flex-1 cursor-pointer">
+                    Save Profile
+                  </Button>
+                </div>
+              ) : (
+                <Button type="submit" className="w-full cursor-pointer">
+                  Add profile
+                </Button>
+              )}
             </form>
           </Card>
 
@@ -810,9 +891,17 @@ export default function UsersPage() {
                             Link Events
                           </Button>
                           <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => startEditCoach(coach)}
+                            className="cursor-pointer"
+                          >
+                            Edit
+                          </Button>
+                          <Button
                             variant="ghost"
                             size="sm"
-                            className="text-[var(--danger)] hover:bg-red-950/20 cursor-pointer"
+                            className="text-[var(--danger)] hover:bg-red-955/20 cursor-pointer"
                             onClick={() => removeCoach(coach)}
                           >
                             Remove
@@ -897,11 +986,13 @@ export default function UsersPage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Sessions Taught</p>
                   <p className="mt-2 text-2xl font-bold">{totalSessions}</p>
                 </Card>
-                <Card>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Attendance</p>
-                  <p className="mt-2 text-2xl font-bold">{totalAttendees} clients</p>
-                </Card>
-                <Card>
+                {hasBonus && (
+                  <Card>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Attendance</p>
+                    <p className="mt-2 text-2xl font-bold">{totalAttendees} clients</p>
+                  </Card>
+                )}
+                <Card className={hasBonus ? "" : "sm:col-span-2"}>
                   <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Salary Earned</p>
                   <p className="mt-2 text-2xl font-bold text-[var(--primary)]">
                     {totalPayout.toLocaleString("fr-DZ")} DA
@@ -928,9 +1019,9 @@ export default function UsersPage() {
                           <th className="px-5 py-3">Event Date</th>
                           <th className="px-5 py-3">Activity</th>
                           <th className="px-5 py-3">Location</th>
-                          <th className="px-5 py-3 text-center">Attendees</th>
+                          {hasBonus && <th className="px-5 py-3 text-center">Attendees</th>}
                           <th className="px-5 py-3 text-right">Base Pay</th>
-                          <th className="px-5 py-3 text-right">Attendee Bonus</th>
+                          {hasBonus && <th className="px-5 py-3 text-right">Attendee Bonus</th>}
                           <th className="px-5 py-3 text-right">Total Payout</th>
                         </tr>
                       </thead>
@@ -942,13 +1033,15 @@ export default function UsersPage() {
                             </td>
                             <td className="px-5 py-3.5 font-semibold text-[var(--foreground)]">{item.activityName}</td>
                             <td className="px-5 py-3.5 text-[var(--muted)]">{item.location}</td>
-                            <td className="px-5 py-3.5 text-center text-[var(--foreground)]">{item.attendees}</td>
+                            {hasBonus && <td className="px-5 py-3.5 text-center text-[var(--foreground)]">{item.attendees}</td>}
                             <td className="px-5 py-3.5 text-right tabular-nums">{item.baseRate.toLocaleString("fr-DZ")} DA</td>
-                            <td className="px-5 py-3.5 text-right tabular-nums">
-                              {item.bonusPerAttendee > 0
-                                ? `${(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA`
-                                : "—"}
-                            </td>
+                            {hasBonus && (
+                              <td className="px-5 py-3.5 text-right tabular-nums">
+                                {item.bonusPerAttendee > 0
+                                  ? `${(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA`
+                                  : "—"}
+                              </td>
+                            )}
                             <td className="px-5 py-3.5 text-right font-semibold text-[var(--primary)] tabular-nums">
                               {item.totalPay.toLocaleString("fr-DZ")} DA
                             </td>
@@ -1329,42 +1422,47 @@ export default function UsersPage() {
               {/* Statement details table */}
               <div className="mt-4">
                 <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-2">Linked Session Statement Details</p>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-500 font-bold">
-                      <th className="py-2.5 px-2">Date</th>
-                      <th className="py-2.5 px-2">Activity Description</th>
-                      <th className="py-2.5 px-2">Location</th>
-                      <th className="py-2.5 px-2 text-center">Attendees</th>
-                      <th className="py-2.5 px-2 text-right">Base rate</th>
-                      <th className="py-2.5 px-2 text-right">Bonus rate</th>
-                      <th className="py-2.5 px-2 text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {selectedInvoice.sessions.map((item, idx) => (
-                      <tr key={item.sessionId + "_" + idx} className="text-slate-700">
-                        <td className="py-2.5 px-2 font-medium">{new Date(item.sessionDate).toLocaleDateString()}</td>
-                        <td className="py-2.5 px-2 font-bold text-slate-900">{item.activityName}</td>
-                        <td className="py-2.5 px-2">{item.location}</td>
-                        <td className="py-2.5 px-2 text-center">{item.attendees}</td>
-                        <td className="py-2.5 px-2 text-right tabular-nums">{item.baseRate.toLocaleString("fr-DZ")} DA</td>
-                        <td className="py-2.5 px-2 text-right tabular-nums">{item.bonusPerAttendee.toLocaleString("fr-DZ")} DA</td>
-                        <td className="py-2.5 px-2 text-right font-semibold text-slate-900 tabular-nums">
-                          {item.totalPay.toLocaleString("fr-DZ")} DA
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-slate-200 font-bold text-slate-900">
-                      <td colSpan={5} className="py-3 px-2 text-right text-sm font-extrabold uppercase">Disbursement Total</td>
-                      <td colSpan={2} className="py-3 px-2 text-right text-base font-black text-slate-900 tabular-nums">
-                        {selectedInvoice.totalAmount.toLocaleString("fr-DZ")} DA
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+                {(() => {
+                  const invoiceHasBonus = selectedInvoice.sessions.some(s => s.bonusPerAttendee > 0);
+                  return (
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-500 font-bold">
+                          <th className="py-2.5 px-2">Date</th>
+                          <th className="py-2.5 px-2">Activity Description</th>
+                          <th className="py-2.5 px-2">Location</th>
+                          {invoiceHasBonus && <th className="py-2.5 px-2 text-center">Attendees</th>}
+                          <th className="py-2.5 px-2 text-right">Base rate</th>
+                          {invoiceHasBonus && <th className="py-2.5 px-2 text-right">Bonus rate</th>}
+                          <th className="py-2.5 px-2 text-right">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {selectedInvoice.sessions.map((item, idx) => (
+                          <tr key={item.sessionId + "_" + idx} className="text-slate-700">
+                            <td className="py-2.5 px-2 font-medium">{new Date(item.sessionDate).toLocaleDateString()}</td>
+                            <td className="py-2.5 px-2 font-bold text-slate-900">{item.activityName}</td>
+                            <td className="py-2.5 px-2">{item.location}</td>
+                            {invoiceHasBonus && <td className="py-2.5 px-2 text-center">{item.attendees}</td>}
+                            <td className="py-2.5 px-2 text-right tabular-nums">{item.baseRate.toLocaleString("fr-DZ")} DA</td>
+                            {invoiceHasBonus && <td className="py-2.5 px-2 text-right tabular-nums">{item.bonusPerAttendee.toLocaleString("fr-DZ")} DA</td>}
+                            <td className="py-2.5 px-2 text-right font-semibold text-slate-900 tabular-nums">
+                              {item.totalPay.toLocaleString("fr-DZ")} DA
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-slate-200 font-bold text-slate-900">
+                          <td colSpan={invoiceHasBonus ? 5 : 4} className="py-3 px-2 text-right text-sm font-extrabold uppercase">Disbursement Total</td>
+                          <td colSpan={invoiceHasBonus ? 2 : 1} className="py-3 px-2 text-right text-base font-black text-slate-900 tabular-nums">
+                            {selectedInvoice.totalAmount.toLocaleString("fr-DZ")} DA
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  );
+                })()}
               </div>
 
               {/* Notes block */}
