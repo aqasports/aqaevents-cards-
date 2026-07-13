@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslations } from "@/lib/i18n";
 
 const links = [
@@ -230,6 +230,56 @@ export function AdminNav() {
     return () => clearInterval(interval);
   }, []);
 
+  // --- Swipe-to-close gesture state ---
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef(0);
+  const touchCurrentX = useRef(0);
+  const isSwiping = useRef(false);
+  const SWIPE_THRESHOLD = 50;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchCurrentX.current = e.touches[0].clientX;
+    isSwiping.current = true;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isSwiping.current || !drawerRef.current) return;
+    touchCurrentX.current = e.touches[0].clientX;
+    const deltaX = touchCurrentX.current - touchStartX.current;
+
+    // In LTR, swipe left (negative delta) to close; in RTL, swipe right (positive delta) to close
+    const isClosingDirection = dir === "rtl" ? deltaX > 0 : deltaX < 0;
+    if (isClosingDirection) {
+      const absDelta = Math.abs(deltaX);
+      drawerRef.current.style.transform = dir === "rtl"
+        ? `translateX(${absDelta}px)`
+        : `translateX(-${absDelta}px)`;
+      drawerRef.current.style.transition = "none";
+    }
+  }, [dir]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isSwiping.current || !drawerRef.current) return;
+    const deltaX = touchCurrentX.current - touchStartX.current;
+    const isClosingDirection = dir === "rtl" ? deltaX > 0 : deltaX < 0;
+    const absDelta = Math.abs(deltaX);
+
+    if (isClosingDirection && absDelta >= SWIPE_THRESHOLD) {
+      // Animate out then close
+      drawerRef.current.style.transition = "transform 200ms ease-out";
+      drawerRef.current.style.transform = dir === "rtl"
+        ? "translateX(100%)"
+        : "translateX(-100%)";
+      setTimeout(() => setMobileOpen(false), 200);
+    } else {
+      // Snap back
+      drawerRef.current.style.transition = "transform 200ms ease-out";
+      drawerRef.current.style.transform = "translateX(0)";
+    }
+    isSwiping.current = false;
+  }, [dir]);
+
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
     return pathname.startsWith(href);
@@ -245,7 +295,7 @@ export function AdminNav() {
             key={link.href}
             href={link.href}
             onClick={() => isMobile && setMobileOpen(false)}
-            className={`flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold transition-all duration-200 border ${
+            className={`flex items-center justify-between rounded-xl px-4 ${isMobile ? 'py-3.5' : 'py-3'} text-sm font-semibold transition-all duration-200 border ${
               active
                 ? "bg-[var(--primary-light)] text-[var(--primary)] border-[var(--primary)]/20 shadow-[var(--shadow-glow)]"
                 : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] border-transparent"
@@ -339,11 +389,14 @@ export function AdminNav() {
       </aside>
 
       {/* 2. MOBILE TOP STICKY BAR */}
-      <header className="lg:hidden print:hidden w-full sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-sm flex items-center justify-between px-4 py-3">
+      <header
+        className="lg:hidden print:hidden w-full sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-sm flex items-center justify-between px-4 py-3"
+        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+      >
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-2)] active:scale-95 transition-all"
+          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -355,19 +408,27 @@ export function AdminNav() {
           <span className="font-extrabold text-sm text-[var(--foreground)]">AQA Sports</span>
         </Link>
 
-        {/* Small pending demand badge indicator in header */}
+        {/* Notification pill badges with counts in header */}
         <div className="flex items-center gap-1.5">
           {newCheckInsCount > 0 && (
-            <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.8)]" />
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)] leading-none">
+              {newCheckInsCount}
+            </span>
           )}
           {pendingProposalsCount > 0 && (
-            <span className="h-2 w-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.8)]" />
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-cyan-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.6)] leading-none">
+              {pendingProposalsCount}
+            </span>
           )}
           {pendingDemandsCount > 0 && (
-            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.6)] leading-none">
+              {pendingDemandsCount}
+            </span>
           )}
           {pendingCount > 0 && (
-            <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)] leading-none">
+              {pendingCount}
+            </span>
           )}
           <span className="w-9" /> {/* Spacer to center the logo perfectly */}
         </div>
@@ -382,8 +443,12 @@ export function AdminNav() {
             onClick={() => setMobileOpen(false)}
           />
 
-          {/* Drawer Panel Container */}
+          {/* Drawer Panel Container -- supports swipe-to-close */}
           <div
+            ref={drawerRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             className={`fixed top-0 bottom-0 z-50 w-64 bg-[var(--surface)]/95 backdrop-blur-lg border-[var(--border)] shadow-2xl flex flex-col justify-between transition-transform duration-300 ${
               dir === "rtl"
                 ? "right-0 border-l animate-slide-in-right"
@@ -399,9 +464,9 @@ export function AdminNav() {
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)]"
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>

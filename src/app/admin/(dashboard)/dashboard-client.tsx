@@ -140,7 +140,7 @@ export default function DashboardClient({
       />
 
       {/* Stats grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <StatCard
           label={t("totalClients")}
           value={clientCount}
@@ -194,18 +194,18 @@ export default function DashboardClient({
 
       {/* Executive Metrics Sections */}
       <div className="mt-8 space-y-6">
-        <h3 className={`text-lg font-bold border-b border-[var(--border)] pb-2 flex items-center gap-2 ${dir === "rtl" ? "flex-row-reverse text-right" : "text-left"}`}>
+        <h3 className={`text-base sm:text-lg font-bold border-b border-[var(--border)] pb-2 flex items-center gap-2 ${dir === "rtl" ? "flex-row-reverse text-right" : "text-left"}`}>
           <svg className="h-5 w-5 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
           </svg>
           <span>Executive Metrics Dashboard</span>
         </h3>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
           {/* Revenue Section */}
           <div className="space-y-3">
-            <h4 className={`text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("revenueSection")}</h4>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <h4 className={`text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("revenueSection")}</h4>
+            <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-3">
               <StatCard
                 label={t("revenueToday")}
                 value={fmtCurrency(revenueToday)}
@@ -238,8 +238,8 @@ export default function DashboardClient({
 
           {/* Activities Section */}
           <div className="space-y-3">
-            <h4 className={`text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("activitiesSection")}</h4>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <h4 className={`text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("activitiesSection")}</h4>
+            <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-3">
               <StatCard
                 label={t("mostPopularActivity")}
                 value={popularActivityName}
@@ -272,8 +272,8 @@ export default function DashboardClient({
 
           {/* Cards Section */}
           <div className="space-y-3">
-            <h4 className={`text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("cardsSection")}</h4>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <h4 className={`text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("cardsSection")}</h4>
+            <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-3">
               <StatCard
                 label={t("activeCardsMetric")}
                 value={activeCards}
@@ -306,8 +306,8 @@ export default function DashboardClient({
 
           {/* Clients Section */}
           <div className="space-y-3">
-            <h4 className={`text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("clientsSection")}</h4>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <h4 className={`text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-[var(--muted)] ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("clientsSection")}</h4>
+            <div className="grid gap-2.5 sm:gap-3 grid-cols-1 sm:grid-cols-3">
               <StatCard
                 label={t("newClientsThisMonth")}
                 value={newClientsThisMonth}
@@ -340,7 +340,7 @@ export default function DashboardClient({
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid gap-3 sm:gap-4 lg:grid-cols-2">
         {/* Recent redemptions */}
         <Card>
           <div className={`flex items-center justify-between mb-4 ${dir === "rtl" ? "flex-row-reverse" : ""}`}>
@@ -358,7 +358,7 @@ export default function DashboardClient({
               {recentRedemptions.map((item) => (
                 <li
                   key={item.id}
-                  className={`flex items-center justify-between py-3 text-sm ${dir === "rtl" ? "flex-row-reverse" : ""}`}
+                  className={`flex items-center justify-between py-3.5 text-sm ${dir === "rtl" ? "flex-row-reverse" : ""}`}
                 >
                   <div className={dir === "rtl" ? "text-right" : "text-left"}>
                     <Link
@@ -381,7 +381,7 @@ export default function DashboardClient({
         {/* Quick actions */}
         <Card>
           <h3 className={`text-base font-semibold mb-4 ${dir === "rtl" ? "text-right" : "text-left"}`}>{t("quickActions")}</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
             {quickActionsList.map((item) => (
               <Link
                 key={item.href}

@@ -18,11 +18,11 @@ export function StatCard({
   trend?: { value: number; label: string };
 }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md p-5 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-glow)] hover:border-[var(--primary)]/30 transition-all duration-300 active:scale-[0.99] group">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md p-3.5 sm:p-5 shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-glow)] hover:border-[var(--primary)]/30 transition-all duration-300 active:scale-[0.99] group">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-xs font-medium uppercase tracking-wide text-[var(--muted)] group-hover:text-[var(--primary)] transition-colors">{label}</p>
-          <p className="mt-2 text-3xl font-bold text-[var(--foreground)] tabular-nums">{value}</p>
+          <p className="mt-2 text-2xl sm:text-3xl font-bold text-[var(--foreground)] tabular-nums">{value}</p>
           {hint ? (
             <p className="mt-1 text-xs text-[var(--muted)]">{hint}</p>
           ) : null}
@@ -33,7 +33,7 @@ export function StatCard({
           ) : null}
         </div>
         {icon ? (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-light)] text-[var(--primary)] group-hover:bg-[var(--primary)] group-hover:text-white transition-all duration-300">
+          <div className="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-light)] text-[var(--primary)] group-hover:bg-[var(--primary)] group-hover:text-white transition-all duration-300">
             {icon}
           </div>
         ) : null}
@@ -53,7 +53,7 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
       <div>
         <h2 className="text-2xl font-bold text-[var(--foreground)]">{title}</h2>
         {description ? (
@@ -81,8 +81,8 @@ export function Button({
   const base = "inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)] focus-visible:outline-offset-2";
 
   const sizes = {
-    sm: "px-3 py-1.5 text-xs",
-    md: "px-4 py-2 text-sm",
+    sm: "px-3 py-2 text-xs min-h-[36px]",
+    md: "px-4 py-2.5 text-sm min-h-[44px]",
   };
 
   const variants = {
@@ -137,7 +137,7 @@ export const Input = React.forwardRef<
       <input
         ref={ref}
         lang={derivedLang}
-        className={`w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)] ${
+        className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition-colors duration-150 placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)] ${
           error
             ? "border-[var(--danger)] bg-[var(--danger-bg)]"
             : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--border-strong)]"
@@ -172,7 +172,7 @@ export function Select({
         <span className="mb-1.5 block font-medium text-[var(--foreground)]">{label}</span>
       ) : null}
       <select
-        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition-colors duration-150 hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)]"
+        className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none transition-colors duration-150 hover:border-[var(--border-strong)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] text-[var(--foreground)]"
         {...props}
       >
         {children}
@@ -222,7 +222,7 @@ export function Card({
 }) {
   return (
     <div
-      className={`rounded-xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-glow)] transition-all duration-300 ${padding ? "p-5" : ""} ${className}`}
+      className={`rounded-xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-glow)] transition-all duration-300 ${padding ? "p-3.5 sm:p-5" : ""} ${className}`}
     >
       {children}
     </div>
@@ -349,8 +349,8 @@ export function ConfirmModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-fade-in">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-hidden animate-slide-up sm:animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-slate-50/50">
           <h3 className="font-bold text-[var(--foreground)] flex items-center gap-2">

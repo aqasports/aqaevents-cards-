@@ -212,7 +212,7 @@ export default function ClientsPage() {
       <Card padding={false}>
         {/* Search & CRM Tabs */}
         <div className="border-b border-[var(--border)]">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-5 py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 px-3 sm:px-5 py-3 sm:py-4">
             <h3 className="text-base font-semibold">
               Clients Directory {!loading && `(${filtered.length})`}
             </h3>
@@ -221,10 +221,10 @@ export default function ClientsPage() {
               placeholder="Search by name, card, phone…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-56 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+              className="w-full sm:w-56 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-sm outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
             />
           </div>
-          <div className="flex px-5 border-t border-[var(--border)] bg-slate-50/50 gap-4 flex-wrap">
+          <div className="flex px-3 sm:px-5 border-t border-[var(--border)] bg-slate-50/50 gap-2 sm:gap-4 mobile-scroll-tabs sm:flex-wrap">
             {[
               { id: "all", label: "All Clients" },
               { id: "vip", label: "VIP Clients" },
@@ -235,7 +235,7 @@ export default function ClientsPage() {
               <button
                 key={tabInfo.id}
                 onClick={() => setActiveCrmTab(tabInfo.id)}
-                className={`py-3 text-xs uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer ${
+                className={`py-2.5 sm:py-3 text-[11px] sm:text-xs whitespace-nowrap uppercase tracking-wider font-bold border-b-2 transition-all cursor-pointer ${
                   activeCrmTab === tabInfo.id
                     ? "border-[var(--primary)] text-[var(--primary)]"
                     : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -272,7 +272,9 @@ export default function ClientsPage() {
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop table view - hidden on mobile */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
@@ -395,6 +397,119 @@ export default function ClientsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile card view - shown only on mobile */}
+          <div className="md:hidden mobile-card-list p-3 space-y-3">
+            {filtered.map((client) => (
+              <div
+                key={client.id}
+                className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-4 space-y-3"
+              >
+                {/* Top row: Name + Segment badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-[var(--foreground)] truncate">{client.fullName}</p>
+                    {client.card ? (
+                      <p className="font-mono text-[11px] text-[var(--muted)] mt-0.5">{client.card.cardCode}</p>
+                    ) : (
+                      <Badge tone="warning" size="sm">No card</Badge>
+                    )}
+                  </div>
+                  <Badge
+                    tone={
+                      client.customerSegment === "VIP"
+                        ? "success"
+                        : client.customerSegment === "High-Value"
+                        ? "primary"
+                        : client.customerSegment === "Inactive"
+                        ? "danger"
+                        : "default"
+                    }
+                  >
+                    {client.customerSegment ?? "Standard"}
+                  </Badge>
+                </div>
+
+                {/* Info grid: Balance, Total Spent, Lead Source */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-[var(--surface)]/80 rounded-lg py-2 px-1">
+                    <p className="text-[10px] font-medium text-[var(--muted)] uppercase tracking-wide">Balance</p>
+                    <p className="text-sm font-bold mt-0.5">
+                      <Badge
+                        tone={
+                          client.balance === 0
+                            ? "danger"
+                            : client.balance <= 2
+                            ? "warning"
+                            : "success"
+                        }
+                        size="sm"
+                      >
+                        {Number(client.balance.toFixed(2))}
+                      </Badge>
+                    </p>
+                  </div>
+                  <div className="bg-[var(--surface)]/80 rounded-lg py-2 px-1">
+                    <p className="text-[10px] font-medium text-[var(--muted)] uppercase tracking-wide">Spent</p>
+                    <p className="text-sm font-bold text-[var(--foreground)] mt-0.5">{(client.totalSpent ?? 0).toLocaleString()} DA</p>
+                  </div>
+                  <div className="bg-[var(--surface)]/80 rounded-lg py-2 px-1">
+                    <p className="text-[10px] font-medium text-[var(--muted)] uppercase tracking-wide">Source</p>
+                    <p className="text-xs text-[var(--muted)] mt-0.5 truncate">{client.leadSource ?? "—"}</p>
+                  </div>
+                </div>
+
+                {/* Bottom row: Joined date + Actions */}
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[var(--border)]">
+                  <p className="text-[11px] text-[var(--muted)]">
+                    Joined {formatDate(client.createdAt, locale)}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {client.archived ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUnarchive(client)}
+                          className="text-emerald-600 hover:bg-emerald-50"
+                        >
+                          Restore
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={deletingId === client.id}
+                          onClick={() => handleForceDelete(client)}
+                          className="text-red-600 hover:bg-red-50 font-semibold"
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          href={`/admin/clients/${client.id}`}
+                          className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary-light)] transition-colors"
+                        >
+                          View
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={deletingId === client.id}
+                          onClick={() => handleDelete(client)}
+                          className="text-[var(--danger)] hover:bg-red-50"
+                        >
+                          Archive
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </Card>
 
