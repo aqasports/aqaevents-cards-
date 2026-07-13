@@ -286,7 +286,7 @@ export function AdminNav() {
   return (
     <>
       {/* 1. DESKTOP SIDEBAR PANEL */}
-      <aside className="hidden lg:flex flex-col w-64 h-screen sticky top-0 shrink-0 border-r border-[var(--border)] bg-[var(--surface)]/60 backdrop-blur-lg shadow-xl z-20 justify-between select-none">
+      <aside className="hidden lg:flex print:hidden flex-col w-64 h-screen sticky top-0 shrink-0 border-r border-[var(--border)] bg-[var(--surface)]/60 backdrop-blur-lg shadow-xl z-20 justify-between select-none">
         
         {/* Top Header & Brand */}
         <div className="p-5 border-b border-[var(--border)]">
@@ -339,7 +339,7 @@ export function AdminNav() {
       </aside>
 
       {/* 2. MOBILE TOP STICKY BAR */}
-      <header className="lg:hidden w-full sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-sm flex items-center justify-between px-4 py-3">
+      <header className="lg:hidden print:hidden w-full sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-sm flex items-center justify-between px-4 py-3">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
