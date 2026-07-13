@@ -34,6 +34,7 @@ type SessionDetail = {
   redemptions: {
     id: string;
     redeemedAt: string;
+    creditsUsed: number;
     client: {
       id: string;
       fullName: string;
@@ -439,7 +440,12 @@ export default function MasterTerminalPage() {
                     className="flex items-center justify-between p-3 rounded-xl border border-[var(--border)] bg-slate-50 hover:bg-slate-100 transition-colors"
                   >
                     <div>
-                      <p className="font-bold text-xs text-slate-800">{red.client.fullName}</p>
+                      <p className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                        {red.client.fullName}
+                        {red.creditsUsed === 0.7 && (
+                          <span className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 font-semibold">Kid</span>
+                        )}
+                      </p>
                       {red.client.phone && <p className="text-[10px] text-slate-500 mt-0.5">{red.client.phone}</p>}
                     </div>
                     <div className="text-right">

@@ -26,6 +26,7 @@ type Redemption = {
   id: string;
   clientId: string;
   redeemedAt: string;
+  creditsUsed: number;
   client: { id: string; fullName: string; phone: string | null; email: string | null };
 };
 
@@ -1626,7 +1627,12 @@ export default function ActivityDetailPage() {
                             {[...session.redemptions].sort((a, b) => a.client.fullName.localeCompare(b.client.fullName)).map((red) => (
                               <li key={red.id} className="flex items-center justify-between px-3 py-2.5 text-xs">
                                 <div>
-                                  <p className="font-bold">{red.client.fullName}</p>
+                                  <p className="font-bold flex items-center gap-1.5">
+                                    {red.client.fullName}
+                                    {red.creditsUsed === 0.7 && (
+                                      <span className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 font-semibold">Kid</span>
+                                    )}
+                                  </p>
                                   <p className="text-[10px] text-[var(--muted)] mt-0.5 flex items-center flex-wrap gap-2">
                                     {red.client.phone && (
                                       <span className="inline-flex items-center gap-0.5">
@@ -2221,7 +2227,12 @@ export default function ActivityDetailPage() {
                             {[...session.redemptions].sort((a, b) => a.client.fullName.localeCompare(b.client.fullName)).map((red) => (
                               <li key={red.id} className="flex items-center justify-between px-3 py-2.5 text-xs">
                                 <div>
-                                  <p className="font-bold">{red.client.fullName}</p>
+                                  <p className="font-bold flex items-center gap-1.5">
+                                    {red.client.fullName}
+                                    {red.creditsUsed === 0.7 && (
+                                      <span className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 font-semibold">Kid</span>
+                                    )}
+                                  </p>
                                   <p className="text-[10px] text-[var(--muted)] mt-0.5 flex items-center flex-wrap gap-2">
                                     {red.client.phone && (
                                       <span className="inline-flex items-center gap-0.5">
