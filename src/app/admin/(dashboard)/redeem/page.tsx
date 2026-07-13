@@ -312,6 +312,10 @@ export default function RedeemPage() {
     const activity = activities.find((a) => a.id === selectedActivityId);
     if (!activity) return;
 
+    if (!sessionId && activity.sessions && activity.sessions.length > 0) {
+      sessionId = activity.sessions[0].id;
+    }
+
     const cost = 0.7;
     const isInsufficient = lookup.balance < cost;
 

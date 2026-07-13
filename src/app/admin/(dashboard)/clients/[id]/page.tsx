@@ -261,6 +261,19 @@ export default function ClientDetailPage() {
       });
   }, [loadClient]);
 
+  useEffect(() => {
+    if (redeemActivityId) {
+      const activity = activities.find((a) => a.id === redeemActivityId);
+      if (activity && activity.sessions && activity.sessions.length > 0) {
+        setRedeemSessionId(activity.sessions[0].id);
+      } else {
+        setRedeemSessionId("");
+      }
+    } else {
+      setRedeemSessionId("");
+    }
+  }, [redeemActivityId, activities]);
+
   async function toggleNotPaid() {
     setTogglingNotPaid(true);
     setMessage(null);
@@ -292,13 +305,19 @@ export default function ClientDetailPage() {
     setSubmittingRedeem(true);
     setMessage(null);
     try {
+      const activity = activities.find((a) => a.id === redeemActivityId);
+      let resolvedSessionId = redeemSessionId || undefined;
+      if (!resolvedSessionId && activity && activity.sessions && activity.sessions.length > 0) {
+        resolvedSessionId = activity.sessions[0].id;
+      }
+
       const res = await fetch("/api/admin/redemptions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: params.id,
           activityId: redeemActivityId,
-          sessionId: redeemSessionId || undefined,
+          sessionId: resolvedSessionId,
           notes: redeemNotes || undefined,
           creditsUsed,
         }),
@@ -1627,6 +1646,26 @@ export default function ClientDetailPage() {
                     </option>
                   ))}
                 </Select>
+
+                {redeemActivityId && (() => {
+                  const selectedActivity = activities.find((a) => a.id === redeemActivityId);
+                  if (!selectedActivity || !selectedActivity.sessions || selectedActivity.sessions.length === 0) return null;
+                  return (
+                    <Select
+                      label="Select Event Session"
+                      value={redeemSessionId}
+                      onChange={(e) => setRedeemSessionId(e.target.value)}
+                    >
+                      <option value="">No specific event session</option>
+                      {selectedActivity.sessions.map((session: any) => (
+                        <option key={session.id} value={session.id}>
+                          {formatDate(session.sessionDate, locale, true)}
+                          {session.location ? ` · ${session.location}` : ""}
+                        </option>
+                      ))}
+                    </Select>
+                  );
+                })()}
 
                 <Input
                   label="Optional Notes"

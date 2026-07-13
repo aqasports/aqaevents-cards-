@@ -19,6 +19,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     redemption: {
       findFirst: vi.fn(),
+      update: vi.fn(),
     },
     checkIn: {
       findFirst: vi.fn(),
