@@ -573,10 +573,10 @@ export default function UsersPage() {
       />
 
       {/* Main tab switcher */}
-      <div className="print:hidden border-b border-[var(--border)] flex flex-wrap gap-1 sm:gap-4">
+      <div className="print:hidden border-b border-[var(--border)] flex gap-2 sm:gap-4 mobile-scroll-tabs sm:flex-wrap">
         <button
           onClick={() => { setActiveTab("staff"); setMessage(null); }}
-          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "staff"
               ? "border-[var(--primary)] text-[var(--foreground)]"
               : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -586,7 +586,7 @@ export default function UsersPage() {
         </button>
         <button
           onClick={() => { setActiveTab("coaches"); setMessage(null); }}
-          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "coaches"
               ? "border-[var(--primary)] text-[var(--foreground)]"
               : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -596,7 +596,7 @@ export default function UsersPage() {
         </button>
         <button
           onClick={() => { setActiveTab("reports"); setMessage(null); }}
-          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "reports"
               ? "border-[var(--primary)] text-[var(--foreground)]"
               : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -606,7 +606,7 @@ export default function UsersPage() {
         </button>
         <button
           onClick={() => { setActiveTab("invoices"); setMessage(null); }}
-          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer ${
+          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === "invoices"
               ? "border-[var(--primary)] text-[var(--foreground)]"
               : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -828,7 +828,7 @@ export default function UsersPage() {
 
           {/* Coaches List */}
           <Card padding={false}>
-            <div className="border-b border-[var(--border)] px-5 py-4 flex items-center justify-between">
+            <div className="border-b border-[var(--border)] px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <h3 className="text-base font-semibold">
                 Coaches & Staff Profiles ({coaches.length})
               </h3>
@@ -837,7 +837,7 @@ export default function UsersPage() {
                 placeholder="Search by name..."
                 value={coachSearch}
                 onChange={(e) => setCoachSearch(e.target.value)}
-                className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
+                className="w-full sm:w-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
               />
             </div>
 
@@ -859,26 +859,26 @@ export default function UsersPage() {
                     return (
                       <li
                         key={coach.id}
-                        className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-[var(--surface-2)]/20 transition-colors"
+                        className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-4 sm:px-5 py-4 hover:bg-[var(--surface-2)]/20 transition-colors"
                       >
-                        <div className="min-w-0">
+                        <div className="min-w-0 w-full">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold">{coach.name}</p>
+                            <p className="font-semibold text-sm sm:text-base">{coach.name}</p>
                             <Badge tone={coach.type === "coach" ? "primary" : "info"} size="sm">
                               {coach.type === "coach" ? "Coach" : "Staff"}
                             </Badge>
                           </div>
-                          <p className="mt-0.5 text-xs text-[var(--muted)]">
-                            {coach.email && `${coach.email} · `}
-                            {coach.phone && `${coach.phone} · `}
-                            Rate: {coach.baseRate.toLocaleString("fr-DZ")} DA/session + {coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client
+                          <p className="mt-1 text-xs text-[var(--muted)] leading-relaxed">
+                            {coach.email && <span>{coach.email} · </span>}
+                            {coach.phone && <span>{coach.phone} · </span>}
+                            <span>Rate: {coach.baseRate.toLocaleString("fr-DZ")} DA/session + {coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client</span>
                           </p>
                           <p className="mt-1 text-xs text-[var(--muted)] font-medium">
                             Linked to {assignedCount} event sessions · Paid payouts: {historicalPayouts.toLocaleString("fr-DZ")} DA
                           </p>
                         </div>
 
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end border-t border-[var(--border)] pt-3 sm:border-none sm:pt-0">
                           <Button
                             variant="secondary"
                             size="sm"
@@ -886,7 +886,7 @@ export default function UsersPage() {
                               setSelectedCoachId(coach.id);
                               setIsAssignmentModalOpen(true);
                             }}
-                            className="cursor-pointer"
+                            className="flex-1 sm:flex-initial cursor-pointer"
                           >
                             Link Events
                           </Button>
@@ -894,14 +894,14 @@ export default function UsersPage() {
                             variant="secondary"
                             size="sm"
                             onClick={() => startEditCoach(coach)}
-                            className="cursor-pointer"
+                            className="flex-1 sm:flex-initial cursor-pointer"
                           >
                             Edit
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-[var(--danger)] hover:bg-red-955/20 cursor-pointer"
+                            className="text-[var(--danger)] hover:bg-red-955/20 flex-1 sm:flex-initial cursor-pointer"
                             onClick={() => removeCoach(coach)}
                           >
                             Remove
@@ -1182,10 +1182,10 @@ export default function UsersPage() {
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]">
+            <div className="flex-1 overflow-y-auto md:overflow-y-visible md:min-h-0 grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--border)]">
               
               {/* Left Panel: Linked Sessions */}
-              <div className="flex flex-col min-h-0 p-5">
+              <div className="flex flex-col min-h-[300px] md:min-h-0 p-5">
                 <h4 className="font-semibold text-sm uppercase tracking-wider text-[var(--primary)] mb-3 flex items-center gap-2">
                   <span>Linked Sessions</span>
                   <Badge tone="primary" size="sm">
@@ -1237,7 +1237,7 @@ export default function UsersPage() {
               </div>
 
               {/* Right Panel: Available Sessions to Link */}
-              <div className="flex flex-col min-h-0 p-5 bg-[var(--surface-2)]/10">
+              <div className="flex flex-col min-h-[300px] md:min-h-0 p-5 bg-[var(--surface-2)]/10">
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <h4 className="font-semibold text-sm uppercase tracking-wider text-[var(--muted)]">
                     Available Sessions
