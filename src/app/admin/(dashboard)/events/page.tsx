@@ -9,6 +9,7 @@ import {
   Input,
   PageHeader,
   EmptyState,
+  Select,
 } from "@/components/admin/ui";
 
 type Activity = {
@@ -100,20 +101,20 @@ export default function EventsPage() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-5">
-          <p className="text-sm font-medium text-slate-500">Total Events</p>
-          <p className="mt-2 text-3xl font-bold text-slate-900">{totalEvents}</p>
+          <p className="text-sm font-medium text-[var(--muted)]">Total Events</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--foreground)]">{totalEvents}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm font-medium text-slate-500">Active Events</p>
-          <p className="mt-2 text-3xl font-bold text-emerald-600">{activeEvents}</p>
+          <p className="text-sm font-medium text-[var(--muted)]">Active Events</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--success)]">{activeEvents}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm font-medium text-slate-500">Canceled Events</p>
-          <p className="mt-2 text-3xl font-bold text-rose-600">{canceledEvents}</p>
+          <p className="text-sm font-medium text-[var(--muted)]">Canceled Events</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--danger)]">{canceledEvents}</p>
         </Card>
         <Card className="p-5">
-          <p className="text-sm font-medium text-slate-500">Total Expenses</p>
-          <p className="mt-2 text-3xl font-bold text-blue-600">
+          <p className="text-sm font-medium text-[var(--muted)]">Total Expenses</p>
+          <p className="mt-2 text-3xl font-bold text-[var(--primary)]">
             {totalExpenses.toLocaleString("fr-DZ")} DA
           </p>
         </Card>
@@ -129,57 +130,51 @@ export default function EventsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Status Filter
-            </label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="canceled">Canceled Only</option>
-            </select>
-          </div>
+          <Select
+            label="Status Filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            className="cursor-pointer"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active Only</option>
+            <option value="canceled">Canceled Only</option>
+          </Select>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-              Activity Filter
-            </label>
-            <select
-              value={activityFilter}
-              onChange={(e) => setActivityFilter(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="all">All Activities</option>
-              {activities.map((act) => (
-                <option key={act.id} value={act.id}>
-                  {act.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <Select
+            label="Activity Filter"
+            value={activityFilter}
+            onChange={(e) => setActivityFilter(e.target.value)}
+            className="cursor-pointer"
+          >
+            <option value="all">All Activities</option>
+            {activities.map((act) => (
+              <option key={act.id} value={act.id}>
+                {act.name}
+              </option>
+            ))}
+          </Select>
         </div>
       </Card>
 
       {/* Events List */}
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" padding={false}>
         {loading ? (
           <div className="flex h-40 items-center justify-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[var(--border)] border-t-[var(--primary)]" />
           </div>
         ) : filteredSessions.length === 0 ? (
-          <EmptyState
-            title="No events found"
-            description="Adjust your search filters or schedule a new event from the activities dashboard."
-          />
+          <div className="p-5">
+            <EmptyState
+              title="No events found"
+              description="Adjust your search filters or schedule a new event from the activities dashboard."
+            />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/75 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
                   <th className="px-6 py-4">Activity</th>
                   <th className="px-6 py-4">Date &amp; Time</th>
                   <th className="px-6 py-4">Location</th>
@@ -189,26 +184,26 @@ export default function EventsPage() {
                   <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
+              <tbody className="divide-y divide-[var(--border)] text-sm">
                 {filteredSessions.map((session) => {
                   const attendeesCount = session.redemptions.length;
                   const capacity = session.capacity;
                   const sessionCost = session.sessionExpenses.reduce((sum, exp) => sum + exp.amount, 0);
 
                   return (
-                    <tr key={session.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="px-6 py-4 font-semibold text-slate-900">
+                    <tr key={session.id} className="hover:bg-[var(--surface-2)]/20 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-[var(--foreground)]">
                         {session.activity.name}
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-6 py-4 text-[var(--muted)]">
                         {formatDate(session.sessionDate, locale, true)}
                       </td>
-                      <td className="px-6 py-4 text-slate-600">{session.location ?? "—"}</td>
-                      <td className="px-6 py-4 text-center text-slate-600">
+                      <td className="px-6 py-4 text-[var(--muted)]">{session.location ?? "—"}</td>
+                      <td className="px-6 py-4 text-center text-[var(--muted)]">
                         {attendeesCount}
                         {capacity ? ` / ${capacity}` : ""}
                       </td>
-                      <td className="px-6 py-4 text-right font-medium text-slate-900">
+                      <td className="px-6 py-4 text-right font-medium text-[var(--foreground)]">
                         {sessionCost > 0 ? `${sessionCost.toLocaleString("fr-DZ")} DA` : "—"}
                       </td>
                       <td className="px-6 py-4 text-center">
@@ -219,7 +214,7 @@ export default function EventsPage() {
                       <td className="px-6 py-4 text-right">
                         <Link
                           href={`/admin/activities/${session.activity.id}`}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] transition-colors"
                         >
                           Manage Activity
                         </Link>
