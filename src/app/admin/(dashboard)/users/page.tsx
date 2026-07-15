@@ -879,17 +879,22 @@ export default function UsersPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end border-t border-[var(--border)] pt-3 sm:border-none sm:pt-0">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCoachId(coach.id);
-                              setIsAssignmentModalOpen(true);
-                            }}
-                            className="flex-1 sm:flex-initial cursor-pointer"
-                          >
-                            Link Events
-                          </Button>
+                          <div className="flex items-center gap-1.5 flex-1 sm:flex-initial">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedCoachId(coach.id);
+                                setIsAssignmentModalOpen(true);
+                              }}
+                              className="w-full cursor-pointer"
+                            >
+                              Link Events
+                            </Button>
+                            <Badge tone="primary" size="sm">
+                              {assignedCount}
+                            </Badge>
+                          </div>
                           <Button
                             variant="secondary"
                             size="sm"
