@@ -177,12 +177,10 @@ export default function ClientDetailPage() {
   const [adjustMode, setAdjustMode] = useState<"package" | "money" | "manual">("package");
   const [selectedPackageId, setSelectedPackageId] = useState("");
   const [moneyAmount, setMoneyAmount] = useState("");
-  const [baseCredits, setBaseCredits] = useState(0);
-  const [bonusCredits, setBonusCredits] = useState(0);
+  const [computedMoneyCredits, setComputedMoneyCredits] = useState(0);
   const [moneyReason, setMoneyReason] = useState("");
   const [customCredits, setCustomCredits] = useState("");
   const [manualReason, setManualReason] = useState("");
-  const [changeOption, setChangeOption] = useState<"refund" | "convert">("refund");
   const [paidMoney, setPaidMoney] = useState("");
 
   const activeCard = client?.cards?.find((c) => c.status === "active");
@@ -517,27 +515,18 @@ export default function ClientDetailPage() {
       };
     } else if (adjustMode === "money") {
       const parsedMoney = parseFloat(moneyAmount) || 0;
-      const rest = parsedMoney % 1900;
-      const hasRest = rest > 0;
-      const isConvert = hasRest && changeOption === "convert";
+      // Exact credit = money / 1900, rounded to 2 decimal places
+      const total = Math.round((parsedMoney / 1900) * 100) / 100;
 
-      const total = baseCredits + bonusCredits + (isConvert ? 1 : 0);
       if (total === 0) {
         setMessage({ text: "Total credits to add must be greater than 0.", tone: "danger" });
         setSubmittingCredits(false);
         return;
       }
 
-      let restInfo = "";
-      if (hasRest) {
-        restInfo = isConvert
-          ? ` + 1 rest; change of ${rest.toLocaleString()} DA converted`
-          : `; change of ${rest.toLocaleString()} DA refunded`;
-      }
-
       const computedReason = moneyReason
-        ? `Payment: ${parsedMoney.toLocaleString()} DA (${baseCredits} paid + ${bonusCredits} bonus${restInfo}) - ${moneyReason}`
-        : `Payment: ${parsedMoney.toLocaleString()} DA (${baseCredits} paid + ${bonusCredits} bonus${restInfo})`;
+        ? `Payment: ${parsedMoney.toLocaleString()} DA = ${total.toFixed(2)} credits - ${moneyReason}`
+        : `Payment: ${parsedMoney.toLocaleString()} DA = ${total.toFixed(2)} credits`;
 
       bodyPayload = {
         customAmount: total,
@@ -545,13 +534,14 @@ export default function ClientDetailPage() {
         invoice: {
           amount: parsedMoney,
           category: "custom",
-          items: `Custom recharge — ${baseCredits} paid + ${bonusCredits} bonus${isConvert ? " + 1 rest" : ""} = ${total} credits`,
-          notes: moneyReason || (hasRest ? `Change: ${rest.toLocaleString()} DA ${isConvert ? "converted to credit" : "refunded"}` : undefined),
+          items: `Custom recharge — ${parsedMoney.toLocaleString()} DA = ${total.toFixed(2)} credits`,
+          notes: moneyReason || undefined,
           status: "paid",
         },
       };
     } else if (adjustMode === "manual") {
-      const amount = Number(customCredits);
+      const rawAmount = Number(customCredits);
+      const amount = Math.round(rawAmount * 100) / 100;
       if (isNaN(amount) || amount === 0) {
         setMessage({ text: "Please enter a non-zero adjustment amount.", tone: "danger" });
         setSubmittingCredits(false);
@@ -572,7 +562,7 @@ export default function ClientDetailPage() {
               invoice: {
                 amount: parseFloat(paidMoney),
                 category: "adhoc",
-                items: manualReason || `Manual adjustment: ${amount > 0 ? "+" : ""}${amount} credits`,
+                items: manualReason || `Manual adjustment: ${amount > 0 ? "+" : ""}${amount.toFixed(2)} credits`,
                 status: "paid",
               },
             }
@@ -593,13 +583,11 @@ export default function ClientDetailPage() {
         setMessage({ text: `Balance adjusted successfully.${invoiceMsg}`, tone: "success" });
         setSelectedPackageId("");
         setMoneyAmount("");
-        setBaseCredits(0);
-        setBonusCredits(0);
+        setComputedMoneyCredits(0);
         setMoneyReason("");
         setCustomCredits("");
         setManualReason("");
         setPaidMoney("");
-        setChangeOption("refund");
         await loadClient();
       } else {
         let errorMsg = "Failed to adjust balance.";
@@ -1240,23 +1228,15 @@ export default function ClientDetailPage() {
                         label="Money Received (DA)"
                         type="number"
                         min={0}
+                        step="0.01"
                         placeholder="e.g. 20000"
                         value={moneyAmount}
                         onChange={(e) => {
                           const val = e.target.value;
                           setMoneyAmount(val);
                           const parsed = parseFloat(val) || 0;
-                          const base = Math.floor(parsed / 1900);
-                          
-                          let bonus = 0;
-                          if (base >= 50) bonus = 17;
-                          else if (base >= 30) bonus = 9;
-                          else if (base >= 20) bonus = 5;
-                          else if (base >= 10) bonus = 2;
-                          else if (base >= 7) bonus = 1;
-
-                          setBaseCredits(base);
-                          setBonusCredits(bonus);
+                          const credits = Math.round((parsed / 1900) * 100) / 100;
+                          setComputedMoneyCredits(credits);
                         }}
                         required
                       />
@@ -1268,63 +1248,12 @@ export default function ClientDetailPage() {
                       />
                     </div>
 
-                    {moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && (
-                      <div className="rounded-lg bg-amber-50 p-3 border border-amber-200 text-xs space-y-2">
-                        <p className="font-semibold text-amber-800">
-                          Remaining Change (Rest): {(parseFloat(moneyAmount) % 1900).toLocaleString()} DA
-                        </p>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
-                            <input
-                              type="radio"
-                              name="changeOption"
-                              value="refund"
-                              checked={changeOption === "refund"}
-                              onChange={() => setChangeOption("refund")}
-                              className="text-[var(--primary)] focus:ring-[var(--primary)]"
-                            />
-                            Refund change to client
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
-                            <input
-                              type="radio"
-                              name="changeOption"
-                              value="convert"
-                              checked={changeOption === "convert"}
-                              onChange={() => setChangeOption("convert")}
-                              className="text-[var(--primary)] focus:ring-[var(--primary)]"
-                            />
-                            Convert change to +1 credit
-                          </label>
-                        </div>
+                    {moneyAmount && computedMoneyCredits > 0 && (
+                      <div className="rounded-lg bg-[var(--primary-light)] text-[var(--primary)] p-3 text-xs flex justify-between items-center font-bold">
+                        <span>Credits to be credited:</span>
+                        <span>{computedMoneyCredits.toFixed(2)} Activities</span>
                       </div>
                     )}
-
-                    <div className="grid gap-3 grid-cols-2 bg-slate-50 p-3 rounded-lg border border-[var(--border)]">
-                      <Input
-                        label="Paid Credits (1,900 DA each)"
-                        type="number"
-                        min={0}
-                        value={baseCredits}
-                        onChange={(e) => setBaseCredits(Number(e.target.value))}
-                      />
-                      <Input
-                        label="Bonus Credits Given"
-                        type="number"
-                        min={0}
-                        value={bonusCredits}
-                        onChange={(e) => setBonusCredits(Number(e.target.value))}
-                      />
-                    </div>
-
-                    <div className="rounded-lg bg-[var(--primary-light)] text-[var(--primary)] p-3 text-xs flex justify-between items-center font-bold">
-                      <span>Invoice Breakdown Summary:</span>
-                      <span>
-                        {baseCredits} Paid + {bonusCredits} Bonus
-                        {moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && changeOption === "convert" && " + 1 Rest"}
-                        {" = "}{baseCredits + bonusCredits + (moneyAmount && (parseFloat(moneyAmount) % 1900) > 0 && changeOption === "convert" ? 1 : 0)} Activities
-                      </span>
-                    </div>
                   </>
                 )}
 
@@ -1394,9 +1323,9 @@ export default function ClientDetailPage() {
                               <Input
                                 label="Amount"
                                 type="number"
-                                step="1"
+                                step="0.01"
                                 value={editDelta}
-                                onChange={(e) => setEditDelta(Number(e.target.value))}
+                                onChange={(e) => setEditDelta(Math.round(Number(e.target.value) * 100) / 100)}
                               />
                             </div>
                           </div>

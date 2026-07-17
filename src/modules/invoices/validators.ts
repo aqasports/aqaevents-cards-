@@ -28,7 +28,7 @@ export const addCreditsSchema = z.object({
   reason: z.string().optional(),
   invoice: z
     .object({
-      amount: z.number().int().positive(),
+      amount: z.number().positive(),
       category: z.enum(["package", "custom", "adhoc"]).default("custom"),
       items: z.string().min(1),
       notes: z.string().optional(),
