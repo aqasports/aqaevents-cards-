@@ -652,13 +652,17 @@ export class BillingService {
   }
 
   async createRedemption(
-    clientId: string,
+    clientId: string | undefined,
     activityId: string,
     data: {
       sessionId?: string;
       notes?: string;
       bypassBalanceCheck?: boolean;
       creditsUsed?: number;
+      bypassPastSessionCheck?: boolean;
+      isWalkIn?: boolean;
+      walkinName?: string;
+      paidAmount?: number;
     },
     adminId: string
   ) {
@@ -670,9 +674,109 @@ export class BillingService {
       throw new Error("ACTIVITY_NOT_FOUND");
     }
 
-    // When a specific session is provided by an admin, skip the upcoming-only guard
-    // so that clients can be added to past/cancelled sessions manually.
-    if (!data.sessionId) {
+    // -------------------------------------------------------------------
+    // WALK-IN path: no client account needed
+    // -------------------------------------------------------------------
+    if (data.isWalkIn) {
+      if (!data.walkinName?.trim()) {
+        throw new Error("WALKIN_NAME_REQUIRED");
+      }
+
+      const paidAmount = data.paidAmount ?? 0;
+      const creditsEquivalent = Math.round((paidAmount / 1900) * 100) / 100;
+
+      // Find or auto-create the sentinel "Walk-in" client
+      let sentinelClient = await prisma.client.findFirst({
+        where: { email: "__walkin__@system.aqa" },
+      });
+
+      if (!sentinelClient) {
+        sentinelClient = await prisma.client.create({
+          data: {
+            fullName: "Walk-in Attendees",
+            email: "__walkin__@system.aqa",
+            notes: "System sentinel client for walk-in (non-registered) attendees.",
+          },
+        });
+      }
+
+      const walkinNotes = JSON.stringify({
+        isWalkIn: true,
+        walkinName: data.walkinName.trim(),
+        paidAmount,
+        creditsEquivalent,
+        staffNotes: data.notes || null,
+      });
+
+      // Validate session if provided
+      if (data.sessionId) {
+        const session = await prisma.activitySession.findFirst({
+          where: { id: data.sessionId, activityId },
+        });
+        if (!session) throw new Error("SESSION_NOT_AVAILABLE");
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        // Create the redemption under the sentinel client
+        const redemption = await tx.redemption.create({
+          data: {
+            clientId: sentinelClient!.id,
+            activityId,
+            sessionId: data.sessionId || null,
+            creditsUsed: creditsEquivalent,
+            staffId: adminId,
+            notes: walkinNotes,
+          },
+          include: { activity: true, session: true },
+        });
+
+        // Generate invoice for the paid amount (tracked in financials)
+        let invoice = null;
+        if (paidAmount > 0) {
+          const invoiceCode = await this.uniqueInvoiceCode(tx);
+          invoice = await this.billingRepo.createInvoice(
+            {
+              data: {
+                clientId: sentinelClient!.id,
+                invoiceCode,
+                amount: Math.round(paidAmount),
+                category: "adhoc",
+                items: `Walk-in: ${data.walkinName!.trim()} — ${activity.name}`,
+                notes: JSON.stringify({
+                  type: "walkin",
+                  walkinName: data.walkinName!.trim(),
+                  activityName: activity.name,
+                  paidAmount,
+                  creditsEquivalent,
+                }),
+                status: "paid",
+                paidAt: new Date(),
+              },
+            },
+            tx
+          );
+        }
+
+        return { redemption, invoice };
+      });
+
+      return {
+        redemption: result.redemption,
+        invoice: result.invoice,
+        balance: 0,
+        isWalkIn: true,
+        walkinName: data.walkinName.trim(),
+      };
+    }
+
+    // -------------------------------------------------------------------
+    // Normal client redemption path
+    // -------------------------------------------------------------------
+    if (!clientId) throw new Error("CLIENT_NOT_FOUND");
+
+    // When a specific session is provided by an admin, skip the upcoming-only guard.
+    // Also skip when bypassPastSessionCheck is set (admin advanced form).
+    if (!data.sessionId && !data.bypassPastSessionCheck) {
       const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
       const upcomingSessionsCount = await prisma.activitySession.count({
         where: {
@@ -706,14 +810,20 @@ export class BillingService {
 
     if (!client) throw new Error("CLIENT_NOT_FOUND");
 
+    // Free redemption: prefix notes and set creditsUsed = 0
+    const isFreeRedemption = data.creditsUsed === 0;
+    const resolvedNotes = isFreeRedemption
+      ? `[FREE ADMISSION] ${data.notes || ""}`.trim()
+      : data.notes;
+
     const result = await prisma.$transaction(async (tx) => {
       const eventPayload: any = {
         client,
         activity,
         sessionId: data.sessionId,
-        notes: data.notes,
-        bypassBalanceCheck: data.bypassBalanceCheck,
-        creditsUsed: data.creditsUsed,
+        notes: resolvedNotes,
+        bypassBalanceCheck: isFreeRedemption ? true : data.bypassBalanceCheck,
+        creditsUsed: isFreeRedemption ? 0 : data.creditsUsed,
         adminId,
         tx,
         postCommitActions: [],

@@ -72,12 +72,16 @@ export const updateProductSchema = z.object({
 });
 
 export const redeemSchema = z.object({
-  clientId: z.string(),
+  clientId: z.string().optional(),
   activityId: z.string(),
   sessionId: z.string().optional(),
   notes: z.string().optional(),
   bypassBalanceCheck: z.boolean().optional(),
   creditsUsed: z.number().optional(),
+  bypassPastSessionCheck: z.boolean().optional(),
+  isWalkIn: z.boolean().optional(),
+  walkinName: z.string().optional(),
+  paidAmount: z.number().min(0).optional(),
 });
 
 export const updateLedgerSchema = z.object({

@@ -20,7 +20,7 @@ type Activity = {
   id: string;
   name: string;
   creditCost: number;
-  sessions: Array<{ id: string; sessionDate: string; location: string | null }>;
+  sessions: Array<{ id: string; sessionDate: string; location: string | null; active: boolean }>;
 };
 
 type LookupResult = {
@@ -41,7 +41,11 @@ export default function RedeemPage() {
   const { data: session } = useSession();
   const isSuperAdmin = session?.user?.role === "super_admin";
 
+  // Quick-redeem activities (upcoming sessions only)
   const [activities, setActivities] = useState<Activity[]>([]);
+  // All activities with all sessions — for advanced form
+  const [allActivities, setAllActivities] = useState<Activity[]>([]);
+
   const [lookup, setLookup] = useState<LookupResult | null>(null);
   const [matches, setMatches] = useState<LookupResult[]>([]);
   const [clients, setClients] = useState<ClientDropdownItem[]>([]);
@@ -66,6 +70,11 @@ export default function RedeemPage() {
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [pendingRefundId, setPendingRefundId] = useState<string | null>(null);
   const [refundingId, setRefundingId] = useState<string | null>(null);
+
+  // Advanced form — walk-in mode
+  const [isWalkInMode, setIsWalkInMode] = useState(false);
+  const [walkinName, setWalkinName] = useState("");
+  const [walkinPaidAmount, setWalkinPaidAmount] = useState("0");
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -158,11 +167,15 @@ export default function RedeemPage() {
     }
   };
 
-  // Load only activities that have upcoming events + clients, then focus search
+  // Load upcoming activities (quick redeem) + all activities (advanced form) + clients
   useEffect(() => {
     fetch("/api/admin/activities?redeemable=true")
       .then((r) => r.json())
       .then(setActivities);
+
+    fetch("/api/admin/activities?allSessions=true")
+      .then((r) => r.json())
+      .then(setAllActivities);
 
     fetch("/api/admin/clients")
       .then((r) => r.json())
@@ -266,16 +279,28 @@ export default function RedeemPage() {
     }
   }
 
-  async function redeem(event: FormEvent<HTMLFormElement>) {
+  async function handleAdvancedSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!lookup || !selectedActivityId) return;
-
     const formData = new FormData(event.currentTarget);
     const activityId = formData.get("activityId") as string;
     const sessionId = (formData.get("sessionId") as string) || undefined;
     const notes = (formData.get("notes") as string) || undefined;
+    const isFree = formData.get("isFree") === "1";
 
-    const activity = activities.find((a) => a.id === activityId);
+    if (isWalkInMode) {
+      await executeWalkInRedeem(activityId, sessionId, notes);
+      return;
+    }
+
+    if (!lookup) return;
+
+    if (isFree) {
+      // Free admission — any admin, 0 credits, bypasses balance check
+      await executeRedeem(activityId, sessionId, notes, true, 0, true);
+      return;
+    }
+
+    const activity = allActivities.find((a) => a.id === activityId);
     if (!activity) return;
 
     const cost = activity.creditCost;
@@ -294,7 +319,7 @@ export default function RedeemPage() {
       }
     }
 
-    await executeRedeem(activityId, sessionId, notes, false);
+    await executeRedeem(activityId, sessionId, notes, false, undefined, true);
   }
 
   async function handleRedeemKid() {
@@ -309,7 +334,8 @@ export default function RedeemPage() {
       notes = (formData.get("notes") as string) || undefined;
     }
 
-    const activity = activities.find((a) => a.id === selectedActivityId);
+    // Use allActivities so the advanced form can find any activity
+    const activity = allActivities.find((a) => a.id === selectedActivityId);
     if (!activity) return;
 
     if (!sessionId) {
@@ -336,7 +362,7 @@ export default function RedeemPage() {
       }
     }
 
-    await executeRedeem(selectedActivityId, sessionId, notes, false, cost);
+    await executeRedeem(selectedActivityId, sessionId, notes, false, cost, true);
   }
 
   async function quickRedeem(activityId: string, creditsUsed?: number) {
@@ -364,7 +390,7 @@ export default function RedeemPage() {
       }
     }
 
-    await executeRedeem(activityId, nextSession, "Quick checkout", false, cost);
+    await executeRedeem(activityId, nextSession, "Quick checkout", false, cost, false);
   }
 
   async function executeRedeem(
@@ -372,7 +398,8 @@ export default function RedeemPage() {
     sessionId?: string,
     notes?: string,
     bypassBalanceCheck = false,
-    creditsUsed?: number
+    creditsUsed?: number,
+    bypassPastSessionCheck = false
   ) {
     setRedeeming(true);
     setMessage(null);
@@ -388,6 +415,7 @@ export default function RedeemPage() {
           notes,
           bypassBalanceCheck,
           creditsUsed,
+          bypassPastSessionCheck,
         }),
       });
 
@@ -404,33 +432,78 @@ export default function RedeemPage() {
       playSuccessSound();
       triggerSuccessHaptics();
 
+      const isFree = creditsUsed === 0;
       setMessage({
-        text: t("successRedeem", {
-          balance: data.balance,
-          s: data.balance !== 1 ? "s" : "",
-        }),
+        text: isFree
+          ? `Free admission recorded for ${lookup!.client.fullName}. Balance unchanged: ${data.balance} credits.`
+          : t("successRedeem", { balance: data.balance, s: data.balance !== 1 ? "s" : "" }),
         tone: "success",
       });
       setLookup({ ...lookup!, balance: data.balance });
 
-      // Refresh list and clients dropdown list
       loadRecentRedemptions();
 
-      if (inputRef.current) {
-        inputRef.current.focus();
-      }
+      if (inputRef.current) inputRef.current.focus();
 
       const form = document.getElementById("redemption-form") as HTMLFormElement;
       if (form) form.reset();
       setSelectedActivityId("");
 
-      fetch("/api/admin/clients")
-        .then((r) => r.json())
-        .then(setClients)
-        .catch(console.error);
+      fetch("/api/admin/clients").then((r) => r.json()).then(setClients).catch(console.error);
     } catch {
       setRedeeming(false);
       setMessage({ text: "Redemption request failed.", tone: "danger" });
+      playErrorSound();
+      triggerErrorHaptics();
+    }
+  }
+
+  async function executeWalkInRedeem(activityId: string, sessionId?: string, notes?: string) {
+    const paid = parseFloat(walkinPaidAmount) || 0;
+    if (!walkinName.trim()) {
+      setMessage({ text: "Walk-in attendee name is required.", tone: "danger" });
+      return;
+    }
+    setRedeeming(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/redemptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          activityId,
+          sessionId,
+          notes,
+          isWalkIn: true,
+          walkinName: walkinName.trim(),
+          paidAmount: paid,
+          bypassPastSessionCheck: true,
+        }),
+      });
+      const data = await res.json();
+      setRedeeming(false);
+      if (!res.ok) {
+        setMessage({ text: data.error ?? "Failed to log walk-in.", tone: "danger" });
+        playErrorSound();
+        triggerErrorHaptics();
+        return;
+      }
+      playSuccessSound();
+      triggerSuccessHaptics();
+      const credits = Math.round((paid / 1900) * 100) / 100;
+      setMessage({
+        text: `Walk-in recorded: ${walkinName.trim()}${paid > 0 ? ` — Paid ${paid.toLocaleString()} DA (${credits.toFixed(2)} credits). Invoice generated.` : " — Free entry."}`,
+        tone: "success",
+      });
+      setWalkinName("");
+      setWalkinPaidAmount("0");
+      loadRecentRedemptions();
+      const form = document.getElementById("redemption-form") as HTMLFormElement;
+      if (form) form.reset();
+      setSelectedActivityId("");
+    } catch {
+      setRedeeming(false);
+      setMessage({ text: "Walk-in request failed.", tone: "danger" });
       playErrorSound();
       triggerErrorHaptics();
     }
@@ -522,7 +595,11 @@ export default function RedeemPage() {
     }
   }
 
-  const selectedActivity = activities.find((a) => a.id === selectedActivityId);
+  const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
+  const selectedActivity = allActivities.find((a) => a.id === selectedActivityId);
+  const advancedSessions = selectedActivity?.sessions ?? [];
+  const upcomingAdvSessions = advancedSessions.filter((s) => new Date(s.sessionDate) >= tenHoursAgo);
+  const pastAdvSessions = advancedSessions.filter((s) => new Date(s.sessionDate) < tenHoursAgo);
 
   return (
     <div className="animate-fade-in space-y-6" dir={dir}>
@@ -765,16 +842,64 @@ export default function RedeemPage() {
                 )}
               </Card>
 
-              {/* Advanced Redemption Form */}
+              {/* Advanced Validation Form */}
               <details className="border border-[var(--border)] rounded-xl bg-slate-50/40 overflow-hidden group">
                 <summary className="px-5 py-4 font-semibold text-xs text-[var(--muted)] uppercase cursor-pointer hover:bg-slate-50 transition flex items-center justify-between select-none">
-                  <span>Advanced Validation Form (Custom session / Notes)</span>
+                  <span>Advanced Validation — Past Events / Free / Walk-in</span>
                   <svg className="h-4 w-4 transform group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </summary>
-                <div className="p-5 border-t border-[var(--border)] bg-[var(--surface)] space-y-3">
-                  <form id="redemption-form" onSubmit={redeem} className="space-y-3">
+                <div className="p-5 border-t border-[var(--border)] bg-[var(--surface)] space-y-4">
+
+                  {/* Walk-in toggle */}
+                  <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-slate-50/60 px-4 py-3">
+                    <div>
+                      <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Walk-in Mode (Not a Client)</p>
+                      <p className="text-xs text-[var(--muted)] mt-0.5">Register a non-registered participant. Generates an invoice for paid amount.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setIsWalkInMode(!isWalkInMode); setWalkinName(""); setWalkinPaidAmount("0"); }}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isWalkInMode ? "bg-[var(--primary)]" : "bg-slate-300"}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isWalkInMode ? "translate-x-6" : "translate-x-1"}`} />
+                    </button>
+                  </div>
+
+                  <form id="redemption-form" onSubmit={handleAdvancedSubmit} className="space-y-3">
+
+                    {/* Walk-in fields */}
+                    {isWalkInMode && (
+                      <div className="grid gap-3 sm:grid-cols-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+                        <Input
+                          label="Attendee Name"
+                          placeholder="Full name of walk-in participant"
+                          value={walkinName}
+                          onChange={(e) => setWalkinName(e.target.value)}
+                          required
+                        />
+                        <div>
+                          <Input
+                            label="Paid Amount (DA)"
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            placeholder="0"
+                            value={walkinPaidAmount}
+                            onChange={(e) => setWalkinPaidAmount(e.target.value)}
+                          />
+                          {parseFloat(walkinPaidAmount) > 0 ? (
+                            <p className="text-xs text-amber-700 mt-1 font-semibold">
+                              = {(Math.round((parseFloat(walkinPaidAmount) / 1900) * 100) / 100).toFixed(2)} credits — Invoice will be generated
+                            </p>
+                          ) : (
+                            <p className="text-xs text-slate-500 mt-1">Free entry (no invoice)</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     <Select
                       label={t("activityLabel")}
                       name="activityId"
@@ -782,67 +907,57 @@ export default function RedeemPage() {
                       value={selectedActivityId}
                       onChange={(e) => setSelectedActivityId(e.target.value)}
                     >
-                      <option value="" disabled>
-                        {t("selectActivity")}
-                      </option>
-                      {activities.map((activity) => (
+                      <option value="" disabled>{t("selectActivity")}</option>
+                      {allActivities.map((activity) => (
                         <option key={activity.id} value={activity.id}>
-                          {activity.name} — {activity.creditCost} {
-                            locale === "ar"
-                              ? "رصيد"
-                              : locale === "fr"
-                              ? `crédit${activity.creditCost > 1 ? "s" : ""}`
-                              : `credit${activity.creditCost > 1 ? "s" : ""}`
-                          }
+                          {activity.name} — {activity.creditCost} {locale === "ar" ? "رصيد" : locale === "fr" ? `crédit${activity.creditCost > 1 ? "s" : ""}` : `credit${activity.creditCost > 1 ? "s" : ""}`}
                         </option>
                       ))}
                     </Select>
 
-                    {selectedActivity && (() => {
-                      const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
-                      const upcoming = selectedActivity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
-                      if (upcoming.length === 0) return null;
-                      return (
-                        <Select label={t("sessionLabel")} name="sessionId" defaultValue={upcoming[0].id}>
+                    {selectedActivity && (
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Event / Session</label>
+                        <select
+                          name="sessionId"
+                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                          defaultValue=""
+                        >
                           <option value="">{t("noSpecificSession")}</option>
-                          {upcoming.map((session) => (
-                            <option key={session.id} value={session.id}>
-                              {formatDate(session.sessionDate, locale, true)}
-                              {session.location ? ` · ${session.location}` : ""}
-                            </option>
-                          ))}
-                        </Select>
-                      );
-                    })()}
+                          {upcomingAdvSessions.length > 0 && (
+                            <optgroup label="Upcoming Events">
+                              {upcomingAdvSessions.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {formatDate(s.sessionDate, locale, true)}{s.location ? ` · ${s.location}` : ""}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {pastAdvSessions.length > 0 && (
+                            <optgroup label="Past Events">
+                              {pastAdvSessions.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {formatDate(s.sessionDate, locale, true)}{s.location ? ` · ${s.location}` : ""}{!s.active ? " (inactive)" : ""}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+                    )}
 
-                    <Input
-                      label={t("notesLabel")}
-                      name="notes"
-                      placeholder={t("notesPlaceholder")}
-                    />
+                    <Input label={t("notesLabel")} name="notes" placeholder={t("notesPlaceholder")} />
 
-                    {(() => {
+                    {!isWalkInMode && (() => {
                       const cost = selectedActivity ? selectedActivity.creditCost : 1;
                       const isInsufficient = lookup.balance < cost;
                       const disableButton = isInsufficient ? !isSuperAdmin : false;
-                      
                       let buttonLabel = t("confirmRedemption");
-                      if (isInsufficient) {
-                        if (isSuperAdmin) {
-                          buttonLabel = "Authorize Overdraft Redemption";
-                        } else {
-                          buttonLabel = t("insufficientBalance");
-                        }
-                      }
+                      if (isInsufficient) buttonLabel = isSuperAdmin ? "Authorize Overdraft Redemption" : t("insufficientBalance");
 
                       return (
                         <div className="space-y-2 pt-2">
-                          <Button
-                            type="submit"
-                            className="w-full font-bold"
-                            disabled={disableButton}
-                            loading={redeeming}
-                          >
+                          <Button type="submit" className="w-full font-bold" disabled={disableButton} loading={redeeming}>
                             {buttonLabel}
                           </Button>
                           <Button
@@ -855,9 +970,30 @@ export default function RedeemPage() {
                           >
                             {t("redeemKid")}
                           </Button>
+                          {/* Free admission — available to all admins */}
+                          <button
+                            type="submit"
+                            name="isFree"
+                            value="1"
+                            disabled={!selectedActivityId || redeeming}
+                            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4H5z" />
+                            </svg>
+                            Redeem for Free (0 credits — logged in client history)
+                          </button>
                         </div>
                       );
                     })()}
+
+                    {isWalkInMode && (
+                      <div className="pt-2">
+                        <Button type="submit" className="w-full font-bold" loading={redeeming} disabled={!selectedActivityId || !walkinName.trim()}>
+                          Register Walk-in Attendee{parseFloat(walkinPaidAmount) > 0 ? " + Generate Invoice" : ""}
+                        </Button>
+                      </div>
+                    )}
                   </form>
                 </div>
               </details>

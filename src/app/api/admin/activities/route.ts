@@ -11,9 +11,10 @@ export async function GET(request: NextRequest) {
   if (error) return error;
 
   const redeemable = request.nextUrl.searchParams.get("redeemable") === "true";
+  const allSessions = request.nextUrl.searchParams.get("allSessions") === "true";
 
   try {
-    const activities = await activitiesService.getActivities({ redeemableOnly: redeemable });
+    const activities = await activitiesService.getActivities({ redeemableOnly: redeemable, allSessions });
     return NextResponse.json(activities);
   } catch (err: unknown) {
     console.error("GET activities API error:", err);

@@ -5,7 +5,7 @@ export class ActivitiesService {
   private activitiesRepo = new ActivitiesRepository();
   private reportingRepo = new ReportingRepository();
 
-  async getActivities(options?: { redeemableOnly?: boolean }) {
+  async getActivities(options?: { redeemableOnly?: boolean; allSessions?: boolean }) {
     const now = new Date();
     const tenHoursAgo = new Date(now.getTime() - 10 * 60 * 60 * 1000);
     const where: any = {};
@@ -19,18 +19,25 @@ export class ActivitiesService {
       };
     }
 
+    const sessionFilter = options?.allSessions
+      ? { orderBy: { sessionDate: "desc" as const } }
+      : {
+          where: { active: true },
+          orderBy: { sessionDate: "asc" as const },
+        };
+
     return this.activitiesRepo.findMany({
       where,
       include: {
         sessions: {
+          ...sessionFilter,
           include: {
             sessionExpenses: {
               include: {
-                activityExpense: true
-              }
-            }
+                activityExpense: true,
+              },
+            },
           },
-          orderBy: { sessionDate: "asc" },
         },
         expenses: true,
         _count: { select: { redemptions: true } },
