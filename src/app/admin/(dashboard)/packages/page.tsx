@@ -23,9 +23,11 @@ type Package = {
   _count: { ledgerEntries: number };
 };
 
+import { useCallback } from "react";
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
+
 export default function PackagesPage() {
-  const [packages, setPackages] = useState<Package[]>([]);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -43,27 +45,32 @@ export default function PackagesPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [orderingId, setOrderingId] = useState<string | null>(null);
 
-  async function loadPackages() {
-    try {
-      const res = await fetch("/api/admin/packages");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setPackages(data);
-      } else {
-        setPackages([]);
-        setMessage({ text: data?.error || "Failed to load packages.", tone: "danger" });
-      }
-    } catch {
-      setPackages([]);
-      setMessage({ text: "Failed to load packages.", tone: "danger" });
-    } finally {
-      setLoading(false);
+  const fetcher = useCallback(async () => {
+    const res = await fetchWithRetry("/api/admin/packages");
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || "Failed to load packages.");
     }
-  }
+    return data as Package[];
+  }, []);
+
+  const { data: packagesData, loading, error, refetch, mutate } = useDataCache(
+    "/api/admin/packages",
+    fetcher
+  );
+
+  const packages = packagesData ?? [];
 
   useEffect(() => {
-    loadPackages();
-  }, []);
+    if (error) {
+      setMessage({ text: error, tone: "danger" });
+    }
+  }, [error]);
+
+  const loadPackages = useCallback(async () => {
+    invalidateCache("/api/admin/packages");
+    await refetch();
+  }, [refetch]);
 
   async function createPackage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -162,7 +169,7 @@ export default function PackagesPage() {
 
     setOrderingId(pkg.id);
     setMessage(null);
-    setPackages((current) => current.map((item) => updatedById.get(item.id) ?? item));
+    mutate((current) => (current || []).map((item: Package) => updatedById.get(item.id) ?? item), false);
 
     try {
       const responses = await Promise.all(

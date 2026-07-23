@@ -40,9 +40,11 @@ function avatarGradient(id: string) {
   return AVATAR_GRADIENTS[n % AVATAR_GRADIENTS.length];
 }
 
+import { useCallback } from "react";
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
+
 export default function ClubsListPage() {
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -52,26 +54,28 @@ export default function ClubsListPage() {
     clubName: string;
   }>({ isOpen: false, clubId: "", clubName: "" });
 
-  async function loadClubs() {
-    try {
-      const res = await fetch("/api/admin/clubs");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setClubs(data);
-      } else {
-        setMessage({ text: data?.error || "Failed to load clubs.", tone: "danger" });
-      }
-    } catch {
-      setMessage({ text: "Failed to load clubs.", tone: "danger" });
-    } finally {
-      setLoading(false);
+  const fetcher = useCallback(async () => {
+    const res = await fetchWithRetry("/api/admin/clubs");
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || "Failed to load clubs.");
     }
-  }
+    return data as Club[];
+  }, []);
+
+  const { data: clubsData, loading, error, refetch, mutate } = useDataCache(
+    "/api/admin/clubs",
+    fetcher
+  );
+
+  const clubs = clubsData ?? [];
 
   useEffect(() => {
-    loadClubs();
+    if (error) {
+      setMessage({ text: error, tone: "danger" });
+    }
     localStorage.setItem("aqa_last_viewed_clubs_time", new Date().toISOString());
-  }, []);
+  }, [error]);
 
   async function handleToggleActive(id: string, currentStatus: boolean) {
     try {
@@ -81,7 +85,7 @@ export default function ClubsListPage() {
         body: JSON.stringify({ isActive: !currentStatus }),
       });
       if (res.ok) {
-        setClubs((prev) => prev.map((c) => c.id === id ? { ...c, isActive: !currentStatus } : c));
+        mutate((prev) => (prev || []).map((c: Club) => c.id === id ? { ...c, isActive: !currentStatus } : c), false);
       } else {
         const data = await res.json();
         setMessage({ text: data.error || "Failed to update club status.", tone: "danger" });
@@ -98,7 +102,7 @@ export default function ClubsListPage() {
       const res = await fetch(`/api/admin/clubs/${clubId}/regenerate-token`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
-        setClubs((prev) => prev.map((c) => c.id === clubId ? { ...c, terminalToken: data.terminalToken } : c));
+        mutate((prev) => (prev || []).map((c: Club) => c.id === clubId ? { ...c, terminalToken: data.terminalToken } : c), false);
         setMessage({ text: "Terminal URL regenerated. Old URL is now invalid.", tone: "success" });
       } else {
         setMessage({ text: data.error || "Failed to regenerate token.", tone: "danger" });

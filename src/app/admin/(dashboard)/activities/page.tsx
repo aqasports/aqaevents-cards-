@@ -154,11 +154,12 @@ function ImageEditModal({
   );
 }
 
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActivitiesPage() {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [togglingActivity, setTogglingActivity] = useState<string | null>(null);
@@ -191,27 +192,32 @@ export default function ActivitiesPage() {
   // Form: credit cost live calculator
   const [formCreditCost, setFormCreditCost] = useState<number | string>(1);
 
-  async function loadActivities() {
-    try {
-      const res = await fetch("/api/admin/activities");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setActivities(data);
-      } else {
-        setActivities([]);
-        setMessage({ text: data?.error || "Failed to load activities.", tone: "danger" });
-      }
-    } catch {
-      setActivities([]);
-      setMessage({ text: "Failed to load activities.", tone: "danger" });
-    } finally {
-      setLoading(false);
+  const fetcher = useCallback(async () => {
+    const res = await fetchWithRetry("/api/admin/activities");
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || "Failed to load activities.");
     }
-  }
+    return data as Activity[];
+  }, []);
+
+  const { data: activitiesData, loading, error, refetch } = useDataCache(
+    "/api/admin/activities",
+    fetcher
+  );
+
+  const activities = activitiesData ?? [];
 
   useEffect(() => {
-    loadActivities();
-  }, []);
+    if (error) {
+      setMessage({ text: error, tone: "danger" });
+    }
+  }, [error]);
+
+  const loadActivities = useCallback(async () => {
+    invalidateCache("/api/admin/activities");
+    await refetch();
+  }, [refetch]);
   function handleAddTempExpense() {
     if (!newExpName || !newExpAmount) return;
     const amount = parseFloat(newExpAmount);

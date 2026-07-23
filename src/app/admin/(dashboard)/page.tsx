@@ -125,17 +125,18 @@ export default async function AdminDashboardPage() {
   const attendanceRate = totalCapacity > 0 ? Math.round((totalBookings / totalCapacity) * 100) : 0;
   const utilizationRate = creditsSold > 0 ? Math.round((creditsUsed / creditsSold) * 100) : 0;
 
-  // 3. Compute Clients metrics
-  const clientsWithInvoices = await prisma.client.findMany({
-    select: {
-      id: true,
-      invoices: {
-        where: { status: "paid" },
-        select: { id: true },
+  // 3. Compute Clients metrics (efficient DB groupBy)
+  const returningClientsGroups = await prisma.invoice.groupBy({
+    by: ["clientId"],
+    where: { status: "paid" },
+    _count: { id: true },
+    having: {
+      id: {
+        _count: { gt: 1 },
       },
     },
   });
-  const returningClientsCount = clientsWithInvoices.filter((c) => c.invoices.length > 1).length;
+  const returningClientsCount = returningClientsGroups.length;
   const lifetimeValue = clientCount > 0 ? Math.round(totalRevenue / clientCount) : 0;
 
   // 4. Fetch Recent Redemptions & Low Balance Clients for existing list UI

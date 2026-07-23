@@ -22,37 +22,61 @@ type Summary = {
   totalClientsWithCards: number;
 };
 
-export default function ReportsPage() {
-  const [redemptions, setRedemptions] = useState<Redemption[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [analytics, setAnalytics] = useState<any[]>([]);
-  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("");
+import { useCallback } from "react";
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache } from "@/lib/use-data-cache";
 
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/admin/redemptions").then((r) => r.json()),
-      fetch("/api/admin/reports/summary").then((r) => r.json()),
-      fetch("/api/admin/reports/analytics").then((r) => r.json()),
-    ]).then(([redemptionsData, summaryData, analyticsData]) => {
-      setRedemptions(redemptionsData.map((r: any) => ({
-        ...r,
-        creditsUsed: Number(r.creditsUsed.toFixed(2))
-      })));
-      setSummary({
-        ...summaryData,
-        totalCreditsSold: Number(summaryData.totalCreditsSold.toFixed(2)),
-        totalCreditsUsed: Number(summaryData.totalCreditsUsed.toFixed(2)),
-      });
-      setAnalytics(analyticsData.map((d: any) => ({
-        ...d,
-        sales: Number(d.sales.toFixed(2)),
-        redemptions: Number(d.redemptions.toFixed(2)),
-      })));
-      setLoading(false);
-    });
+export default function ReportsPage() {
+  const [filter, setFilter] = useState("");
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
+  const fetcher = useCallback(async () => {
+    const [redemptionsRes, summaryRes, analyticsRes] = await Promise.all([
+      fetchWithRetry("/api/admin/redemptions"),
+      fetchWithRetry("/api/admin/reports/summary"),
+      fetchWithRetry("/api/admin/reports/analytics"),
+    ]);
+
+    const redemptionsData = await redemptionsRes.json();
+    const summaryData = await summaryRes.json();
+    const analyticsData = await analyticsRes.json();
+
+    const formattedRedemptions = Array.isArray(redemptionsData)
+      ? redemptionsData.map((r: any) => ({
+          ...r,
+          creditsUsed: Number(r.creditsUsed.toFixed(2)),
+        }))
+      : [];
+
+    const formattedSummary: Summary = {
+      ...summaryData,
+      totalCreditsSold: Number((summaryData.totalCreditsSold || 0).toFixed(2)),
+      totalCreditsUsed: Number((summaryData.totalCreditsUsed || 0).toFixed(2)),
+    };
+
+    const formattedAnalytics = Array.isArray(analyticsData)
+      ? analyticsData.map((d: any) => ({
+          ...d,
+          sales: Number((d.sales || 0).toFixed(2)),
+          redemptions: Number((d.redemptions || 0).toFixed(2)),
+        }))
+      : [];
+
+    return {
+      redemptions: formattedRedemptions,
+      summary: formattedSummary,
+      analytics: formattedAnalytics,
+    };
   }, []);
+
+  const { data: cacheData, loading } = useDataCache(
+    "/api/admin/reports-page-data",
+    fetcher
+  );
+
+  const redemptions = cacheData?.redemptions ?? [];
+  const summary = cacheData?.summary ?? null;
+  const analytics = cacheData?.analytics ?? [];
 
   const maxVal = analytics.length > 0
     ? Math.max(...analytics.map((d) => Math.max(d.sales, d.redemptions)), 10)

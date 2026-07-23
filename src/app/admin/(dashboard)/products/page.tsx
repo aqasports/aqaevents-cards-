@@ -1,6 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useRef } from "react";
+import { FormEvent, useEffect, useState, useRef, useCallback } from "react";
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 import {
   Alert,
   Badge,
@@ -26,8 +28,6 @@ type Product = {
 };
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [newSortOrder, setNewSortOrder] = useState(1);
@@ -67,29 +67,43 @@ export default function ProductsPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [orderingId, setOrderingId] = useState<string | null>(null);
 
-  async function loadProducts() {
-    try {
-      const res = await fetch("/api/admin/products");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setProducts(data);
-        setNewSortOrder(data.filter((p: Product) => p.active).length + 1);
-      } else {
-        setProducts([]);
-        setMessage({ text: data?.error || "Failed to load products.", tone: "danger" });
-      }
-    } catch {
-      setProducts([]);
-      setMessage({ text: "Failed to load products.", tone: "danger" });
-    } finally {
-      setLoading(false);
+  const fetcher = useCallback(async () => {
+    const res = await fetchWithRetry("/api/admin/products");
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || "Failed to load products.");
     }
-  }
+    return data as Product[];
+  }, []);
+
+  const { data: productsData, loading, error: productsError, refetch, mutate } = useDataCache(
+    "/api/admin/products",
+    fetcher
+  );
+
+  const products = productsData ?? [];
+
+  useEffect(() => {
+    if (products.length > 0) {
+      setNewSortOrder(products.filter((p: Product) => p.active).length + 1);
+    }
+  }, [products]);
+
+  useEffect(() => {
+    if (productsError) {
+      setMessage({ text: productsError, tone: "danger" });
+    }
+  }, [productsError]);
+
+  const loadProducts = useCallback(async () => {
+    invalidateCache("/api/admin/products");
+    await refetch();
+  }, [refetch]);
 
   async function loadSales() {
     setSalesLoading(true);
     try {
-      const res = await fetch("/api/admin/invoices");
+      const res = await fetchWithRetry("/api/admin/invoices");
       const data = await res.json();
       let list = [];
       if (res.ok && Array.isArray(data)) {
@@ -110,10 +124,6 @@ export default function ProductsPage() {
       loadSales();
     }
   }, [viewMode]);
-
-  useEffect(() => {
-    loadProducts();
-  }, []);
 
   // Client Autocomplete Logic
   useEffect(() => {
@@ -397,7 +407,7 @@ export default function ProductsPage() {
 
     setOrderingId(product.id);
     setMessage(null);
-    setProducts((current) => current.map((item) => updatedById.get(item.id) ?? item));
+    mutate((current) => (current || []).map((item: Product) => updatedById.get(item.id) ?? item), false);
 
     try {
       const responses = await Promise.all(

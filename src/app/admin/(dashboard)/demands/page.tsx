@@ -10,6 +10,7 @@ import {
   PageHeader,
   StatCard,
 } from "@/components/admin/ui";
+import { fetchWithRetry } from "@/lib/fetch-utils";
 
 type CardDemand = {
   id: string;
@@ -52,7 +53,7 @@ export default function AdminDemandsPage() {
   async function fetchDemands() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/demands?status=${activeTab}`);
+      const res = await fetchWithRetry(`/api/admin/demands?status=${activeTab}`);
       if (res.ok) {
         const data = await res.json();
         setDemands(data);
@@ -67,7 +68,7 @@ export default function AdminDemandsPage() {
   // Fetch Stats (separately to always calculate total queue money based on ALL pending demands)
   async function fetchStats() {
     try {
-      const res = await fetch("/api/admin/demands?status=pending");
+      const res = await fetchWithRetry("/api/admin/demands?status=pending");
       if (res.ok) {
         const pendingDemands: CardDemand[] = await res.json();
         const total = pendingDemands.reduce((sum, d) => sum + d.price, 0);
@@ -82,7 +83,7 @@ export default function AdminDemandsPage() {
   // Fetch Packages
   async function fetchPackages() {
     try {
-      const res = await fetch("/api/public/packages");
+      const res = await fetchWithRetry("/api/public/packages");
       if (res.ok) {
         const data = await res.json();
         setPackages(data);

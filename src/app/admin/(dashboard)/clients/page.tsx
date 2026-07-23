@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { formatDate, useLocale } from "@/lib/i18n";
 import { Alert, Badge, Button, Card, EmptyState, PageHeader, ConfirmModal } from "@/components/admin/ui";
+
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 
 type ClientRow = {
   id: string;
@@ -26,8 +29,6 @@ type ClientRow = {
 
 export default function ClientsPage() {
   const { locale } = useLocale();
-  const [clients, setClients] = useState<ClientRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeCrmTab, setActiveCrmTab] = useState("all");
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
@@ -51,30 +52,29 @@ export default function ClientsPage() {
     setConfirmConfig({ isOpen: true, title, message, onConfirm, isDanger });
   };
 
-  async function loadClients(tab = activeCrmTab) {
-    setLoading(true);
-    try {
-      const isArchived = tab === "archived";
-      const url = isArchived ? "/api/admin/clients?archived=true" : "/api/admin/clients";
-      const res = await fetch(url);
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setClients(data);
-      } else {
-        setClients([]);
-        setMessage({ text: data?.error || "Failed to load clients.", tone: "danger" });
-      }
-    } catch {
-      setClients([]);
-      setMessage({ text: "Failed to load clients.", tone: "danger" });
-    } finally {
-      setLoading(false);
+  const fetcher = useCallback(async () => {
+    const isArchived = activeCrmTab === "archived";
+    const url = isArchived ? "/api/admin/clients?archived=true" : "/api/admin/clients";
+    const res = await fetchWithRetry(url);
+    const data = await res.json();
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error(data?.error || "Failed to load clients.");
     }
-  }
+    return data as ClientRow[];
+  }, [activeCrmTab]);
+
+  const { data: clientsData, loading, error, refetch } = useDataCache(
+    `/api/admin/clients?tab=${activeCrmTab}`,
+    fetcher
+  );
+
+  const clients = clientsData ?? [];
 
   useEffect(() => {
-    loadClients(activeCrmTab);
-  }, [activeCrmTab]);
+    if (error) {
+      setMessage({ text: error, tone: "danger" });
+    }
+  }, [error]);
 
   async function handleDelete(client: ClientRow) {
     triggerConfirm(
@@ -93,7 +93,8 @@ export default function ClientsPage() {
               text: `Client ${client.fullName} has been successfully archived.`,
               tone: "success",
             });
-            await loadClients(activeCrmTab);
+            invalidateCache("/api/admin/clients");
+            await refetch();
           } else {
             const errData = await res.json();
             setMessage({
@@ -125,7 +126,8 @@ export default function ClientsPage() {
               text: `Client ${client.fullName} has been successfully restored.`,
               tone: "success",
             });
-            await loadClients(activeCrmTab);
+            invalidateCache("/api/admin/clients");
+            await refetch();
           } else {
             const errData = await res.json();
             setMessage({
@@ -157,7 +159,8 @@ export default function ClientsPage() {
               text: `Client ${client.fullName} and all related records have been permanently deleted.`,
               tone: "success",
             });
-            await loadClients(activeCrmTab);
+            invalidateCache("/api/admin/clients");
+            await refetch();
           } else {
             const errData = await res.json();
             setMessage({

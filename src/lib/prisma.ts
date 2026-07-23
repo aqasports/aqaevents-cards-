@@ -17,14 +17,11 @@ function createPrismaClient() {
   });
 }
 
-// In development, reuse the client across hot-reloads to avoid too many connections.
-// But always create fresh if the global is missing (first load or after error reset).
+// Reuse the client across warm invocations in all environments to prevent connection pool exhaustion in serverless.
 export const prisma: PrismaClient =
   globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
-}
+globalForPrisma.prisma = prisma;
 
 import "@/modules/subscribers";
 

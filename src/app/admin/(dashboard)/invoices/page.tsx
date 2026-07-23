@@ -12,6 +12,8 @@ import {
   ConfirmModal,
 } from "@/components/admin/ui";
 
+import { fetchWithRetry } from "@/lib/fetch-utils";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ClientOption = {
@@ -1239,41 +1241,59 @@ export default function InvoicesPage() {
     const params = new URLSearchParams();
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (debouncedSearch) params.set("search", debouncedSearch);
-    const res = await fetch(`/api/admin/invoices?${params.toString()}`);
-    if (res.ok) {
-      const data = await res.json();
-      setInvoices(data.invoices);
-      setStats(data.stats);
+    try {
+      const res = await fetchWithRetry(`/api/admin/invoices?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setInvoices(data.invoices);
+        setStats(data.stats);
+      }
+    } catch (e) {
+      console.error("Failed to load invoices:", e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [statusFilter, debouncedSearch]);
 
   // Load expenses
   const loadExpenses = useCallback(async () => {
     setExpensesLoading(true);
-    const res = await fetch("/api/admin/expenses");
-    if (res.ok) {
-      const data = await res.json();
-      setExpenses(data);
+    try {
+      const res = await fetchWithRetry("/api/admin/expenses");
+      if (res.ok) {
+        const data = await res.json();
+        setExpenses(data);
+      }
+    } catch (e) {
+      console.error("Failed to load expenses:", e);
+    } finally {
+      setExpensesLoading(false);
     }
-    setExpensesLoading(false);
   }, []);
 
   // Load activities
   const loadActivities = useCallback(async () => {
-    const res = await fetch("/api/admin/activities");
-    if (res.ok) {
-      const data = await res.json();
-      setActivities(data);
+    try {
+      const res = await fetchWithRetry("/api/admin/activities");
+      if (res.ok) {
+        const data = await res.json();
+        setActivities(data);
+      }
+    } catch (e) {
+      console.error("Failed to load activities:", e);
     }
   }, []);
 
   // Load reports summary (credit stats)
   const loadReportsSummary = useCallback(async () => {
-    const res = await fetch("/api/admin/reports/summary");
-    if (res.ok) {
-      const data = await res.json();
-      setReportsSummary(data);
+    try {
+      const res = await fetchWithRetry("/api/admin/reports/summary");
+      if (res.ok) {
+        const data = await res.json();
+        setReportsSummary(data);
+      }
+    } catch (e) {
+      console.error("Failed to load reports summary:", e);
     }
   }, []);
 

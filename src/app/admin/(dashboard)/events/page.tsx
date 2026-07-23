@@ -12,6 +12,10 @@ import {
   Select,
 } from "@/components/admin/ui";
 
+import { useCallback } from "react";
+import { fetchWithRetry } from "@/lib/fetch-utils";
+import { useDataCache } from "@/lib/use-data-cache";
+
 type Activity = {
   id: string;
   name: string;
@@ -35,36 +39,30 @@ type Session = {
 
 export default function EventsPage() {
   const { locale } = useLocale();
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "canceled">("all");
   const [activityFilter, setActivityFilter] = useState("all");
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [sessionsRes, activitiesRes] = await Promise.all([
-          fetch("/api/admin/sessions?activeOnly=false"),
-          fetch("/api/admin/activities"),
-        ]);
-        if (sessionsRes.ok) {
-          const sessionsData = await sessionsRes.json();
-          setSessions(sessionsData);
-        }
-        if (activitiesRes.ok) {
-          const activitiesData = await activitiesRes.json();
-          setActivities(activitiesData);
-        }
-      } catch (err) {
-        console.error("Failed to load events data:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+  const fetcher = useCallback(async () => {
+    const [sessionsRes, activitiesRes] = await Promise.all([
+      fetchWithRetry("/api/admin/sessions?activeOnly=false"),
+      fetchWithRetry("/api/admin/activities"),
+    ]);
+    const sessionsData = sessionsRes.ok ? await sessionsRes.json() : [];
+    const activitiesData = activitiesRes.ok ? await activitiesRes.json() : [];
+    return {
+      sessions: Array.isArray(sessionsData) ? (sessionsData as Session[]) : [],
+      activities: Array.isArray(activitiesData) ? (activitiesData as Activity[]) : [],
+    };
   }, []);
+
+  const { data: cacheData, loading } = useDataCache(
+    "/api/admin/events-page-data",
+    fetcher
+  );
+
+  const sessions = cacheData?.sessions ?? [];
+  const activities = cacheData?.activities ?? [];
 
   // Filtered sessions
   const filteredSessions = sessions.filter((s) => {
