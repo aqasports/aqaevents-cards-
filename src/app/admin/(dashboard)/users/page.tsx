@@ -418,6 +418,12 @@ export default function UsersPage() {
     );
   }
 
+  // Helper to count number of coaches linked to a session
+  function getLinkedCoachesCount(sessionId: string) {
+    const count = assignments.filter((a) => a.sessionId === sessionId).length;
+    return Math.max(1, count);
+  }
+
   // Report calculations helper supporting single coach & ALL coaches
   function getReportData() {
     if (!reportCoachId) {
@@ -445,8 +451,18 @@ export default function UsersPage() {
 
     // ALL Coaches Mode
     if (reportCoachId === "ALL") {
-      let aggregateSessions = 0;
-      let aggregateAttendees = 0;
+      // Find all unique assigned sessions in date range
+      const allAssignedSessionIds = Array.from(new Set(assignments.map((a) => a.sessionId)));
+      const matchingUniqueSessions = dbSessions.filter(
+        (s) => allAssignedSessionIds.includes(s.id) && filterSessionByDate(s.sessionDate)
+      );
+
+      const totalUniqueSessionsCount = matchingUniqueSessions.length;
+      const totalUniqueClientsCount = matchingUniqueSessions.reduce(
+        (sum, s) => sum + s.redemptions.length,
+        0
+      );
+
       let aggregatePayout = 0;
 
       const coachBreakdown = coaches.map((coach) => {
@@ -462,12 +478,16 @@ export default function UsersPage() {
         let cPayout = 0;
 
         const sessions: CoachPayoutSession[] = coachSessions.map((s) => {
-          const attendees = s.redemptions.length;
+          const totalEventAttendees = s.redemptions.length;
+          const linkedCoachesCount = getLinkedCoachesCount(s.id);
+          // Coach's share of attendees = Total Event Attendees / Linked Coaches
+          const attributedAttendees = totalEventAttendees / linkedCoachesCount;
+
           const basePay = coach.baseRate;
-          const bonusPay = attendees * coach.bonusPerAttendee;
+          const bonusPay = attributedAttendees * coach.bonusPerAttendee;
           const totalPay = basePay + bonusPay;
 
-          cAttendees += attendees;
+          cAttendees += attributedAttendees;
           cPayout += totalPay;
 
           return {
@@ -475,23 +495,21 @@ export default function UsersPage() {
             activityName: s.activity.name,
             sessionDate: s.sessionDate,
             location: s.location || "Default",
-            attendees,
+            attendees: Number(attributedAttendees.toFixed(1)),
             baseRate: basePay,
             bonusPerAttendee: coach.bonusPerAttendee,
-            totalPay,
+            totalPay: Math.round(totalPay),
           };
         });
 
-        aggregateSessions += sessions.length;
-        aggregateAttendees += cAttendees;
         aggregatePayout += cPayout;
 
         return {
           coach,
           sessions,
           totalSessions: sessions.length,
-          totalAttendees: cAttendees,
-          totalPayout: cPayout,
+          totalAttendees: Number(cAttendees.toFixed(1)),
+          totalPayout: Math.round(cPayout),
         };
       });
 
@@ -500,9 +518,9 @@ export default function UsersPage() {
         coach: null,
         matchingSessions: [],
         coachBreakdown,
-        totalSessions: aggregateSessions,
-        totalAttendees: aggregateAttendees,
-        totalPayout: aggregatePayout,
+        totalSessions: totalUniqueSessionsCount,
+        totalAttendees: totalUniqueClientsCount,
+        totalPayout: Math.round(aggregatePayout),
       };
     }
 
@@ -532,12 +550,15 @@ export default function UsersPage() {
     let totalPayout = 0;
 
     const matchingSessions: CoachPayoutSession[] = coachSessions.map((s) => {
-      const attendees = s.redemptions.length;
+      const totalEventAttendees = s.redemptions.length;
+      const linkedCoachesCount = getLinkedCoachesCount(s.id);
+      const attributedAttendees = totalEventAttendees / linkedCoachesCount;
+
       const basePay = coach.baseRate;
-      const bonusPay = attendees * coach.bonusPerAttendee;
+      const bonusPay = attributedAttendees * coach.bonusPerAttendee;
       const totalPay = basePay + bonusPay;
 
-      totalAttendees += attendees;
+      totalAttendees += attributedAttendees;
       totalPayout += totalPay;
 
       return {
@@ -545,10 +566,10 @@ export default function UsersPage() {
         activityName: s.activity.name,
         sessionDate: s.sessionDate,
         location: s.location || "Default",
-        attendees,
+        attendees: Number(attributedAttendees.toFixed(1)),
         baseRate: basePay,
         bonusPerAttendee: coach.bonusPerAttendee,
-        totalPay,
+        totalPay: Math.round(totalPay),
       };
     });
 
@@ -558,8 +579,8 @@ export default function UsersPage() {
       matchingSessions,
       coachBreakdown: [],
       totalSessions: matchingSessions.length,
-      totalAttendees,
-      totalPayout,
+      totalAttendees: Number(totalAttendees.toFixed(1)),
+      totalPayout: Math.round(totalPayout),
     };
   }
 
@@ -696,18 +717,22 @@ export default function UsersPage() {
       let totalPayout = 0;
 
       coachSessions.forEach((s) => {
-        const attendees = s.redemptions.length;
+        const totalEventAttendees = s.redemptions.length;
+        const linkedCoachesCount = getLinkedCoachesCount(s.id);
+        const attributedAttendees = totalEventAttendees / linkedCoachesCount;
+
         const basePay = coach.baseRate;
-        const bonusPay = attendees * coach.bonusPerAttendee;
-        totalAttendees += attendees;
+        const bonusPay = attributedAttendees * coach.bonusPerAttendee;
+
+        totalAttendees += attributedAttendees;
         totalPayout += basePay + bonusPay;
       });
 
       return {
         coach,
         sessionCount: coachSessions.length,
-        totalAttendees,
-        totalPayout,
+        totalAttendees: Number(totalAttendees.toFixed(1)),
+        totalPayout: Math.round(totalPayout),
         activityDiversity: activityNames.length,
         activities: activityNames,
       };
@@ -721,8 +746,13 @@ export default function UsersPage() {
     const topEarnerCoach = [...coachStats].sort((a, b) => b.totalPayout - a.totalPayout)[0] || null;
     const topAttendeesCoach = [...coachStats].sort((a, b) => b.totalAttendees - a.totalAttendees)[0] || null;
 
-    const totalAssignedSessions = assignments.length;
-    const totalCoachedClients = coachStats.reduce((sum, c) => sum + c.totalAttendees, 0);
+    // Total unique sessions linked across all coaches
+    const uniqueAssignedSessionIds = Array.from(new Set(assignments.map((a) => a.sessionId)));
+    const uniqueAssignedSessions = dbSessions.filter((s) => uniqueAssignedSessionIds.includes(s.id));
+    const totalAssignedSessions = uniqueAssignedSessions.length;
+
+    // Total unique client attendees coached across assigned sessions
+    const totalCoachedClients = uniqueAssignedSessions.reduce((sum, s) => sum + s.redemptions.length, 0);
 
     // Group activity participation
     const activityMap: Record<string, { name: string; sessionCount: number; coachIds: Set<string> }> = {};
@@ -1037,7 +1067,7 @@ export default function UsersPage() {
                   onChange={(e) => setCoachBonusPerAttendee(e.target.value)}
                   min="0"
                   required
-                  hint="DA per client"
+                  hint="DA per client share"
                 />
               </div>
               <Textarea
@@ -1109,7 +1139,7 @@ export default function UsersPage() {
                           <p className="mt-1 text-xs text-[var(--muted)] leading-relaxed">
                             {coach.email && <span>{coach.email} · </span>}
                             {coach.phone && <span>{coach.phone} · </span>}
-                            <span>Rate: {coach.baseRate.toLocaleString("fr-DZ")} DA/session + {coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client</span>
+                            <span>Rate: {coach.baseRate.toLocaleString("fr-DZ")} DA/session + {coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client share</span>
                           </p>
                           <p className="mt-1 text-xs text-[var(--muted)] font-medium">
                             Linked to {assignedCount} event sessions · Paid payouts: {historicalPayouts.toLocaleString("fr-DZ")} DA
@@ -1272,11 +1302,11 @@ export default function UsersPage() {
                   <p className="mt-2 text-2xl font-bold">{coaches.length}</p>
                 </Card>
                 <Card>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Sessions Coached</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Unique Sessions</p>
                   <p className="mt-2 text-2xl font-bold">{totalSessions}</p>
                 </Card>
                 <Card>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Clients Reached</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Unique Clients</p>
                   <p className="mt-2 text-2xl font-bold">{totalAttendees} clients</p>
                 </Card>
                 <Card className="border-[var(--primary)]/50 bg-[var(--primary)]/5">
@@ -1304,7 +1334,7 @@ export default function UsersPage() {
                           <th className="px-5 py-3">Coach / Staff Member</th>
                           <th className="px-5 py-3">Type</th>
                           <th className="px-5 py-3 text-center">Sessions Linked</th>
-                          <th className="px-5 py-3 text-center">Total Attendance</th>
+                          <th className="px-5 py-3 text-center">Attributed Attendees</th>
                           <th className="px-5 py-3 text-right">Rates (Base / Bonus)</th>
                           <th className="px-5 py-3 text-right">Total Salary</th>
                         </tr>
@@ -1322,7 +1352,7 @@ export default function UsersPage() {
                               </Badge>
                             </td>
                             <td className="px-5 py-3.5 text-center font-bold tabular-nums">{item.totalSessions}</td>
-                            <td className="px-5 py-3.5 text-center tabular-nums">{item.totalAttendees}</td>
+                            <td className="px-5 py-3.5 text-center tabular-nums font-semibold text-[var(--foreground)]">{item.totalAttendees}</td>
                             <td className="px-5 py-3.5 text-right text-xs text-[var(--muted)] tabular-nums">
                               {item.coach.baseRate.toLocaleString("fr-DZ")} DA + {item.coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client
                             </td>
@@ -1335,8 +1365,8 @@ export default function UsersPage() {
                       <tfoot>
                         <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]/20 font-bold">
                           <td colSpan={2} className="px-5 py-3.5">Total Combined Statement</td>
-                          <td className="px-5 py-3.5 text-center tabular-nums">{totalSessions}</td>
-                          <td className="px-5 py-3.5 text-center tabular-nums">{totalAttendees}</td>
+                          <td className="px-5 py-3.5 text-center tabular-nums">{totalSessions} unique sessions</td>
+                          <td className="px-5 py-3.5 text-center tabular-nums">{totalAttendees} unique clients</td>
                           <td className="px-5 py-3.5 text-right text-xs uppercase tracking-wider text-[var(--muted)]">Grand Total</td>
                           <td className="px-5 py-3.5 text-right text-base font-extrabold text-[var(--primary)] tabular-nums">
                             {totalPayout.toLocaleString("fr-DZ")} DA
@@ -1380,7 +1410,7 @@ export default function UsersPage() {
                 </Card>
                 {hasBonus && (
                   <Card>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Attendance</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Attributed Attendees</p>
                     <p className="mt-2 text-2xl font-bold">{totalAttendees} clients</p>
                   </Card>
                 )}
@@ -1396,6 +1426,7 @@ export default function UsersPage() {
               <Card padding={false}>
                 <div className="border-b border-[var(--border)] px-5 py-4">
                   <h3 className="text-base font-semibold">Sessions Breakdown Statement</h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Attendee numbers are split equally between linked co-coaches for shared events.</p>
                 </div>
 
                 {matchingSessions.length === 0 ? (
@@ -1411,7 +1442,7 @@ export default function UsersPage() {
                           <th className="px-5 py-3">Event Date</th>
                           <th className="px-5 py-3">Activity</th>
                           <th className="px-5 py-3">Location</th>
-                          {hasBonus && <th className="px-5 py-3 text-center">Attendees</th>}
+                          {hasBonus && <th className="px-5 py-3 text-center">Attributed Attendees</th>}
                           <th className="px-5 py-3 text-right">Base Pay</th>
                           {hasBonus && <th className="px-5 py-3 text-right">Attendee Bonus</th>}
                           <th className="px-5 py-3 text-right">Total Payout</th>
@@ -1425,12 +1456,12 @@ export default function UsersPage() {
                             </td>
                             <td className="px-5 py-3.5 font-semibold text-[var(--foreground)]">{item.activityName}</td>
                             <td className="px-5 py-3.5 text-[var(--muted)]">{item.location}</td>
-                            {hasBonus && <td className="px-5 py-3.5 text-center text-[var(--foreground)]">{item.attendees}</td>}
+                            {hasBonus && <td className="px-5 py-3.5 text-center font-bold text-[var(--foreground)]">{item.attendees}</td>}
                             <td className="px-5 py-3.5 text-right tabular-nums">{item.baseRate.toLocaleString("fr-DZ")} DA</td>
                             {hasBonus && (
                               <td className="px-5 py-3.5 text-right tabular-nums">
                                 {item.bonusPerAttendee > 0
-                                  ? `${(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA`
+                                  ? `${Math.round(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA`
                                   : "—"}
                               </td>
                             )}
@@ -1503,7 +1534,7 @@ export default function UsersPage() {
             </Card>
 
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Sessions Coached</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Unique Sessions</p>
               <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
                 {participationData.totalAssignedSessions}
               </p>
@@ -1518,7 +1549,7 @@ export default function UsersPage() {
             <div className="border-b border-[var(--border)] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-base font-semibold">Coach Participation Leaderboard &amp; Rankings</h3>
-                <p className="text-xs text-[var(--muted)] mt-0.5">Ranked by session participation, client reach, and total earnings.</p>
+                <p className="text-xs text-[var(--muted)] mt-0.5">Ranked by session participation, attributed client reach, and total earnings.</p>
               </div>
               <input
                 type="text"
@@ -1541,7 +1572,7 @@ export default function UsersPage() {
                       <th className="px-5 py-3">Type</th>
                       <th className="px-5 py-3">Participation Progress</th>
                       <th className="px-5 py-3 text-center">Sessions</th>
-                      <th className="px-5 py-3 text-center">Clients Coached</th>
+                      <th className="px-5 py-3 text-center">Attributed Clients</th>
                       <th className="px-5 py-3 text-center">Activity Types</th>
                       <th className="px-5 py-3 text-right">Total Salary</th>
                     </tr>
@@ -1990,7 +2021,7 @@ export default function UsersPage() {
                           <th className="py-2.5 px-2">Session Date</th>
                           <th className="py-2.5 px-2">Activity Name</th>
                           <th className="py-2.5 px-2">Location</th>
-                          {invoiceHasBonus && <th className="py-2.5 px-2 text-center">Attendees</th>}
+                          {invoiceHasBonus && <th className="py-2.5 px-2 text-center">Attributed Attendees</th>}
                           <th className="py-2.5 px-2 text-right">Base Pay</th>
                           {invoiceHasBonus && <th className="py-2.5 px-2 text-right">Bonus Pay</th>}
                           <th className="py-2.5 px-2 text-right">Subtotal Payout</th>
@@ -2002,11 +2033,11 @@ export default function UsersPage() {
                             <td className="py-2.5 px-2 font-medium">{new Date(item.sessionDate).toLocaleDateString()}</td>
                             <td className="py-2.5 px-2 font-bold text-slate-900">{item.activityName}</td>
                             <td className="py-2.5 px-2">{item.location}</td>
-                            {invoiceHasBonus && <td className="py-2.5 px-2 text-center">{item.attendees}</td>}
+                            {invoiceHasBonus && <td className="py-2.5 px-2 text-center font-bold">{item.attendees}</td>}
                             <td className="py-2.5 px-2 text-right tabular-nums">{item.baseRate.toLocaleString("fr-DZ")} DA</td>
                             {invoiceHasBonus && (
                               <td className="py-2.5 px-2 text-right tabular-nums">
-                                {(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA
+                                {Math.round(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA
                               </td>
                             )}
                             <td className="py-2.5 px-2 text-right font-semibold text-slate-900 tabular-nums">
