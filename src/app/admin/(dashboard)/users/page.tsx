@@ -87,10 +87,10 @@ interface DatabaseSession {
 
 export default function UsersPage() {
   const { data: session } = useSession();
-  const [activeTab, setActiveTab] = useState<"staff" | "coaches" | "reports" | "invoices">("staff");
+  const [activeTab, setActiveTab] = useState<"staff" | "coaches" | "reports" | "participation" | "invoices">("staff");
   const [mounted, setMounted] = useState(false);
 
-  // Original Staff Accounts state
+  // Staff Accounts state
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" | "info" } | null>(null);
@@ -99,7 +99,7 @@ export default function UsersPage() {
   const [changingRoleId, setChangingRoleId] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
-  // Coach Adder state
+  // Coach profiles and assignments state
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [assignments, setAssignments] = useState<CoachAssignment[]>([]);
   const [payouts, setPayouts] = useState<CoachPayout[]>([]);
@@ -122,13 +122,18 @@ export default function UsersPage() {
   const [coachBonusPerAttendee, setCoachBonusPerAttendee] = useState("150");
   const [coachNotes, setCoachNotes] = useState("");
 
-  // Report state
-  const [reportCoachId, setReportCoachId] = useState("");
+  // Salary Calculator / Report filter state
+  const [reportCoachId, setReportCoachId] = useState(""); // "" | "ALL" | coachId
+  const [reportMonth, setReportMonth] = useState(""); // "" | "1".."12"
+  const [reportYear, setReportYear] = useState(new Date().getFullYear().toString());
   const [reportStartDate, setReportStartDate] = useState("");
   const [reportEndDate, setReportEndDate] = useState("");
   const [reportNotes, setReportNotes] = useState("");
 
-  // Invoice view state
+  // Participation Tab search/filter
+  const [participationSearch, setParticipationSearch] = useState("");
+
+  // Invoice view modal state
   const [selectedInvoice, setSelectedInvoice] = useState<CoachPayout | null>(null);
 
   // Confirm Modal state
@@ -149,7 +154,22 @@ export default function UsersPage() {
     setConfirmConfig({ isOpen: true, title, message, onConfirm, isDanger });
   };
 
-  // Original functions to load and manage staff accounts
+  // Month filter change handler (e.g. July)
+  function handleMonthFilterChange(monthVal: string, yearVal = reportYear) {
+    setReportMonth(monthVal);
+    if (!monthVal) {
+      return;
+    }
+    const yearNum = parseInt(yearVal || new Date().getFullYear().toString(), 10);
+    const monthNum = parseInt(monthVal, 10);
+    const startStr = `${yearNum}-${monthVal.padStart(2, "0")}-01`;
+    const lastDay = new Date(yearNum, monthNum, 0).getDate();
+    const endStr = `${yearNum}-${monthVal.padStart(2, "0")}-${lastDay.toString().padStart(2, "0")}`;
+    setReportStartDate(startStr);
+    setReportEndDate(endStr);
+  }
+
+  // Load staff users from database
   async function loadUsers() {
     try {
       const res = await fetch("/api/admin/users");
@@ -193,7 +213,6 @@ export default function UsersPage() {
   useEffect(() => {
     setMounted(true);
     
-    // Load local storage states
     const savedCoaches = localStorage.getItem("aqa_coaches");
     if (savedCoaches) {
       try { setCoaches(JSON.parse(savedCoaches)); } catch (e) { console.error(e); }
@@ -232,7 +251,7 @@ export default function UsersPage() {
     }
   }, [payouts, mounted]);
 
-  // Original user account management handlers
+  // User account management handlers
   async function createUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
@@ -399,38 +418,120 @@ export default function UsersPage() {
     );
   }
 
-  // Report calculations helper
+  // Report calculations helper supporting single coach & ALL coaches
   function getReportData() {
-    if (!reportCoachId) return { coach: null, matchingSessions: [], totalSessions: 0, totalAttendees: 0, totalPayout: 0 };
-    
-    const coach = coaches.find((c) => c.id === reportCoachId);
-    if (!coach) return { coach: null, matchingSessions: [], totalSessions: 0, totalAttendees: 0, totalPayout: 0 };
+    if (!reportCoachId) {
+      return {
+        isAll: false,
+        coach: null,
+        matchingSessions: [],
+        coachBreakdown: [],
+        totalSessions: 0,
+        totalAttendees: 0,
+        totalPayout: 0,
+      };
+    }
 
-    // Get session assignments for this coach
-    const coachSessionIds = assignments
-      .filter((a) => a.coachId === coach.id)
-      .map((a) => a.sessionId);
-
-    // Filter dbSessions
-    const coachSessions = dbSessions.filter((s) => coachSessionIds.includes(s.id));
-
-    // Filter by dates
     const start = reportStartDate ? new Date(reportStartDate) : null;
     const end = reportEndDate ? new Date(reportEndDate) : null;
     if (end) end.setHours(23, 59, 59, 999);
 
-    const filtered = coachSessions.filter((s) => {
-      const sDate = new Date(s.sessionDate);
+    const filterSessionByDate = (sDateStr: string) => {
+      const sDate = new Date(sDateStr);
       if (start && sDate < start) return false;
       if (end && sDate > end) return false;
       return true;
-    });
+    };
 
-    // Compute details
+    // ALL Coaches Mode
+    if (reportCoachId === "ALL") {
+      let aggregateSessions = 0;
+      let aggregateAttendees = 0;
+      let aggregatePayout = 0;
+
+      const coachBreakdown = coaches.map((coach) => {
+        const coachSessionIds = assignments
+          .filter((a) => a.coachId === coach.id)
+          .map((a) => a.sessionId);
+
+        const coachSessions = dbSessions.filter(
+          (s) => coachSessionIds.includes(s.id) && filterSessionByDate(s.sessionDate)
+        );
+
+        let cAttendees = 0;
+        let cPayout = 0;
+
+        const sessions: CoachPayoutSession[] = coachSessions.map((s) => {
+          const attendees = s.redemptions.length;
+          const basePay = coach.baseRate;
+          const bonusPay = attendees * coach.bonusPerAttendee;
+          const totalPay = basePay + bonusPay;
+
+          cAttendees += attendees;
+          cPayout += totalPay;
+
+          return {
+            sessionId: s.id,
+            activityName: s.activity.name,
+            sessionDate: s.sessionDate,
+            location: s.location || "Default",
+            attendees,
+            baseRate: basePay,
+            bonusPerAttendee: coach.bonusPerAttendee,
+            totalPay,
+          };
+        });
+
+        aggregateSessions += sessions.length;
+        aggregateAttendees += cAttendees;
+        aggregatePayout += cPayout;
+
+        return {
+          coach,
+          sessions,
+          totalSessions: sessions.length,
+          totalAttendees: cAttendees,
+          totalPayout: cPayout,
+        };
+      });
+
+      return {
+        isAll: true,
+        coach: null,
+        matchingSessions: [],
+        coachBreakdown,
+        totalSessions: aggregateSessions,
+        totalAttendees: aggregateAttendees,
+        totalPayout: aggregatePayout,
+      };
+    }
+
+    // Single Coach Mode
+    const coach = coaches.find((c) => c.id === reportCoachId);
+    if (!coach) {
+      return {
+        isAll: false,
+        coach: null,
+        matchingSessions: [],
+        coachBreakdown: [],
+        totalSessions: 0,
+        totalAttendees: 0,
+        totalPayout: 0,
+      };
+    }
+
+    const coachSessionIds = assignments
+      .filter((a) => a.coachId === coach.id)
+      .map((a) => a.sessionId);
+
+    const coachSessions = dbSessions.filter(
+      (s) => coachSessionIds.includes(s.id) && filterSessionByDate(s.sessionDate)
+    );
+
     let totalAttendees = 0;
     let totalPayout = 0;
 
-    const matchingSessions = filtered.map((s) => {
+    const matchingSessions: CoachPayoutSession[] = coachSessions.map((s) => {
       const attendees = s.redemptions.length;
       const basePay = coach.baseRate;
       const bonusPay = attendees * coach.bonusPerAttendee;
@@ -452,17 +553,24 @@ export default function UsersPage() {
     });
 
     return {
+      isAll: false,
       coach,
       matchingSessions,
+      coachBreakdown: [],
       totalSessions: matchingSessions.length,
       totalAttendees,
       totalPayout,
     };
   }
 
-  // Generate a payout invoice
+  // Generate a single payout invoice
   function generateInvoice() {
-    const { coach, matchingSessions, totalPayout } = getReportData();
+    const { isAll, coach, matchingSessions, totalPayout } = getReportData();
+    if (isAll) {
+      generateInvoiceForAllCoaches();
+      return;
+    }
+
     if (!coach || matchingSessions.length === 0) {
       setMessage({ text: "Cannot generate invoice: No sessions found in the selected period.", tone: "danger" });
       return;
@@ -493,6 +601,46 @@ export default function UsersPage() {
     setMessage({ text: `Payout invoice ${invoiceCode} has been generated.`, tone: "success" });
   }
 
+  // Generate payout invoices for ALL coaches in batch
+  function generateInvoiceForAllCoaches() {
+    const { isAll, coachBreakdown } = getReportData();
+    if (!isAll || !coachBreakdown || coachBreakdown.length === 0) return;
+
+    const activeBreakdowns = coachBreakdown.filter((cb) => cb.totalPayout > 0 && cb.sessions.length > 0);
+    if (activeBreakdowns.length === 0) {
+      setMessage({ text: "Cannot generate invoices: No coaches have earnings in the selected period.", tone: "danger" });
+      return;
+    }
+
+    const newPayouts: CoachPayout[] = activeBreakdowns.map((cb) => {
+      const codeSuffix = Math.floor(100000 + Math.random() * 900000);
+      const invoiceCode = `PAY-${cb.coach.type.toUpperCase()}-${codeSuffix}`;
+      return {
+        id: "payout_" + Math.random().toString(36).substr(2, 9),
+        coachId: cb.coach.id,
+        coachName: cb.coach.name,
+        coachEmail: cb.coach.email,
+        coachPhone: cb.coach.phone,
+        invoiceCode,
+        startDate: reportStartDate || "All Time",
+        endDate: reportEndDate || "Present",
+        sessions: cb.sessions,
+        totalAmount: cb.totalPayout,
+        status: "unpaid",
+        notes: reportNotes ? `${reportNotes} (Batch Disbursement)` : "Batch Monthly Payout Invoice",
+        createdAt: new Date().toISOString(),
+      };
+    });
+
+    setPayouts((prev) => [...newPayouts, ...prev]);
+    setReportNotes("");
+    setActiveTab("invoices");
+    setMessage({
+      text: `Successfully generated ${newPayouts.length} payout invoice(s) for all active coaches.`,
+      tone: "success",
+    });
+  }
+
   function toggleInvoiceStatus(invoiceId: string) {
     setPayouts((prev) =>
       prev.map((p) => {
@@ -507,7 +655,7 @@ export default function UsersPage() {
         return p;
       })
     );
-    // Sync with selected invoice modal if open
+
     if (selectedInvoice && selectedInvoice.id === invoiceId) {
       setSelectedInvoice((prev) => {
         if (!prev) return null;
@@ -533,7 +681,85 @@ export default function UsersPage() {
     );
   }
 
-  // Loading indicator for mounting
+  // Participation & Analytics report data calculator
+  function getParticipationData() {
+    const coachStats = coaches.map((coach) => {
+      const coachSessionIds = assignments
+        .filter((a) => a.coachId === coach.id)
+        .map((a) => a.sessionId);
+
+      const coachSessions = dbSessions.filter((s) => coachSessionIds.includes(s.id));
+      
+      const activityNames = Array.from(new Set(coachSessions.map((s) => s.activity.name)));
+      
+      let totalAttendees = 0;
+      let totalPayout = 0;
+
+      coachSessions.forEach((s) => {
+        const attendees = s.redemptions.length;
+        const basePay = coach.baseRate;
+        const bonusPay = attendees * coach.bonusPerAttendee;
+        totalAttendees += attendees;
+        totalPayout += basePay + bonusPay;
+      });
+
+      return {
+        coach,
+        sessionCount: coachSessions.length,
+        totalAttendees,
+        totalPayout,
+        activityDiversity: activityNames.length,
+        activities: activityNames,
+      };
+    });
+
+    coachStats.sort((a, b) => b.sessionCount - a.sessionCount || b.totalPayout - a.totalPayout);
+
+    const maxSessions = coachStats.length > 0 ? Math.max(...coachStats.map((c) => c.sessionCount), 1) : 1;
+
+    const topSessionsCoach = coachStats.length > 0 && coachStats[0].sessionCount > 0 ? coachStats[0] : null;
+    const topEarnerCoach = [...coachStats].sort((a, b) => b.totalPayout - a.totalPayout)[0] || null;
+    const topAttendeesCoach = [...coachStats].sort((a, b) => b.totalAttendees - a.totalAttendees)[0] || null;
+
+    const totalAssignedSessions = assignments.length;
+    const totalCoachedClients = coachStats.reduce((sum, c) => sum + c.totalAttendees, 0);
+
+    // Group activity participation
+    const activityMap: Record<string, { name: string; sessionCount: number; coachIds: Set<string> }> = {};
+    dbSessions.forEach((s) => {
+      const actName = s.activity.name;
+      const isAssigned = assignments.some((a) => a.sessionId === s.id);
+      if (!isAssigned) return;
+
+      if (!activityMap[actName]) {
+        activityMap[actName] = { name: actName, sessionCount: 0, coachIds: new Set() };
+      }
+      activityMap[actName].sessionCount += 1;
+      
+      assignments.filter((a) => a.sessionId === s.id).forEach((a) => {
+        activityMap[actName].coachIds.add(a.coachId);
+      });
+    });
+
+    const activityBreakdown = Object.values(activityMap).map((a) => ({
+      name: a.name,
+      sessionCount: a.sessionCount,
+      coachesCount: a.coachIds.size,
+    }));
+
+    return {
+      coachStats,
+      maxSessions,
+      topSessionsCoach,
+      topEarnerCoach: topEarnerCoach && topEarnerCoach.totalPayout > 0 ? topEarnerCoach : null,
+      topAttendeesCoach: topAttendeesCoach && topAttendeesCoach.totalAttendees > 0 ? topAttendeesCoach : null,
+      totalAssignedSessions,
+      totalCoachedClients,
+      activityBreakdown,
+    };
+  }
+
+  // Hydration safety
   if (!mounted) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -562,14 +788,16 @@ export default function UsersPage() {
   }
 
   const selectedCoach = coaches.find((c) => c.id === selectedCoachId);
-  const { coach: reportCoach, matchingSessions, totalSessions, totalAttendees, totalPayout } = getReportData();
+  const reportData = getReportData();
+  const { isAll, coach: reportCoach, matchingSessions, coachBreakdown, totalSessions, totalAttendees, totalPayout } = reportData;
   const hasBonus = reportCoach && reportCoach.bonusPerAttendee > 0;
+  const participationData = getParticipationData();
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Staff & Salaries Admin"
-        description="Manage admin user accounts, define coach profiles, log events, and generate payouts."
+        description="Manage admin user accounts, define coach profiles, calculate monthly salaries, and analyze coach participations."
       />
 
       {/* Main tab switcher */}
@@ -602,7 +830,17 @@ export default function UsersPage() {
               : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
           }`}
         >
-          Salary Calculator & Reports
+          Salary Calculator
+        </button>
+        <button
+          onClick={() => { setActiveTab("participation"); setMessage(null); }}
+          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === "participation"
+              ? "border-[var(--primary)] text-[var(--foreground)]"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+          }`}
+        >
+          Participation Reports
         </button>
         <button
           onClick={() => { setActiveTab("invoices"); setMessage(null); }}
@@ -921,45 +1159,86 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* TAB 3: SALARY CALCULATOR & REPORTS */}
+      {/* TAB 3: SALARY CALCULATOR */}
       {activeTab === "reports" && (
         <div className="space-y-6 animate-fade-in">
           <Card>
-            <h3 className="mb-4 text-base font-semibold">Salary Calculator & Report Parameters</h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <h3 className="mb-4 text-base font-semibold">Salary Calculator & Month Filter Parameters</h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Select
                 label="Select Coach or Staff Member"
                 value={reportCoachId}
                 onChange={(e) => setReportCoachId(e.target.value)}
-                className="cursor-pointer"
+                className="cursor-pointer font-medium"
               >
                 <option value="">Choose a profile...</option>
+                <option value="ALL">All Coaches &amp; Staff (Batch Calculation)</option>
                 {coaches.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name} ({c.type === "coach" ? "Coach" : "Staff"})
                   </option>
                 ))}
               </Select>
+
+              <Select
+                label="Specific Month Filter"
+                value={reportMonth}
+                onChange={(e) => handleMonthFilterChange(e.target.value)}
+                className="cursor-pointer"
+              >
+                <option value="">All Months (Custom dates)</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </Select>
+
               <Input
                 label="Start date"
                 type="date"
                 value={reportStartDate}
-                onChange={(e) => setReportStartDate(e.target.value)}
+                onChange={(e) => {
+                  setReportStartDate(e.target.value);
+                  setReportMonth("");
+                }}
               />
               <Input
                 label="End date"
                 type="date"
                 value={reportEndDate}
-                onChange={(e) => setReportEndDate(e.target.value)}
+                onChange={(e) => {
+                  setReportEndDate(e.target.value);
+                  setReportMonth("");
+                }}
               />
             </div>
-            {reportCoachId && (
-              <div className="mt-4 flex justify-end">
+            
+            { (reportCoachId || reportMonth || reportStartDate || reportEndDate) && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] pt-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {reportMonth && (
+                    <Badge tone="primary" size="sm">
+                      Filtered Month: {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][parseInt(reportMonth, 10) - 1]}
+                    </Badge>
+                  )}
+                  {reportCoachId === "ALL" && (
+                    <Badge tone="warning" size="sm">Mode: All Coaches Batch</Badge>
+                  )}
+                </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => {
                     setReportCoachId("");
+                    setReportMonth("");
                     setReportStartDate("");
                     setReportEndDate("");
                   }}
@@ -974,8 +1253,8 @@ export default function UsersPage() {
           {!reportCoachId ? (
             <Card>
               <EmptyState
-                title="Select a profile to begin"
-                description="Choose a coach or staff member above, then filter by date range to calculate their earnings."
+                title="Select a profile or All Coaches to begin"
+                description="Choose 'All Coaches & Staff' to calculate total payouts across all profiles, or select an individual coach and filter by month (e.g. July)."
                 icon={
                   <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75V18m-3-3v3m-3-3v3M8.25 18a4.5 4.5 0 01-4.5-4.5V6.75A2.25 2.25 0 016 4.5h12A2.25 2.25 0 0120.25 6.75v6.75A4.5 4.5 0 0115.75 18M3.75 18h16.5M4.5 9h15" />
@@ -983,7 +1262,115 @@ export default function UsersPage() {
                 }
               />
             </Card>
+          ) : isAll ? (
+            /* ALL COACHES BATCH VIEW */
+            <div className="space-y-6">
+              {/* Summary Stats Grid */}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                <Card>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Active Profiles</p>
+                  <p className="mt-2 text-2xl font-bold">{coaches.length}</p>
+                </Card>
+                <Card>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Sessions Coached</p>
+                  <p className="mt-2 text-2xl font-bold">{totalSessions}</p>
+                </Card>
+                <Card>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Clients Reached</p>
+                  <p className="mt-2 text-2xl font-bold">{totalAttendees} clients</p>
+                </Card>
+                <Card className="border-[var(--primary)]/50 bg-[var(--primary)]/5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Combined Salary Payout</p>
+                  <p className="mt-2 text-2xl font-bold text-[var(--primary)]">
+                    {totalPayout.toLocaleString("fr-DZ")} DA
+                  </p>
+                </Card>
+              </div>
+
+              {/* All Coaches Breakdown Table */}
+              <Card padding={false}>
+                <div className="border-b border-[var(--border)] px-5 py-4 flex items-center justify-between">
+                  <h3 className="text-base font-semibold">All Coaches Salary Summary Statement</h3>
+                  <Badge tone="primary" size="sm">{coachBreakdown.filter(c => c.totalPayout > 0).length} Coaches with Earnings</Badge>
+                </div>
+
+                {coachBreakdown.length === 0 ? (
+                  <EmptyState title="No coaches configured" description="Add coach profiles under Coaches & Staff Profiles tab." />
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                          <th className="px-5 py-3">Coach / Staff Member</th>
+                          <th className="px-5 py-3">Type</th>
+                          <th className="px-5 py-3 text-center">Sessions Linked</th>
+                          <th className="px-5 py-3 text-center">Total Attendance</th>
+                          <th className="px-5 py-3 text-right">Rates (Base / Bonus)</th>
+                          <th className="px-5 py-3 text-right">Total Salary</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)]">
+                        {coachBreakdown.map((item) => (
+                          <tr key={item.coach.id} className="hover:bg-[var(--surface-2)]/10 transition-colors">
+                            <td className="px-5 py-3.5">
+                              <p className="font-semibold text-[var(--foreground)]">{item.coach.name}</p>
+                              {item.coach.email && <p className="text-xs text-[var(--muted)]">{item.coach.email}</p>}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <Badge tone={item.coach.type === "coach" ? "primary" : "info"} size="sm">
+                                {item.coach.type === "coach" ? "Coach" : "Staff"}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-3.5 text-center font-bold tabular-nums">{item.totalSessions}</td>
+                            <td className="px-5 py-3.5 text-center tabular-nums">{item.totalAttendees}</td>
+                            <td className="px-5 py-3.5 text-right text-xs text-[var(--muted)] tabular-nums">
+                              {item.coach.baseRate.toLocaleString("fr-DZ")} DA + {item.coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-bold text-[var(--primary)] tabular-nums">
+                              {item.totalPayout.toLocaleString("fr-DZ")} DA
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-[var(--border)] bg-[var(--surface-2)]/20 font-bold">
+                          <td colSpan={2} className="px-5 py-3.5">Total Combined Statement</td>
+                          <td className="px-5 py-3.5 text-center tabular-nums">{totalSessions}</td>
+                          <td className="px-5 py-3.5 text-center tabular-nums">{totalAttendees}</td>
+                          <td className="px-5 py-3.5 text-right text-xs uppercase tracking-wider text-[var(--muted)]">Grand Total</td>
+                          <td className="px-5 py-3.5 text-right text-base font-extrabold text-[var(--primary)] tabular-nums">
+                            {totalPayout.toLocaleString("fr-DZ")} DA
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </Card>
+
+              {/* Generate Batch Invoices Card */}
+              {totalPayout > 0 && (
+                <Card className="max-w-xl">
+                  <h3 className="mb-4 text-base font-semibold">Generate Payment Invoices for All Coaches</h3>
+                  <p className="text-xs text-[var(--muted)] mb-4 leading-relaxed">
+                    This action will automatically generate individual payout disbursement invoices for all coaches who conducted sessions during the selected period.
+                  </p>
+                  <div className="space-y-4">
+                    <Input
+                      label="Batch memorandum / notes"
+                      placeholder="e.g. Monthly salary payout for July 2026"
+                      value={reportNotes}
+                      onChange={(e) => setReportNotes(e.target.value)}
+                    />
+                    <Button onClick={generateInvoiceForAllCoaches} className="w-full cursor-pointer">
+                      Generate Payment Invoices for All Coaches
+                    </Button>
+                  </div>
+                </Card>
+              )}
+            </div>
           ) : (
+            /* SINGLE COACH VIEW */
             <div className="space-y-6">
               {/* Summary Stats Row */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -1065,7 +1452,7 @@ export default function UsersPage() {
                   <div className="space-y-4">
                     <Input
                       label="Payout notes / memorandum"
-                      placeholder="e.g. Outstanding June salary payment, cash disbursement"
+                      placeholder="e.g. Outstanding salary payment, cash disbursement"
                       value={reportNotes}
                       onChange={(e) => setReportNotes(e.target.value)}
                     />
@@ -1080,7 +1467,170 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* TAB 4: PAYOUT INVOICES */}
+      {/* TAB 4: COACH PARTICIPATION & STATS REPORT */}
+      {activeTab === "participation" && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Key Metrics Header Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Card className="border-[var(--primary)]/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Most Active Coach</p>
+              <p className="mt-2 text-xl font-bold truncate text-[var(--foreground)]">
+                {participationData.topSessionsCoach ? participationData.topSessionsCoach.coach.name : "N/A"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--primary)] font-medium">
+                {participationData.topSessionsCoach ? `${participationData.topSessionsCoach.sessionCount} sessions taught` : "No sessions linked"}
+              </p>
+            </Card>
+
+            <Card>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Top Salary Earner</p>
+              <p className="mt-2 text-xl font-bold truncate text-[var(--foreground)]">
+                {participationData.topEarnerCoach ? participationData.topEarnerCoach.coach.name : "N/A"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--primary)] font-medium">
+                {participationData.topEarnerCoach ? `${participationData.topEarnerCoach.totalPayout.toLocaleString("fr-DZ")} DA earned` : "0 DA"}
+              </p>
+            </Card>
+
+            <Card>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Top Attendance Coached</p>
+              <p className="mt-2 text-xl font-bold truncate text-[var(--foreground)]">
+                {participationData.topAttendeesCoach ? participationData.topAttendeesCoach.coach.name : "N/A"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--primary)] font-medium">
+                {participationData.topAttendeesCoach ? `${participationData.topAttendeesCoach.totalAttendees} clients coached` : "0 clients"}
+              </p>
+            </Card>
+
+            <Card>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Sessions Coached</p>
+              <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
+                {participationData.totalAssignedSessions}
+              </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {participationData.totalCoachedClients} total client participations
+              </p>
+            </Card>
+          </div>
+
+          {/* Coach Participation Leaderboard */}
+          <Card padding={false}>
+            <div className="border-b border-[var(--border)] px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold">Coach Participation Leaderboard &amp; Rankings</h3>
+                <p className="text-xs text-[var(--muted)] mt-0.5">Ranked by session participation, client reach, and total earnings.</p>
+              </div>
+              <input
+                type="text"
+                placeholder="Search coach name..."
+                value={participationSearch}
+                onChange={(e) => setParticipationSearch(e.target.value)}
+                className="w-full sm:w-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
+              />
+            </div>
+
+            {participationData.coachStats.length === 0 ? (
+              <EmptyState title="No coach participation data" description="Add coach profiles and link event sessions to generate reports." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]/30 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                      <th className="px-5 py-3 w-12 text-center">Rank</th>
+                      <th className="px-5 py-3">Coach Name</th>
+                      <th className="px-5 py-3">Type</th>
+                      <th className="px-5 py-3">Participation Progress</th>
+                      <th className="px-5 py-3 text-center">Sessions</th>
+                      <th className="px-5 py-3 text-center">Clients Coached</th>
+                      <th className="px-5 py-3 text-center">Activity Types</th>
+                      <th className="px-5 py-3 text-right">Total Salary</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {participationData.coachStats
+                      .filter((c) => c.coach.name.toLowerCase().includes(participationSearch.toLowerCase()))
+                      .map((item, index) => {
+                        const pct = Math.round((item.sessionCount / participationData.maxSessions) * 100);
+                        return (
+                          <tr key={item.coach.id} className="hover:bg-[var(--surface-2)]/10 transition-colors">
+                            <td className="px-5 py-4 text-center font-mono font-bold text-xs">
+                              <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                                index === 0
+                                  ? "bg-amber-400/20 text-amber-300 border border-amber-400/40"
+                                  : index === 1
+                                  ? "bg-slate-300/20 text-slate-300 border border-slate-400/40"
+                                  : index === 2
+                                  ? "bg-amber-700/20 text-amber-500 border border-amber-600/40"
+                                  : "text-[var(--muted)]"
+                              }`}>
+                                #{index + 1}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4">
+                              <p className="font-semibold text-[var(--foreground)]">{item.coach.name}</p>
+                              {item.coach.email && <p className="text-xs text-[var(--muted)]">{item.coach.email}</p>}
+                            </td>
+                            <td className="px-5 py-4">
+                              <Badge tone={item.coach.type === "coach" ? "primary" : "info"} size="sm">
+                                {item.coach.type === "coach" ? "Coach" : "Staff"}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-4 min-w-[160px]">
+                              <div className="flex items-center gap-3">
+                                <div className="h-2 flex-1 rounded-full bg-[var(--surface-2)] overflow-hidden">
+                                  <div
+                                    className="h-full bg-[var(--primary)] rounded-full transition-all duration-500"
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-[var(--muted)] font-mono">{pct}%</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 text-center font-bold text-base tabular-nums">{item.sessionCount}</td>
+                            <td className="px-5 py-4 text-center font-medium tabular-nums">{item.totalAttendees}</td>
+                            <td className="px-5 py-4 text-center">
+                              <Badge tone="default" size="sm">{item.activityDiversity} activities</Badge>
+                            </td>
+                            <td className="px-5 py-4 text-right font-bold text-[var(--primary)] tabular-nums">
+                              {item.totalPayout.toLocaleString("fr-DZ")} DA
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          {/* Activity Coached Distribution Matrix */}
+          {participationData.activityBreakdown.length > 0 && (
+            <Card>
+              <h3 className="mb-4 text-base font-semibold">Participation Distribution by Activity</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {participationData.activityBreakdown.map((act, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/30 flex items-center justify-between gap-3"
+                  >
+                    <div>
+                      <p className="font-semibold text-sm text-[var(--foreground)]">{act.name}</p>
+                      <p className="text-xs text-[var(--muted)] mt-0.5">
+                        {act.coachesCount} assigned coach(es)
+                      </p>
+                    </div>
+                    <Badge tone="primary" size="sm">
+                      {act.sessionCount} sessions
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: PAYOUT INVOICES */}
       {activeTab === "invoices" && (
         <Card padding={false} className="animate-fade-in">
           <div className="border-b border-[var(--border)] px-5 py-4">
@@ -1339,7 +1889,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* PRINTABLE RECEIPT / INVOICE VIEW MODAL */}
+      {/* PRINTABLE RECEIPT / INVOICE VIEW MODAL WITH AQA EVENTS LOGO */}
       {selectedInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-0 sm:p-4 overflow-y-auto animate-fade-in print:bg-white print:text-black">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden print:border-none print:shadow-none print:bg-white print:text-black my-auto">
@@ -1375,19 +1925,23 @@ export default function UsersPage() {
             {/* Printable Paper Document */}
             <div className="p-8 print:p-0 bg-white text-slate-800">
               
-              {/* Header Grid */}
+              {/* Header Grid with AQA Events Logo */}
               <div className="grid grid-cols-2 justify-between items-start gap-4 pb-6 border-b-2 border-slate-200">
                 <div>
-                  <img src="/image/logoevents.png" alt="AQA Sports Logo" className="h-12 w-auto object-contain mb-3" />
-                  <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">AQA SPORTS</h1>
-                  <p className="text-xs text-slate-500 font-medium">Outdoor Adventures & Events Management</p>
+                  <img
+                    src="/image/logoevents.png"
+                    alt="AQA Events Logo"
+                    className="h-14 w-auto object-contain mb-3 print:h-16"
+                  />
+                  <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">AQA EVENTS &amp; SPORTS</h1>
+                  <p className="text-xs text-slate-500 font-medium">Outdoor Adventures &amp; Events Management</p>
                   <p className="text-xs text-slate-500">Algiers, Algeria</p>
                 </div>
                 <div className="text-right">
-                  <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-none">Receipt</h2>
+                  <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest leading-none">Salary Disbursement Invoice</h2>
                   <p className="text-2xl font-black text-slate-900 mt-2 tracking-tight">{selectedInvoice.invoiceCode}</p>
                   <p className="text-xs text-slate-500 mt-2 font-medium">
-                    Date: {new Date(selectedInvoice.createdAt).toLocaleDateString()}
+                    Date Generated: {new Date(selectedInvoice.createdAt).toLocaleDateString()}
                   </p>
                   <p className="text-xs text-slate-500">
                     Period: {selectedInvoice.startDate === "All Time" ? "Start" : new Date(selectedInvoice.startDate).toLocaleDateString()} to {selectedInvoice.endDate === "Present" ? "Present" : new Date(selectedInvoice.endDate).toLocaleDateString()}
@@ -1407,25 +1961,25 @@ export default function UsersPage() {
               {/* Recipient / Payout details */}
               <div className="py-6 grid grid-cols-2 gap-4 text-xs">
                 <div>
-                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Staff Member Details</p>
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Staff / Coach Beneficiary</p>
                   <p className="text-sm font-bold text-slate-900 mt-1">{selectedInvoice.coachName}</p>
-                  <p className="text-slate-600 mt-0.5">Type: {selectedInvoice.coachEmail.includes("staff") || selectedInvoice.coachName.toLowerCase().includes("staff") ? "Administrative Staff" : "Coach / Instructor"}</p>
+                  <p className="text-slate-600 mt-0.5">Role: {selectedInvoice.coachEmail.includes("staff") || selectedInvoice.coachName.toLowerCase().includes("staff") ? "Administrative Staff" : "Coach / Instructor"}</p>
                   {selectedInvoice.coachEmail && <p className="text-slate-600 mt-0.5">{selectedInvoice.coachEmail}</p>}
                   {selectedInvoice.coachPhone && <p className="text-slate-600 mt-0.5">{selectedInvoice.coachPhone}</p>}
                 </div>
                 <div className="text-right">
-                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Payment Summary</p>
-                  <p className="text-2xl font-black text-[var(--primary)] text-slate-900 mt-1 tabular-nums">
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Total Disbursement Amount</p>
+                  <p className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
                     {selectedInvoice.totalAmount.toLocaleString("fr-DZ")} DA
                   </p>
                   {selectedInvoice.paidAt && (
-                    <p className="text-slate-500 mt-1">Paid on: {new Date(selectedInvoice.paidAt).toLocaleDateString()}</p>
+                    <p className="text-slate-500 mt-1 font-medium">Disbursed on: {new Date(selectedInvoice.paidAt).toLocaleDateString()}</p>
                   )}
                 </div>
               </div>
 
               {/* Statement details table */}
-              <div className="mt-4">
+              <div className="mt-2">
                 <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px] mb-2">Linked Session Statement Details</p>
                 {(() => {
                   const invoiceHasBonus = selectedInvoice.sessions.some(s => s.bonusPerAttendee > 0);
@@ -1433,13 +1987,13 @@ export default function UsersPage() {
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="border-b-2 border-slate-200 bg-slate-50 text-slate-500 font-bold">
-                          <th className="py-2.5 px-2">Date</th>
-                          <th className="py-2.5 px-2">Activity Description</th>
+                          <th className="py-2.5 px-2">Session Date</th>
+                          <th className="py-2.5 px-2">Activity Name</th>
                           <th className="py-2.5 px-2">Location</th>
                           {invoiceHasBonus && <th className="py-2.5 px-2 text-center">Attendees</th>}
-                          <th className="py-2.5 px-2 text-right">Base rate</th>
-                          {invoiceHasBonus && <th className="py-2.5 px-2 text-right">Bonus rate</th>}
-                          <th className="py-2.5 px-2 text-right">Amount</th>
+                          <th className="py-2.5 px-2 text-right">Base Pay</th>
+                          {invoiceHasBonus && <th className="py-2.5 px-2 text-right">Bonus Pay</th>}
+                          <th className="py-2.5 px-2 text-right">Subtotal Payout</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1450,7 +2004,11 @@ export default function UsersPage() {
                             <td className="py-2.5 px-2">{item.location}</td>
                             {invoiceHasBonus && <td className="py-2.5 px-2 text-center">{item.attendees}</td>}
                             <td className="py-2.5 px-2 text-right tabular-nums">{item.baseRate.toLocaleString("fr-DZ")} DA</td>
-                            {invoiceHasBonus && <td className="py-2.5 px-2 text-right tabular-nums">{item.bonusPerAttendee.toLocaleString("fr-DZ")} DA</td>}
+                            {invoiceHasBonus && (
+                              <td className="py-2.5 px-2 text-right tabular-nums">
+                                {(item.attendees * item.bonusPerAttendee).toLocaleString("fr-DZ")} DA
+                              </td>
+                            )}
                             <td className="py-2.5 px-2 text-right font-semibold text-slate-900 tabular-nums">
                               {item.totalPay.toLocaleString("fr-DZ")} DA
                             </td>
@@ -1481,11 +2039,11 @@ export default function UsersPage() {
               {/* Signatures */}
               <div className="mt-12 grid grid-cols-2 gap-10 text-xs">
                 <div className="border-t border-slate-300 pt-3">
-                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Authorized Signature</p>
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Authorized Signature (AQA Events)</p>
                   <p className="mt-1.5 font-bold text-slate-700">{session?.user?.name || "Admin Disburser"}</p>
                 </div>
                 <div className="border-t border-slate-300 pt-3 text-right">
-                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Recipient Signature</p>
+                  <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Beneficiary Signature</p>
                   <p className="mt-1.5 text-slate-400 font-medium">Date: ____/____/________</p>
                 </div>
               </div>
