@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { prisma } from "./prisma";
 import {
   hashPassword,
   verifyPassword,
@@ -9,9 +11,21 @@ import {
   getLockoutTimeRemaining,
 } from "./auth";
 
+vi.mock("./prisma", () => ({
+  prisma: {
+    rateLimitBucket: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    },
+    $transaction: vi.fn((cb: any) => cb(prisma)),
+  },
+}));
+
 describe("auth utils", () => {
   beforeEach(() => {
-    resetAttempts("test@example.com");
+    vi.clearAllMocks();
   });
 
   describe("password hashing", () => {
@@ -25,46 +39,47 @@ describe("auth utils", () => {
   });
 
   describe("brute force protection", () => {
-    it("should start with 0 failed attempts and not locked out", () => {
-      expect(getFailedAttempts("test@example.com")).toBe(0);
-      expect(isLockedOut("test@example.com")).toBe(false);
+    it("should start with 0 failed attempts and not locked out", async () => {
+      vi.mocked(prisma.rateLimitBucket.findUnique).mockResolvedValue(null);
+      expect(await getFailedAttempts("test@example.com")).toBe(0);
+      expect(await isLockedOut("test@example.com")).toBe(false);
     });
 
-    it("should increment failed attempts", () => {
-      recordFailedAttempt("test@example.com");
-      expect(getFailedAttempts("test@example.com")).toBe(1);
-      expect(isLockedOut("test@example.com")).toBe(true); // locked for 1s on first attempt
+    it("should report locked out if lockUntil is in the future", async () => {
+      vi.mocked(prisma.rateLimitBucket.findUnique).mockResolvedValue({
+        key: "login-email:test@example.com",
+        count: 5,
+        windowStart: new Date(),
+        lockUntil: new Date(Date.now() + 600000), // 10 mins in future
+      } as any);
+
+      expect(await isLockedOut("test@example.com")).toBe(true);
+      const remaining = await getLockoutTimeRemaining("test@example.com");
+      expect(remaining).toBeGreaterThan(500);
+      expect(remaining).toBeLessThanOrEqual(600);
     });
 
-    it("should support lockout time remaining", () => {
-      recordFailedAttempt("test@example.com");
-      const remaining = getLockoutTimeRemaining("test@example.com");
-      expect(remaining).toBeGreaterThan(0);
+    it("should record failed attempt by updating database bucket", async () => {
+      vi.mocked(prisma.rateLimitBucket.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.rateLimitBucket.upsert).mockResolvedValue({} as any);
+
+      await recordFailedAttempt("test@example.com");
+
+      expect(prisma.rateLimitBucket.upsert).toHaveBeenCalledWith({
+        where: { key: "login-email:test@example.com" },
+        create: expect.objectContaining({ count: 1 }),
+        update: expect.objectContaining({ count: 1 }),
+      });
     });
 
-    it("should lock out for a long period after 5 failed attempts", () => {
-      // Simulate 5 failed attempts
-      recordFailedAttempt("test@example.com"); // 1
-      recordFailedAttempt("test@example.com"); // 2
-      recordFailedAttempt("test@example.com"); // 3
-      recordFailedAttempt("test@example.com"); // 4
-      recordFailedAttempt("test@example.com"); // 5
+    it("should reset attempts by deleting bucket row", async () => {
+      vi.mocked(prisma.rateLimitBucket.delete).mockResolvedValue({} as any);
 
-      expect(getFailedAttempts("test@example.com")).toBe(5);
-      expect(isLockedOut("test@example.com")).toBe(true);
-      
-      const remaining = getLockoutTimeRemaining("test@example.com");
-      // 15 minutes is 900 seconds. It should be close to 900.
-      expect(remaining).toBeGreaterThan(800);
-      expect(remaining).toBeLessThanOrEqual(900);
-    });
+      await resetAttempts("test@example.com");
 
-    it("should reset failed attempts", () => {
-      recordFailedAttempt("test@example.com");
-      expect(getFailedAttempts("test@example.com")).toBe(1);
-      resetAttempts("test@example.com");
-      expect(getFailedAttempts("test@example.com")).toBe(0);
-      expect(isLockedOut("test@example.com")).toBe(false);
+      expect(prisma.rateLimitBucket.delete).toHaveBeenCalledWith({
+        where: { key: "login-email:test@example.com" },
+      });
     });
   });
 });

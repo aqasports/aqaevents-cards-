@@ -30,8 +30,8 @@ export const authOptions: NextAuthOptions = {
         const email = credentials.email.toLowerCase();
 
         // Check if locked out by email
-        if (isLockedOut(email)) {
-          const time = getLockoutTimeRemaining(email);
+        if (await isLockedOut(email)) {
+          const time = await getLockoutTimeRemaining(email);
           // Log the blocked attempt to the audit trail
           await logAdminAction(
             null,
@@ -60,10 +60,10 @@ export const authOptions: NextAuthOptions = {
 
         const valid = await verifyPassword(credentials.password, user.passwordHash);
         if (!valid) {
-          recordFailedAttempt(email);
-          const attempts = isLockedOut(email);
-          if (attempts) {
-            const time = getLockoutTimeRemaining(email);
+          await recordFailedAttempt(email);
+          const locked = await isLockedOut(email);
+          if (locked) {
+            const time = await getLockoutTimeRemaining(email);
             await logAdminAction(
               null,
               "LOGIN_BLOCKED_LOCKOUT",
@@ -83,7 +83,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        resetAttempts(email);
+        await resetAttempts(email);
 
         return {
           id: user.id,

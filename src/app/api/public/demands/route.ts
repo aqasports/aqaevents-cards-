@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkAndIncrement } from "@/lib/rate-limit";
+import { getCreditRate } from "@/lib/settings";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export const dynamic = "force-dynamic";
 
@@ -9,32 +12,46 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > 15;
+export async function OPTIONS() {
+  return NextResponse.json({}, { headers: corsHeaders });
 }
 
 export async function POST(request: NextRequest) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  if (isRateLimited(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: corsHeaders });
+  const { limited } = await checkAndIncrement(`demands:${ip}`, { windowMs: 60_000, max: 15 });
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: corsHeaders }
+    );
   }
 
   try {
     const body = await request.json();
-    const { name, phone, email, creditType, packageId, amount } = body;
+    const captchaToken = body.captchaToken || request.headers.get("x-captcha-token");
+    const captchaResult = await verifyCaptcha(captchaToken, ip);
+    if (!captchaResult.success) {
+      return NextResponse.json(
+        { error: "CAPTCHA_VERIFICATION_FAILED" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const {
+      name,
+      phone,
+      email,
+      creditType,
+      packageId,
+      amount,
+      marketingConsent,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      referrer,
+    } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400, headers: corsHeaders });
@@ -66,7 +83,8 @@ export async function POST(request: NextRequest) {
       if (isNaN(parsedAmount) || parsedAmount <= 0) {
         return NextResponse.json({ error: "Valid custom credit amount is required" }, { status: 400, headers: corsHeaders });
       }
-      calculatedPrice = parsedAmount * 1900;
+      const creditRate = await getCreditRate();
+      calculatedPrice = parsedAmount * creditRate;
       creditDetails = `Custom Credits: ${parsedAmount} credits`;
     }
 
@@ -80,6 +98,11 @@ export async function POST(request: NextRequest) {
         amount: creditType === "custom" ? parseInt(amount, 10) : null,
         price: calculatedPrice,
         status: "pending",
+        marketingConsent: Boolean(marketingConsent),
+        utmSource: utmSource ? String(utmSource).trim() : null,
+        utmMedium: utmMedium ? String(utmMedium).trim() : null,
+        utmCampaign: utmCampaign ? String(utmCampaign).trim() : null,
+        referrer: referrer ? String(referrer).trim() : null,
       },
     });
 
@@ -109,11 +132,4 @@ Message: ${adminMessage}
     console.error("POST public demands API error:", err);
     return NextResponse.json({ error: "Failed to submit card demand" }, { status: 500, headers: corsHeaders });
   }
-}
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: corsHeaders,
-  });
 }

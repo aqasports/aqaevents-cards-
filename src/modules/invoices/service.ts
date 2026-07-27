@@ -7,6 +7,7 @@ import { ClientsRepository } from "../clients/repository";
 import { ReportingRepository } from "../reports/repository";
 import { Prisma } from "@prisma/client";
 import { eventBus, EVENTS } from "@/lib/events";
+import { getCreditRate } from "@/lib/settings";
 
 
 export class BillingService {
@@ -175,7 +176,8 @@ export class BillingService {
             const parsed = JSON.parse(data.notes);
             if (parsed.type === "sale" && parsed.paymentMethod === "card") {
               isCardPayment = true;
-              cardCreditsToDeduct = parsed.creditsDeducted ?? (Math.floor((data.amount / 1900) * 100) / 100);
+              const creditRate = await getCreditRate(tx);
+              cardCreditsToDeduct = parsed.creditsDeducted ?? (Math.floor((data.amount / creditRate) * 100) / 100);
             }
           } catch {
             // ignore
@@ -273,6 +275,8 @@ export class BillingService {
     if (data.createdAt !== undefined) updateData.createdAt = new Date(data.createdAt);
     if (data.paidAt !== undefined) updateData.paidAt = data.paidAt ? new Date(data.paidAt) : null;
 
+    let compensatingLedgerDetails = "";
+
     const result = await prisma.$transaction(async (tx) => {
       if (data.status) {
         updateData.status = data.status;
@@ -296,8 +300,10 @@ export class BillingService {
                     createdById: adminId,
                   },
                 });
+                compensatingLedgerDetails = `Credit recharge of ${metadata.credits} credits`;
               } else if (metadata && metadata.type === "sale" && metadata.paymentMethod === "card") {
-                const cardCreditsToDeduct = metadata.creditsDeducted ?? (Math.floor((invoice.amount / 1900) * 100) / 100);
+                const creditRate = await getCreditRate(tx);
+                const cardCreditsToDeduct = metadata.creditsDeducted ?? (Math.floor((invoice.amount / creditRate) * 100) / 100);
                 const currentBalance = await getClientBalance(invoice.clientId, tx);
                 if (currentBalance < cardCreditsToDeduct) {
                   throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
@@ -313,6 +319,7 @@ export class BillingService {
                     createdById: adminId,
                   },
                 });
+                compensatingLedgerDetails = `Deducted ${cardCreditsToDeduct} credits`;
               }
             } catch (e: any) {
               if (e instanceof Error && e.message.includes("Insufficient")) {
@@ -348,12 +355,14 @@ export class BillingService {
                   createdById: adminId,
                 },
               });
+              compensatingLedgerDetails = `Reversed ${matchingEntry.delta} credits`;
             }
           } else if (invoice.category === "sale" && invoice.notes) {
             try {
               const parsed = JSON.parse(invoice.notes);
               if (parsed.type === "sale" && parsed.paymentMethod === "card") {
-                const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / 1900) * 100) / 100);
+                const creditRate = await getCreditRate(tx);
+                const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / creditRate) * 100) / 100);
                 const activeCard = invoice.client.cards[0];
                 await tx.ledgerEntry.create({
                   data: {
@@ -365,6 +374,7 @@ export class BillingService {
                     createdById: adminId,
                   },
                 });
+                compensatingLedgerDetails = `Refunded ${cardCreditsToRefund} credits`;
               }
             } catch {
               // ignore
@@ -383,6 +393,18 @@ export class BillingService {
 
       return updated;
     });
+
+    if (adminId) {
+      const action = data.status && data.status !== invoice.status ? "UPDATE_INVOICE_STATUS" : "UPDATE_INVOICE";
+      await this.reportingRepo.createAudit({
+        data: {
+          userId: adminId,
+          action,
+          target: `Invoice ${invoice.invoiceCode}`,
+          details: `Updated invoice ${invoice.invoiceCode}. Status: ${invoice.status} -> ${result.status}. Amount: ${result.amount} DA. Compensating ledger entry: ${compensatingLedgerDetails || "None"}.`,
+        },
+      });
+    }
 
     await syncClientCRM(invoice.clientId);
     const balance = await getClientBalance(invoice.clientId);
@@ -406,12 +428,15 @@ export class BillingService {
     });
     if (!invoice) throw new Error("Invoice not found");
 
+    let refundCreated = false;
+
     await prisma.$transaction(async (tx) => {
       if (invoice.category === "sale" && invoice.notes && invoice.status === "paid") {
         try {
           const parsed = JSON.parse(invoice.notes);
           if (parsed.type === "sale" && parsed.paymentMethod === "card") {
-            const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / 1900) * 100) / 100);
+            const creditRate = await getCreditRate(tx);
+            const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / creditRate) * 100) / 100);
             const activeCard = invoice.client.cards[0] ?? null;
             await tx.ledgerEntry.create({
               data: {
@@ -423,6 +448,7 @@ export class BillingService {
                 createdById: adminId,
               },
             });
+            refundCreated = true;
           }
         } catch {
           // ignore
@@ -430,6 +456,17 @@ export class BillingService {
       }
       await tx.invoice.delete({ where: { id } });
     });
+
+    if (adminId) {
+      await this.reportingRepo.createAudit({
+        data: {
+          userId: adminId,
+          action: "DELETE_INVOICE",
+          target: `Invoice ${invoice.invoiceCode}`,
+          details: `Deleted invoice ${invoice.invoiceCode}. Amount: ${invoice.amount} DA, Category: ${invoice.category}, Status at deletion: ${invoice.status}. Refund ledger entry created: ${refundCreated ? "Yes" : "No"}.`,
+        },
+      });
+    }
 
     await syncClientCRM(invoice.clientId);
     return { success: true };
@@ -454,7 +491,8 @@ export class BillingService {
     adminId?: string
   ) {
     const totalCredits = data.creditAmount + data.bonusCredits;
-    const price = data.creditAmount * 1900; // Calculated price
+    const creditRate = await getCreditRate();
+    const price = data.creditAmount * creditRate; // Calculated price
 
     const pkg = await this.billingRepo.createPackage({
       data: {
@@ -493,7 +531,8 @@ export class BillingService {
     const bonusCredits = data.bonusCredits !== undefined ? data.bonusCredits : existing.bonusCredits;
 
     const totalCredits = creditAmount + bonusCredits;
-    const price = creditAmount * 1900;
+    const creditRate = await getCreditRate();
+    const price = creditAmount * creditRate;
 
     const pkg = await this.billingRepo.updatePackage({
       where: { id },
@@ -554,9 +593,15 @@ export class BillingService {
     });
   }
 
-  async updateLedgerEntry(id: string, data: { delta?: number; reason?: string }) {
+  async updateLedgerEntry(
+    id: string,
+    data: { delta?: number; reason?: string },
+    adminId?: string
+  ) {
     const entry = await this.billingRepo.findLedgerUnique({ where: { id } });
     if (!entry) throw new Error("Ledger entry not found");
+
+    const client = await this.clientsRepo.findUnique({ where: { id: entry.clientId } });
 
     const result = await prisma.ledgerEntry.update({
       where: { id },
@@ -567,12 +612,38 @@ export class BillingService {
       },
     });
 
+    if (adminId) {
+      const oldReason = entry.reason ?? "none";
+      const newReason = result.reason ?? "none";
+      await this.reportingRepo.createAudit({
+        data: {
+          userId: adminId,
+          action: "UPDATE_LEDGER_ENTRY",
+          target: client?.fullName ?? entry.clientId,
+          details: `Updated ledger entry delta (${entry.delta} -> ${result.delta}), reason (${oldReason} -> ${newReason})`,
+        },
+      });
+    }
+
     return result;
   }
 
-  async deleteLedgerEntry(id: string) {
+  async deleteLedgerEntry(id: string, adminId?: string) {
     const entry = await prisma.ledgerEntry.findUnique({ where: { id } });
     if (!entry) throw new Error("Ledger entry not found");
+
+    const client = await this.clientsRepo.findUnique({ where: { id: entry.clientId } });
+
+    if (adminId) {
+      await this.reportingRepo.createAudit({
+        data: {
+          userId: adminId,
+          action: "DELETE_LEDGER_ENTRY",
+          target: client?.fullName ?? entry.clientId,
+          details: `Deleted ledger entry delta ${entry.delta}, reason: ${entry.reason ?? "none"}`,
+        },
+      });
+    }
 
     await prisma.ledgerEntry.delete({ where: { id } });
     return { success: true };
@@ -683,7 +754,8 @@ export class BillingService {
       }
 
       const paidAmount = data.paidAmount ?? 0;
-      const creditsEquivalent = Math.round((paidAmount / 1900) * 100) / 100;
+      const creditRate = await getCreditRate(db);
+      const creditsEquivalent = Math.round((paidAmount / creditRate) * 100) / 100;
 
       // Find or auto-create the sentinel "Walk-in" client
       let sentinelClient = await prisma.client.findFirst({

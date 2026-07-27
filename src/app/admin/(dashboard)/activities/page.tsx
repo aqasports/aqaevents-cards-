@@ -52,8 +52,6 @@ type Club = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const RATE = 1900; // 1 credit = 1,900 DA
-
 function getActivityImage(activity: Activity): string {
   if (activity.imageUrl) return activity.imageUrl;
   const name = activity.name.toLowerCase();
@@ -68,9 +66,9 @@ function getActivityImage(activity: Activity): string {
 
 // ─── Price Reference Calculator ───────────────────────────────────────────────
 
-function PriceCalculator({ creditCost }: { creditCost: number | string }) {
+function PriceCalculator({ creditCost, creditRate }: { creditCost: number | string; creditRate: number }) {
   const costNum = Number(creditCost) || 0;
-  const price = costNum * RATE;
+  const price = costNum * creditRate;
   return (
     <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs flex items-center gap-2">
       <svg className="h-4 w-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -80,7 +78,7 @@ function PriceCalculator({ creditCost }: { creditCost: number | string }) {
         <span className="font-bold text-blue-800">
           {costNum} credit{costNum !== 1 ? "s" : ""} = {price.toLocaleString("fr-DZ")} DA
         </span>
-        <span className="text-blue-500 ml-1.5">({RATE.toLocaleString()} DA/credit)</span>
+        <span className="text-blue-500 ml-1.5">({creditRate.toLocaleString()} DA/credit)</span>
       </div>
     </div>
   );
@@ -160,6 +158,17 @@ import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActivitiesPage() {
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []); 
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [togglingActivity, setTogglingActivity] = useState<string | null>(null);
@@ -344,7 +353,7 @@ export default function ActivitiesPage() {
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
                 />
                 <div className="mt-2">
-                  <PriceCalculator creditCost={formCreditCost} />
+                  <PriceCalculator creditCost={formCreditCost} creditRate={creditRate} />
                 </div>
               </div>
 
@@ -446,12 +455,12 @@ export default function ActivitiesPage() {
               </svg>
               Price Reference
             </h3>
-            <p className="text-xs text-slate-500 mb-3">Base rate: <span className="font-bold text-slate-800">1,900 DA</span> = 1 credit</p>
+            <p className="text-xs text-slate-500 mb-3">Base rate: <span className="font-bold text-slate-800">{creditRate.toLocaleString()} DA</span> = 1 credit</p>
             <div className="space-y-1.5">
               {[1, 2, 3, 4, 5, 10].map((c) => (
                 <div key={c} className="flex justify-between text-xs rounded-lg px-3 py-1.5 bg-slate-50">
                   <span className="text-slate-500">{c} credit{c > 1 ? "s" : ""}</span>
-                  <span className="font-bold text-slate-800">{(c * RATE).toLocaleString()} DA</span>
+                  <span className="font-bold text-slate-800">{(c * creditRate).toLocaleString()} DA</span>
                 </div>
               ))}
             </div>
@@ -563,7 +572,7 @@ export default function ActivitiesPage() {
                     {/* Badges bottom-left */}
                     <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
                       <span className="inline-flex items-center rounded-full bg-blue-600 px-2.5 py-0.5 text-[11px] font-bold text-white shadow-sm">
-                        {activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} · {(activity.creditCost * RATE).toLocaleString()} DA
+                        {activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} · {(activity.creditCost * creditRate).toLocaleString()} DA
                       </span>
                       {activity.duration && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-slate-700 shadow-sm">
@@ -690,7 +699,7 @@ export default function ActivitiesPage() {
 
                     {/* Financial Performance / Profitability */}
                     {(() => {
-                      const totalRev = activity._count.redemptions * activity.creditCost * RATE;
+                      const totalRev = activity._count.redemptions * activity.creditCost * creditRate;
                       const totalExp = activity.sessions.reduce((sum, s) => sum + (s.sessionExpenses?.reduce((sSum, exp) => sSum + exp.amount, 0) || 0), 0);
                       const netProfit = totalRev - totalExp;
                       const margin = totalRev > 0 ? Math.round((netProfit / totalRev) * 100) : 0;

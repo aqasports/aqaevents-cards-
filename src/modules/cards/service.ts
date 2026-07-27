@@ -4,6 +4,7 @@ import { CardsRepository } from "./repository";
 import { BillingRepository } from "../invoices/repository";
 import QRCode from "qrcode";
 import { Prisma } from "@prisma/client";
+import { getCreditRate } from "@/lib/settings";
 
 
 export class CardsService {
@@ -248,12 +249,15 @@ export class CardsService {
         date: entry.createdAt,
       }));
 
+    const creditRate = await getCreditRate();
+
     return {
       cardCode: card.cardCode,
       clientFirstName: getFirstName(card.client.fullName),
       balance,
       credits,
       history,
+      creditRate,
     };
   }
 

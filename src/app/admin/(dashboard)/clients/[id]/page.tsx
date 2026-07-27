@@ -86,6 +86,19 @@ type ClientDetail = {
 export default function ClientDetailPage() {
   const { locale } = useLocale();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
+
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);
   const [loading, setLoading] = useState(true);
@@ -515,8 +528,8 @@ export default function ClientDetailPage() {
       };
     } else if (adjustMode === "money") {
       const parsedMoney = parseFloat(moneyAmount) || 0;
-      // Exact credit = money / 1900, rounded to 2 decimal places
-      const total = Math.round((parsedMoney / 1900) * 100) / 100;
+      // Exact credit = money / creditRate, rounded to 2 decimal places
+      const total = Math.round((parsedMoney / creditRate) * 100) / 100;
 
       if (total === 0) {
         setMessage({ text: "Total credits to add must be greater than 0.", tone: "danger" });
@@ -1235,7 +1248,7 @@ export default function ClientDetailPage() {
                           const val = e.target.value;
                           setMoneyAmount(val);
                           const parsed = parseFloat(val) || 0;
-                          const credits = Math.round((parsed / 1900) * 100) / 100;
+                          const credits = Math.round((parsed / creditRate) * 100) / 100;
                           setComputedMoneyCredits(credits);
                         }}
                         required

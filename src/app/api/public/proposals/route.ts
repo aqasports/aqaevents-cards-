@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkAndIncrement } from "@/lib/rate-limit";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export const dynamic = "force-dynamic";
 
@@ -9,32 +11,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > 10;
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
 }
 
 export async function POST(request: NextRequest) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  if (isRateLimited(ip)) {
-    return NextResponse.json({ error: "Too many requests" }, { status: 429, headers: corsHeaders });
+  const { limited } = await checkAndIncrement(`proposals:${ip}`, { windowMs: 60_000, max: 10 });
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: corsHeaders }
+    );
   }
 
   try {
     const body = await request.json();
-    const { title, description, userName, userPhone, userEmail } = body;
+    const captchaToken = body.captchaToken || request.headers.get("x-captcha-token");
+    const captchaResult = await verifyCaptcha(captchaToken, ip);
+    if (!captchaResult.success) {
+      return NextResponse.json(
+        { error: "CAPTCHA_VERIFICATION_FAILED" },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    const {
+      title,
+      description,
+      userName,
+      userPhone,
+      userEmail,
+      marketingConsent,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+    } = body;
 
     if (!title || !title.trim()) {
       return NextResponse.json({ error: "Title is required" }, { status: 400, headers: corsHeaders });
@@ -57,6 +74,10 @@ export async function POST(request: NextRequest) {
         userPhone: userPhone.trim(),
         userEmail: userEmail && userEmail.trim() ? userEmail.trim() : null,
         status: "pending",
+        marketingConsent: Boolean(marketingConsent),
+        utmSource: utmSource ? String(utmSource).trim() : null,
+        utmMedium: utmMedium ? String(utmMedium).trim() : null,
+        utmCampaign: utmCampaign ? String(utmCampaign).trim() : null,
       },
     });
 
@@ -65,11 +86,4 @@ export async function POST(request: NextRequest) {
     console.error("POST public proposals API error:", err);
     return NextResponse.json({ error: "Failed to submit proposal" }, { status: 500, headers: corsHeaders });
   }
-}
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: corsHeaders,
-  });
 }

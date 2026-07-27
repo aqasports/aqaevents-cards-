@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
+import TurnstileWidget from "@/components/TurnstileWidget";
 
 type Package = {
   id: string;
@@ -17,7 +18,9 @@ export default function ClientDemandPage() {
   const { t: tNav } = useTranslations("nav");
 
   const [packages, setPackages] = useState<Package[]>([]);
+  const [creditRate, setCreditRate] = useState(1900);
   const [loadingPackages, setLoadingPackages] = useState(true);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   // Form State
   const [name, setName] = useState("");
@@ -35,6 +38,13 @@ export default function ClientDemandPage() {
       try {
         const res = await fetch("/api/public/packages");
         if (res.ok) {
+          const rateHeader = res.headers.get("X-Credit-Rate");
+          if (rateHeader) {
+            const parsedRate = parseFloat(rateHeader);
+            if (!isNaN(parsedRate) && parsedRate > 0) {
+              setCreditRate(parsedRate);
+            }
+          }
           const data = await res.json();
           setPackages(data);
           if (data.length > 0) {
@@ -56,7 +66,7 @@ export default function ClientDemandPage() {
   const calculatedPrice =
     creditType === "package"
       ? selectedPackage?.price ?? 0
-      : (parseInt(customAmount, 10) || 0) * 1900;
+      : (parseInt(customAmount, 10) || 0) * creditRate;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,6 +106,7 @@ export default function ClientDemandPage() {
           creditType,
           packageId: creditType === "package" ? selectedPackageId : null,
           amount: creditType === "custom" ? parseInt(customAmount, 10) : null,
+          captchaToken,
         }),
       });
 
@@ -317,10 +328,13 @@ export default function ClientDemandPage() {
                     className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all font-mono"
                   />
                   <span className="text-[10px] text-[var(--muted)] block">
-                    {locale === "ar" ? "سعر الحصة هو 1,900 دج" : locale === "fr" ? "Le tarif est de 1 900 DA par crédit" : "Rate is 1,900 DA per credit"}
+                    {locale === "ar" ? `سعر الحصة هو ${creditRate.toLocaleString()} دج` : locale === "fr" ? `Le tarif est de ${creditRate.toLocaleString()} DA par crédit` : `Rate is ${creditRate.toLocaleString()} DA per credit`}
                   </span>
                 </div>
               )}
+
+              {/* Turnstile / Captcha Widget */}
+              <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
 
               {/* Price Preview & Submit */}
               <div className="border-t border-[var(--border)] pt-4 mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">

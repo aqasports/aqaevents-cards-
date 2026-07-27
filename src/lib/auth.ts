@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
@@ -11,85 +12,93 @@ export async function verifyPassword(
   return bcrypt.compare(password, hash);
 }
 
-// ─── Per-email lockout ────────────────────────────────────────────────────────
-// Protects against targeted password guessing on a known account.
-const lockoutCache = new Map<string, { count: number; lockUntil: number }>();
-
 // ─── Per-IP rate limiting ─────────────────────────────────────────────────────
-// Protects against distributed credential stuffing that rotates target emails.
-// 20 attempts per IP in a 15-minute window triggers a 15-minute IP lockout.
 const IP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const IP_MAX_ATTEMPTS = 20;
-const ipRateCache = new Map<string, { count: number; windowStart: number; lockUntil: number }>();
 
-export function isIpRateLimited(ip: string): boolean {
-  const entry = ipRateCache.get(ip);
-  if (!entry) return false;
-  if (Date.now() < entry.lockUntil) return true;
-  // Reset window if expired
-  if (Date.now() - entry.windowStart > IP_WINDOW_MS) {
-    ipRateCache.delete(ip);
-    return false;
-  }
-  return false;
+export async function isIpRateLimited(ip: string): Promise<boolean> {
+  const key = `login-ip:${ip}`;
+  const now = new Date();
+  const bucket = await prisma.rateLimitBucket.findUnique({ where: { key } });
+  if (!bucket) return false;
+  if (bucket.lockUntil && now < bucket.lockUntil) return true;
+  if (now.getTime() - bucket.windowStart.getTime() > IP_WINDOW_MS) return false;
+  return bucket.count >= IP_MAX_ATTEMPTS;
 }
 
-export function recordIpAttempt(ip: string): void {
-  const now = Date.now();
-  const entry = ipRateCache.get(ip) ?? { count: 0, windowStart: now, lockUntil: 0 };
+export async function recordIpAttempt(ip: string): Promise<void> {
+  const key = `login-ip:${ip}`;
+  const now = new Date();
 
-  // Reset window if it has expired
-  if (now - entry.windowStart > IP_WINDOW_MS) {
-    entry.count = 0;
-    entry.windowStart = now;
-    entry.lockUntil = 0;
-  }
+  await prisma.$transaction(async (tx) => {
+    const bucket = await tx.rateLimitBucket.findUnique({ where: { key } });
 
-  entry.count += 1;
+    if (!bucket || now.getTime() - bucket.windowStart.getTime() > IP_WINDOW_MS) {
+      await tx.rateLimitBucket.upsert({
+        where: { key },
+        create: { key, count: 1, windowStart: now, lockUntil: null },
+        update: { count: 1, windowStart: now, lockUntil: null },
+      });
+      return;
+    }
 
-  if (entry.count >= IP_MAX_ATTEMPTS) {
-    entry.lockUntil = now + IP_WINDOW_MS;
-  }
+    const newCount = bucket.count + 1;
+    const lockUntil = newCount >= IP_MAX_ATTEMPTS ? new Date(now.getTime() + IP_WINDOW_MS) : bucket.lockUntil;
 
-  ipRateCache.set(ip, entry);
+    await tx.rateLimitBucket.update({
+      where: { key },
+      data: { count: newCount, lockUntil },
+    });
+  });
 }
 
-export function getFailedAttempts(email: string): number {
-  const attempt = lockoutCache.get(email);
-  return attempt ? attempt.count : 0;
+// ─── Per-email lockout ────────────────────────────────────────────────────────
+export async function getFailedAttempts(email: string): Promise<number> {
+  const key = `login-email:${email.toLowerCase()}`;
+  const bucket = await prisma.rateLimitBucket.findUnique({ where: { key } });
+  return bucket ? bucket.count : 0;
 }
 
-export function isLockedOut(email: string): boolean {
-  const attempt = lockoutCache.get(email);
-  if (attempt && Date.now() < attempt.lockUntil) {
+export async function isLockedOut(email: string): Promise<boolean> {
+  const key = `login-email:${email.toLowerCase()}`;
+  const bucket = await prisma.rateLimitBucket.findUnique({ where: { key } });
+  if (bucket?.lockUntil && new Date() < bucket.lockUntil) {
     return true;
   }
   return false;
 }
 
-export function getLockoutTimeRemaining(email: string): number {
-  const attempt = lockoutCache.get(email);
-  if (attempt && Date.now() < attempt.lockUntil) {
-    return Math.ceil((attempt.lockUntil - Date.now()) / 1000); // seconds
+export async function getLockoutTimeRemaining(email: string): Promise<number> {
+  const key = `login-email:${email.toLowerCase()}`;
+  const bucket = await prisma.rateLimitBucket.findUnique({ where: { key } });
+  if (bucket?.lockUntil && new Date() < bucket.lockUntil) {
+    return Math.ceil((bucket.lockUntil.getTime() - Date.now()) / 1000); // seconds
   }
   return 0;
 }
 
-export function recordFailedAttempt(email: string): void {
-  const attempt = lockoutCache.get(email) || { count: 0, lockUntil: 0 };
-  attempt.count += 1;
-  
-  if (attempt.count >= 5) {
-    // 15 minute lockout
-    attempt.lockUntil = Date.now() + 15 * 60 * 1000;
-  } else {
-    // Progressive backoff delay: 1s, 2s, 4s, 8s
-    attempt.lockUntil = Date.now() + Math.pow(2, attempt.count - 1) * 1000;
-  }
-  
-  lockoutCache.set(email, attempt);
+export async function recordFailedAttempt(email: string): Promise<void> {
+  const key = `login-email:${email.toLowerCase()}`;
+  const now = new Date();
+
+  await prisma.$transaction(async (tx) => {
+    const bucket = await tx.rateLimitBucket.findUnique({ where: { key } });
+    const currentCount = (bucket?.count ?? 0) + 1;
+    let lockMs = Math.pow(2, Math.min(currentCount - 1, 10)) * 1000;
+    if (currentCount >= 5) {
+      lockMs = 15 * 60 * 1000; // 15 minute lockout
+    }
+    const lockUntil = new Date(now.getTime() + lockMs);
+
+    await tx.rateLimitBucket.upsert({
+      where: { key },
+      create: { key, count: 1, windowStart: now, lockUntil },
+      update: { count: currentCount, lockUntil },
+    });
+  });
 }
 
-export function resetAttempts(email: string): void {
-  lockoutCache.delete(email);
+export async function resetAttempts(email: string): Promise<void> {
+  const key = `login-email:${email.toLowerCase()}`;
+  await prisma.rateLimitBucket.delete({ where: { key } }).catch(() => {});
 }

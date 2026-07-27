@@ -1,22 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CardsService } from "@/modules/cards/service";
+import { checkAndIncrement } from "@/lib/rate-limit";
 
 const cardsService = new CardsService();
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > 60;
-}
 
 export async function GET(
   request: NextRequest,
@@ -25,7 +11,8 @@ export async function GET(
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  if (isRateLimited(ip)) {
+  const { limited } = await checkAndIncrement(`cards-token:${ip}`, { windowMs: 60_000, max: 60 });
+  if (limited) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 

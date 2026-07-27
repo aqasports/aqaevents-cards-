@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
+import { requireSuperAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { updateLedgerSchema } from "@/modules/invoices/validators";
 
@@ -9,8 +9,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { error } = await requireAdminSession();
-  if (error) return error;
+  const { session, error } = await requireSuperAdminSession();
+  if (error || !session) return error;
 
   const { id } = await params;
   const body = await request.json();
@@ -21,7 +21,7 @@ export async function PATCH(
   }
 
   try {
-    const updated = await billingService.updateLedgerEntry(id, parsed.data);
+    const updated = await billingService.updateLedgerEntry(id, parsed.data, session.user.id);
     return NextResponse.json(updated);
   } catch (err: unknown) {
     console.error("PATCH ledger entry API error:", err);
@@ -39,7 +39,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const result = await billingService.deleteLedgerEntry(id);
+    const result = await billingService.deleteLedgerEntry(id, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
     console.error("DELETE ledger entry API error:", err);

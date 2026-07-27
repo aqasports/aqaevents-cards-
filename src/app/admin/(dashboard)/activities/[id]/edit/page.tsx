@@ -14,8 +14,6 @@ import {
   ConfirmModal,
 } from "@/components/admin/ui";
 
-const RATE = 1900;
-
 type ActivityDetail = {
   id: string;
   name: string;
@@ -34,7 +32,17 @@ export default function EditActivityPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
+  const [creditRate, setCreditRate] = useState(1900);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
@@ -236,7 +244,7 @@ export default function EditActivityPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="font-bold text-blue-800">
-                  {Number(creditCost) || 0} credit{Number(creditCost) !== 1 ? "s" : ""} = {((Number(creditCost) || 0) * RATE).toLocaleString()} DA
+                  {Number(creditCost) || 0} credit{Number(creditCost) !== 1 ? "s" : ""} = {((Number(creditCost) || 0) * creditRate).toLocaleString()} DA
                 </span>
               </div>
             </div>

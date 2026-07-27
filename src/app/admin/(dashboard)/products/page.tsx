@@ -28,6 +28,18 @@ type Product = {
 };
 
 export default function ProductsPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
+
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [newSortOrder, setNewSortOrder] = useState(1);
@@ -223,7 +235,7 @@ export default function ProductsPage() {
     }
 
     if (paymentMethod === "card") {
-      const creditsNeeded = Math.floor((cartTotal / 1900) * 100) / 100;
+      const creditsNeeded = Math.floor((cartTotal / creditRate) * 100) / 100;
       const clientBalance = selectedClient.balance ?? 0;
       if (clientBalance < creditsNeeded) {
         setMessage({
@@ -241,7 +253,7 @@ export default function ProductsPage() {
       .map((item) => `${item.product.name} (x${item.quantity})`)
       .join(", ");
 
-    const creditsDeducted = paymentMethod === "card" ? Math.floor((cartTotal / 1900) * 100) / 100 : undefined;
+    const creditsDeducted = paymentMethod === "card" ? Math.floor((cartTotal / creditRate) * 100) / 100 : undefined;
     const saleNotesJson = JSON.stringify({
       type: "sale",
       items: cart.map((item) => ({
@@ -913,7 +925,7 @@ export default function ProductsPage() {
                     </div>
                   </div>
                 ) : (() => {
-                  const creditsNeeded = Math.floor((cartTotal / 1900) * 100) / 100;
+                  const creditsNeeded = Math.floor((cartTotal / creditRate) * 100) / 100;
                   const balance = selectedClient?.balance ?? 0;
                   return (
                     <div className="rounded-xl border border-violet-100 bg-violet-50/50 p-3 text-xs space-y-2">
@@ -974,7 +986,7 @@ export default function ProductsPage() {
                   disabled={
                     !selectedClient ||
                     cart.length === 0 ||
-                    (paymentMethod === "card" && (selectedClient.balance ?? 0) < (cartTotal / 1900))
+                    (paymentMethod === "card" && (selectedClient.balance ?? 0) < (cartTotal / creditRate))
                   }
                   className="w-full py-3 mt-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl"
                 >

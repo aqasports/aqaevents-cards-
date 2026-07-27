@@ -2,27 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getClientBalance } from "@/lib/balance";
+import { checkAndIncrement } from "@/lib/rate-limit";
 
 const checkInSchema = z.object({
   scannedValue: z.string().min(1),
   activityId: z.string().min(1),
   sessionId: z.string().optional().nullable(),
 });
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(key: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > 120;
-}
 
 function getFirstNameWithInitial(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
@@ -38,9 +24,9 @@ export async function GET(
 ) {
   const { clubToken } = await params;
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const rateLimitKey = `${clubToken}:${ip}`;
 
-  if (isRateLimited(rateLimitKey)) {
+  const { limited } = await checkAndIncrement(`checkin:${clubToken}:${ip}`, { windowMs: 60_000, max: 120 });
+  if (limited) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -134,9 +120,9 @@ export async function POST(
 ) {
   const { clubToken } = await params;
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const rateLimitKey = `${clubToken}:${ip}`;
 
-  if (isRateLimited(rateLimitKey)) {
+  const { limited } = await checkAndIncrement(`checkin:${clubToken}:${ip}`, { windowMs: 60_000, max: 120 });
+  if (limited) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 

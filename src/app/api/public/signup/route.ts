@@ -1,35 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendSimulatedNotification } from "@/lib/notifications";
+import { checkAndIncrement } from "@/lib/rate-limit";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export const dynamic = "force-dynamic";
-
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-
-  entry.count += 1;
-  return entry.count > 15;
-}
 
 export async function POST(request: NextRequest) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  if (isRateLimited(ip)) {
+  const { limited } = await checkAndIncrement(`signup:${ip}`, { windowMs: 60_000, max: 15 });
+  if (limited) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
   try {
     const body = await request.json();
-    const { fullName, email, phone, packageId } = body;
+    const captchaToken = body.captchaToken || request.headers.get("x-captcha-token");
+    const captchaResult = await verifyCaptcha(captchaToken, ip);
+    if (!captchaResult.success) {
+      return NextResponse.json(
+        { error: "CAPTCHA_VERIFICATION_FAILED" },
+        { status: 400 }
+      );
+    }
+
+    const {
+      fullName,
+      email,
+      phone,
+      packageId,
+      marketingConsent,
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      referrer,
+    } = body;
 
     if (!fullName || !fullName.trim()) {
       return NextResponse.json({ error: "Missing fullName" }, { status: 400 });
@@ -62,6 +68,11 @@ export async function POST(request: NextRequest) {
         amount: null,
         price: pkg.price,
         status: "pending",
+        marketingConsent: Boolean(marketingConsent),
+        utmSource: utmSource ? String(utmSource).trim() : null,
+        utmMedium: utmMedium ? String(utmMedium).trim() : null,
+        utmCampaign: utmCampaign ? String(utmCampaign).trim() : null,
+        referrer: referrer ? String(referrer).trim() : null,
       },
     });
 

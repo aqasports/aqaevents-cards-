@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getClientBalance } from "@/lib/balance";
 import { getFirstName, getEventCardUrl } from "@/lib/tokens";
+import { getCreditRate } from "@/lib/settings";
 import { EventCardClient } from "./event-card-client";
 import QRCode from "qrcode";
 
@@ -58,6 +59,8 @@ export default async function EventCardPage({
   });
   const isNotPaid = !!notPaidFlag;
 
+  const creditRate = await getCreditRate();
+
   const history = card.client.ledgerEntries
     .filter((e) => e.delta < 0)
     .map((e) => {
@@ -68,7 +71,7 @@ export default async function EventCardPage({
         creditsUsed: Math.abs(e.delta),
         redeemedAt: r ? r.redeemedAt : e.createdAt,
         location: r ? (r.session?.location ?? null) : "AQA Store",
-        amountDa: Math.abs(e.delta) * 1900,
+        amountDa: Math.abs(e.delta) * creditRate,
       };
     });
 
@@ -112,6 +115,7 @@ export default async function EventCardPage({
       products={advertisedProducts}
       publicToken={card.publicToken}
       isNotPaid={isNotPaid}
+      creditRate={creditRate}
     />
   );
 }

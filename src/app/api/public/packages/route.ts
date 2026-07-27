@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCreditRate } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +10,16 @@ export async function GET() {
       where: { active: true },
       orderBy: { sortOrder: "asc" },
     });
+    const creditRate = await getCreditRate();
+
     return NextResponse.json(packages, {
       headers: {
         "Cache-Control": "no-store",
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Expose-Headers": "X-Credit-Rate",
+        "X-Credit-Rate": creditRate.toString(),
       },
     });
   } catch (err: unknown) {
@@ -30,6 +35,7 @@ export async function OPTIONS() {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Expose-Headers": "X-Credit-Rate",
     },
   });
 }

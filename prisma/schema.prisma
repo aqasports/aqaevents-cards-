@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider  = "sqlite"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
@@ -40,12 +40,24 @@ model Client {
   lastActivityDate DateTime?
   favoriteActivity String?
 
+  // Organization Fields
+  organizationId String?
+  orgRole        String?
+
+  // Marketing & Attribution Fields
+  marketingConsent   Boolean   @default(false)
+  marketingConsentAt DateTime?
+  leadAttribution    String?
+
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   cards            Card[]
   ledgerEntries    LedgerEntry[]
   redemptions      Redemption[]
   invoices         Invoice[]
   notificationLogs NotificationLog[]
   checkIns         CheckIn[]
+  publicPurchaseRequests PublicPurchaseRequest[]
+  waitlists        SessionWaitlist[]
 }
 
 model Card {
@@ -58,6 +70,7 @@ model Card {
 
   client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
   ledgerEntries LedgerEntry[]
+  publicPurchaseRequests PublicPurchaseRequest[]
 
   @@index([clientId])
 }
@@ -114,24 +127,31 @@ model ActivityExpense {
 }
 
 model ActivitySession {
-  id          String   @id @default(cuid())
-  activityId  String
-  sessionDate DateTime
-  location    String?
-  capacity    Int?
-  active      Boolean  @default(true)
-  clubId      String?  // Optional: club assigned to host/check this session
-  createdAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  activityId       String
+  sessionDate      DateTime
+  location         String?
+  capacity         Int?
+  active           Boolean  @default(true)
+  clubId           String?  // Optional: club assigned to host/check this session
+  coachId          String?  // Optional: coach assigned to lead this session
+  coachPayOverride Int?     // Optional: override DA payout for this session
+  maxCapacity      Int?     // Optional max capacity for waitlisting
+  createdAt        DateTime @default(now())
 
   activity        Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
   club            Club?            @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  coach           Coach?           @relation(fields: [coachId], references: [id], onDelete: SetNull)
   redemptions     Redemption[]
   sessionExpenses SessionExpense[]
   checkIns        CheckIn[]
+  equipmentUsages EquipmentUsage[]
+  waitlists       SessionWaitlist[]
 
   @@index([activityId])
   @@index([sessionDate])
   @@index([clubId])
+  @@index([coachId])
 }
 
 model SessionExpense {
@@ -193,22 +213,81 @@ model Redemption {
 }
 
 model Invoice {
-  id          String    @id @default(cuid())
-  clientId    String
-  invoiceCode String    @unique
-  amount      Int
-  status      String    @default("paid")
-  category    String    @default("package")
-  items       String
-  notes       String?
-  paidAt      DateTime?
-  createdAt   DateTime  @default(now())
+  id             String    @id @default(cuid())
+  clientId       String
+  organizationId String?
+  invoiceCode    String    @unique
+  amount         Int
+  status         String    @default("paid")
+  category       String    @default("package")
+  items          String
+  notes          String?
+  paidAt         DateTime?
+  createdAt      DateTime  @default(now())
 
-  client Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([clientId])
+  @@index([organizationId])
   @@index([createdAt])
   @@index([status])
+}
+
+model Organization {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  creditRate       Float?
+  sharedCreditPool Float     @default(0)
+  useSharedPool    Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  clients          Client[]
+  invoices         Invoice[]
+}
+
+model Coach {
+  id             String            @id @default(cuid())
+  name           String
+  email          String?           @unique
+  phone          String?           @unique
+  specialties    String?
+  defaultPayRate Int               @default(0)
+  commissionRate Float             @default(0)
+  active         Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  sessions       ActivitySession[]
+}
+
+model EquipmentAsset {
+  id               String           @id @default(cuid())
+  name             String
+  category         String
+  purchasePrice    Int              @default(0)
+  purchaseDate     DateTime         @default(now())
+  usefulLifeMonths Int              @default(36)
+  maintenanceCost  Int              @default(0)
+  status           String           @default("available")
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  usageLogs        EquipmentUsage[]
+}
+
+model EquipmentUsage {
+  id               String           @id @default(cuid())
+  equipmentAssetId String
+  sessionId        String?
+  loggedAt         DateTime         @default(now())
+  notes            String?
+
+  equipmentAsset EquipmentAsset   @relation(fields: [equipmentAssetId], references: [id], onDelete: Cascade)
+  session        ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([equipmentAssetId])
+  @@index([sessionId])
 }
 
 model AuditLog {
@@ -256,36 +335,91 @@ model Product {
 }
 
 model CardDemand {
-  id          String   @id @default(cuid())
-  name        String
-  phone       String
-  email       String?  // Optional email
-  creditType  String   // "package" or "custom"
-  packageId   String?
-  amount      Int?     // For custom credits
-  price       Int      // Computed price in DA (Algerian Dinars)
-  status      String   @default("pending") // "pending", "accepted", "rejected"
-  cardCode    String?  // Linked physical card code (e.g. AQA-989734)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  phone            String
+  email            String?  // Optional email
+  creditType       String   // "package" or "custom"
+  packageId        String?
+  amount           Int?     // For custom credits
+  price            Int      // Computed price in DA (Algerian Dinars)
+  status           String   @default("pending") // "pending", "accepted", "rejected"
+  cardCode         String?  // Linked physical card code (e.g. AQA-989734)
+  marketingConsent Boolean  @default(false)
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  referrer         String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([status])
   @@index([createdAt])
 }
 
 model ActivityProposal {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  userName    String
-  userPhone   String
-  userEmail   String?
-  status      String   @default("pending") // "pending", "reviewed", "archived"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(cuid())
+  title            String
+  description      String
+  userName         String
+  userPhone        String
+  userEmail        String?
+  status           String   @default("pending") // "pending", "reviewed", "archived"
+  marketingConsent Boolean  @default(false)
+  utmSource        String?
+  utmMedium        String?
+  utmCampaign      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@index([status])
   @@index([createdAt])
+}
+
+model CampaignPromo {
+  id            String    @id @default(cuid())
+  code          String    @unique
+  discountType  String    // "percentage" or "fixed"
+  discountValue Float     // e.g. 20.0 for 20%, 500.0 for 500 DA
+  maxUses       Int?
+  usesCount     Int       @default(0)
+  validFrom     DateTime  @default(now())
+  validUntil    DateTime?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model AiActionQueue {
+  id              String    @id @default(cuid())
+  actionType      String
+  proposedPayload String
+  reasoning       String
+  status          String    @default("pending") // "pending", "approved", "rejected"
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  executedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SessionWaitlist {
+  id        String          @id @default(cuid())
+  sessionId String
+  clientId  String
+  status    String          @default("waiting") // "waiting", "notified", "cancelled", "promoted"
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  session ActivitySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  client  Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([clientId])
+  @@index([status])
 }
 
 // ─── Club Check-In System ────────────────────────────────────────────────────
@@ -326,3 +460,38 @@ model CheckIn {
   @@index([clubId, scannedAt])
   @@index([clientId, activityId])
 }
+
+model PublicPurchaseRequest {
+  id               String   @id @default(cuid())
+  cardId           String
+  clientId         String
+  type             String   // "package" | "custom" | "product"
+  payload          String   // JSON string of purchase payload
+  status           String   @default("pending_confirmation") // "pending_confirmation" | "confirmed" | "expired" | "rejected"
+  confirmationCode String
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@index([clientId])
+  @@index([confirmationCode])
+}
+
+model RateLimitBucket {
+  key         String    @id
+  count       Int
+  windowStart DateTime
+  lockUntil   DateTime?
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+
+

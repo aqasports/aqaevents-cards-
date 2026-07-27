@@ -91,8 +91,6 @@ type Activity = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const RATE = 1900;
-
 function fmt(n: number) {
   return n.toLocaleString("fr-DZ") + " DA";
 }
@@ -1186,6 +1184,16 @@ function CreateInvoiceModal({
 
 export default function InvoicesPage() {
   const [tab, setTab] = useState<"invoices" | "sales" | "expenses" | "bookkeeping">("invoices");
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
   
   // Invoice states
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -2101,7 +2109,7 @@ export default function InvoicesPage() {
                     <div className="flex justify-between items-center pt-2 text-base font-black text-slate-900 bg-slate-50 p-3 rounded-xl border border-slate-100">
                       <span>Total Credit Liability (Owed Services)</span>
                       <span className="text-blue-600">
-                        {fmt((reportsSummary.totalCreditsSold - reportsSummary.totalCreditsUsed) * RATE)}
+                        {fmt((reportsSummary.totalCreditsSold - reportsSummary.totalCreditsUsed) * creditRate)}
                       </span>
                     </div>
                   </>
@@ -2131,7 +2139,7 @@ export default function InvoicesPage() {
                   <tbody className="divide-y divide-slate-100">
                     {activities.map((act) => {
                       const redemptions = act._count.redemptions;
-                      const revenue = redemptions * act.creditCost * RATE;
+                      const revenue = redemptions * act.creditCost * creditRate;
                       const expenses = act.expenses.reduce((s, e) => s + e.amount, 0);
                       const profit = revenue - expenses;
                       return (
@@ -2155,7 +2163,7 @@ export default function InvoicesPage() {
                     {/* Summary row */}
                     {activities.length > 0 && (() => {
                       const totalRedemptions = activities.reduce((sum, a) => sum + a._count.redemptions, 0);
-                      const totalRevenue = activities.reduce((sum, a) => sum + a._count.redemptions * a.creditCost * RATE, 0);
+                      const totalRevenue = activities.reduce((sum, a) => sum + a._count.redemptions * a.creditCost * creditRate, 0);
                       const totalExpenses = activities.reduce((sum, a) => sum + a.expenses.reduce((s, e) => s + e.amount, 0), 0);
                       const totalProfit = totalRevenue - totalExpenses;
                       return (

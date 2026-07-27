@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "@/lib/i18n";
+import TurnstileWidget from "@/components/TurnstileWidget";
 
 type HistoryItem = {
   activity: string;
@@ -50,6 +51,7 @@ type Props = {
   products: Product[];
   publicToken: string;
   isNotPaid?: boolean;
+  creditRate?: number;
 };
 
 export function EventCardClient({
@@ -63,6 +65,7 @@ export function EventCardClient({
   products,
   publicToken,
   isNotPaid = false,
+  creditRate = 1900,
 }: Props) {
   const { t, locale, setLocale, dir } = useTranslations("publicCard");
   const [isFlipped, setIsFlipped] = useState(false);
@@ -72,6 +75,10 @@ export function EventCardClient({
   const [creditType, setCreditType] = useState<"package" | "custom">("package");
   const [selectedPackageId, setSelectedPackageId] = useState<string>(packages[0]?.id || "");
   const [customCreditsCount, setCustomCreditsCount] = useState<number>(5);
+  const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
+  const [confirmationCodeInput, setConfirmationCodeInput] = useState<string>("");
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   async function handleBuy(
     type: "package" | "custom" | "product",
@@ -79,8 +86,10 @@ export function EventCardClient({
   ) {
     setPurchasingItemId(String(payloadValue));
     setPurchaseMessage(null);
+    setPendingRequestId(null);
+    setConfirmationCodeInput("");
 
-    const bodyPayload: Record<string, unknown> = { type };
+    const bodyPayload: Record<string, unknown> = { type, captchaToken };
     if (type === "package") {
       bodyPayload.packageId = payloadValue;
     } else if (type === "custom") {
@@ -96,7 +105,15 @@ export function EventCardClient({
         body: JSON.stringify(bodyPayload),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+      if (res.ok && data.status === "confirmation_required") {
+        setPendingRequestId(data.requestId);
+        setPurchaseMessage({
+          text: "We sent a 6-digit confirmation code to your phone/email. Enter it below to complete your order.",
+          tone: "success",
+        });
+      } else if (res.ok) {
         setPurchaseMessage({
           text: t("orderSuccess"),
           tone: "success",
@@ -106,7 +123,6 @@ export function EventCardClient({
           window.location.reload();
         }, 2500);
       } else {
-        const data = await res.json();
         setPurchaseMessage({
           text: data.error ?? t("orderError"),
           tone: "danger",
@@ -122,6 +138,52 @@ export function EventCardClient({
       setPurchasingItemId(null);
     }
   }
+
+  async function handleConfirmCode() {
+    if (!pendingRequestId || !confirmationCodeInput) return;
+    setIsConfirming(true);
+    setPurchaseMessage(null);
+
+    try {
+      const res = await fetch(`/api/public/cards/${publicToken}/purchase/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requestId: pendingRequestId,
+          confirmationCode: confirmationCodeInput,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setPurchaseMessage({
+          text: t("orderSuccess"),
+          tone: "success",
+        });
+        setPendingRequestId(null);
+        setConfirmationCodeInput("");
+        setIsCreditModalOpen(false);
+        setTimeout(() => {
+          window.location.reload();
+        }, 2500);
+      } else {
+        setPurchaseMessage({
+          text: data.error ?? t("orderError"),
+          tone: "danger",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      setPurchaseMessage({
+        text: t("orderError"),
+        tone: "danger",
+      });
+    } finally {
+      setIsConfirming(false);
+    }
+  }
+
 
   const totalPaid = credits.reduce((sum, item) => sum + item.paid, 0);
   const totalBonus = credits.reduce((sum, item) => sum + item.bonus, 0);
@@ -794,109 +856,157 @@ export function EventCardClient({
               </button>
             </div>
 
-            {creditType === "package" ? (
-              <div className="space-y-3">
+            {pendingRequestId ? (
+              <div className="space-y-4 pt-2">
                 <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
-                  {t("choosePackage")}
+                  Enter 6-Digit Confirmation Code
                 </label>
-                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                  {packages.map((pkg) => (
-                    <button
-                      key={pkg.id}
-                      type="button"
-                      onClick={() => setSelectedPackageId(pkg.id)}
-                      className={`w-full text-left p-3.5 rounded-2xl border transition-all flex justify-between items-center ${
-                        selectedPackageId === pkg.id
-                          ? "bg-cyan-500/10 border-cyan-400 text-white"
-                          : "bg-white/5 border-white/10 text-white/80 hover:bg-white/10"
-                      }`}
-                    >
-                      <div>
-                        <h4 className="text-xs font-bold">{pkg.name}</h4>
-                        <p className="text-[10px] text-white/50 mt-0.5">
-                          {pkg.creditAmount} + {pkg.bonusCredits} {t("freeSuffix")} ({pkg.totalCredits} {t("totalCreditsText")})
-                        </p>
-                      </div>
-                      <span className="text-xs font-black text-cyan-400">
-                        {pkg.price.toLocaleString()} DA
-                      </span>
-                    </button>
-                  ))}
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={confirmationCodeInput}
+                  onChange={(e) => setConfirmationCodeInput(e.target.value.trim())}
+                  placeholder="123456"
+                  className="w-full text-center tracking-widest text-lg bg-white/5 border border-white/20 rounded-2xl py-3 px-4 text-white focus:outline-none focus:border-cyan-400 transition-all font-mono font-bold"
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingRequestId(null);
+                      setPurchaseMessage(null);
+                    }}
+                    className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold py-3 transition-all"
+                  >
+                    {t("cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isConfirming || confirmationCodeInput.length !== 6}
+                    onClick={handleConfirmCode}
+                    className="flex-1 rounded-2xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 text-xs font-black py-3 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {isConfirming ? (
+                      <>
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                        <span>Confirming...</span>
+                      </>
+                    ) : (
+                      <span>Confirm Purchase</span>
+                    )}
+                  </button>
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
-                  {t("customCreditsLabel")}
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={customCreditsCount || ""}
-                    onChange={(e) => setCustomCreditsCount(Math.max(1, Number(e.target.value)))}
-                    placeholder={t("enterActivities")}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-cyan-400 transition-all font-semibold"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40 font-bold">
-                    {t("remaining").split(" ")[0]}
+              <>
+                {creditType === "package" ? (
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
+                      {t("choosePackage")}
+                    </label>
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      {packages.map((pkg) => (
+                        <button
+                          key={pkg.id}
+                          type="button"
+                          onClick={() => setSelectedPackageId(pkg.id)}
+                          className={`w-full text-left p-3.5 rounded-2xl border transition-all flex justify-between items-center ${
+                            selectedPackageId === pkg.id
+                              ? "bg-cyan-500/10 border-cyan-400 text-white"
+                              : "bg-white/5 border-white/10 text-white/80 hover:bg-white/10"
+                          }`}
+                        >
+                          <div>
+                            <h4 className="text-xs font-bold">{pkg.name}</h4>
+                            <p className="text-[10px] text-white/50 mt-0.5">
+                              {pkg.creditAmount} + {pkg.bonusCredits} {t("freeSuffix")} ({pkg.totalCredits} {t("totalCreditsText")})
+                            </p>
+                          </div>
+                          <span className="text-xs font-black text-cyan-400">
+                            {pkg.price.toLocaleString()} DA
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
+                      {t("customCreditsLabel")}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={customCreditsCount || ""}
+                        onChange={(e) => setCustomCreditsCount(Math.max(1, Number(e.target.value)))}
+                        placeholder={t("enterActivities")}
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 px-4 text-sm text-white focus:outline-none focus:border-cyan-400 transition-all font-semibold"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40 font-bold">
+                        {t("remaining").split(" ")[0]}
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-white/40 italic">
+                      * 1 activity = 1,900 DA
+                    </div>
+                  </div>
+                )}
+
+                {/* Pricing Summary */}
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center">
+                  <span className="text-xs font-bold text-white/60">
+                    {t("estimatedPrice")}
+                  </span>
+                  <span className="text-base font-black text-cyan-300">
+                    {creditType === "package"
+                      ? (packages.find((p) => p.id === selectedPackageId)?.price.toLocaleString() ?? "0")
+                      : ((customCreditsCount * creditRate).toLocaleString())}{" "}
+                    DA
                   </span>
                 </div>
-                <div className="text-[10px] text-white/40 italic">
-                  * 1 activity = 1,900 DA
+
+                <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreditModalOpen(false)}
+                    className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold py-3 transition-all"
+                  >
+                    {t("cancel")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      purchasingItemId !== null ||
+                      (creditType === "package" && !selectedPackageId) ||
+                      (creditType === "custom" && (!customCreditsCount || customCreditsCount <= 0))
+                    }
+                    onClick={() => {
+                      if (creditType === "package") {
+                        handleBuy("package", selectedPackageId);
+                      } else {
+                        handleBuy("custom", customCreditsCount);
+                      }
+                    }}
+                    className="flex-1 rounded-2xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-slate-950 text-xs font-black py-3 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {purchasingItemId !== null ? (
+                      <>
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                        <span>{t("purchasing")}</span>
+                      </>
+                    ) : (
+                      <span>{t("submitRequest")}</span>
+                    )}
+                  </button>
                 </div>
-              </div>
+              </>
             )}
 
-            {/* Pricing Summary */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex justify-between items-center">
-              <span className="text-xs font-bold text-white/60">
-                {t("estimatedPrice")}
-              </span>
-              <span className="text-base font-black text-cyan-300">
-                {creditType === "package"
-                  ? (packages.find((p) => p.id === selectedPackageId)?.price.toLocaleString() ?? "0")
-                  : ((customCreditsCount * 1900).toLocaleString())}{" "}
-                DA
-              </span>
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setIsCreditModalOpen(false)}
-                className="flex-1 rounded-2xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold py-3 transition-all"
-              >
-                {t("cancel")}
-              </button>
-              <button
-                type="button"
-                disabled={
-                  purchasingItemId !== null ||
-                  (creditType === "package" && !selectedPackageId) ||
-                  (creditType === "custom" && (!customCreditsCount || customCreditsCount <= 0))
-                }
-                onClick={() => {
-                  if (creditType === "package") {
-                    handleBuy("package", selectedPackageId);
-                  } else {
-                    handleBuy("custom", customCreditsCount);
-                  }
-                }}
-                className="flex-1 rounded-2xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-slate-950 text-xs font-black py-3 transition-all flex items-center justify-center gap-1.5"
-              >
-                {purchasingItemId !== null ? (
-                  <>
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
-                    <span>{t("purchasing")}</span>
-                  </>
-                ) : (
-                  <span>{t("submitRequest")}</span>
-                )}
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
       request.headers.get("x-real-ip") ??
       "unknown";
 
-    if (ip !== "unknown" && isIpRateLimited(ip)) {
+    if (ip !== "unknown" && (await isIpRateLimited(ip))) {
       console.warn(`[middleware] Login rate limit exceeded for IP: ${ip}`);
       return new NextResponse(
         JSON.stringify({ error: "Too many login attempts. Please try again later." }),
@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
     }
 
     if (ip !== "unknown") {
-      recordIpAttempt(ip);
+      await recordIpAttempt(ip);
     }
   }
 

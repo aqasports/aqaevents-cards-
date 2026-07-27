@@ -14,6 +14,23 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"account" | "audit">("account");
 
+  const [creditRateInput, setCreditRateInput] = useState("1900");
+  const [savingRate, setSavingRate] = useState(false);
+  const [rateMessage, setRateMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetch("/api/admin/settings/credit-rate")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.creditRate) {
+            setCreditRateInput(data.creditRate.toString());
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isSuperAdmin]);
+
   const [logs, setLogs] = useState<any[]>([]);
   const [filteredLogs, setFilteredLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
@@ -208,6 +225,57 @@ export default function SettingsPage() {
               </form>
             </Card>
 
+            {/* Platform Credit Rate (Super Admin Only) */}
+            {isSuperAdmin && (
+              <Card>
+                <h3 className="mb-2 text-base font-semibold text-slate-800">Platform Credit Rate</h3>
+                <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                  Configure the base pricing conversion rate (DA per 1 credit). This affects default package pricing, credit conversions, and customer segments.
+                </p>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSavingRate(true);
+                    setRateMessage(null);
+                    const formData = new FormData(e.currentTarget);
+                    const newRate = parseFloat(formData.get("creditRate") as string);
+                    try {
+                      const res = await fetch("/api/admin/settings/credit-rate", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ creditRate: newRate }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        setCreditRateInput(data.creditRate.toString());
+                        setRateMessage({ text: `Credit rate updated to ${data.creditRate} DA.`, tone: "success" });
+                      } else {
+                        setRateMessage({ text: data.error ?? "Failed to update credit rate.", tone: "danger" });
+                      }
+                    } catch {
+                      setRateMessage({ text: "Network error.", tone: "danger" });
+                    } finally {
+                      setSavingRate(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  {rateMessage && <Alert tone={rateMessage.tone}>{rateMessage.text}</Alert>}
+                  <Input
+                    label="Credit Rate (DA per credit)"
+                    name="creditRate"
+                    type="number"
+                    step="1"
+                    min="1"
+                    value={creditRateInput}
+                    onChange={(e) => setCreditRateInput(e.target.value)}
+                    required
+                  />
+                  <Button type="submit" loading={savingRate}>Update Credit Rate</Button>
+                </form>
+              </Card>
+            )}
+
             {/* Database Backup */}
             {isSuperAdmin && (
               <Card>
@@ -222,7 +290,7 @@ export default function SettingsPage() {
                   className="w-full justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
                 >
                   <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 043 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Download Full Backup (.json)
                 </Button>

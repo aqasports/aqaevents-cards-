@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "./prisma";
+import { getCreditRate } from "./settings";
 
 export async function syncClientCRM(clientId: string, prismaTx?: any) {
   const db = prismaTx || prisma;
@@ -45,20 +47,19 @@ export async function syncClientCRM(clientId: string, prismaTx?: any) {
   }
 
   // 4. Calculate customerSegment
-  // Rules:
-  // VIP: totalSpent >= 38000 DA
-  // High-Value: totalSpent >= 19000 DA
-  // Inactive: lastActivityDate is older than 30 days OR (lastActivityDate is null AND client.createdAt is older than 30 days)
-  // Standard: otherwise
+  const creditRate = await getCreditRate(db);
+  const vipThreshold = 20 * creditRate; // Default 38,000 DA
+  const highValueThreshold = 10 * creditRate; // Default 19,000 DA
+
   const client = await db.client.findUnique({
     where: { id: clientId },
     select: { createdAt: true },
   });
 
   let customerSegment = "Standard";
-  if (totalSpent >= 38000) {
+  if (totalSpent >= vipThreshold) {
     customerSegment = "VIP";
-  } else if (totalSpent >= 19000) {
+  } else if (totalSpent >= highValueThreshold) {
     customerSegment = "High-Value";
   } else {
     const thirtyDaysAgo = new Date();

@@ -30,6 +30,16 @@ import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 export default function PackagesPage() {
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
 
   // Form states for live calculation preview
   const [newCreditAmount, setNewCreditAmount] = useState(1);
@@ -205,7 +215,7 @@ export default function PackagesPage() {
 
   // Live previews for create form
   const computedTotalCredits = newCreditAmount + newBonusCredits;
-  const computedPrice = newCreditAmount * 1900;
+  const computedPrice = newCreditAmount * creditRate;
   const computedRate = computedTotalCredits > 0 ? computedPrice / computedTotalCredits : 0;
 
   return (
@@ -385,12 +395,12 @@ export default function PackagesPage() {
                             </div>
                             <div>
                               <span className="text-[var(--muted)]">Price (Auto-locked): </span>
-                              <span className="font-bold">{(editCreditAmount * 1900).toLocaleString()} DA</span>
+                              <span className="font-bold">{(editCreditAmount * creditRate).toLocaleString()} DA</span>
                             </div>
                             <div>
                               <span className="text-[var(--muted)]">Effective rate: </span>
                               <span className="font-semibold text-[var(--primary)]">
-                                {Math.round((editCreditAmount * 1900) / ((editCreditAmount + editBonusCredits) || 1)).toLocaleString()} DA / activity
+                                {Math.round((editCreditAmount * creditRate) / ((editCreditAmount + editBonusCredits) || 1)).toLocaleString()} DA / activity
                               </span>
                             </div>
                           </div>

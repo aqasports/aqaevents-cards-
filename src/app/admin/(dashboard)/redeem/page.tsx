@@ -43,6 +43,16 @@ export default function RedeemPage() {
 
   // Quick-redeem activities (upcoming sessions only)
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
   // All activities with all sessions — for advanced form
   const [allActivities, setAllActivities] = useState<Activity[]>([]);
 
@@ -490,7 +500,7 @@ export default function RedeemPage() {
       }
       playSuccessSound();
       triggerSuccessHaptics();
-      const credits = Math.round((paid / 1900) * 100) / 100;
+      const credits = Math.round((paid / creditRate) * 100) / 100;
       setMessage({
         text: `Walk-in recorded: ${walkinName.trim()}${paid > 0 ? ` — Paid ${paid.toLocaleString()} DA (${credits.toFixed(2)} credits). Invoice generated.` : " — Free entry."}`,
         tone: "success",
@@ -891,7 +901,7 @@ export default function RedeemPage() {
                           />
                           {parseFloat(walkinPaidAmount) > 0 ? (
                             <p className="text-xs text-amber-700 mt-1 font-semibold">
-                              = {(Math.round((parseFloat(walkinPaidAmount) / 1900) * 100) / 100).toFixed(2)} credits — Invoice will be generated
+                              = {(Math.round((parseFloat(walkinPaidAmount) / creditRate) * 100) / 100).toFixed(2)} credits — Invoice will be generated
                             </p>
                           ) : (
                             <p className="text-xs text-slate-500 mt-1">Free entry (no invoice)</p>

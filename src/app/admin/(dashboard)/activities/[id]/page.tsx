@@ -18,8 +18,6 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-const RATE = 1900;
-
 type Client = { id: string; fullName: string; balance: number };
 
 type Redemption = {
@@ -703,6 +701,17 @@ function getNextFourDates(selectedDays: number[], timeStr: string): Date[] {
 export default function ActivityDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+
+  const [creditRate, setCreditRate] = useState(1900);
+
+  useEffect(() => {
+    fetch("/api/admin/settings/credit-rate")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.creditRate) setCreditRate(data.creditRate);
+      })
+      .catch(() => {});
+  }, []);
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1301,7 +1310,7 @@ export default function ActivityDetailPage() {
   const upcomingSessions = activity.sessions.filter((s) => s.active && new Date(s.sessionDate) >= limitTime);
   const pastAndCancelledSessions = activity.sessions.filter((s) => !s.active || new Date(s.sessionDate) < limitTime);
   const totalExpenses = activity.sessions.reduce((sum, s) => sum + (s.sessionExpenses?.reduce((sSum, exp) => sSum + exp.amount, 0) || 0), 0);
-  const totalRevenue = activity._count.redemptions * activity.creditCost * RATE;
+  const totalRevenue = activity._count.redemptions * activity.creditCost * creditRate;
   const netProfit = totalRevenue - totalExpenses;
   const margin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
   const predefinedPlaces = activity.places ? activity.places.split(",").map((p) => p.trim()) : [];
@@ -1353,7 +1362,7 @@ export default function ActivityDetailPage() {
               {/* Price + Duration badges */}
               <div className="flex flex-wrap gap-2 mt-2 mb-3">
                 <span className="inline-flex items-center rounded-full bg-blue-600 px-3 py-1 text-sm font-bold text-white shadow">
-                  {activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} · {(activity.creditCost * RATE).toLocaleString()} DA
+                  {activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} · {(activity.creditCost * creditRate).toLocaleString()} DA
                 </span>
                 {activity.duration && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-3 py-1 text-sm font-semibold text-white">
@@ -1435,8 +1444,8 @@ export default function ActivityDetailPage() {
       <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Price / Session</p>
-          <p className="mt-2 text-xl md:text-2xl font-black text-blue-700">{(activity.creditCost * RATE).toLocaleString()} DZD</p>
-          <p className="text-xs text-slate-400 mt-1">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {RATE.toLocaleString()} DZD</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-blue-700">{(activity.creditCost * creditRate).toLocaleString()} DZD</p>
+          <p className="text-xs text-slate-400 mt-1">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {creditRate.toLocaleString()} DZD</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Attendance</p>
@@ -2038,8 +2047,8 @@ export default function ActivityDetailPage() {
             <Card>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Price Reference</p>
               <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-2xl font-extrabold text-blue-700">{(activity.creditCost * RATE).toLocaleString()} DZD</p>
-                <p className="text-xs text-blue-500 mt-0.5">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {RATE.toLocaleString()} DZD/credit</p>
+                <p className="text-2xl font-extrabold text-blue-700">{(activity.creditCost * creditRate).toLocaleString()} DZD</p>
+                <p className="text-xs text-blue-500 mt-0.5">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {creditRate.toLocaleString()} DZD/credit</p>
               </div>
               {activity.duration && (
                 <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
