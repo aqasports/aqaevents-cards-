@@ -13,7 +13,7 @@ vi.mock("@/lib/api-auth", () => ({
 }));
 
 vi.mock("@/lib/audit", () => ({
-  createAuditLog: vi.fn().mockResolvedValue({ id: "audit-1" }),
+  logAdminAction: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/prisma", () => ({

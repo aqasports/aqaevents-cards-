@@ -37,9 +37,9 @@ export default function ReportsPage() {
       fetchWithRetry("/api/admin/reports/analytics"),
     ]);
 
-    const redemptionsData = await redemptionsRes.json();
-    const summaryData = await summaryRes.json();
-    const analyticsData = await analyticsRes.json();
+    const redemptionsData = redemptionsRes.ok ? await redemptionsRes.json() : [];
+    const summaryData = summaryRes.ok ? await summaryRes.json() : {};
+    const analyticsData = analyticsRes.ok ? await analyticsRes.json() : [];
 
     const formattedRedemptions = Array.isArray(redemptionsData)
       ? redemptionsData.map((r: any) => ({

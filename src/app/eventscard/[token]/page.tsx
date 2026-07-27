@@ -66,7 +66,7 @@ export default async function EventCardPage({
     .map((e) => {
       const r = e.redemption;
       return {
-        activity: r ? r.activity.name : (e.reason ?? "Store Purchase"),
+        activity: r ? (r.activity?.name ?? "Activity") : (e.reason ?? "Store Purchase"),
         date: r ? (r.session?.sessionDate ?? r.redeemedAt) : e.createdAt,
         creditsUsed: Math.abs(e.delta),
         redeemedAt: r ? r.redeemedAt : e.createdAt,

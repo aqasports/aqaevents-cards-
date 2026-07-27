@@ -36,7 +36,7 @@ describe("Business Anomalies API", () => {
   });
 
   it("should return list of detected anomalies", async () => {
-    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 80000 } } as any);
+    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 80000 } } as any);
     vi.mocked(prisma.invoice.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
     vi.mocked(prisma.client.count).mockResolvedValue(5);
     vi.mocked(prisma.checkIn.count).mockResolvedValue(10);

@@ -68,7 +68,7 @@ export default function EventsPage() {
   const filteredSessions = sessions.filter((s) => {
     // Search filter
     const matchesSearch =
-      s.activity.name.toLowerCase().includes(search.toLowerCase()) ||
+      (s.activity?.name ? s.activity.name.toLowerCase().includes(search.toLowerCase()) : false) ||
       (s.location && s.location.toLowerCase().includes(search.toLowerCase()));
 
     // Status filter

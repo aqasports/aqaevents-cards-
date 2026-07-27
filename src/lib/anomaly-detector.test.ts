@@ -26,7 +26,7 @@ describe("Anomaly Detector Engine", () => {
   });
 
   it("should trigger HIGH_MANUAL_CREDIT when manual credits exceed 50,000 DA in 7 days", async () => {
-    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 65000 } } as any);
+    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 65000 } } as any);
     vi.mocked(prisma.invoice.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
     vi.mocked(prisma.client.count).mockResolvedValue(5);
     vi.mocked(prisma.checkIn.count).mockResolvedValue(10);
@@ -39,7 +39,7 @@ describe("Anomaly Detector Engine", () => {
   });
 
   it("should trigger HIGH_OVERDUE_AR when overdue invoices > 60 days exceed 100,000 DA", async () => {
-    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 10000 } } as any);
+    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 10000 } } as any);
     vi.mocked(prisma.invoice.aggregate).mockResolvedValue({ _sum: { amount: 250000 } } as any);
     vi.mocked(prisma.client.count).mockResolvedValue(5);
     vi.mocked(prisma.checkIn.count).mockResolvedValue(10);
@@ -52,7 +52,7 @@ describe("Anomaly Detector Engine", () => {
   });
 
   it("should trigger LOW_CHECKIN_VOLUME when active clients > 10 and recent check-ins < 5", async () => {
-    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
+    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 0 } } as any);
     vi.mocked(prisma.invoice.aggregate).mockResolvedValue({ _sum: { amount: 0 } } as any);
     vi.mocked(prisma.client.count).mockResolvedValue(25);
     vi.mocked(prisma.checkIn.count).mockResolvedValue(2);

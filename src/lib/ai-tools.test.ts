@@ -40,7 +40,7 @@ describe("Read-Only AI Analytics Tools", () => {
   describe("getBusinessOverviewMetrics", () => {
     it("should return aggregated high-level business metrics", async () => {
       vi.mocked(prisma.client.count).mockResolvedValue(42);
-      vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 500 } } as any);
+      vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 500 } } as any);
       vi.mocked(prisma.redemption.count).mockResolvedValue(120);
       vi.mocked(prisma.invoice.aggregate).mockResolvedValue({ _sum: { amount: 950000 } } as any);
 
@@ -61,8 +61,8 @@ describe("Read-Only AI Analytics Tools", () => {
         email: "jane@aqa.dz",
         customerSegment: "VIP",
         ledgerEntries: [
-          { type: "CREDIT", amount: 10 },
-          { type: "DEBIT", amount: 3 },
+          { type: "CREDIT", delta: 10 },
+          { type: "DEBIT", delta: -3 },
         ],
         redemptions: [],
       } as any);
