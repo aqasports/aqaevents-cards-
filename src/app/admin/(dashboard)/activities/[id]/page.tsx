@@ -1987,7 +1987,7 @@ export default function ActivityDetailPage() {
                   <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />
                   <Button type="submit" className="w-full" loading={submittingEvent}>Schedule Event</Button>
                 </form>
-              ) : (
+              ) : scheduleMode === "bulk" ? (
                 <form onSubmit={handleScheduleBulkEvents} className="space-y-4">
                   <div className="space-y-2">
                     <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide block">Days of the Week</span>
