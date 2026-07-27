@@ -28,21 +28,14 @@ type ActivityDetail = {
   clubId?: string | null;
 };
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function EditActivityPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [creditRate, setCreditRate] = useState(1900);
+  const creditRate = useCreditRate();
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);

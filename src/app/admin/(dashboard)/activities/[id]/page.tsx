@@ -698,20 +698,13 @@ function getNextFourDates(selectedDays: number[], timeStr: string): Date[] {
 
 // ─── Main Detail Page ─────────────────────────────────────────────────────────
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function ActivityDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [creditRate, setCreditRate] = useState(1900);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
+  const creditRate = useCreditRate();
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -721,7 +714,7 @@ export default function ActivityDetailPage() {
   const [showImageEdit, setShowImageEdit] = useState(false);
 
   // Bulk session auto-generate states
-  const [scheduleMode, setScheduleMode] = useState<"single" | "bulk">("single");
+  const [scheduleMode, setScheduleMode] = useState<"single" | "bulk" | "series">("single");
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [bulkTime, setBulkTime] = useState("10:00");
   const [bulkLocation, setBulkLocation] = useState("");
@@ -1789,6 +1782,48 @@ export default function ActivityDetailPage() {
                           </div>
                         )}
 
+                        {/* Session Waitlist Queue Section (Prompt 22) */}
+                        <div className="pt-3 border-t border-[var(--border)]">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Waitlist Queue</h4>
+                            <span className="text-xs text-[var(--muted)]">
+                              {session.waitlists?.length || 0} queued
+                            </span>
+                          </div>
+                          {!session.waitlists || session.waitlists.length === 0 ? (
+                            <p className="text-xs text-[var(--muted)] italic p-2 border border-dashed border-[var(--border)] rounded-lg">
+                              No clients on waitlist for this session.
+                            </p>
+                          ) : (
+                            <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-white">
+                              <table className="w-full text-left text-xs">
+                                <thead>
+                                  <tr className="border-b border-[var(--border)] bg-slate-50 font-semibold text-slate-500">
+                                    <th className="px-3 py-2">Pos</th>
+                                    <th className="px-3 py-2">Client</th>
+                                    <th className="px-3 py-2">Requested At</th>
+                                    <th className="px-3 py-2 text-right">Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[var(--border)]">
+                                  {session.waitlists.map((w: any, wIdx: number) => (
+                                    <tr key={w.id || wIdx}>
+                                      <td className="px-3 py-2 font-bold font-mono text-[var(--primary)]">#{w.position || wIdx + 1}</td>
+                                      <td className="px-3 py-2 font-medium">{w.client?.fullName || "Client"}</td>
+                                      <td className="px-3 py-2 text-[var(--muted)]">{new Date(w.createdAt || Date.now()).toLocaleDateString()}</td>
+                                      <td className="px-3 py-2 text-right">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                          {w.status || "WAITING"}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Add expense to session form */}
                         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
                           <h5 className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)] mb-2">Record New Event Expense</h5>
@@ -1906,7 +1941,18 @@ export default function ActivityDetailPage() {
                         : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
                     }`}
                   >
-                    Auto-Generate 4 Events
+                    Auto 4 Events
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleMode("series")}
+                    className={`flex-1 pb-2.5 text-xs font-bold uppercase tracking-wider text-center border-b-2 transition-colors ${
+                      scheduleMode === "series"
+                        ? "border-[var(--primary)] text-[var(--primary)]"
+                        : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    Recurring Series
                   </button>
                 </div>
               )}
@@ -2039,6 +2085,55 @@ export default function ActivityDetailPage() {
                     placeholder="e.g. 12"
                   />
                   <Button type="submit" className="w-full" loading={submittingEvent}>Generate & Schedule 4 Events</Button>
+                </form>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSubmittingEvent(true);
+                    const formData = new FormData(e.currentTarget);
+                    try {
+                      const res = await fetch(`/api/admin/activities/${activity.id}/series`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          activityId: activity.id,
+                          startDate: formData.get("startDate"),
+                          repeatIntervalWeeks: Number(formData.get("repeatIntervalWeeks")) || 1,
+                          count: Number(formData.get("count")) || 10,
+                          location: formData.get("location") || null,
+                          capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
+                        }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setMessage({ text: `Successfully generated recurring series of ${data.sessionsCount} sessions.`, tone: "success" });
+                        loadActivityData();
+                      } else {
+                        const data = await res.json();
+                        setMessage({ text: data.error || "Failed to generate series.", tone: "danger" });
+                      }
+                    } catch {
+                      setMessage({ text: "Network error generating series.", tone: "danger" });
+                    } finally {
+                      setSubmittingEvent(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  <Input label="Series Start Date & Time" name="startDate" type="datetime-local" required />
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-[var(--muted)] uppercase">Repeat Frequency</label>
+                    <select name="repeatIntervalWeeks" className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 text-xs font-semibold">
+                      <option value="1">Every Week (Weekly)</option>
+                      <option value="2">Every 2 Weeks (Bi-Weekly)</option>
+                      <option value="4">Every 4 Weeks (Monthly)</option>
+                    </select>
+                  </div>
+                  <Input label="Number of Sessions to Generate" name="count" type="number" defaultValue={10} min={1} max={52} required />
+                  <Input label="Location" name="location" placeholder="e.g. Club Nautique" />
+                  <Input label="Capacity Limit" name="capacity" type="number" placeholder="Optional capacity limit" />
+                  <Button type="submit" className="w-full" loading={submittingEvent}>Generate Recurring Series</Button>
                 </form>
               )}
             </Card>

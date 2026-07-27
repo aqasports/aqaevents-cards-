@@ -157,18 +157,11 @@ import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function ActivitiesPage() {
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
-  const [creditRate, setCreditRate] = useState(1900);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []); 
+  const creditRate = useCreditRate();
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [togglingActivity, setTogglingActivity] = useState<string | null>(null);

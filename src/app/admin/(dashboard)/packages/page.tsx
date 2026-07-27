@@ -27,19 +27,12 @@ import { useCallback } from "react";
 import { fetchWithRetry } from "@/lib/fetch-utils";
 import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function PackagesPage() {
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [creditRate, setCreditRate] = useState(1900);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
+  const creditRate = useCreditRate();
 
   // Form states for live calculation preview
   const [newCreditAmount, setNewCreditAmount] = useState(1);

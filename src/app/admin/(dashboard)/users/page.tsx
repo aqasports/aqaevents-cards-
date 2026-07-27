@@ -209,47 +209,25 @@ export default function UsersPage() {
     }
   }
 
-  // Hydration sync and storage loads
+  const loadCoaches = async () => {
+    try {
+      const res = await fetch("/api/admin/coaches");
+      if (res.ok) {
+        const data = await res.json();
+        setCoaches(data);
+      }
+    } catch (e) {
+      console.error("Failed to load coaches from DB:", e);
+    }
+  };
+
+  // Hydration sync and database API loads
   useEffect(() => {
     setMounted(true);
-    
-    const savedCoaches = localStorage.getItem("aqa_coaches");
-    if (savedCoaches) {
-      try { setCoaches(JSON.parse(savedCoaches)); } catch (e) { console.error(e); }
-    }
-    
-    const savedAssignments = localStorage.getItem("aqa_coach_assignments");
-    if (savedAssignments) {
-      try { setAssignments(JSON.parse(savedAssignments)); } catch (e) { console.error(e); }
-    }
-    
-    const savedPayouts = localStorage.getItem("aqa_coach_payouts");
-    if (savedPayouts) {
-      try { setPayouts(JSON.parse(savedPayouts)); } catch (e) { console.error(e); }
-    }
-
     loadUsers();
     loadSessions();
+    loadCoaches();
   }, []);
-
-  // Save changes to local storage
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem("aqa_coaches", JSON.stringify(coaches));
-    }
-  }, [coaches, mounted]);
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem("aqa_coach_assignments", JSON.stringify(assignments));
-    }
-  }, [assignments, mounted]);
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem("aqa_coach_payouts", JSON.stringify(payouts));
-    }
-  }, [payouts, mounted]);
 
   // User account management handlers
   async function createUser(event: FormEvent<HTMLFormElement>) {

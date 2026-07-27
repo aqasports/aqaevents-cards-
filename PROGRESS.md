@@ -33,4 +33,4 @@
 ## PHASE 5 — Additional Features
 - [x] Prompt 21 — Client self-service login/portal
 - [x] Prompt 22 — Session waitlists
-- [x] Prompt 23 — Automated invoice PDFs emailed to clients/organizations
+- [x] Prompt 23 — Event series / recurring schedule generator

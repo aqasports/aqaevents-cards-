@@ -36,6 +36,8 @@ type ClientDropdownItem = {
   card: { cardCode: string; publicToken: string } | null;
 };
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function RedeemPage() {
   const { t, locale, dir } = useTranslations("redeem");
   const { data: session } = useSession();
@@ -43,16 +45,7 @@ export default function RedeemPage() {
 
   // Quick-redeem activities (upcoming sessions only)
   const [activities, setActivities] = useState<Activity[]>([]);
-  const [creditRate, setCreditRate] = useState(1900);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
+  const creditRate = useCreditRate();
   // All activities with all sessions — for advanced form
   const [allActivities, setAllActivities] = useState<Activity[]>([]);
 

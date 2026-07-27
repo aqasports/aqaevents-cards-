@@ -27,17 +27,10 @@ type Product = {
   descriptionText?: string;
 };
 
-export default function ProductsPage() {
-  const [creditRate, setCreditRate] = useState(1900);
+import { useCreditRate } from "@/lib/use-credit-rate";
 
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
+export default function ProductsPage() {
+  const creditRate = useCreditRate();
 
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [submitting, setSubmitting] = useState(false);

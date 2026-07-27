@@ -83,21 +83,14 @@ type ClientDetail = {
   favoriteActivity: string | null;
 };
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function ClientDetailPage() {
   const { locale } = useLocale();
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
-  const [creditRate, setCreditRate] = useState(1900);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
+  const creditRate = useCreditRate();
 
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [packages, setPackages] = useState<Package[]>([]);

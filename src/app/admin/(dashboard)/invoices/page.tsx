@@ -1182,18 +1182,11 @@ function CreateInvoiceModal({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+import { useCreditRate } from "@/lib/use-credit-rate";
+
 export default function InvoicesPage() {
   const [tab, setTab] = useState<"invoices" | "sales" | "expenses" | "bookkeeping">("invoices");
-  const [creditRate, setCreditRate] = useState(1900);
-
-  useEffect(() => {
-    fetch("/api/admin/settings/credit-rate")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.creditRate) setCreditRate(data.creditRate);
-      })
-      .catch(() => {});
-  }, []);
+  const creditRate = useCreditRate();
   
   // Invoice states
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -1488,15 +1481,28 @@ export default function InvoicesPage() {
             Manage billing invoices, track operational expenses, and analyze business performance.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 shadow-sm transition"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          New Invoice
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/api/admin/invoices/export"
+            className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 shadow-sm transition"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export CSV
+          </a>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 shadow-sm transition"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            New Invoice
+          </button>
+        </div>
       </div>
 
       {/* Statistics Panels */}
