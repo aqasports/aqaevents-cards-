@@ -31,10 +31,15 @@ interface Coach {
   type: "coach" | "staff";
   email: string;
   phone: string;
+  defaultPayRate?: number;
+  commissionRate?: number;
+  specialties?: string | null;
+  active?: boolean;
   baseRate: number; // DA per session
   bonusPerAttendee: number; // DA per attendee
   notes: string;
   createdAt: string;
+  _count?: { sessions: number };
 }
 
 interface CoachAssignment {
@@ -214,7 +219,23 @@ export default function UsersPage() {
       const res = await fetch("/api/admin/coaches");
       if (res.ok) {
         const data = await res.json();
-        setCoaches(data);
+        const normalized: Coach[] = data.map((c: any) => ({
+          ...c,
+          id: c.id,
+          name: c.name,
+          type: c.type || "coach",
+          email: c.email || "",
+          phone: c.phone || "",
+          defaultPayRate: c.defaultPayRate ?? 0,
+          commissionRate: c.commissionRate ?? 0,
+          specialties: c.specialties || "",
+          active: c.active ?? true,
+          baseRate: c.baseRate ?? c.defaultPayRate ?? 0,
+          bonusPerAttendee: c.bonusPerAttendee ?? c.commissionRate ?? 0,
+          notes: c.notes ?? c.specialties ?? "",
+          createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+        }));
+        setCoaches(normalized);
       }
     } catch (e) {
       console.error("Failed to load coaches from DB:", e);
@@ -294,44 +315,56 @@ export default function UsersPage() {
   }
 
   // Coach and Salary manager handlers
-  function handleCoachSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleCoachSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (editingCoachId) {
-      setCoaches((prev) =>
-        prev.map((c) => {
-          if (c.id === editingCoachId) {
-            return {
-              ...c,
-              name: coachName,
-              type: coachType,
-              email: coachEmail,
-              phone: coachPhone,
-              baseRate: Number(coachBaseRate) || 0,
-              bonusPerAttendee: Number(coachBonusPerAttendee) || 0,
-              notes: coachNotes,
-            };
-          }
-          return c;
-        })
-      );
-      setMessage({ text: `Updated ${coachName} successfully.`, tone: "success" });
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      if (editingCoachId) {
+        const res = await fetch(`/api/admin/coaches/${editingCoachId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: coachName,
+            email: coachEmail || null,
+            phone: coachPhone || null,
+            specialties: coachNotes || null,
+            defaultPayRate: Number(coachBaseRate) || 0,
+            commissionRate: Number(coachBonusPerAttendee) || 0,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to update coach");
+        }
+        setMessage({ text: `Updated ${coachName} successfully.`, tone: "success" });
+      } else {
+        const res = await fetch("/api/admin/coaches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: coachName,
+            email: coachEmail || null,
+            phone: coachPhone || null,
+            specialties: coachNotes || null,
+            defaultPayRate: Number(coachBaseRate) || 0,
+            commissionRate: Number(coachBonusPerAttendee) || 0,
+            active: true,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to add coach");
+        }
+        setMessage({ text: `Added ${coachName} successfully.`, tone: "success" });
+      }
       resetCoachForm();
-    } else {
-      const newCoach: Coach = {
-        id: "coach_" + Math.random().toString(36).substr(2, 9),
-        name: coachName,
-        type: coachType,
-        email: coachEmail,
-        phone: coachPhone,
-        baseRate: Number(coachBaseRate) || 0,
-        bonusPerAttendee: Number(coachBonusPerAttendee) || 0,
-        notes: coachNotes,
-        createdAt: new Date().toISOString(),
-      };
-
-      setCoaches((prev) => [newCoach, ...prev]);
-      setMessage({ text: `Added ${newCoach.name} successfully.`, tone: "success" });
-      resetCoachForm();
+      await loadCoaches();
+    } catch (err: any) {
+      console.error("Submit coach error:", err);
+      setMessage({ text: err.message || "An error occurred", tone: "danger" });
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -349,22 +382,33 @@ export default function UsersPage() {
   function startEditCoach(coach: Coach) {
     setEditingCoachId(coach.id);
     setCoachName(coach.name);
-    setCoachType(coach.type);
-    setCoachEmail(coach.email);
-    setCoachPhone(coach.phone);
-    setCoachBaseRate(coach.baseRate.toString());
-    setCoachBonusPerAttendee(coach.bonusPerAttendee.toString());
-    setCoachNotes(coach.notes);
+    setCoachType(coach.type || "coach");
+    setCoachEmail(coach.email || "");
+    setCoachPhone(coach.phone || "");
+    setCoachBaseRate((coach.baseRate ?? coach.defaultPayRate ?? 0).toString());
+    setCoachBonusPerAttendee((coach.bonusPerAttendee ?? coach.commissionRate ?? 0).toString());
+    setCoachNotes(coach.notes ?? coach.specialties ?? "");
   }
 
   function removeCoach(coach: Coach) {
     triggerConfirm(
       "Remove Coach/Staff Profile",
       `Are you sure you want to remove ${coach.name}? This will delete their profile and assignments, but historical invoices will remain intact.`,
-      () => {
-        setCoaches((prev) => prev.filter((c) => c.id !== coach.id));
-        setAssignments((prev) => prev.filter((a) => a.coachId !== coach.id));
-        setMessage({ text: `${coach.name} has been removed.`, tone: "success" });
+      async () => {
+        try {
+          const res = await fetch(`/api/admin/coaches/${coach.id}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || "Failed to delete coach");
+          }
+          setMessage({ text: `${coach.name} has been removed.`, tone: "success" });
+          await loadCoaches();
+        } catch (err: any) {
+          console.error("Delete coach error:", err);
+          setMessage({ text: err.message || "Failed to remove coach", tone: "danger" });
+        }
       },
       true
     );
@@ -1117,7 +1161,7 @@ export default function UsersPage() {
                           <p className="mt-1 text-xs text-[var(--muted)] leading-relaxed">
                             {coach.email && <span>{coach.email} · </span>}
                             {coach.phone && <span>{coach.phone} · </span>}
-                            <span>Rate: {coach.baseRate.toLocaleString("fr-DZ")} DA/session + {coach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/client share</span>
+                            <span>Rate: {(coach.baseRate ?? coach.defaultPayRate ?? 0).toLocaleString("fr-DZ")} DA/session + {(coach.bonusPerAttendee ?? coach.commissionRate ?? 0).toLocaleString("fr-DZ")} DA/client share</span>
                           </p>
                           <p className="mt-1 text-xs text-[var(--muted)] font-medium">
                             Linked to {assignedCount} event sessions · Paid payouts: {historicalPayouts.toLocaleString("fr-DZ")} DA
@@ -1732,7 +1776,7 @@ export default function UsersPage() {
                   Link Event Sessions: {selectedCoach.name}
                 </h3>
                 <p className="text-xs text-[var(--muted)]">
-                  Base rate: {selectedCoach.baseRate.toLocaleString("fr-DZ")} DA/session · Attendance bonus: {selectedCoach.bonusPerAttendee.toLocaleString("fr-DZ")} DA/attendee
+                  Base rate: {(selectedCoach.baseRate ?? selectedCoach.defaultPayRate ?? 0).toLocaleString("fr-DZ")} DA/session · Attendance bonus: {(selectedCoach.bonusPerAttendee ?? selectedCoach.commissionRate ?? 0).toLocaleString("fr-DZ")} DA/attendee
                 </p>
               </div>
               <button
