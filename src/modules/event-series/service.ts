@@ -22,8 +22,6 @@ export class EventSeriesService {
           sessionDate,
           location: validated.location ?? null,
           capacity: validated.capacity ?? null,
-          parentSeriesId: seriesId,
-          recurrenceRule: `WEEKLY:${validated.repeatIntervalWeeks}`,
         },
       });
       sessions.push(session);
