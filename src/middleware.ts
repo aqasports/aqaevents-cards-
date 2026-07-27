@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
-import { isIpRateLimited, recordIpAttempt } from "@/lib/auth";
 
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -14,37 +13,11 @@ function safeCompare(a: string, b: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // ─── IP rate limiting on the login endpoint ───────────────────────────────
-  // Applied before the /admin auth check so it runs even for the login POST.
-  // NextAuth's credentials callback is at /api/auth/callback/credentials.
-  if (
-    pathname === "/api/auth/callback/credentials" &&
-    request.method === "POST"
-  ) {
-    const ip =
-      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
-      request.headers.get("x-real-ip") ??
-      "unknown";
-
-    if (ip !== "unknown" && (await isIpRateLimited(ip))) {
-      console.warn(`[middleware] Login rate limit exceeded for IP: ${ip}`);
-      return new NextResponse(
-        JSON.stringify({ error: "Too many login attempts. Please try again later." }),
-        {
-          status: 429,
-          headers: {
-            "content-type": "application/json",
-            "cache-control": "no-store, max-age=0",
-            "retry-after": "900",
-          },
-        }
-      );
-    }
-
-    if (ip !== "unknown") {
-      await recordIpAttempt(ip);
-    }
-  }
+  // ── IP rate limiting on the login endpoint ──────────────────────────────
+  // Rate limiting is now handled inside the NextAuth authorize callback and
+  // the /api/auth/callback/credentials route handler to avoid importing
+  // Node.js-only modules (bcryptjs, PrismaClient) into the Edge Runtime.
+  // The middleware only handles auth token checks and redirects.
 
   if (pathname.startsWith("/admin")) {
     // Fail loudly if NEXTAUTH_SECRET is not configured — prevents silent auth bypass.
@@ -143,7 +116,7 @@ export async function middleware(request: NextRequest) {
             </head>
             <body>
               <div class="card">
-                <div class="icon">✕</div>
+                <div class="icon">X</div>
                 <h1>AQA Admin App Required</h1>
                 <p>The AQA Sports Admin Portal is restricted to authorized app holders. Please open the official AQA Admin App to log in and manage the system.</p>
                 <span class="badge">App-Only Mode Active</span>
@@ -181,5 +154,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/auth/callback/credentials"],
+  matcher: ["/admin/:path*"],
 };
