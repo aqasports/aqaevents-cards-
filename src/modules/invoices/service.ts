@@ -754,7 +754,7 @@ export class BillingService {
       }
 
       const paidAmount = data.paidAmount ?? 0;
-      const creditRate = await getCreditRate(db);
+      const creditRate = await getCreditRate();
       const creditsEquivalent = Math.round((paidAmount / creditRate) * 100) / 100;
 
       // Find or auto-create the sentinel "Walk-in" client

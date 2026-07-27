@@ -44,16 +44,17 @@ export async function generateMagicPin(phoneOrEmail: string): Promise<{ pin: str
   });
 
   // Send notification to client
-  const recipient = client.email || client.phone;
+  const recipient = client.email || client.phone || "";
   const type = client.email ? "EMAIL" : "SMS";
   const message = `Your AQA Events portal verification code is ${pin}. Valid for 15 minutes.`;
 
-  await sendSimulatedNotification({
-    type,
+  await sendSimulatedNotification(
+    client.id,
+    type === "EMAIL" ? "email" : "sms",
     recipient,
-    subject: "AQA Events Verification Code",
     message,
-  });
+    "AQA Events Verification Code"
+  );
 
   return { pin, client };
 }

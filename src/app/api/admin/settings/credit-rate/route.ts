@@ -20,7 +20,8 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await requireSuperAdminSession();
+    const { session, error } = await requireSuperAdminSession();
+    if (error || !session) return error;
     const body = await request.json();
     const newRate = parseFloat(body.creditRate);
 

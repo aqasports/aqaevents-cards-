@@ -97,7 +97,7 @@ describe("Client Self-Service Portal Auth & Profile API", () => {
         id: "client-1",
         fullName: "Sarah Connor",
         email: "sarah@aqa.dz",
-        cards: [{ id: "card-1", code: "AQA-111111" }],
+        cards: [{ id: "card-1", cardCode: "AQA-111111" }],
         ledgerEntries: [],
         redemptions: [],
       } as any);

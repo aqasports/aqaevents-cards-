@@ -28,7 +28,6 @@ type Product = {
 };
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
   const [creditRate, setCreditRate] = useState(1900);
 
   useEffect(() => {

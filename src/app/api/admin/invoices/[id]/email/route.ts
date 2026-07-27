@@ -43,12 +43,13 @@ export async function POST(
 
     const message = `Hello,\n\nPlease find attached invoice ${invoice.invoiceCode} for ${invoice.amount.toLocaleString("fr-DZ")} DA.\n\nStatus: ${invoice.status.toUpperCase()}\nPDF Size: ${pdfBuffer.length} bytes.\n\nThank you for choosing AQA Events!`;
 
-    await sendSimulatedNotification({
-      type: "EMAIL",
-      recipient: recipientEmail,
-      subject: `AQA Events Invoice ${invoice.invoiceCode}`,
+    await sendSimulatedNotification(
+      invoice.clientId || "org",
+      "email",
+      recipientEmail,
       message,
-    });
+      `AQA Events Invoice ${invoice.invoiceCode}`
+    );
 
     return NextResponse.json({
       success: true,

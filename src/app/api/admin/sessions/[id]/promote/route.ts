@@ -55,16 +55,17 @@ export async function POST(
       include: { client: true },
     });
 
-    const recipient = targetEntry.client.email || targetEntry.client.phone;
+    const recipient = targetEntry.client.email || targetEntry.client.phone || "";
     const type = targetEntry.client.email ? "EMAIL" : "SMS";
     const activityName = targetEntry.session.activity.name;
 
-    await sendSimulatedNotification({
-      type,
+    await sendSimulatedNotification(
+      targetEntry.client.id,
+      type === "EMAIL" ? "email" : "sms",
       recipient,
-      subject: "Good News! AQA Session Spot Open",
-      message: `A spot has opened up for ${activityName}! Your waitlist spot has been promoted.`,
-    });
+      `A spot has opened up for ${activityName}! Your waitlist spot has been promoted.`,
+      "Good News! AQA Session Spot Open"
+    );
 
     return NextResponse.json({
       success: true,

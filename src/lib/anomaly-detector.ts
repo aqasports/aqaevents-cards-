@@ -21,10 +21,10 @@ export async function detectBusinessAnomalies(): Promise<AnomalyItem[]> {
       type: "CREDIT",
       createdAt: { gte: sevenDaysAgo },
     },
-    _sum: { amount: true },
+    _sum: { delta: true },
   });
 
-  const manualCreditTotal = recentCreditsSum._sum.amount ?? 0;
+  const manualCreditTotal = recentCreditsSum._sum.delta ?? 0;
   if (manualCreditTotal > 50000) {
     anomalies.push({
       type: "HIGH_MANUAL_CREDIT",

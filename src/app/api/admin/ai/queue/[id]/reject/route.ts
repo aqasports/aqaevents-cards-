@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { createAuditLog } from "@/lib/audit";
+import { logAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export async function POST(
       },
     });
 
-    await createAuditLog(
+    await logAdminAction(
       session.user.id,
       "REJECT_AI_ACTION",
       `Rejected AI action ${queueItem.actionType} (Queue ID: ${id})`

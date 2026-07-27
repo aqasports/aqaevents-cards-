@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
-import { createAuditLog } from "@/lib/audit";
+import { logAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +49,8 @@ export async function POST(
           data: {
             clientId: payload.clientId,
             type: "CREDIT",
-            amount: Number(payload.amount),
-            description: payload.description || "AI Proposed Credit Provisioning",
+            delta: Number(payload.amount),
+            reason: payload.description || "AI Proposed Credit Provisioning",
           },
         });
       }
@@ -67,7 +67,7 @@ export async function POST(
       },
     });
 
-    await createAuditLog(
+    await logAdminAction(
       session.user.id,
       "APPROVE_AI_ACTION",
       `Approved AI action ${queueItem.actionType} (Queue ID: ${id})`

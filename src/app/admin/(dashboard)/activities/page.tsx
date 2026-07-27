@@ -158,7 +158,7 @@ import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ActivitiesPage() {
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [creditRate, setCreditRate] = useState(1900);
 
   useEffect(() => {

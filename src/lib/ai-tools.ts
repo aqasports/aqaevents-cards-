@@ -8,7 +8,7 @@ export async function getBusinessOverviewMetrics() {
 
   const creditSum = await prisma.ledgerEntry.aggregate({
     where: { type: "CREDIT" },
-    _sum: { amount: true },
+    _sum: { delta: true },
   });
 
   const totalRedemptionsCount = await prisma.redemption.count();
@@ -20,7 +20,7 @@ export async function getBusinessOverviewMetrics() {
 
   return {
     activeClientsCount,
-    totalCreditsIssued: creditSum._sum.amount ?? 0,
+    totalCreditsIssued: creditSum._sum.delta ?? 0,
     totalRedemptionsCount,
     totalRevenueDA: revenueSum._sum.amount ?? 0,
   };
@@ -35,7 +35,7 @@ export async function getClientInsights(clientId: string) {
       organization: { select: { name: true } },
       ledgerEntries: { orderBy: { createdAt: "desc" }, take: 10 },
       redemptions: {
-        orderBy: { createdAt: "desc" },
+        orderBy: { redeemedAt: "desc" },
         take: 10,
         include: { activity: { select: { name: true } } },
       },
@@ -46,11 +46,11 @@ export async function getClientInsights(clientId: string) {
 
   const creditsSum = client.ledgerEntries
     .filter((e) => e.type === "CREDIT")
-    .reduce((sum, e) => sum + e.amount, 0);
+    .reduce((sum, e) => sum + e.delta, 0);
 
   const debitsSum = client.ledgerEntries
     .filter((e) => e.type === "DEBIT")
-    .reduce((sum, e) => sum + e.amount, 0);
+    .reduce((sum, e) => sum + Math.abs(e.delta), 0);
 
   const balance = creditsSum - debitsSum;
 

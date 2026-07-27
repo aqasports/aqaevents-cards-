@@ -104,16 +104,17 @@ export async function POST(
       },
     });
 
-    const recipient = client.email || client.phone;
+    const recipient = client.email || client.phone || "";
     const type = client.email ? "EMAIL" : "SMS";
     const activityName = session.activity.name;
 
-    await sendSimulatedNotification({
-      type,
+    await sendSimulatedNotification(
+      client.id,
+      type === "EMAIL" ? "email" : "sms",
       recipient,
-      subject: "AQA Session Waitlist Confirmation",
-      message: `You have joined the waitlist for ${activityName}. We will notify you when a spot opens up!`,
-    });
+      `You have joined the waitlist for ${activityName}. We will notify you when a spot opens up!`,
+      "AQA Session Waitlist Confirmation"
+    );
 
     return NextResponse.json(
       {
