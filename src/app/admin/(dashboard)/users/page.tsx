@@ -217,38 +217,122 @@ export default function UsersPage() {
   const loadCoaches = async () => {
     try {
       const res = await fetch("/api/admin/coaches");
+      let dbCoaches: Coach[] = [];
       if (res.ok) {
         const data = await res.json();
-        const normalized: Coach[] = data.map((c: any) => ({
-          ...c,
-          id: c.id,
-          name: c.name,
-          type: c.type || "coach",
-          email: c.email || "",
-          phone: c.phone || "",
-          defaultPayRate: c.defaultPayRate ?? 0,
-          commissionRate: c.commissionRate ?? 0,
-          specialties: c.specialties || "",
-          active: c.active ?? true,
-          baseRate: c.baseRate ?? c.defaultPayRate ?? 0,
-          bonusPerAttendee: c.bonusPerAttendee ?? c.commissionRate ?? 0,
-          notes: c.notes ?? c.specialties ?? "",
-          createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
-        }));
-        setCoaches(normalized);
+        if (Array.isArray(data) && data.length > 0) {
+          dbCoaches = data.map((c: any) => ({
+            ...c,
+            id: c.id,
+            name: c.name,
+            type: c.type || "coach",
+            email: c.email || "",
+            phone: c.phone || "",
+            defaultPayRate: c.defaultPayRate ?? 0,
+            commissionRate: c.commissionRate ?? 0,
+            specialties: c.specialties || "",
+            active: c.active ?? true,
+            baseRate: c.baseRate ?? c.defaultPayRate ?? 0,
+            bonusPerAttendee: c.bonusPerAttendee ?? c.commissionRate ?? 0,
+            notes: c.notes ?? c.specialties ?? "",
+            createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
+          }));
+        }
+      }
+
+      // Check legacy localStorage if DB returned empty
+      const savedCoaches = localStorage.getItem("aqa_coaches");
+      let localCoaches: Coach[] = [];
+      if (savedCoaches) {
+        try {
+          const parsed = JSON.parse(savedCoaches);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            localCoaches = parsed.map((c: any) => ({
+              ...c,
+              id: c.id || "coach_" + Math.random().toString(36).substr(2, 9),
+              name: c.name,
+              type: c.type || "coach",
+              email: c.email || "",
+              phone: c.phone || "",
+              baseRate: Number(c.baseRate ?? c.defaultPayRate) || 0,
+              bonusPerAttendee: Number(c.bonusPerAttendee ?? c.commissionRate) || 0,
+              notes: c.notes ?? c.specialties ?? "",
+              createdAt: c.createdAt || new Date().toISOString(),
+            }));
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      if (dbCoaches.length > 0) {
+        setCoaches(dbCoaches);
+      } else if (localCoaches.length > 0) {
+        setCoaches(localCoaches);
+        // Auto-migrate local coaches to DB in background
+        for (const c of localCoaches) {
+          fetch("/api/admin/coaches", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: c.name,
+              email: c.email || null,
+              phone: c.phone || null,
+              specialties: c.notes || null,
+              defaultPayRate: Number(c.baseRate) || 0,
+              commissionRate: Number(c.bonusPerAttendee) || 0,
+              active: true,
+            }),
+          }).catch(() => {});
+        }
+      } else {
+        setCoaches([]);
       }
     } catch (e) {
       console.error("Failed to load coaches from DB:", e);
+      const savedCoaches = localStorage.getItem("aqa_coaches");
+      if (savedCoaches) {
+        try { setCoaches(JSON.parse(savedCoaches)); } catch {}
+      }
     }
   };
 
   // Hydration sync and database API loads
   useEffect(() => {
     setMounted(true);
+
+    const savedAssignments = localStorage.getItem("aqa_coach_assignments");
+    if (savedAssignments) {
+      try { setAssignments(JSON.parse(savedAssignments)); } catch (e) { console.error(e); }
+    }
+
+    const savedPayouts = localStorage.getItem("aqa_coach_payouts");
+    if (savedPayouts) {
+      try { setPayouts(JSON.parse(savedPayouts)); } catch (e) { console.error(e); }
+    }
+
     loadUsers();
     loadSessions();
     loadCoaches();
   }, []);
+
+  useEffect(() => {
+    if (mounted && coaches.length > 0) {
+      localStorage.setItem("aqa_coaches", JSON.stringify(coaches));
+    }
+  }, [coaches, mounted]);
+
+  useEffect(() => {
+    if (mounted && assignments.length > 0) {
+      localStorage.setItem("aqa_coach_assignments", JSON.stringify(assignments));
+    }
+  }, [assignments, mounted]);
+
+  useEffect(() => {
+    if (mounted && payouts.length > 0) {
+      localStorage.setItem("aqa_coach_payouts", JSON.stringify(payouts));
+    }
+  }, [payouts, mounted]);
 
   // User account management handlers
   async function createUser(event: FormEvent<HTMLFormElement>) {
