@@ -47,6 +47,7 @@ type EventSession = {
   club?: { id: string; name: string } | null;
   redemptions: Redemption[];
   sessionExpenses: SessionExpense[];
+  waitlists?: Array<{ id: string; position: number; status: string; createdAt?: string; client?: { fullName: string } }>;
 };
 
 type ActivityExpense = {
