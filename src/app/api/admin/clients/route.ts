@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(clients);
   } catch (err: unknown) {
     console.error("GET clients API error:", err);
-    return NextResponse.json({ error: "Failed to fetch clients" }, { status: 500 });
+    const details = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Failed to fetch clients: ${details}` }, { status: 500 });
   }
 }
 

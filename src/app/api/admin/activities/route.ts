@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(activities);
   } catch (err: unknown) {
     console.error("GET activities API error:", err);
-    return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
+    const details = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Failed to fetch activities: ${details}` }, { status: 500 });
   }
 }
 
