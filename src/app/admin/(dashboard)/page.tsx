@@ -38,11 +38,11 @@ export default async function AdminDashboardPage() {
       },
     }),
     prisma.ledgerEntry.aggregate({
-      where: { type: "credit" },
+      where: { type: { in: ["CREDIT", "credit"] } },
       _sum: { delta: true },
     }),
     prisma.ledgerEntry.aggregate({
-      where: { type: "debit" },
+      where: { type: { in: ["DEBIT", "debit"] } },
       _sum: { delta: true },
     }),
     prisma.invoice.aggregate({
@@ -186,11 +186,11 @@ export default async function AdminDashboardPage() {
     creditsUsed: item.creditsUsed,
     redeemedAt: item.redeemedAt.toISOString(),
     client: {
-      id: item.client.id,
-      fullName: item.client.fullName,
+      id: item.client?.id ?? "",
+      fullName: item.client?.fullName ?? "Client",
     },
     activity: {
-      name: item.activity.name,
+      name: item.activity?.name ?? "Activity",
     },
   }));
 

@@ -2,13 +2,23 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { I18nProvider } from "@/lib/i18n";
 
+function getMetadataBase(): URL {
+  try {
+    const raw = process.env.PUBLIC_SITE_URL?.trim();
+    if (raw && (raw.startsWith("http://") || raw.startsWith("https://"))) {
+      return new URL(raw);
+    }
+  } catch {}
+  return new URL("https://aqasports.com");
+}
+
 export const metadata: Metadata = {
   title: {
     default: "AQA Event Card",
     template: "%s · AQA Event Card",
   },
   description: "AQA Sports outdoor activity event card system — balance checking and admin management.",
-  metadataBase: new URL(process.env.PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: getMetadataBase(),
 };
 
 export default function RootLayout({
