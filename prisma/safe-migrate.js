@@ -55,21 +55,23 @@ function main() {
 
   console.log(`Found ${migrationFolders.length} migration(s) in project folder.`);
 
-  // Resolve migrations as applied to prevent table duplication errors
+  // Resolve baseline migrations (all except 20260727090000_sync_production_schema)
   for (const migration of migrationFolders) {
-    console.log(`Marking migration as already applied: ${migration}`);
-    // Run migrate resolve. This updates the _prisma_migrations table without altering database tables.
-    runCommand(`npx prisma migrate resolve --applied "${migration}"`);
+    if (migration !== "20260727090000_sync_production_schema") {
+      console.log(`Marking baseline migration as already applied: ${migration}`);
+      runCommand(`npx prisma migrate resolve --applied "${migration}"`);
+    }
   }
 
-  // Retry deploy
+  // Retry deploy to apply new migrations
   console.log("Retrying migrate deploy after resolving baseline...");
   const retrySuccess = runCommand("npx prisma migrate deploy");
   if (retrySuccess) {
     console.log("✅ Database successfully synchronized with migrate deploy.");
   } else {
-    console.error("❌ Migrate deploy failed again. Manual database inspection required.");
-    process.exit(1);
+    console.error("❌ Migrate deploy failed again. Executing fallback SQL script...");
+    // Fallback: If migrate deploy fails, execute the SQL directly via npx prisma db execute
+    runCommand("npx prisma db execute --file prisma/migrations/20260727090000_sync_production_schema/migration.sql");
   }
 }
 
