@@ -1,5 +1,5 @@
 import { CampaignsRepository } from "./repository";
-import { reportingRepo } from "@/modules/reports/repository";
+import { logAdminAction } from "@/lib/audit";
 import { z } from "zod";
 import { createCampaignSchema, updateCampaignSchema } from "./validators";
 
@@ -31,12 +31,12 @@ export class CampaignsService {
     });
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "CREATE_CAMPAIGN",
-        target: campaign.code,
-        details: `Created campaign promo code ${campaign.code} (${campaign.discountType} - ${campaign.discountValue})`,
-      });
+      await logAdminAction(
+        adminId,
+        "CREATE_CAMPAIGN",
+        campaign.code,
+        `Created campaign promo code ${campaign.code} (${campaign.discountType} - ${campaign.discountValue})`
+      );
     }
 
     return campaign;
@@ -51,12 +51,12 @@ export class CampaignsService {
     });
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "UPDATE_CAMPAIGN",
-        target: updated.code,
-        details: `Updated campaign promo code ${updated.code}`,
-      });
+      await logAdminAction(
+        adminId,
+        "UPDATE_CAMPAIGN",
+        updated.code,
+        `Updated campaign promo code ${updated.code}`
+      );
     }
 
     return updated;
@@ -69,12 +69,12 @@ export class CampaignsService {
     const deleted = await this.repo.delete(id);
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "DELETE_CAMPAIGN",
-        target: existing.code,
-        details: `Deleted campaign promo code ${existing.code}`,
-      });
+      await logAdminAction(
+        adminId,
+        "DELETE_CAMPAIGN",
+        existing.code,
+        `Deleted campaign promo code ${existing.code}`
+      );
     }
 
     return deleted;

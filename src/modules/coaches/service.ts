@@ -1,5 +1,5 @@
 import { CoachesRepository } from "./repository";
-import { reportingRepo } from "@/modules/reports/repository";
+import { logAdminAction } from "@/lib/audit";
 import { z } from "zod";
 import { createCoachSchema, updateCoachSchema } from "./validators";
 
@@ -33,12 +33,12 @@ export class CoachesService {
     });
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "CREATE_COACH",
-        target: coach.name,
-        details: `Created coach ${coach.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "CREATE_COACH",
+        coach.name,
+        `Created coach ${coach.name}`
+      );
     }
 
     return coach;
@@ -50,12 +50,12 @@ export class CoachesService {
     const updated = await this.repo.update(id, validated);
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "UPDATE_COACH",
-        target: updated.name,
-        details: `Updated coach ${updated.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "UPDATE_COACH",
+        updated.name,
+        `Updated coach ${updated.name}`
+      );
     }
 
     return updated;
@@ -68,12 +68,12 @@ export class CoachesService {
     const deleted = await this.repo.delete(id);
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "DELETE_COACH",
-        target: coach.name,
-        details: `Deleted coach ${coach.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "DELETE_COACH",
+        coach.name,
+        `Deleted coach ${coach.name}`
+      );
     }
 
     return deleted;

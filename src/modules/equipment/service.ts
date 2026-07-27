@@ -1,5 +1,5 @@
 import { EquipmentRepository } from "./repository";
-import { reportingRepo } from "@/modules/reports/repository";
+import { logAdminAction } from "@/lib/audit";
 import { z } from "zod";
 import { createEquipmentSchema, updateEquipmentSchema } from "./validators";
 
@@ -35,12 +35,12 @@ export class EquipmentService {
     });
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "CREATE_EQUIPMENT",
-        target: item.name,
-        details: `Created equipment asset ${item.name} (${item.category})`,
-      });
+      await logAdminAction(
+        adminId,
+        "CREATE_EQUIPMENT",
+        item.name,
+        `Created equipment asset ${item.name} (${item.category})`
+      );
     }
 
     return item;
@@ -55,12 +55,12 @@ export class EquipmentService {
     });
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "UPDATE_EQUIPMENT",
-        target: updated.name,
-        details: `Updated equipment asset ${updated.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "UPDATE_EQUIPMENT",
+        updated.name,
+        `Updated equipment asset ${updated.name}`
+      );
     }
 
     return updated;
@@ -73,12 +73,12 @@ export class EquipmentService {
     const deleted = await this.repo.delete(id);
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "DELETE_EQUIPMENT",
-        target: existing.name,
-        details: `Deleted equipment asset ${existing.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "DELETE_EQUIPMENT",
+        existing.name,
+        `Deleted equipment asset ${existing.name}`
+      );
     }
 
     return deleted;

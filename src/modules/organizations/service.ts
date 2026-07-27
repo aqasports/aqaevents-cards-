@@ -1,5 +1,5 @@
 import { OrganizationsRepository } from "./repository";
-import { reportingRepo } from "@/modules/reports/repository";
+import { logAdminAction } from "@/lib/audit";
 import { z } from "zod";
 import { createOrganizationSchema, updateOrganizationSchema } from "./validators";
 
@@ -38,12 +38,12 @@ export class OrganizationsService {
     });
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "CREATE_ORGANIZATION",
-        target: org.name,
-        details: `Created organization ${org.name} (${org.slug})`,
-      });
+      await logAdminAction(
+        adminId,
+        "CREATE_ORGANIZATION",
+        org.name,
+        `Created organization ${org.name} (${org.slug})`
+      );
     }
 
     return org;
@@ -57,12 +57,12 @@ export class OrganizationsService {
     const updated = await this.repo.update(id, validated);
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "UPDATE_ORGANIZATION",
-        target: updated.name,
-        details: `Updated organization ${updated.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "UPDATE_ORGANIZATION",
+        updated.name,
+        `Updated organization ${updated.name}`
+      );
     }
 
     return updated;
@@ -75,12 +75,12 @@ export class OrganizationsService {
     const deleted = await this.repo.delete(id);
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "DELETE_ORGANIZATION",
-        target: existing.name,
-        details: `Deleted organization ${existing.name}`,
-      });
+      await logAdminAction(
+        adminId,
+        "DELETE_ORGANIZATION",
+        existing.name,
+        `Deleted organization ${existing.name}`
+      );
     }
 
     return deleted;

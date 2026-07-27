@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { reportingRepo } from "@/modules/reports/repository";
+import { logAdminAction } from "@/lib/audit";
 import { z } from "zod";
 import { generateSeriesSchema } from "./validators";
 import crypto from "crypto";
@@ -30,12 +30,12 @@ export class EventSeriesService {
     }
 
     if (adminId) {
-      await reportingRepo.createAudit({
-        userId: adminId,
-        action: "GENERATE_EVENT_SERIES",
-        target: seriesId,
-        details: `Generated ${sessions.length} recurring sessions for activity ${validated.activityId}`,
-      });
+      await logAdminAction(
+        adminId,
+        "GENERATE_EVENT_SERIES",
+        seriesId,
+        `Generated ${sessions.length} recurring sessions for activity ${validated.activityId}`
+      );
     }
 
     return { seriesId, sessionsCount: sessions.length, sessions };

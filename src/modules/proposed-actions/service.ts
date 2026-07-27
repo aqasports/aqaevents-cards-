@@ -1,5 +1,5 @@
 import { ProposedActionsRepository } from "./repository";
-import { reportingRepo } from "@/modules/reports/repository";
+import { logAdminAction } from "@/lib/audit";
 import { z } from "zod";
 import { proposeActionSchema } from "./validators";
 
@@ -39,12 +39,12 @@ export class ProposedActionsService {
       executedAt: status === "approved" ? new Date() : null,
     });
 
-    await reportingRepo.createAudit({
-      userId: adminId,
-      action: status === "approved" ? "APPROVE_AI_ACTION" : "REJECT_AI_ACTION",
-      target: proposal.actionType,
-      details: `${status.toUpperCase()} AI proposed action ${proposal.actionType} (${proposalId})`,
-    });
+    await logAdminAction(
+      adminId,
+      status === "approved" ? "APPROVE_AI_ACTION" : "REJECT_AI_ACTION",
+      proposal.actionType,
+      `${status.toUpperCase()} AI proposed action ${proposal.actionType} (${proposalId})`
+    );
 
     return updated;
   }
