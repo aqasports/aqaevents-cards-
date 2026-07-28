@@ -9,6 +9,21 @@
 [functions."keep-alive"]
   schedule = "0 0 * * *"
 
+[functions."scheduled-backup"]
+  schedule = "0 2 * * *"
+
+# ---------------------------------------------------------------------------
+# Staging environment -- auto-deploys from the "staging" branch.
+# DATABASE_URL, DIRECT_URL, NEXTAUTH_URL, NEXTAUTH_SECRET must be set
+# in the Netlify Dashboard scoped to the "Branch deploys" / "staging" context.
+# NEVER point staging DATABASE_URL at the production connection string.
+# ---------------------------------------------------------------------------
+[context.staging]
+  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && npm run build"
+
+[context.staging.environment]
+  NODE_VERSION = "20"
+
 # Prevent CDN and browser caching of admin pages.
 # A cached 200 response could serve production data to a subsequent unauthenticated
 # user on the same device or CDN edge node, even after auth is fixed server-side.
