@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PurchaseRequestsService } from "@/modules/purchase-requests/service";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { getCreditRate } from "@/lib/settings";
+import { logger } from "@/lib/logger";
 
 const purchaseRequestsService = new PurchaseRequestsService();
 
@@ -127,7 +128,7 @@ export async function POST(
     return NextResponse.json(result);
 
   } catch (err: unknown) {
-    console.error("POST public purchase API error:", err);
+    logger.error("POST public purchase API error:", err);
     return NextResponse.json({ error: "Failed to process purchase request" }, { status: 500 });
   }
 }

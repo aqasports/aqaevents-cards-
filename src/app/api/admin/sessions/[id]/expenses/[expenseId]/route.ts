@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { updateSessionExpenseSchema } from "@/modules/activities/validators";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 
@@ -24,7 +25,7 @@ export async function PATCH(
     const result = await activitiesService.updateSessionExpense(expenseId, parsed.data);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("PATCH session expense API error:", err);
+    logger.error("PATCH session expense API error:", err);
     return NextResponse.json({ error: "Failed to update session expense" }, { status: 500 });
   }
 }
@@ -42,7 +43,7 @@ export async function DELETE(
     const result = await activitiesService.deleteSessionExpense(expenseId);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("DELETE session expense API error:", err);
+    logger.error("DELETE session expense API error:", err);
     return NextResponse.json({ error: "Failed to delete session expense" }, { status: 500 });
   }
 }

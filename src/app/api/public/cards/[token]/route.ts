@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CardsService } from "@/modules/cards/service";
 import { checkAndIncrement } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 const cardsService = new CardsService();
 
@@ -29,7 +30,7 @@ export async function GET(
       },
     });
   } catch (err: unknown) {
-    console.error("GET public card API error:", err);
+    logger.error("GET public card API error:", err);
     return NextResponse.json({ error: "Failed to fetch card info" }, { status: 500 });
   }
 }

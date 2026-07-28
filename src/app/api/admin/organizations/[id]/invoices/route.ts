@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getEffectiveCreditRateForClient } from "@/lib/organizations";
 import { logAdminAction } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export async function GET(
 
     return NextResponse.json(invoices);
   } catch (err: unknown) {
-    console.error("GET organization invoices error:", err);
+    logger.error("GET organization invoices error:", err);
     return NextResponse.json(
       { error: "Failed to fetch organization invoices" },
       { status: 500 }
@@ -143,7 +144,7 @@ export async function POST(
 
     return NextResponse.json(invoice, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST organization invoice error:", err);
+    logger.error("POST organization invoice error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Invoice creation failed: ${details}` },

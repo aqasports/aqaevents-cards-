@@ -1,7 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { sendSimulatedNotification, sendNotification } from "./notifications";
 import { prisma } from "./prisma";
+import { logger } from "@/lib/logger";
+
 
 // Mock the prisma module
 vi.mock("./prisma", () => ({
@@ -32,7 +33,7 @@ describe("notifications module", () => {
     const mockCreate = vi.spyOn(prisma.notificationLog, "create");
     mockCreate.mockResolvedValue({} as any);
 
-    const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const loggerInfoSpy = vi.spyOn(logger, "info").mockImplementation(() => {});
 
     await sendSimulatedNotification(
       "client-1",
@@ -53,7 +54,7 @@ describe("notifications module", () => {
       },
     });
 
-    expect(consoleLogSpy).toHaveBeenCalled();
+    expect(loggerInfoSpy).toHaveBeenCalled();
   });
 
   it("should send email via Resend when RESEND_API_KEY is present", async () => {
@@ -129,7 +130,7 @@ describe("notifications module", () => {
     const mockCreate = vi.spyOn(prisma.notificationLog, "create");
     mockCreate.mockRejectedValue(new Error("Database write failed"));
 
-    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const loggerErrorSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
 
     await sendSimulatedNotification(
       "client-1",
@@ -139,6 +140,7 @@ describe("notifications module", () => {
     );
 
     expect(mockCreate).toHaveBeenCalled();
-    expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to process notification delivery/logging:", expect.any(Error));
+    expect(loggerErrorSpy).toHaveBeenCalledWith("Failed to process notification delivery/logging:", expect.any(Error));
   });
 });
+

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { createExpenseSchema } from "@/modules/activities/validators";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 
@@ -13,7 +14,7 @@ export async function GET(_request: NextRequest) {
     const expenses = await activitiesService.getExpenses();
     return NextResponse.json(expenses);
   } catch (err: unknown) {
-    console.error("GET expenses API error:", err);
+    logger.error("GET expenses API error:", err);
     return NextResponse.json({ error: "Failed to retrieve expenses" }, { status: 500 });
   }
 }
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     const expense = await activitiesService.createExpense(parsed.data);
     return NextResponse.json(expense, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST expense API error:", err);
+    logger.error("POST expense API error:", err);
     return NextResponse.json({ error: "Failed to create expense" }, { status: 500 });
   }
 }

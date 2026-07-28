@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generateInvoicePdfBuffer } from "@/lib/invoice-pdf";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ export async function GET(
       },
     });
   } catch (err: unknown) {
-    console.error("GET invoice PDF error:", err);
+    logger.error("GET invoice PDF error:", err);
     return NextResponse.json(
       { error: "Failed to generate invoice PDF" },
       { status: 500 }

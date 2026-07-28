@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { logger } from "@/lib/logger";
 
 export async function logAdminAction(
   userId: string | null,
@@ -18,6 +19,6 @@ export async function logAdminAction(
       },
     });
   } catch (err) {
-    console.error("Failed to write audit log:", err);
+    logger.error("Failed to write audit log:", err);
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET() {
 
     return NextResponse.json(campaigns);
   } catch (err: unknown) {
-    console.error("GET campaign promos error:", err);
+    logger.error("GET campaign promos error:", err);
     return NextResponse.json(
       { error: "Failed to fetch campaign promos" },
       { status: 500 }
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(promo, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST campaign promo error:", err);
+    logger.error("POST campaign promo error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to create promo code: ${details}` },

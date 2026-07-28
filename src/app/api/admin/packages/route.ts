@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { createPackageSchema } from "@/modules/invoices/validators";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -13,7 +14,7 @@ export async function GET() {
     const packages = await billingService.getPackages();
     return NextResponse.json(packages);
   } catch (err: unknown) {
-    console.error("GET packages API error:", err);
+    logger.error("GET packages API error:", err);
     return NextResponse.json({ error: "Failed to fetch packages" }, { status: 500 });
   }
 }
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     const pkg = await billingService.createPackage(parsed.data, session.user.id);
     return NextResponse.json(pkg, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST package API error:", err);
+    logger.error("POST package API error:", err);
     return NextResponse.json({ error: "Failed to create package" }, { status: 500 });
   }
 }

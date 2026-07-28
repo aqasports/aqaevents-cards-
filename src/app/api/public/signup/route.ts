@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { verifyCaptcha } from "@/lib/captcha";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -92,7 +93,7 @@ Desired Credit: Package: ${pkg.name} (${pkg.totalCredits} credits)
 Price: ${pkg.price.toLocaleString("fr-DZ")} DA
 Total money in demand queue: ${totalMoneyQueue.toLocaleString("fr-DZ")} DA.`;
 
-    console.log(`[SIMULATED WHATSAPP MESSAGE SENT]
+    logger.info(`[SIMULATED WHATSAPP MESSAGE SENT]
 To Admin: ${adminPhone}
 Message: ${adminMessage}
 `);
@@ -104,7 +105,7 @@ Message: ${adminMessage}
     }, { status: 201 });
 
   } catch (err: unknown) {
-    console.error("POST public signup API error:", err);
+    logger.error("POST public signup API error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Signup submission failed: ${details}` },

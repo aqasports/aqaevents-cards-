@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ClientsService } from "@/modules/clients/service";
+import { logger } from "@/lib/logger";
 
 const clientsService = new ClientsService();
 
@@ -17,7 +18,7 @@ export async function GET(
     const logs = await clientsService.getNotificationLogs(id);
     return NextResponse.json(logs);
   } catch (err: unknown) {
-    console.error("GET client notifications API error:", err);
+    logger.error("GET client notifications API error:", err);
     return NextResponse.json({ error: "Failed to fetch notification logs" }, { status: 500 });
   }
 }

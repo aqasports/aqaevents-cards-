@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { getCreditRate } from "@/lib/settings";
 import { verifyCaptcha } from "@/lib/captcha";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -122,14 +123,14 @@ Desired Credit: ${creditDetails}
 Price: ${calculatedPrice.toLocaleString("fr-DZ")} DA
 Total money in demand queue: ${totalMoneyQueue.toLocaleString("fr-DZ")} DA.`;
 
-    console.log(`[SIMULATED WHATSAPP MESSAGE SENT]
+    logger.info(`[SIMULATED WHATSAPP MESSAGE SENT]
 To Admin: ${adminPhone}
 Message: ${adminMessage}
 `);
 
     return NextResponse.json(demand, { status: 201, headers: corsHeaders });
   } catch (err: unknown) {
-    console.error("POST public demands API error:", err);
+    logger.error("POST public demands API error:", err);
     return NextResponse.json({ error: "Failed to submit card demand" }, { status: 500, headers: corsHeaders });
   }
 }

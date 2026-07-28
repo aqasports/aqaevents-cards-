@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 // GET /api/admin/sessions/[id]/checkins
 // Admin: fetch all check-ins for a specific session
@@ -48,7 +49,7 @@ export async function GET(
 
     return NextResponse.json(enriched);
   } catch (err) {
-    console.error("GET session checkins error:", err);
+    logger.error("GET session checkins error:", err);
     return NextResponse.json({ error: "Failed to fetch check-ins" }, { status: 500 });
   }
 }

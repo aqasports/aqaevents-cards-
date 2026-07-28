@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { ClientsService } from "@/modules/clients/service";
+import { logger } from "@/lib/logger";
 
 const clientsService = new ClientsService();
 
@@ -17,7 +18,7 @@ export async function POST(
     const result = await clientsService.unarchiveClient(id, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("POST client unarchive API error:", err);
+    logger.error("POST client unarchive API error:", err);
     const message = err instanceof Error ? err.message : "Database error during client restoration.";
     return NextResponse.json({ error: message }, { status: 400 });
   }

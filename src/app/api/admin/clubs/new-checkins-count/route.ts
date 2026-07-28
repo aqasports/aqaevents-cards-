@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ count });
   } catch (err: unknown) {
-    console.error("GET new check-ins count API error:", err);
+    logger.error("GET new check-ins count API error:", err);
     return NextResponse.json({ error: "Failed to fetch count" }, { status: 500 });
   }
 }

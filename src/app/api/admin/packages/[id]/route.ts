@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { updatePackageSchema } from "@/modules/invoices/validators";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -27,7 +28,7 @@ export async function PATCH(
     const pkg = await billingService.updatePackage(id, parsed.data, session.user.id);
     return NextResponse.json(pkg);
   } catch (err: unknown) {
-    console.error("PATCH package API error:", err);
+    logger.error("PATCH package API error:", err);
     return NextResponse.json({ error: "Failed to update package" }, { status: 500 });
   }
 }
@@ -45,7 +46,7 @@ export async function DELETE(
     const pkg = await billingService.deletePackage(id, session.user.id);
     return NextResponse.json(pkg);
   } catch (err: unknown) {
-    console.error("DELETE package API error:", err);
+    logger.error("DELETE package API error:", err);
     return NextResponse.json({ error: "Failed to archive package" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { createSessionSchema } from "@/modules/activities/validators";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     const sessions = await activitiesService.getSessions({ activityId, from, activeOnly });
     return NextResponse.json(sessions);
   } catch (err: unknown) {
-    console.error("GET sessions API error:", err);
+    logger.error("GET sessions API error:", err);
     return NextResponse.json({ error: "Failed to fetch sessions" }, { status: 500 });
   }
 }
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(session, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST session API error:", err);
+    logger.error("POST session API error:", err);
     return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
   }
 }

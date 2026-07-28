@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export async function POST(
       queueItem: updated,
     });
   } catch (err: unknown) {
-    console.error("POST reject AI action error:", err);
+    logger.error("POST reject AI action error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to reject AI action: ${details}` },

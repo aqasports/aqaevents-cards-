@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCreditRate } from "@/lib/settings";
 import { getEffectiveCreditRateForClient } from "@/lib/organizations";
 import { calculateCoachPayout } from "@/lib/coach-payouts";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
       sessions: analyzedSessions,
     });
   } catch (err: unknown) {
-    console.error("GET profitability report error:", err);
+    logger.error("GET profitability report error:", err);
     return NextResponse.json(
       { error: "Failed to generate profitability report" },
       { status: 500 }

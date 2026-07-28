@@ -3,6 +3,7 @@ import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { updateActivitySchema } from "@/modules/activities/validators";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 
@@ -22,7 +23,7 @@ export async function GET(
     }
     return NextResponse.json(activity);
   } catch (err: unknown) {
-    console.error("GET activity details API error:", err);
+    logger.error("GET activity details API error:", err);
     return NextResponse.json({ error: "Failed to fetch activity details" }, { status: 500 });
   }
 }
@@ -78,7 +79,7 @@ export async function PATCH(
     );
     return NextResponse.json(activity);
   } catch (err: unknown) {
-    console.error("PATCH activity API error:", err);
+    logger.error("PATCH activity API error:", err);
     return NextResponse.json({ error: "Failed to update activity" }, { status: 500 });
   }
 }
@@ -96,7 +97,7 @@ export async function DELETE(
     const result = await activitiesService.deleteActivity(id, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("DELETE activity API error:", err);
+    logger.error("DELETE activity API error:", err);
     const message = err instanceof Error ? err.message : "Failed to delete activity.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

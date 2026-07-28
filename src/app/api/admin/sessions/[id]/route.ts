@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { BillingService } from "@/modules/invoices/service";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 const billingService = new BillingService();
@@ -44,7 +45,7 @@ export async function GET(
 
     return NextResponse.json(session);
   } catch (err: unknown) {
-    console.error("GET session details API error:", err);
+    logger.error("GET session details API error:", err);
     return NextResponse.json({ error: "Failed to fetch session details" }, { status: 500 });
   }
 }
@@ -70,7 +71,7 @@ export async function DELETE(
     const result = await activitiesService.deleteSession(id, hard);
     return NextResponse.json(hard ? { deleted: true, session: result } : result);
   } catch (err: unknown) {
-    console.error("DELETE session API error:", err);
+    logger.error("DELETE session API error:", err);
     return NextResponse.json({ error: "Failed to delete session" }, { status: 500 });
   }
 }
@@ -95,7 +96,7 @@ export async function PATCH(
     });
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("PATCH session API error:", err);
+    logger.error("PATCH session API error:", err);
     return NextResponse.json({ error: "Failed to update session" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ export async function GET() {
       byEntity: Array.from(entityMap.values()),
     });
   } catch (err: unknown) {
-    console.error("GET ar-aging report error:", err);
+    logger.error("GET ar-aging report error:", err);
     return NextResponse.json(
       { error: "Failed to generate A/R aging report" },
       { status: 500 }

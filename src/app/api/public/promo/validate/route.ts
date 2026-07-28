@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAndApplyPromoCode } from "@/lib/campaigns";
 import { checkAndIncrement } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       { status: 200, headers: corsHeaders }
     );
   } catch (err: unknown) {
-    console.error("POST public promo validate error:", err);
+    logger.error("POST public promo validate error:", err);
     return NextResponse.json(
       { error: "Failed to validate promo code" },
       { status: 500, headers: corsHeaders }

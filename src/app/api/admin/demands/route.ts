@@ -5,6 +5,7 @@ import { ClientsService } from "@/modules/clients/service";
 import { getEventCardUrl } from "@/lib/tokens";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { eventBus, EVENTS } from "@/lib/events";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 const clientsService = new ClientsService();
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(demands);
   } catch (err: unknown) {
-    console.error("GET admin demands error:", err);
+    logger.error("GET admin demands error:", err);
     return NextResponse.json({ error: "Failed to fetch demands" }, { status: 500 });
   }
 }
@@ -93,7 +94,7 @@ export async function POST(request: NextRequest) {
         });
       }
     } catch (activationErr: any) {
-      console.error("Activation error:", activationErr);
+      logger.error("Activation error:", activationErr);
       return NextResponse.json({ error: activationErr.message || "Failed to activate card and create client" }, { status: 400 });
     }
 
@@ -112,7 +113,7 @@ export async function POST(request: NextRequest) {
       const clientUrl = getEventCardUrl(token);
       const whatsappMsg = `Hello ${demand.name}! Your AQA Card demand has been accepted. Here is the link to view your card balance and history: ${clientUrl}. Card Code: ${normalizedCardCode}.`;
 
-      console.log(`[SIMULATED WHATSAPP MESSAGE SENT]
+      logger.info(`[SIMULATED WHATSAPP MESSAGE SENT]
 To Client: ${demand.phone}
 Message: ${whatsappMsg}
 `);
@@ -128,7 +129,7 @@ Message: ${whatsappMsg}
 
     return NextResponse.json(updatedDemand);
   } catch (err: unknown) {
-    console.error("POST process demand error:", err);
+    logger.error("POST process demand error:", err);
     return NextResponse.json({ error: "Failed to process demand" }, { status: 500 });
   }
 }

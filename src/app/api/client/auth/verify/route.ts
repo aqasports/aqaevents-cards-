@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMagicPin } from "@/lib/client-auth";
 import { getClientEffectiveBalance } from "@/lib/organizations";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (err: unknown) {
-    console.error("POST client auth verify error:", err);
+    logger.error("POST client auth verify error:", err);
     return NextResponse.json(
       { error: "Failed to verify PIN" },
       { status: 500 }

@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth-options";
 import { prisma } from "./prisma";
+import { logger } from "@/lib/logger";
 
 export async function requireAdminSession() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
-      console.warn("[api-auth] No session or user id found. NEXTAUTH_URL:", process.env.NEXTAUTH_URL ?? "(not set)");
+      logger.warn("[api-auth] No session or user id found. NEXTAUTH_URL:", process.env.NEXTAUTH_URL ?? "(not set)");
       return { session: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
     }
 
@@ -20,7 +21,7 @@ export async function requireAdminSession() {
         select: { id: true },
       });
     } catch (dbErr) {
-      console.error("[api-auth] Database error verifying user:", dbErr);
+      logger.error("[api-auth] Database error verifying user:", dbErr);
       return {
         session: null,
         error: NextResponse.json(
@@ -42,7 +43,7 @@ export async function requireAdminSession() {
 
     return { session, error: null };
   } catch (err) {
-    console.error("[api-auth] Unexpected error in requireAdminSession:", err);
+    logger.error("[api-auth] Unexpected error in requireAdminSession:", err);
     return {
       session: null,
       error: NextResponse.json(

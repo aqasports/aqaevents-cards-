@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { verifyCaptcha } from "@/lib/captcha";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(proposal, { status: 201, headers: corsHeaders });
   } catch (err: unknown) {
-    console.error("POST public proposals API error:", err);
+    logger.error("POST public proposals API error:", err);
     return NextResponse.json({ error: "Failed to submit proposal" }, { status: 500, headers: corsHeaders });
   }
 }

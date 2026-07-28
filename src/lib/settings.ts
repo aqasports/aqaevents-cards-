@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 const DEFAULT_CREDIT_RATE = 1900;
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
@@ -36,7 +37,7 @@ export async function getCreditRate(tx?: any): Promise<number> {
       }
     }
   } catch (err) {
-    console.error("Failed to fetch credit_rate_da from PlatformSetting:", err);
+    logger.error("Failed to fetch credit_rate_da from PlatformSetting:", err);
   }
 
   return DEFAULT_CREDIT_RATE;

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCreditRate } from "@/lib/settings";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET() {
       },
     });
   } catch (err: unknown) {
-    console.error("GET public packages API error:", err);
+    logger.error("GET public packages API error:", err);
     return NextResponse.json({ error: "Failed to fetch packages" }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generateClubTerminalToken } from "@/lib/tokens";
 import { z } from "zod";
+import { logger } from "@/lib/logger";
 
 const createClubSchema = z.object({
   name: z.string().min(2),
@@ -28,7 +29,7 @@ export async function GET() {
     });
     return NextResponse.json(clubs);
   } catch (err) {
-    console.error("GET clubs error:", err);
+    logger.error("GET clubs error:", err);
     return NextResponse.json({ error: "Failed to fetch clubs" }, { status: 500 });
   }
 }
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(club, { status: 201 });
   } catch (err) {
-    console.error("POST club error:", err);
+    logger.error("POST club error:", err);
     return NextResponse.json({ error: "Failed to create club" }, { status: 500 });
   }
 }

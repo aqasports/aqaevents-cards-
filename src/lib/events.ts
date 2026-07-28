@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 export class AsyncEventEmitter {
   private listenersMap = new Map<string, Function[]>();
 
@@ -13,7 +14,7 @@ export class AsyncEventEmitter {
       try {
         await listener(payload);
       } catch (err) {
-        console.error(`Error in listener for event ${event}:`, err);
+        logger.error(`Error in listener for event ${event}:`, err);
         throw err; // Rethrow to allow transaction rollback if needed
       }
     }

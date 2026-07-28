@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { createSessionExpenseSchema } from "@/modules/activities/validators";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 
@@ -18,7 +19,7 @@ export async function GET(
     const expenses = await activitiesService.getSessionExpenses(id);
     return NextResponse.json(expenses);
   } catch (err: unknown) {
-    console.error("GET session expenses API error:", err);
+    logger.error("GET session expenses API error:", err);
     return NextResponse.json({ error: "Failed to fetch session expenses" }, { status: 500 });
   }
 }
@@ -47,7 +48,7 @@ export async function POST(
     });
     return NextResponse.json(sessionExpense, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST session expense API error:", err);
+    logger.error("POST session expense API error:", err);
     return NextResponse.json({ error: "Failed to add session expense" }, { status: 500 });
   }
 }

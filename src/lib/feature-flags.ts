@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 // Add one entry here to expose a new flag in the admin UI and via getFlag().
@@ -64,7 +65,7 @@ export async function getFlag(key: string, defaultValue = false): Promise<boolea
       return parseBoolean(setting.value);
     }
   } catch (err) {
-    console.error(`[feature-flags] Failed to read flag "${key}":`, err);
+    logger.error(`[feature-flags] Failed to read flag "${key}":`, err);
   }
 
   return defaultValue;
@@ -76,7 +77,7 @@ export async function getFlag(key: string, defaultValue = false): Promise<boolea
  */
 export async function setFlag(key: string, value: boolean): Promise<void> {
   if (!REGISTRY_KEYS.has(key)) {
-    console.warn(`[feature-flags] Attempted to set unknown flag "${key}". Ignoring.`);
+    logger.warn(`[feature-flags] Attempted to set unknown flag "${key}". Ignoring.`);
     return;
   }
 

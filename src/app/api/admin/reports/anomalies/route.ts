@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { detectBusinessAnomalies } from "@/lib/anomaly-detector";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export async function GET() {
       anomalies,
     });
   } catch (err: unknown) {
-    console.error("GET business anomalies report error:", err);
+    logger.error("GET business anomalies report error:", err);
     return NextResponse.json(
       { error: "Failed to run anomaly detection" },
       { status: 500 }

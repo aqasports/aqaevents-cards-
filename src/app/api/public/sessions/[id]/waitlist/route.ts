@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { sendSimulatedNotification } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,7 @@ export async function POST(
       { status: 201, headers: corsHeaders }
     );
   } catch (err: unknown) {
-    console.error("POST public session waitlist error:", err);
+    logger.error("POST public session waitlist error:", err);
     return NextResponse.json(
       { error: "Failed to join session waitlist" },
       { status: 500, headers: corsHeaders }

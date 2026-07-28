@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMagicPin } from "@/lib/client-auth";
 import { checkAndIncrement } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
       message: "If an account exists, a verification PIN has been sent via SMS/Email.",
     });
   } catch (err: unknown) {
-    console.error("POST magic-link error:", err);
+    logger.error("POST magic-link error:", err);
     return NextResponse.json(
       { error: "Failed to generate verification PIN" },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function GET(
 
     return NextResponse.json(asset);
   } catch (err: unknown) {
-    console.error("GET equipment asset error:", err);
+    logger.error("GET equipment asset error:", err);
     return NextResponse.json({ error: "Failed to fetch equipment asset" }, { status: 500 });
   }
 }
@@ -100,7 +101,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedAsset);
   } catch (err: unknown) {
-    console.error("PATCH equipment asset error:", err);
+    logger.error("PATCH equipment asset error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to update equipment asset: ${details}` },
@@ -127,7 +128,7 @@ export async function DELETE(
     await prisma.equipmentAsset.delete({ where: { id } });
     return NextResponse.json({ success: true, message: "Equipment asset deleted" });
   } catch (err: unknown) {
-    console.error("DELETE equipment asset error:", err);
+    logger.error("DELETE equipment asset error:", err);
     return NextResponse.json({ error: "Failed to delete equipment asset" }, { status: 500 });
   }
 }

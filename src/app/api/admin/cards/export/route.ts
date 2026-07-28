@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { CardsService } from "@/modules/cards/service";
+import { logger } from "@/lib/logger";
 
 const cardsService = new CardsService();
 
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     const items = await cardsService.exportCardsWithQrs({ clientIds, qrSize, mode });
     return NextResponse.json({ items, generatedAt: new Date().toISOString() });
   } catch (err: unknown) {
-    console.error("POST cards export API error:", err);
+    logger.error("POST cards export API error:", err);
     return NextResponse.json({ error: "Failed to export cards" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { CardsService } from "@/modules/cards/service";
+import { logger } from "@/lib/logger";
 
 const cardsService = new CardsService();
 
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     }
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("GET card lookup API error:", err);
+    logger.error("GET card lookup API error:", err);
     return NextResponse.json({ error: "Failed to perform card lookup" }, { status: 500 });
   }
 }

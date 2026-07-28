@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { sendSimulatedNotification } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,7 @@ export async function POST(
       waitlist: updated,
     });
   } catch (err: unknown) {
-    console.error("POST admin session promote error:", err);
+    logger.error("POST admin session promote error:", err);
     return NextResponse.json(
       { error: "Failed to promote waitlist client" },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generateCardCode, generatePublicToken } from "@/lib/tokens";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -173,7 +174,7 @@ export async function POST(
 
     return NextResponse.json(result, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST provision error:", err);
+    logger.error("POST provision error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Provisioning failed: ${details}` },

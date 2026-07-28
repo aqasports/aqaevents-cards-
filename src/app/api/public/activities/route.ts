@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET() {
       },
     });
   } catch (err: unknown) {
-    console.error("GET public activities API error:", err);
+    logger.error("GET public activities API error:", err);
     return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
   }
 }

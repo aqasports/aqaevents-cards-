@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { logger } from "@/lib/logger";
 
 const updateClubSchema = z.object({
   name: z.string().min(2).optional(),
@@ -42,7 +43,7 @@ export async function GET(
 
     return NextResponse.json(club);
   } catch (err) {
-    console.error("GET club error:", err);
+    logger.error("GET club error:", err);
     return NextResponse.json({ error: "Failed to fetch club" }, { status: 500 });
   }
 }
@@ -75,7 +76,7 @@ export async function PATCH(
     });
     return NextResponse.json(club);
   } catch (err) {
-    console.error("PATCH club error:", err);
+    logger.error("PATCH club error:", err);
     return NextResponse.json({ error: "Failed to update club" }, { status: 500 });
   }
 }
@@ -111,7 +112,7 @@ export async function DELETE(
     await prisma.club.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("DELETE club error:", err);
+    logger.error("DELETE club error:", err);
     return NextResponse.json({ error: "Failed to delete club" }, { status: 500 });
   }
 }

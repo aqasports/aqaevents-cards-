@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -17,7 +18,7 @@ export async function DELETE(
     const result = await billingService.deleteRedemption(id, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("DELETE redemption API error:", err);
+    logger.error("DELETE redemption API error:", err);
     const message = err instanceof Error ? err.message : "Failed to delete redemption.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { ActivitiesService } from "@/modules/activities/service";
 import { updateExpenseSchema } from "@/modules/activities/validators";
+import { logger } from "@/lib/logger";
 
 const activitiesService = new ActivitiesService();
 
@@ -31,7 +32,7 @@ export async function PATCH(
     const updated = await activitiesService.updateExpense(id, updateData);
     return NextResponse.json(updated);
   } catch (err: unknown) {
-    console.error("PATCH expense API error:", err);
+    logger.error("PATCH expense API error:", err);
     return NextResponse.json({ error: "Failed to update expense" }, { status: 500 });
   }
 }
@@ -49,7 +50,7 @@ export async function DELETE(
     const result = await activitiesService.deleteExpense(id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("DELETE expense API error:", err);
+    logger.error("DELETE expense API error:", err);
     const message = err instanceof Error ? err.message : "Failed to delete expense.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

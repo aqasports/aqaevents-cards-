@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,7 +100,7 @@ export async function POST(request: NextRequest) {
 
       if (!uploadRes.ok) {
         const errorText = await uploadRes.text();
-        console.error("[ERROR] Failed to upload backup to Supabase", errorText);
+        logger.error("[ERROR] Failed to upload backup to Supabase", errorText);
       } else {
         uploaded = true;
         uploadPath = `db-backups/${filename}`;
@@ -142,11 +143,11 @@ export async function POST(request: NextRequest) {
           if (deleteRes.ok) {
             deletedCount = toDelete.length;
           } else {
-            console.error("[WARN] Failed to delete old backups", await deleteRes.text());
+            logger.error("[WARN] Failed to delete old backups", await deleteRes.text());
           }
         }
       } else {
-        console.error("[WARN] Failed to list backups for rotation", await listRes.text());
+        logger.error("[WARN] Failed to list backups for rotation", await listRes.text());
       }
     }
 
@@ -158,7 +159,7 @@ export async function POST(request: NextRequest) {
       deletedCount
     });
   } catch (error) {
-    console.error("[ERROR] Backup endpoint failed:", error);
+    logger.error("[ERROR] Backup endpoint failed:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

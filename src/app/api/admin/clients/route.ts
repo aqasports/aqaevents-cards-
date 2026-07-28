@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ClientsService } from "@/modules/clients/service";
 import { createClientSchema } from "@/modules/clients/validators";
+import { logger } from "@/lib/logger";
 
 const clientsService = new ClientsService();
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const clients = await clientsService.getClients(search, limit, archived);
     return NextResponse.json(clients);
   } catch (err: unknown) {
-    console.error("GET clients API error:", err);
+    logger.error("GET clients API error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Failed to fetch clients: ${details}` }, { status: 500 });
   }
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
     const client = await clientsService.createClient(parsed.data, session.user.id);
     return NextResponse.json(client, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST client API error:", err);
+    logger.error("POST client API error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ReportingService } from "@/modules/reports/service";
+import { logger } from "@/lib/logger";
 
 const reportingService = new ReportingService();
 
@@ -12,7 +13,7 @@ export async function GET() {
     const analytics = await reportingService.getAnalytics();
     return NextResponse.json(analytics);
   } catch (err: unknown) {
-    console.error("GET reports analytics API error:", err);
+    logger.error("GET reports analytics API error:", err);
     return NextResponse.json({ error: "Failed to fetch analytics" }, { status: 500 });
   }
 }

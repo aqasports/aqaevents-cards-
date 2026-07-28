@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedDemand);
   } catch (err: unknown) {
-    console.error("PATCH demand error:", err);
+    logger.error("PATCH demand error:", err);
     return NextResponse.json({ error: "Failed to update demand" }, { status: 500 });
   }
 }
@@ -65,7 +66,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    console.error("DELETE demand error:", err);
+    logger.error("DELETE demand error:", err);
     return NextResponse.json({ error: "Failed to delete demand" }, { status: 500 });
   }
 }

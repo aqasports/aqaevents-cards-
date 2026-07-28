@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { generateInvoicePdfBuffer } from "@/lib/invoice-pdf";
 import { sendSimulatedNotification } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export async function POST(
       invoiceCode: invoice.invoiceCode,
     });
   } catch (err: unknown) {
-    console.error("POST email invoice PDF error:", err);
+    logger.error("POST email invoice PDF error:", err);
     return NextResponse.json(
       { error: "Failed to email invoice PDF" },
       { status: 500 }

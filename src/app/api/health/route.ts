@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export async function GET() {
       cleanedRateLimitBuckets: cleaned.count,
     });
   } catch (error: any) {
-    console.error("Health check failed:", error);
+    logger.error("Health check failed:", error);
     return NextResponse.json(
       { status: "unhealthy", error: error.message || String(error) },
       { status: 500 }

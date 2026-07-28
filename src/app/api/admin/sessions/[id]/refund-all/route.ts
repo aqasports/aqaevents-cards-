@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -17,7 +18,7 @@ export async function POST(
     const result = await billingService.bulkRefundSession(sessionId, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("POST bulk refund API error:", err);
+    logger.error("POST bulk refund API error:", err);
     const message = err instanceof Error ? err.message : "Failed to bulk refund session.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

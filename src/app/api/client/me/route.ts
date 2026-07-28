@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireClientSession } from "@/lib/client-auth";
 import { prisma } from "@/lib/prisma";
 import { getClientEffectiveBalance } from "@/lib/organizations";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
       redemptions: fullClient.redemptions,
     });
   } catch (err: unknown) {
-    console.error("GET client/me error:", err);
+    logger.error("GET client/me error:", err);
     return NextResponse.json(
       { error: "Failed to fetch client profile" },
       { status: 500 }

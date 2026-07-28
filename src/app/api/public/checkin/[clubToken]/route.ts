@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getClientBalance } from "@/lib/balance";
 import { checkAndIncrement } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
 
 const checkInSchema = z.object({
   scannedValue: z.string().min(1),
@@ -109,7 +110,7 @@ export async function GET(
       })),
     });
   } catch (err) {
-    console.error("GET public check-in info error:", err);
+    logger.error("GET public check-in info error:", err);
     return NextResponse.json({ error: "Failed to fetch terminal info" }, { status: 500 });
   }
 }
@@ -295,7 +296,7 @@ export async function POST(
       checkedInAt: checkIn.scannedAt.toISOString(),
     });
   } catch (err) {
-    console.error("POST public check-in error:", err);
+    logger.error("POST public check-in error:", err);
     return NextResponse.json({ error: "Server error during check-in" }, { status: 500 });
   }
 }

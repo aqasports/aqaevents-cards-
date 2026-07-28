@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(proposals);
   } catch (err: unknown) {
-    console.error("GET admin proposals error:", err);
+    logger.error("GET admin proposals error:", err);
     return NextResponse.json({ error: "Failed to fetch proposals" }, { status: 500 });
   }
 }

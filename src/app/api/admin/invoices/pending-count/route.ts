@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdminSession } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export async function GET() {
   const { error } = await requireAdminSession();
@@ -36,7 +37,7 @@ export async function GET() {
 
     return NextResponse.json({ count: pendingCount });
   } catch (err: unknown) {
-    console.error("GET pending-count API error:", err);
+    logger.error("GET pending-count API error:", err);
     return NextResponse.json({ error: "Failed to fetch pending count" }, { status: 500 });
   }
 }

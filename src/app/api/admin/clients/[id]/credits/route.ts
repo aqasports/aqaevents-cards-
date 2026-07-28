@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { addCreditsSchema } from "@/modules/invoices/validators";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -33,7 +34,7 @@ export async function POST(
     const result = await billingService.rechargeCredits(clientId, parsed.data, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("POST client credits recharge API error:", err);
+    logger.error("POST client credits recharge API error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       {

@@ -1,13 +1,14 @@
 import { prisma, isSqlite } from "@/lib/prisma";
 import { getClientBalance } from "@/lib/balance";
-import { sendSimulatedNotification } from "@/lib/notifications";
 import { syncClientCRM } from "@/lib/crm";
+
 import { BillingRepository } from "./repository";
 import { ClientsRepository } from "../clients/repository";
 import { ReportingRepository } from "../reports/repository";
 import { Prisma } from "@prisma/client";
 import { eventBus, EVENTS } from "@/lib/events";
 import { getCreditRate } from "@/lib/settings";
+import { logger } from "@/lib/logger";
 
 
 export class BillingService {
@@ -161,7 +162,7 @@ export class BillingService {
 
       if (result.postCommitActions) {
         for (const action of result.postCommitActions) {
-          await action().catch((e: any) => console.error("Post-commit action error:", e));
+          await action().catch((e: any) => logger.error("Post-commit action error:", e));
         }
       }
 
@@ -695,7 +696,7 @@ export class BillingService {
 
     if (result.postCommitActions) {
       for (const action of result.postCommitActions) {
-        await action().catch((e: any) => console.error("Post-commit action error:", e));
+        await action().catch((e: any) => logger.error("Post-commit action error:", e));
       }
     }
 
@@ -911,7 +912,7 @@ export class BillingService {
 
     if (result.postCommitActions) {
       for (const action of result.postCommitActions) {
-        await action().catch((e: any) => console.error("Post-commit action error:", e));
+        await action().catch((e: any) => logger.error("Post-commit action error:", e));
       }
     }
 
@@ -951,7 +952,7 @@ export class BillingService {
 
     if (result.postCommitActions) {
       for (const action of result.postCommitActions) {
-        await action().catch((e: any) => console.error("Post-commit action error:", e));
+        await action().catch((e: any) => logger.error("Post-commit action error:", e));
       }
     }
 
@@ -995,7 +996,7 @@ export class BillingService {
 
       if (result.postCommitActions) {
         for (const action of result.postCommitActions) {
-          await action().catch((e: any) => console.error("Post-commit action error:", e));
+          await action().catch((e: any) => logger.error("Post-commit action error:", e));
         }
       }
 

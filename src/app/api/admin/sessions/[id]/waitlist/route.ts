@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export async function GET(
 
     return NextResponse.json(waitlists);
   } catch (err: unknown) {
-    console.error("GET admin session waitlist error:", err);
+    logger.error("GET admin session waitlist error:", err);
     return NextResponse.json(
       { error: "Failed to fetch session waitlist" },
       { status: 500 }

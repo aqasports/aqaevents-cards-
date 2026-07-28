@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { updateInvoiceSchema } from "@/modules/invoices/validators";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -21,7 +22,7 @@ export async function GET(
     }
     return NextResponse.json(invoice);
   } catch (err: unknown) {
-    console.error("GET invoice API error:", err);
+    logger.error("GET invoice API error:", err);
     return NextResponse.json({ error: "Failed to fetch invoice" }, { status: 500 });
   }
 }
@@ -45,7 +46,7 @@ export async function PATCH(
     const result = await billingService.updateInvoiceWithCredits(id, parsed.data, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("PATCH invoice API error:", err);
+    logger.error("PATCH invoice API error:", err);
     return NextResponse.json({ error: "Failed to update invoice" }, { status: 500 });
   }
 }
@@ -63,7 +64,7 @@ export async function DELETE(
     const result = await billingService.deleteInvoice(id, session.user.id);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("DELETE invoice API error:", err);
+    logger.error("DELETE invoice API error:", err);
     return NextResponse.json({ error: "Failed to delete invoice" }, { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export async function checkAndIncrement(
   key: string,
@@ -88,7 +89,7 @@ export async function checkAndIncrement(
     }
     return await execute(prisma);
   } catch (err) {
-    console.error("Rate limit bucket check error:", err);
+    logger.error("Rate limit bucket check error:", err);
     return { limited: false };
   }
 }

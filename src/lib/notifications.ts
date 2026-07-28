@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { logger } from "@/lib/logger";
 
 export async function sendNotification(
   clientId: string,
@@ -27,7 +28,7 @@ export async function sendNotification(
       });
       if (!res.ok) {
         deliveryStatus = "failed";
-        console.error("Resend notification failed with status:", res.status);
+        logger.error("Resend notification failed with status:", res.status);
       }
     } else if (
       type === "sms" &&
@@ -54,11 +55,11 @@ export async function sendNotification(
       });
       if (!res.ok) {
         deliveryStatus = "failed";
-        console.error("Twilio SMS notification failed with status:", res.status);
+        logger.error("Twilio SMS notification failed with status:", res.status);
       }
     } else {
       // Fall back to console.log simulation if env vars are missing
-      console.log(
+      logger.info(
         `[SIMULATED NOTIFICATION SENT]
 Type: ${type.toUpperCase()}
 Recipient: ${recipient}
@@ -78,7 +79,7 @@ ${subject ? `Subject: ${subject}\n` : ""}Message: ${message}
       },
     });
   } catch (err) {
-    console.error("Failed to process notification delivery/logging:", err);
+    logger.error("Failed to process notification delivery/logging:", err);
   }
 }
 

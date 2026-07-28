@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export async function GET(
   request: NextRequest,
@@ -48,7 +49,7 @@ export async function GET(
 
     return NextResponse.json(checkIns);
   } catch (err) {
-    console.error("GET club check-ins error:", err);
+    logger.error("GET club check-ins error:", err);
     return NextResponse.json({ error: "Failed to fetch club check-ins" }, { status: 500 });
   }
 }

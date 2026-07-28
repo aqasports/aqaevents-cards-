@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function verifyCaptcha(
   token: string | undefined | null,
@@ -48,7 +49,7 @@ export async function verifyCaptcha(
       error: data["error-codes"]?.[0] || "CAPTCHA_VERIFICATION_FAILED",
     };
   } catch (err: any) {
-    console.error("Captcha verification error:", err);
+    logger.error("Captcha verification error:", err);
     return { success: false, error: "CAPTCHA_VERIFICATION_ERROR" };
   }
 }

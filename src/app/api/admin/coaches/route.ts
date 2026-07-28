@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export async function GET() {
 
     return NextResponse.json(coaches);
   } catch (err: unknown) {
-    console.error("GET coaches error:", err);
+    logger.error("GET coaches error:", err);
     return NextResponse.json({ error: "Failed to fetch coaches" }, { status: 500 });
   }
 }
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(coach, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST coach error:", err);
+    logger.error("POST coach error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to create coach: ${details}` },

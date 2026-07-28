@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ProductsService } from "@/modules/invoices/service";
 import { updateProductSchema } from "@/modules/invoices/validators";
+import { logger } from "@/lib/logger";
 
 const productsService = new ProductsService();
 
@@ -28,7 +29,7 @@ export async function PATCH(
     const product = await productsService.updateProduct(id, parsed.data, session.user.id);
     return NextResponse.json(product);
   } catch (err: unknown) {
-    console.error("PATCH product API error:", err);
+    logger.error("PATCH product API error:", err);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });
   }
 }
@@ -46,7 +47,7 @@ export async function DELETE(
     const product = await productsService.deleteProduct(id, session.user.id);
     return NextResponse.json(product);
   } catch (err: unknown) {
-    console.error("DELETE product API error:", err);
+    logger.error("DELETE product API error:", err);
     return NextResponse.json({ error: "Failed to archive product" }, { status: 500 });
   }
 }

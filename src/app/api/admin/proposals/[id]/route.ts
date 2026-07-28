@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedProposal);
   } catch (err: unknown) {
-    console.error("PATCH proposal error:", err);
+    logger.error("PATCH proposal error:", err);
     return NextResponse.json({ error: "Failed to update proposal" }, { status: 500 });
   }
 }
@@ -65,7 +66,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    console.error("DELETE proposal error:", err);
+    logger.error("DELETE proposal error:", err);
     return NextResponse.json({ error: "Failed to delete proposal" }, { status: 500 });
   }
 }

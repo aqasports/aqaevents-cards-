@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export async function GET(
 
     return NextResponse.json(coach);
   } catch (err: unknown) {
-    console.error("GET coach error:", err);
+    logger.error("GET coach error:", err);
     return NextResponse.json({ error: "Failed to fetch coach" }, { status: 500 });
   }
 }
@@ -88,7 +89,7 @@ export async function PATCH(
 
     return NextResponse.json(updatedCoach);
   } catch (err: unknown) {
-    console.error("PATCH coach error:", err);
+    logger.error("PATCH coach error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Failed to update coach: ${details}` },
@@ -115,7 +116,7 @@ export async function DELETE(
     await prisma.coach.delete({ where: { id } });
     return NextResponse.json({ success: true, message: "Coach deleted" });
   } catch (err: unknown) {
-    console.error("DELETE coach error:", err);
+    logger.error("DELETE coach error:", err);
     return NextResponse.json({ error: "Failed to delete coach" }, { status: 500 });
   }
 }

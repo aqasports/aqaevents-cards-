@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { ClientsService } from "@/modules/clients/service";
+import { logger } from "@/lib/logger";
 
 const clientsService = new ClientsService();
 
@@ -27,7 +28,7 @@ export async function POST(
     const card = await clientsService.reissueCard(clientId, newCardCode, session.user.id);
     return NextResponse.json(card);
   } catch (err: unknown) {
-    console.error("POST reissue-card API error:", err);
+    logger.error("POST reissue-card API error:", err);
     const message = err instanceof Error ? err.message : "Failed to reissue card.";
     return NextResponse.json({ error: message }, { status: 400 });
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSuperAdminSession } from "@/lib/api-auth";
 import { AI_TOOL_REGISTRY } from "@/lib/ai-tools";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       result,
     });
   } catch (err: unknown) {
-    console.error("POST AI query error:", err);
+    logger.error("POST AI query error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `AI Tool Execution Failed: ${details}` },

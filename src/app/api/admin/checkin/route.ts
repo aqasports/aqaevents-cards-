@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { BillingService } from "@/modules/invoices/service";
 import { z } from "zod";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
       redemption: result.redemption,
     });
   } catch (err: unknown) {
-    console.error("POST master check-in error:", err);
+    logger.error("POST master check-in error:", err);
     if (err instanceof Error) {
       if (err.message === "INSUFFICIENT_BALANCE") {
         return NextResponse.json({ error: "Insufficient client balance." }, { status: 400 });

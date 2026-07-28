@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { createInvoiceSchema } from "@/modules/invoices/validators";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
     const result = await billingService.getInvoicesWithStats(search, status);
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("GET invoices API error:", err);
+    logger.error("GET invoices API error:", err);
     return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });
   }
 }
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
     const result = await billingService.createInvoiceWithCredits(parsed.data, session.user.id);
     return NextResponse.json(result, { status: 201 });
   } catch (err: unknown) {
-    console.error("POST invoice API error:", err);
+    logger.error("POST invoice API error:", err);
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       {

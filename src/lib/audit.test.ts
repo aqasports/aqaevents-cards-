@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { logAdminAction } from "./audit";
 import { prisma } from "./prisma";
+import { logger } from "@/lib/logger";
+
 
 // Mock the prisma module
 vi.mock("./prisma", () => ({
@@ -37,13 +39,14 @@ describe("logAdminAction", () => {
     const mockCreate = vi.spyOn(prisma.auditLog, "create");
     mockCreate.mockRejectedValue(new Error("Database error"));
 
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const loggerSpy = vi.spyOn(logger, "error").mockImplementation(() => {});
 
     await logAdminAction("user-1", "RESET_DATA", "all");
 
     expect(mockCreate).toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith("Failed to write audit log:", expect.any(Error));
+    expect(loggerSpy).toHaveBeenCalledWith("Failed to write audit log:", expect.any(Error));
 
-    consoleSpy.mockRestore();
+    loggerSpy.mockRestore();
   });
 });
+

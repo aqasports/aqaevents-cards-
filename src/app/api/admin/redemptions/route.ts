@@ -4,6 +4,7 @@ import { BillingService } from "@/modules/invoices/service";
 import { redeemSchema } from "@/modules/invoices/validators";
 import { getClientBalance } from "@/lib/balance";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 const billingService = new BillingService();
 
@@ -15,7 +16,7 @@ export async function GET() {
     const redemptions = await billingService.getRedemptions();
     return NextResponse.json(redemptions);
   } catch (err: unknown) {
-    console.error("GET redemptions API error:", err);
+    logger.error("GET redemptions API error:", err);
     return NextResponse.json({ error: "Failed to fetch redemptions" }, { status: 500 });
   }
 }
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
     );
     return NextResponse.json(result);
   } catch (err: unknown) {
-    console.error("POST redemption API error:", err);
+    logger.error("POST redemption API error:", err);
 
     if (err instanceof Error) {
       if (err.message === "ACTIVITY_NOT_FOUND") {
