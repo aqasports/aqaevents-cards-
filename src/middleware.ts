@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+// ── API contract version ──────────────────────────────────────────────────────
+// Bump this constant when a breaking change is introduced to any existing
+// endpoint's request or response shape. Clients can read this header and
+// surface a "please update your app" warning instead of failing silently.
+export const API_CONTRACT_VERSION = "1";
+
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   let result = 0;
@@ -31,7 +37,10 @@ export async function middleware(request: NextRequest) {
       );
       return new NextResponse("Server misconfiguration: authentication secret is missing.", {
         status: 500,
-        headers: { "cache-control": "no-store, max-age=0" },
+        headers: {
+          "cache-control": "no-store, max-age=0",
+          "X-API-Contract-Version": API_CONTRACT_VERSION,
+        },
       });
     }
 
@@ -128,6 +137,7 @@ export async function middleware(request: NextRequest) {
             headers: {
               "content-type": "text/html",
               "cache-control": "no-store, max-age=0",
+              "X-API-Contract-Version": API_CONTRACT_VERSION,
             },
           }
         );
@@ -135,7 +145,9 @@ export async function middleware(request: NextRequest) {
     }
 
     if (pathname === "/admin/login") {
-      return NextResponse.next();
+      const res = NextResponse.next();
+      res.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
+      return res;
     }
 
     const token = await getToken({
@@ -146,11 +158,15 @@ export async function middleware(request: NextRequest) {
     if (!token) {
       const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(loginUrl);
+      const redirectRes = NextResponse.redirect(loginUrl);
+      redirectRes.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
+      return redirectRes;
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
+  return response;
 }
 
 export const config = {

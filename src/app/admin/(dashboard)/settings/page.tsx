@@ -12,11 +12,18 @@ export default function SettingsPage() {
 
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<"account" | "audit">("account");
+  const [activeTab, setActiveTab] = useState<"account" | "audit" | "flags">("account");
 
   const [creditRateInput, setCreditRateInput] = useState("1900");
   const [savingRate, setSavingRate] = useState(false);
   const [rateMessage, setRateMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+
+  type FlagEntry = { key: string; description: string; value: boolean; default: boolean };
+  const [flags, setFlags] = useState<FlagEntry[]>([]);
+  const [loadingFlags, setLoadingFlags] = useState(false);
+  const [flagsError, setFlagsError] = useState("");
+  const [togglingFlag, setTogglingFlag] = useState<string | null>(null);
+  const [flagMessage, setFlagMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
 
   useEffect(() => {
     if (isSuperAdmin) {
@@ -63,6 +70,54 @@ export default function SettingsPage() {
       fetchLogs();
     }
   }, [activeTab, isSuperAdmin]);
+
+  const fetchFlags = async () => {
+    setLoadingFlags(true);
+    setFlagsError("");
+    try {
+      const res = await fetch("/api/admin/settings/flags");
+      if (res.ok) {
+        const data = await res.json();
+        setFlags(data.flags ?? []);
+      } else {
+        const data = await res.json();
+        setFlagsError(data.error ?? "Failed to load feature flags.");
+      }
+    } catch {
+      setFlagsError("Network error. Failed to load feature flags.");
+    } finally {
+      setLoadingFlags(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "flags" && isSuperAdmin) {
+      fetchFlags();
+    }
+  }, [activeTab, isSuperAdmin]);
+
+  const toggleFlag = async (key: string, newValue: boolean) => {
+    setTogglingFlag(key);
+    setFlagMessage(null);
+    try {
+      const res = await fetch("/api/admin/settings/flags", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, value: newValue }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setFlags((prev) => prev.map((f) => (f.key === key ? { ...f, value: newValue } : f)));
+        setFlagMessage({ text: `Flag "${key}" set to ${newValue}.`, tone: "success" });
+      } else {
+        setFlagMessage({ text: data.error ?? "Failed to update flag.", tone: "danger" });
+      }
+    } catch {
+      setFlagMessage({ text: "Network error.", tone: "danger" });
+    } finally {
+      setTogglingFlag(null);
+    }
+  };
 
   const handleFilterChange = (action: string) => {
     setFilterAction(action);
@@ -153,6 +208,16 @@ export default function SettingsPage() {
                 }`}
               >
                 System Audit Logs
+              </button>
+              <button
+                onClick={() => setActiveTab("flags")}
+                className={`whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-colors ${
+                  activeTab === "flags"
+                    ? "border-indigo-600 text-indigo-600"
+                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                }`}
+              >
+                Feature Flags
               </button>
             </>
           )}
@@ -415,6 +480,82 @@ export default function SettingsPage() {
                   ))}
                 </ul>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Feature Flags Tab */}
+      {activeTab === "flags" && isSuperAdmin && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-widest text-indigo-500 mb-1">Feature Flags</h2>
+              <p className="text-sm text-slate-500">Toggle platform features on or off. Adding a flag to FLAG_REGISTRY in src/lib/feature-flags.ts makes it appear here automatically.</p>
+            </div>
+            <button
+              onClick={fetchFlags}
+              disabled={loadingFlags}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+            >
+              <svg className={`h-4 w-4 text-slate-500 ${loadingFlags ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
+
+          {flagMessage && <Alert tone={flagMessage.tone}>{flagMessage.text}</Alert>}
+
+          {loadingFlags ? (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <svg className="h-8 w-8 animate-spin mb-3" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p className="text-sm font-medium">Loading flags...</p>
+            </div>
+          ) : flagsError ? (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">{flagsError}</div>
+          ) : flags.length === 0 ? (
+            <Card>
+              <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+                <svg className="h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p className="font-semibold text-slate-700">No flags defined</p>
+                <p className="text-sm text-slate-400 mt-0.5">Add entries to FLAG_REGISTRY in src/lib/feature-flags.ts to manage them here.</p>
+              </div>
+            </Card>
+          ) : (
+            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm divide-y divide-slate-100">
+              {flags.map((flag) => (
+                <div key={flag.key} className="flex items-center justify-between px-6 py-4 gap-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 font-mono">{flag.key}</p>
+                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{flag.description}</p>
+                    {flag.value === flag.default && (
+                      <span className="inline-flex mt-1 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Default</span>
+                    )}
+                  </div>
+                  <button
+                    id={`flag-toggle-${flag.key}`}
+                    onClick={() => toggleFlag(flag.key, !flag.value)}
+                    disabled={togglingFlag === flag.key}
+                    aria-pressed={flag.value}
+                    aria-label={`Toggle ${flag.key}`}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${
+                      flag.value ? "bg-indigo-600" : "bg-slate-200"
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        flag.value ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
             </div>
           )}
         </div>
