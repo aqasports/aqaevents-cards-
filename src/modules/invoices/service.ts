@@ -158,7 +158,9 @@ export class BillingService {
           ledgerEntry: eventPayload.ledgerEntry,
           postCommitActions: eventPayload.postCommitActions,
         };
-      });
+      },
+      { timeout: 15000 },
+      );
 
       if (result.postCommitActions) {
         for (const action of result.postCommitActions) {
@@ -673,26 +675,29 @@ export class BillingService {
 
     if (!client) throw new Error("Client not found");
 
-    const result = await prisma.$transaction(async (tx) => {
-      const eventPayload: any = {
-        clientId,
-        packageId: data.packageId,
-        customAmount: data.customAmount,
-        reason: data.reason,
-        invoice: data.invoice,
-        adminId,
-        tx,
-        postCommitActions: [],
-      };
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const eventPayload: any = {
+          clientId,
+          packageId: data.packageId,
+          customAmount: data.customAmount,
+          reason: data.reason,
+          invoice: data.invoice,
+          adminId,
+          tx,
+          postCommitActions: [],
+        };
 
-      await eventBus.emit(EVENTS.PACKAGE_PURCHASED, eventPayload);
+        await eventBus.emit(EVENTS.PACKAGE_PURCHASED, eventPayload);
 
-      return {
-        entry: eventPayload.ledgerEntry,
-        invoice: eventPayload.invoiceResult,
-        postCommitActions: eventPayload.postCommitActions,
-      };
-    });
+        return {
+          entry: eventPayload.ledgerEntry,
+          invoice: eventPayload.invoiceResult,
+          postCommitActions: eventPayload.postCommitActions,
+        };
+      },
+      { timeout: 15000 },
+    );
 
     if (result.postCommitActions) {
       for (const action of result.postCommitActions) {

@@ -106,9 +106,10 @@ eventBus.on(EVENTS.CLIENT_CREATED, async (payload: any) => {
   }
 });
 
-// Sync CRM Listener
+// Sync CRM Listener (post-commit: CRM sync is a network call and must not block the DB transaction)
 eventBus.on(EVENTS.CLIENT_CREATED, async (payload: any) => {
-  await syncClientCRM(payload.client.id, payload.tx);
+  payload.postCommitActions = payload.postCommitActions ?? [];
+  payload.postCommitActions.push(() => syncClientCRM(payload.client.id));
 });
 
 // Audit Log Listener
@@ -262,9 +263,10 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
   payload.invoiceResult = inv;
 });
 
-// CRM Sync Listener
+// CRM Sync Listener (post-commit: CRM sync is a network call and must not block the DB transaction)
 eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
-  await syncClientCRM(payload.clientId, payload.tx);
+  payload.postCommitActions = payload.postCommitActions ?? [];
+  payload.postCommitActions.push(() => syncClientCRM(payload.clientId));
 });
 
 // Audit Log Listener
@@ -359,9 +361,10 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
   payload.ledgerEntry = ledger;
 });
 
-// CRM Sync Listener
+// CRM Sync Listener (post-commit: CRM sync is a network call and must not block the DB transaction)
 eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
-  await syncClientCRM(payload.client.id, payload.tx);
+  payload.postCommitActions = payload.postCommitActions ?? [];
+  payload.postCommitActions.push(() => syncClientCRM(payload.client.id));
 });
 
 // Audit Log Listener
@@ -403,9 +406,10 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
 // 4. REDEMPTION_DELETED Listeners
 // -------------------------------------------------------------
 
-// CRM Sync Listener
+// CRM Sync Listener (post-commit: CRM sync is a network call and must not block the DB transaction)
 eventBus.on(EVENTS.REDEMPTION_DELETED, async (payload: any) => {
-  await syncClientCRM(payload.clientId, payload.tx);
+  payload.postCommitActions = payload.postCommitActions ?? [];
+  payload.postCommitActions.push(() => syncClientCRM(payload.clientId));
 });
 
 // Audit Log Listener
