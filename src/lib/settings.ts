@@ -13,12 +13,13 @@ export function clearCreditRateCache(): void {
 
 export async function getCreditRate(tx?: any): Promise<number> {
   const now = Date.now();
-  if (!tx && cachedCreditRate && now < cachedCreditRate.expiresAt) {
+  if (cachedCreditRate && now < cachedCreditRate.expiresAt) {
     return cachedCreditRate.rate;
   }
 
   try {
-    const client = tx || prisma;
+    // Always use top-level prisma client to avoid executing platformSetting queries on in-flight transaction clients (tx) which could mark transactions aborted upon error.
+    const client = prisma;
     if (!client || !client.platformSetting || typeof client.platformSetting.findUnique !== "function") {
       return DEFAULT_CREDIT_RATE;
     }
@@ -30,9 +31,7 @@ export async function getCreditRate(tx?: any): Promise<number> {
     if (setting && setting.value) {
       const parsed = parseFloat(setting.value);
       if (!isNaN(parsed) && parsed > 0) {
-        if (!tx) {
-          cachedCreditRate = { rate: parsed, expiresAt: now + CACHE_TTL_MS };
-        }
+        cachedCreditRate = { rate: parsed, expiresAt: now + CACHE_TTL_MS };
         return parsed;
       }
     }

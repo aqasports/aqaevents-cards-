@@ -3,6 +3,7 @@ import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { syncClientCRM } from "@/lib/crm";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { getClientBalance } from "@/lib/balance";
+import { prisma } from "@/lib/prisma";
 import { ClientsRepository } from "./clients/repository";
 import { CardsRepository } from "./cards/repository";
 import { BillingRepository } from "./invoices/repository";
@@ -29,6 +30,23 @@ async function uniqueInvoiceCode(tx: any): Promise<string> {
     const existing = await billingRepo.findInvoiceUnique({ where: { invoiceCode: code } }, tx);
     if (!existing) return code;
     code = generateInvoiceCode();
+  }
+}
+
+async function resolveAdminId(adminId: string | null | undefined, tx?: any): Promise<string | null> {
+  if (!adminId) return null;
+  try {
+    const client = tx || prisma;
+    if (!client || !client.adminUser || typeof client.adminUser.findUnique !== "function") {
+      return null;
+    }
+    const admin = await client.adminUser.findUnique({
+      where: { id: adminId },
+      select: { id: true },
+    });
+    return admin?.id ?? null;
+  } catch {
+    return null;
   }
 }
 
@@ -178,6 +196,8 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
     throw new Error("Provide packageId or a non-zero customAmount");
   }
 
+  const validAdminId = await resolveAdminId(payload.adminId, payload.tx);
+
   const ledger = await billingRepo.createLedger(
     {
       data: {
@@ -187,7 +207,7 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
         delta,
         type: delta > 0 ? "credit" : "debit",
         reason: reason || (delta > 0 ? "Manual credit addition" : "Manual debit adjustment"),
-        createdById: payload.adminId,
+        createdById: validAdminId,
       },
     },
     payload.tx
@@ -299,6 +319,8 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
     throw new Error("INSUFFICIENT_BALANCE");
   }
 
+  const validAdminId = await resolveAdminId(payload.adminId, payload.tx);
+
   const redemption = await billingRepo.createRedemption(
     {
       data: {
@@ -306,7 +328,7 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
         activityId: payload.activity.id,
         sessionId: payload.sessionId || null,
         creditsUsed: cost,
-        staffId: payload.adminId,
+        staffId: validAdminId,
         notes: payload.notes || null,
       },
       include: {
@@ -327,7 +349,7 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
         delta: -cost,
         type: "debit",
         reason: isKidRedemption ? `Redeemed ${payload.activity.name} (Kid)` : `Redeemed ${payload.activity.name}`,
-        createdById: payload.adminId,
+        createdById: validAdminId,
       },
     },
     payload.tx
