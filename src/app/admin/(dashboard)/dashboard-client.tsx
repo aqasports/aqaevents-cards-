@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PageHeader, StatCard, Card, Badge, Alert } from "@/components/admin/ui";
+import { QuickBalanceCharger } from "@/components/admin/QuickBalanceCharger";
 import { useTranslations, formatDate } from "@/lib/i18n";
 
 type ClientCard = {
@@ -138,6 +139,11 @@ export default function DashboardClient({
           </Link>
         }
       />
+
+      {/* Quick Balance Charger - Section 1 */}
+      <div className="mb-6">
+        <QuickBalanceCharger />
+      </div>
 
       {/* Stats grid */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
