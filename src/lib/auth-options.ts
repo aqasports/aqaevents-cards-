@@ -27,7 +27,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const email = credentials.email.toLowerCase();
+        const email = credentials.email.trim().toLowerCase();
 
         // Check if locked out by email
         if (await isLockedOut(email)) {

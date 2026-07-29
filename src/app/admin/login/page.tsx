@@ -20,7 +20,7 @@ function LoginForm() {
     setError("");
 
     const result = await signIn("credentials", {
-      email,
+      email: email.trim(),
       password,
       redirect: false,
     });
