@@ -84,11 +84,7 @@ export async function recordFailedAttempt(email: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const bucket = await tx.rateLimitBucket.findUnique({ where: { key } });
     const currentCount = (bucket?.count ?? 0) + 1;
-    let lockMs = Math.pow(2, Math.min(currentCount - 1, 10)) * 1000;
-    if (currentCount >= 5) {
-      lockMs = 15 * 60 * 1000; // 15 minute lockout
-    }
-    const lockUntil = new Date(now.getTime() + lockMs);
+    const lockUntil = currentCount >= 5 ? new Date(now.getTime() + 15 * 60 * 1000) : null;
 
     await tx.rateLimitBucket.upsert({
       where: { key },

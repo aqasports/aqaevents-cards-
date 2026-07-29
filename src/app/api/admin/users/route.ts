@@ -55,8 +55,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const email = parsed.data.email.toLowerCase();
+
   const existing = await prisma.adminUser.findUnique({
-    where: { email: parsed.data.email },
+    where: { email },
   });
   if (existing) {
     return NextResponse.json(
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest) {
   const user = await prisma.adminUser.create({
     data: {
       name: parsed.data.name,
-      email: parsed.data.email,
+      email,
       passwordHash,
       role: parsed.data.role,
     },
