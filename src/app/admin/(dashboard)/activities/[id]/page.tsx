@@ -26,6 +26,7 @@ type Redemption = {
   redeemedAt: string;
   creditsUsed: number;
   client: { id: string; fullName: string; phone: string | null; email: string | null };
+  checkIns?: Array<{ id: string; scannedAt: string; status: string }> | null;
 };
 
 type SessionExpense = {
@@ -1656,7 +1657,13 @@ export default function ActivityDetailPage() {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="text-[var(--muted)]">{formatDate(red.redeemedAt, locale, true).split(" ")[1] ?? ""}</span>
+                                  <span className="text-[var(--muted)] text-xs">
+                                    {red.checkIns && red.checkIns.length > 0 ? (
+                                      <>Checked in: {formatDate(red.checkIns[0].scannedAt, locale, true)}</>
+                                    ) : (
+                                      <>Event: {formatDate(session.sessionDate, locale, true)}</>
+                                    )}
+                                  </span>
                                   <Button variant="danger" size="sm" loading={refundingRedemptionId === red.id} onClick={() => handleRefundClient(red.id)}>Refund</Button>
                                 </div>
                               </li>
@@ -2358,8 +2365,12 @@ export default function ActivityDetailPage() {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                  <span className="text-[var(--muted)] tabular-nums">
-                                    {formatDate(red.redeemedAt, locale, true)}
+                                  <span className="text-[var(--muted)] text-xs tabular-nums">
+                                    {red.checkIns && red.checkIns.length > 0 ? (
+                                      <>Checked in: {formatDate(red.checkIns[0].scannedAt, locale, true)}</>
+                                    ) : (
+                                      <>Event: {formatDate(session.sessionDate, locale, true)}</>
+                                    )}
                                   </span>
                                   <Button variant="danger" size="sm" loading={refundingRedemptionId === red.id} onClick={() => handleRefundClient(red.id)}>Remove</Button>
                                 </div>

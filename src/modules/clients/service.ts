@@ -98,6 +98,11 @@ export class ClientsService {
             activity: true,
             session: true,
             staff: { select: { name: true } },
+            checkIns: {
+              select: { id: true, scannedAt: true, status: true },
+              orderBy: { scannedAt: "desc" },
+              take: 1,
+            },
           },
           orderBy: { redeemedAt: "desc" },
         },

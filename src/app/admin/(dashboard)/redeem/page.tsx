@@ -1098,11 +1098,11 @@ export default function RedeemPage() {
               <div className="overflow-y-auto pr-1 space-y-2 flex-1 max-h-[420px]">
                 {recentRedemptionsList.slice(0, 15).map((red) => {
                   const isRefunding = refundingId === red.id;
-                  const dateStr = new Date(red.redeemedAt).toLocaleTimeString(locale === "ar" ? "ar-EG" : "fr-DZ", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                  });
+                  const checkIn = red.checkIns?.[0];
+                  const eventTimeStr = red.session
+                    ? formatDate(red.session.sessionDate, locale, true)
+                    : formatDate(red.redeemedAt, locale, true);
+                  const checkInTimeStr = checkIn ? formatDate(checkIn.scannedAt, locale, true) : null;
 
                   return (
                     <div key={red.id} className="p-3 border border-[var(--border)] rounded-xl bg-[var(--surface)] hover:bg-slate-50/50 transition flex flex-col justify-between gap-2 shadow-sm">
@@ -1110,7 +1110,7 @@ export default function RedeemPage() {
                         <div>
                           <p className="font-bold text-slate-800 text-xs">{red.client?.fullName || "Unknown Client"}</p>
                           <p className="text-[10px] font-semibold text-[var(--muted)] mt-0.5">
-                            {red.activity?.name} {red.session ? `· ${formatDate(red.session.sessionDate, locale, true).split(" ")[0]}` : ""}
+                            {red.activity?.name} · Event: {eventTimeStr}
                           </p>
                         </div>
                         <Badge tone={red.creditsUsed === 0.7 ? "warning" : "danger"} size="sm">
@@ -1122,7 +1122,7 @@ export default function RedeemPage() {
                           <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          {dateStr} {red.staff ? `· ${red.staff.name}` : ""}
+                          {checkInTimeStr ? `Checked in: ${checkInTimeStr}` : eventTimeStr} {red.staff ? `· ${red.staff.name}` : ""}
                         </span>
                         {isSuperAdmin ? (
                           <button

@@ -7,6 +7,8 @@ import TurnstileWidget from "@/components/TurnstileWidget";
 type HistoryItem = {
   activity: string;
   date: Date | string;
+  sessionDate?: Date | string | null;
+  checkInAt?: Date | string | null;
   creditsUsed: number;
   redeemedAt: Date | string;
   location: string | null;
@@ -658,11 +660,17 @@ export function EventCardClient({
                         {item.activity}
                       </p>
                       <p className="text-xs text-white/50">
-                        {new Date(item.redeemedAt).toLocaleDateString(locale, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })}
+                        {item.checkInAt ? (
+                          <>
+                            Event: {new Date(item.sessionDate || item.date).toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            {" · "}
+                            Checked in: {new Date(item.checkInAt).toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </>
+                        ) : (
+                          <>
+                            Event: {new Date(item.sessionDate || item.date).toLocaleString(locale, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </>
+                        )}
                         {item.location ? ` · ${item.location}` : ""}
                       </p>
                     </div>

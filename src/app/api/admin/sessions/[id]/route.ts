@@ -33,6 +33,11 @@ export async function GET(
                 email: true,
               },
             },
+            checkIns: {
+              select: { id: true, scannedAt: true, status: true },
+              orderBy: { scannedAt: "desc" },
+              take: 1,
+            },
           },
           orderBy: { redeemedAt: "desc" },
         },

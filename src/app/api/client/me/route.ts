@@ -33,6 +33,14 @@ export async function GET(request: NextRequest) {
             activity: {
               select: { id: true, name: true, creditCost: true, imageUrl: true },
             },
+            session: {
+              select: { id: true, sessionDate: true, location: true },
+            },
+            checkIns: {
+              select: { id: true, scannedAt: true, status: true },
+              orderBy: { scannedAt: "desc" },
+              take: 1,
+            },
           },
         },
       },

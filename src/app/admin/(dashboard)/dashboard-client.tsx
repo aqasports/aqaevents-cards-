@@ -20,6 +20,8 @@ type RecentRedemption = {
   id: string;
   creditsUsed: number;
   redeemedAt: string | Date;
+  sessionDate?: string | null;
+  checkInAt?: string | null;
   client: {
     fullName: string;
     id: string;
@@ -374,7 +376,12 @@ export default function DashboardClient({
                       {item.client.fullName}
                     </Link>
                     <p className="text-xs text-[var(--muted)]">
-                      {item.activity.name} · {formatDate(item.redeemedAt, locale, true)}
+                      {item.activity.name}
+                      {item.checkInAt ? (
+                        <> · Event: {formatDate(item.sessionDate || item.redeemedAt, locale, true)} · Checked in: {formatDate(item.checkInAt, locale, true)}</>
+                      ) : (
+                        <> · Event: {formatDate(item.sessionDate || item.redeemedAt, locale, true)}</>
+                      )}
                     </p>
                   </div>
                   <Badge tone="warning">−{item.creditsUsed}</Badge>

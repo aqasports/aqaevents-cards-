@@ -150,6 +150,12 @@ export default async function AdminDashboardPage() {
       include: {
         client: { select: { fullName: true, id: true } },
         activity: { select: { name: true } },
+        session: { select: { sessionDate: true } },
+        checkIns: {
+          select: { scannedAt: true, status: true },
+          orderBy: { scannedAt: "desc" },
+          take: 1,
+        },
       },
       orderBy: { redeemedAt: "desc" },
       take: 8,
@@ -191,6 +197,8 @@ export default async function AdminDashboardPage() {
       id: item.id,
       creditsUsed: item.creditsUsed,
       redeemedAt: item.redeemedAt.toISOString(),
+      sessionDate: item.session?.sessionDate ? item.session.sessionDate.toISOString() : null,
+      checkInAt: item.checkIns?.[0]?.scannedAt ? item.checkIns[0].scannedAt.toISOString() : null,
       client: {
         id: item.client?.id ?? "",
         fullName: item.client?.fullName ?? "Client",

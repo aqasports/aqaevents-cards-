@@ -41,6 +41,7 @@ type SessionDetail = {
       phone: string | null;
       email: string | null;
     };
+    checkIns?: Array<{ scannedAt: string }> | null;
   }[];
 };
 
@@ -449,9 +450,14 @@ export default function MasterTerminalPage() {
                       {red.client.phone && <p className="text-[10px] text-slate-500 mt-0.5">{red.client.phone}</p>}
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-slate-400 font-semibold block">
-                        {new Date(red.redeemedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
+                      <span className="text-[10px] text-slate-500 font-semibold block">
+                        Event: {sessionDetail?.sessionDate ? new Date(sessionDetail.sessionDate).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" }) : ""}
                       </span>
+                      {red.checkIns && red.checkIns.length > 0 && (
+                        <span className="text-[9px] text-slate-400 font-medium block">
+                          Checked in: {new Date(red.checkIns[0].scannedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}

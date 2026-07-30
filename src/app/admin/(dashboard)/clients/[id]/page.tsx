@@ -44,6 +44,7 @@ type Redemption = {
   session: { sessionDate: string; location: string | null } | null;
   staff: { name: string } | null;
   notes: string | null;
+  checkIns?: Array<{ id: string; scannedAt: string; status: string }> | null;
 };
 
 type Invoice = {
@@ -1650,7 +1651,15 @@ export default function ClientDetailPage() {
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-slate-800 text-base">{item.activity.name}</p>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
-                          {formatDate(item.redeemedAt, locale, true)}
+                          {item.checkIns && item.checkIns.length > 0 ? (
+                            <>
+                              Event: {formatDate(item.session?.sessionDate || item.redeemedAt, locale, true)} · Checked in: {formatDate(item.checkIns[0].scannedAt, locale, true)}
+                            </>
+                          ) : (
+                            <>
+                              Event: {formatDate(item.session?.sessionDate || item.redeemedAt, locale, true)}
+                            </>
+                          )}
                           {item.session?.location ? ` · Location: ${item.session.location}` : ""}
                           {item.staff ? ` · by ${item.staff.name}` : ""}
                           {item.notes ? ` · "${item.notes}"` : ""}

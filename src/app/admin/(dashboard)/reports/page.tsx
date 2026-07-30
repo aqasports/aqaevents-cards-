@@ -15,6 +15,7 @@ type Redemption = {
   activity: { id: string; name: string };
   session: { sessionDate: string; location: string | null } | null;
   staff: { name: string } | null;
+  checkIns?: Array<{ scannedAt: string; status: string }> | null;
 };
 
 type Summary = {
@@ -240,7 +241,19 @@ export default function ReportsPage() {
                 <tbody className="divide-y divide-[var(--border)]">
                   {filteredRedemptions.map((r) => (
                     <tr key={r.id}>
-                      <td className="py-2 text-xs text-[var(--muted)]">{new Date(r.redeemedAt).toLocaleString()}</td>
+                      <td className="py-2 text-xs text-[var(--muted)]">
+                        {r.checkIns && r.checkIns.length > 0 ? (
+                          <>
+                            Event: {r.session?.sessionDate ? new Date(r.session.sessionDate).toLocaleString() : new Date(r.redeemedAt).toLocaleString()}
+                            <br />
+                            Checked in: {new Date(r.checkIns[0].scannedAt).toLocaleString()}
+                          </>
+                        ) : (
+                          <>
+                            Event: {r.session?.sessionDate ? new Date(r.session.sessionDate).toLocaleString() : new Date(r.redeemedAt).toLocaleString()}
+                          </>
+                        )}
+                      </td>
                       <td className="py-2 font-medium">{r.client.fullName}</td>
                       <td className="py-2">{r.activity.name}</td>
                       <td className="py-2 text-[var(--muted)]">{r.staff?.name ?? "System"}</td>

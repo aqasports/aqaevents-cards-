@@ -15,6 +15,8 @@ type ClientProfile = {
     redeemedAt: string;
     creditsUsed: number;
     activity: { name: string };
+    session?: { sessionDate: string; location: string | null } | null;
+    checkIns?: Array<{ scannedAt: string; status: string }>;
   }>;
 };
 
@@ -96,15 +98,31 @@ export default function ClientDashboardPage() {
           <p className="text-xs text-[var(--muted)] py-4">No activity redemptions yet.</p>
         ) : (
           <div className="divide-y divide-[var(--border)] text-xs">
-            {profile.redemptions.map((r) => (
-              <div key={r.id} className="py-2.5 flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-[var(--foreground)]">{r.activity.name}</p>
-                  <p className="text-[11px] text-[var(--muted)]">{new Date(r.redeemedAt).toLocaleString()}</p>
+            {profile.redemptions.map((r) => {
+              const checkIn = r.checkIns?.[0];
+              const eventDateStr = r.session?.sessionDate
+                ? new Date(r.session.sessionDate).toLocaleString()
+                : new Date(r.redeemedAt).toLocaleString();
+              return (
+                <div key={r.id} className="py-2.5 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-[var(--foreground)]">{r.activity.name}</p>
+                    <p className="text-[11px] text-[var(--muted)]">
+                      {checkIn ? (
+                        <>
+                          Event: {eventDateStr} · Checked in: {new Date(checkIn.scannedAt).toLocaleString()}
+                        </>
+                      ) : (
+                        <>
+                          Event: {eventDateStr}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <Badge tone="warning">-{r.creditsUsed} Credit</Badge>
                 </div>
-                <Badge tone="warning">-{r.creditsUsed} Credit</Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </Card>

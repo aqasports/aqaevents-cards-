@@ -35,6 +35,11 @@ export default async function EventCardPage({
                 include: {
                   activity: true,
                   session: true,
+                  checkIns: {
+                    select: { scannedAt: true, status: true },
+                    orderBy: { scannedAt: "desc" },
+                    take: 1,
+                  },
                 },
               },
             },
@@ -65,8 +70,11 @@ export default async function EventCardPage({
     .filter((e) => e.delta < 0)
     .map((e) => {
       const r = e.redemption;
+      const checkIn = r?.checkIns?.[0];
       return {
         activity: r ? (r.activity?.name ?? "Activity") : (e.reason ?? "Store Purchase"),
+        sessionDate: r?.session?.sessionDate ?? null,
+        checkInAt: checkIn?.scannedAt ?? null,
         date: r ? (r.session?.sessionDate ?? r.redeemedAt) : e.createdAt,
         creditsUsed: Math.abs(e.delta),
         redeemedAt: r ? r.redeemedAt : e.createdAt,
