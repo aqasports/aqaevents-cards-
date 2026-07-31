@@ -377,36 +377,12 @@ export default function UsersPage() {
   // Hydration sync and database API loads
   useEffect(() => {
     setMounted(true);
-
-    const savedAssignments = localStorage.getItem("aqa_coach_assignments");
-    if (savedAssignments) {
-      try { setAssignments(JSON.parse(savedAssignments)); } catch (e) { console.error(e); }
-    }
-
     loadUsers();
     loadCoaches();
     loadPayouts().then(() => {
       loadSessions();
     });
   }, []);
-
-  useEffect(() => {
-    if (mounted && coaches.length > 0) {
-      localStorage.setItem("aqa_coaches", JSON.stringify(coaches));
-    }
-  }, [coaches, mounted]);
-
-  useEffect(() => {
-    if (mounted && assignments.length > 0) {
-      localStorage.setItem("aqa_coach_assignments", JSON.stringify(assignments));
-    }
-  }, [assignments, mounted]);
-
-  useEffect(() => {
-    if (mounted && payouts.length > 0) {
-      localStorage.setItem("aqa_coach_payouts", JSON.stringify(payouts));
-    }
-  }, [payouts, mounted]);
 
   // User account management handlers
   async function createUser(event: FormEvent<HTMLFormElement>) {
