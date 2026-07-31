@@ -23,6 +23,7 @@ export async function GET(
       include: {
         activity: true,
         club: true,
+        coach: true,
         redemptions: {
           include: {
             client: {
@@ -96,6 +97,8 @@ export async function PATCH(
       location: body.location !== undefined ? body.location : undefined,
       capacity: body.capacity !== undefined ? body.capacity : undefined,
       clubId: body.clubId !== undefined ? body.clubId : undefined,
+      coachId: body.coachId !== undefined ? body.coachId : undefined,
+      coachPayOverride: body.coachPayOverride !== undefined ? body.coachPayOverride : undefined,
       sessionDate: body.sessionDate ? new Date(body.sessionDate) : undefined,
       active: body.active !== undefined ? body.active : undefined,
     });

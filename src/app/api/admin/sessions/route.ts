@@ -42,6 +42,8 @@ export async function POST(request: NextRequest) {
       location: parsed.data.location,
       capacity: parsed.data.capacity,
       clubId: parsed.data.clubId,
+      coachId: parsed.data.coachId,
+      coachPayOverride: parsed.data.coachPayOverride,
     });
     return NextResponse.json(session, { status: 201 });
   } catch (err: unknown) {

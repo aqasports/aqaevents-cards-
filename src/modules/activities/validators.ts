@@ -40,6 +40,18 @@ export const createSessionSchema = z.object({
   location: z.string().optional(),
   capacity: z.number().int().positive().optional(),
   clubId: z.string().cuid().nullable().optional(),
+  coachId: z.string().nullable().optional(),
+  coachPayOverride: z.number().int().nonnegative().nullable().optional(),
+});
+
+export const updateSessionSchema = z.object({
+  sessionDate: z.string().optional(),
+  location: z.string().nullable().optional(),
+  capacity: z.number().int().positive().nullable().optional(),
+  active: z.boolean().optional(),
+  clubId: z.string().cuid().nullable().optional(),
+  coachId: z.string().nullable().optional(),
+  coachPayOverride: z.number().int().nonnegative().nullable().optional(),
 });
 
 export const createExpenseSchema = z.object({

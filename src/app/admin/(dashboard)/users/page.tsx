@@ -83,6 +83,9 @@ interface DatabaseSession {
   location: string | null;
   capacity: number | null;
   active: boolean;
+  clubId?: string | null;
+  coachId?: string | null;
+  coach?: Coach | null;
   activity: {
     id: string;
     name: string;
@@ -206,6 +209,43 @@ export default function UsersPage() {
       if (res.ok) {
         const data = await res.json();
         setDbSessions(data);
+
+        // Derive assignments from sessions containing coachId
+        const dbAssignments: CoachAssignment[] = [];
+        data.forEach((s: any) => {
+          if (s.coachId) {
+            dbAssignments.push({
+              id: `assign_${s.id}_${s.coachId}`,
+              coachId: s.coachId,
+              sessionId: s.id,
+              createdAt: s.createdAt || new Date().toISOString(),
+            });
+          }
+        });
+
+        // Auto-sync legacy local assignments to DB if not yet saved
+        const savedAssignments = localStorage.getItem("aqa_coach_assignments");
+        if (savedAssignments) {
+          try {
+            const parsed: CoachAssignment[] = JSON.parse(savedAssignments);
+            for (const localAssign of parsed) {
+              const matchingSession = data.find((s: any) => s.id === localAssign.sessionId);
+              if (matchingSession && !matchingSession.coachId) {
+                fetch(`/api/admin/sessions/${localAssign.sessionId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ coachId: localAssign.coachId }),
+                }).catch((err) => console.error("Auto-sync coach assignment failed:", err));
+
+                dbAssignments.push(localAssign);
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        setAssignments(dbAssignments);
       }
     } catch (err) {
       console.error("Failed to load sessions:", err);
@@ -499,7 +539,7 @@ export default function UsersPage() {
   }
 
   // Assignment handlers
-  function linkSession(coachId: string, sessionId: string) {
+  async function linkSession(coachId: string, sessionId: string) {
     const isAlreadyLinked = assignments.some(
       (a) => a.coachId === coachId && a.sessionId === sessionId
     );
@@ -508,20 +548,62 @@ export default function UsersPage() {
       return;
     }
 
-    const newAssignment: CoachAssignment = {
-      id: "assign_" + Math.random().toString(36).substr(2, 9),
-      coachId,
-      sessionId,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coachId }),
+      });
 
-    setAssignments((prev) => [...prev, newAssignment]);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to save coach assignment");
+      }
+
+      setDbSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, coachId } : s))
+      );
+
+      const newAssignment: CoachAssignment = {
+        id: "assign_" + Math.random().toString(36).substr(2, 9),
+        coachId,
+        sessionId,
+        createdAt: new Date().toISOString(),
+      };
+
+      setAssignments((prev) => [...prev, newAssignment]);
+      setMessage({ text: "Event session successfully linked to coach.", tone: "success" });
+    } catch (err: any) {
+      console.error("Link session error:", err);
+      setMessage({ text: err.message || "Failed to link session.", tone: "danger" });
+    }
   }
 
-  function unlinkSession(coachId: string, sessionId: string) {
-    setAssignments((prev) =>
-      prev.filter((a) => !(a.coachId === coachId && a.sessionId === sessionId))
-    );
+  async function unlinkSession(coachId: string, sessionId: string) {
+    try {
+      const res = await fetch(`/api/admin/sessions/${sessionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coachId: null }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to unlink coach assignment");
+      }
+
+      setDbSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, coachId: null } : s))
+      );
+
+      setAssignments((prev) =>
+        prev.filter((a) => !(a.coachId === coachId && a.sessionId === sessionId))
+      );
+      setMessage({ text: "Event session unlinked from coach.", tone: "success" });
+    } catch (err: any) {
+      console.error("Unlink session error:", err);
+      setMessage({ text: err.message || "Failed to unlink session.", tone: "danger" });
+    }
   }
 
   // Helper to count number of coaches linked to a session

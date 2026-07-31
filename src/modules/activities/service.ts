@@ -225,6 +225,7 @@ export class ActivitiesService {
           select: { id: true }
         },
         club: true,
+        coach: true,
         sessionExpenses: {
           include: {
             activityExpense: true
@@ -235,17 +236,18 @@ export class ActivitiesService {
     });
   }
 
-  async createSession(data: { activityId: string; sessionDate: Date; location?: string | null; capacity?: number | null; clubId?: string | null }) {
+  async createSession(data: { activityId: string; sessionDate: Date; location?: string | null; capacity?: number | null; clubId?: string | null; coachId?: string | null; coachPayOverride?: number | null }) {
     return this.activitiesRepo.createSession({
       data,
-      include: { activity: true },
+      include: { activity: true, club: true, coach: true },
     });
   }
 
-  async updateSession(id: string, data: { sessionDate?: Date; location?: string | null; capacity?: number | null; active?: boolean; clubId?: string | null }) {
+  async updateSession(id: string, data: { sessionDate?: Date; location?: string | null; capacity?: number | null; active?: boolean; clubId?: string | null; coachId?: string | null; coachPayOverride?: number | null }) {
     return this.activitiesRepo.updateSession({
       where: { id },
       data,
+      include: { activity: true, club: true, coach: true },
     });
   }
 
