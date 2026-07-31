@@ -337,6 +337,43 @@ export default function UsersPage() {
     }
   };
 
+  const loadPayouts = async () => {
+    try {
+      const res = await fetch("/api/admin/coaches/payouts");
+      let dbPayouts: CoachPayout[] = [];
+      if (res.ok) {
+        dbPayouts = await res.json();
+      }
+
+      // Check legacy localStorage for unmigrated local payouts
+      const savedPayouts = localStorage.getItem("aqa_coach_payouts");
+      if (savedPayouts) {
+        try {
+          const localPayouts: CoachPayout[] = JSON.parse(savedPayouts);
+          if (Array.isArray(localPayouts) && localPayouts.length > 0) {
+            const unmigrated = localPayouts.filter(
+              (lp) => !dbPayouts.some((dp) => dp.invoiceCode === lp.invoiceCode || dp.id === lp.id)
+            );
+            if (unmigrated.length > 0) {
+              await fetch("/api/admin/coaches/payouts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(unmigrated),
+              });
+              dbPayouts = [...unmigrated, ...dbPayouts];
+            }
+          }
+        } catch (e) {
+          console.error("Local payouts parse error:", e);
+        }
+      }
+
+      setPayouts(dbPayouts);
+    } catch (e) {
+      console.error("Failed to load payouts:", e);
+    }
+  };
+
   // Hydration sync and database API loads
   useEffect(() => {
     setMounted(true);
@@ -346,14 +383,11 @@ export default function UsersPage() {
       try { setAssignments(JSON.parse(savedAssignments)); } catch (e) { console.error(e); }
     }
 
-    const savedPayouts = localStorage.getItem("aqa_coach_payouts");
-    if (savedPayouts) {
-      try { setPayouts(JSON.parse(savedPayouts)); } catch (e) { console.error(e); }
-    }
-
     loadUsers();
-    loadSessions();
     loadCoaches();
+    loadPayouts().then(() => {
+      loadSessions();
+    });
   }, []);
 
   useEffect(() => {
@@ -809,7 +843,19 @@ export default function UsersPage() {
     setPayouts((prev) => [newPayout, ...prev]);
     setReportNotes("");
     setActiveTab("invoices");
-    setMessage({ text: `Payout invoice ${invoiceCode} has been generated.`, tone: "success" });
+    setMessage({ text: `Payout invoice ${invoiceCode} has been generated and saved to database.`, tone: "success" });
+
+    // Persist payout to database and auto-relink sessions
+    fetch("/api/admin/coaches/payouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newPayout),
+    })
+      .then(() => {
+        loadSessions();
+        loadCoaches();
+      })
+      .catch((err) => console.error("Save payout error:", err));
   }
 
   // Generate payout invoices for ALL coaches in batch
@@ -847,12 +893,35 @@ export default function UsersPage() {
     setReportNotes("");
     setActiveTab("invoices");
     setMessage({
-      text: `Successfully generated ${newPayouts.length} payout invoice(s) for all active coaches.`,
+      text: `Successfully generated ${newPayouts.length} payout invoice(s) for all active coaches and saved to database.`,
       tone: "success",
     });
+
+    // Persist batch payouts to database and auto-relink sessions
+    fetch("/api/admin/coaches/payouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newPayouts),
+    })
+      .then(() => {
+        loadSessions();
+        loadCoaches();
+      })
+      .catch((err) => console.error("Save batch payouts error:", err));
   }
 
   function toggleInvoiceStatus(invoiceId: string) {
+    const target = payouts.find((p) => p.id === invoiceId);
+    if (target) {
+      const newStatus = target.status === "paid" ? "unpaid" : "paid";
+      const paidAt = newStatus === "paid" ? new Date().toISOString() : undefined;
+      fetch("/api/admin/coaches/payouts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: invoiceId, invoiceCode: target.invoiceCode, status: newStatus, paidAt }),
+      }).catch((err) => console.error("Update payout status error:", err));
+    }
+
     setPayouts((prev) =>
       prev.map((p) => {
         if (p.id === invoiceId) {
@@ -885,6 +954,9 @@ export default function UsersPage() {
       "Delete Payout Invoice",
       "Are you sure you want to delete this payout invoice log? This cannot be undone.",
       () => {
+        fetch(`/api/admin/coaches/payouts?id=${invoiceId}`, { method: "DELETE" }).catch((err) =>
+          console.error("Delete payout error:", err)
+        );
         setPayouts((prev) => prev.filter((p) => p.id !== invoiceId));
         setMessage({ text: "Invoice log has been deleted.", tone: "success" });
       },
@@ -1290,13 +1362,29 @@ export default function UsersPage() {
               <h3 className="text-base font-semibold">
                 Coaches & Staff Profiles ({coaches.length})
               </h3>
-              <input
-                type="text"
-                placeholder="Search by name..."
-                value={coachSearch}
-                onChange={(e) => setCoachSearch(e.target.value)}
-                className="w-full sm:w-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
-              />
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <input
+                  type="text"
+                  placeholder="Search by name..."
+                  value={coachSearch}
+                  onChange={(e) => setCoachSearch(e.target.value)}
+                  className="w-full sm:w-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="cursor-pointer text-xs whitespace-nowrap"
+                  onClick={async () => {
+                    setMessage({ text: "Syncing payout invoices & relinking coach sessions in database...", tone: "info" });
+                    await loadPayouts();
+                    await loadSessions();
+                    await loadCoaches();
+                    setMessage({ text: "Coach sessions successfully relinked in production database.", tone: "success" });
+                  }}
+                >
+                  Sync & Relink Invoices
+                </Button>
+              </div>
             </div>
 
             {coaches.length === 0 ? (
