@@ -32,6 +32,7 @@ type Session = {
   location: string | null;
   capacity: number | null;
   active: boolean;
+  coach?: { id: string; name: string } | null;
   activity: Activity;
   redemptions: { id: string }[];
   sessionExpenses: SessionExpense[];
@@ -176,6 +177,7 @@ export default function EventsPage() {
                   <th className="px-6 py-4">Activity</th>
                   <th className="px-6 py-4">Date &amp; Time</th>
                   <th className="px-6 py-4">Location</th>
+                  <th className="px-6 py-4">Coach</th>
                   <th className="px-6 py-4 text-center">Attendees</th>
                   <th className="px-6 py-4 text-right">Expenses</th>
                   <th className="px-6 py-4 text-center">Status</th>
@@ -197,6 +199,13 @@ export default function EventsPage() {
                         {formatDate(session.sessionDate, locale, true)}
                       </td>
                       <td className="px-6 py-4 text-[var(--muted)]">{session.location ?? "—"}</td>
+                      <td className="px-6 py-4 text-[var(--muted)] font-medium">
+                        {session.coach ? (
+                          <Badge tone="primary">{session.coach.name}</Badge>
+                        ) : (
+                          <span className="text-[var(--muted)] italic">Unassigned</span>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-center text-[var(--muted)]">
                         {attendeesCount}
                         {capacity ? ` / ${capacity}` : ""}

@@ -46,6 +46,8 @@ type EventSession = {
   active: boolean;
   clubId?: string | null;
   club?: { id: string; name: string } | null;
+  coachId?: string | null;
+  coach?: { id: string; name: string } | null;
   redemptions: Redemption[];
   sessionExpenses: SessionExpense[];
   waitlists?: Array<{ id: string; position: number; status: string; createdAt?: string; client?: { fullName: string } }>;
@@ -128,12 +130,14 @@ function toInputDateTime(d: string | null | undefined): string {
 function EditSessionModal({
   session,
   clubs,
+  coaches,
   predefinedPlaces,
   onClose,
   onSaved,
 }: {
   session: EventSession;
   clubs: any[];
+  coaches: any[];
   predefinedPlaces: string[];
   onClose: () => void;
   onSaved: () => void;
@@ -142,6 +146,7 @@ function EditSessionModal({
   const [location, setLocation] = useState(session.location ?? "");
   const [capacity, setCapacity] = useState(session.capacity !== null ? String(session.capacity) : "");
   const [clubId, setClubId] = useState(session.clubId ?? "");
+  const [coachId, setCoachId] = useState(session.coachId ?? "");
   const [active, setActive] = useState(session.active);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +169,7 @@ function EditSessionModal({
           location: location.trim() || null,
           capacity: capacity ? parseInt(capacity) : null,
           clubId: clubId || null,
+          coachId: coachId || null,
           active,
         }),
       });
@@ -233,6 +239,19 @@ function EditSessionModal({
               </div>
             )}
           </div>
+
+          <Select
+            label="Assigned Coach / Instructor"
+            value={coachId}
+            onChange={(e) => setCoachId(e.target.value)}
+          >
+            <option value="">— Select Coach / Instructor —</option>
+            {coaches.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
 
           <Select
             label="Partner Club"
@@ -803,6 +822,15 @@ export default function ActivityDetailPage() {
     } catch (err) { console.error(err); }
   }, []);
 
+  const [coaches, setCoaches] = useState<any[]>([]);
+
+  const loadCoaches = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/coaches");
+      if (res.ok) setCoaches(await res.json());
+    } catch (err) { console.error(err); }
+  }, []);
+
   const loadClubs = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/clubs");
@@ -838,8 +866,8 @@ export default function ActivityDetailPage() {
 
 
   useEffect(() => {
-    Promise.all([loadActivityData(), loadClients(), loadClubs()]).then(() => setLoading(false));
-  }, [loadActivityData, loadClients, loadClubs]);
+    Promise.all([loadActivityData(), loadClients(), loadClubs(), loadCoaches()]).then(() => setLoading(false));
+  }, [loadActivityData, loadClients, loadClubs, loadCoaches]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -886,6 +914,7 @@ export default function ActivityDetailPage() {
           location: (fd.get("location") as string) || (fd.get("customLocation") as string) || undefined,
           capacity: fd.get("capacity") ? Number(fd.get("capacity")) : undefined,
           clubId: (fd.get("clubId") as string) || undefined,
+          coachId: (fd.get("coachId") as string) || undefined,
         }),
       });
       if (res.ok) {
@@ -1523,6 +1552,7 @@ export default function ActivityDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      {session.coach && <Badge tone="primary">Coach: {session.coach.name}</Badge>}
                       <Badge tone="default">{session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}</Badge>
                       {session.capacity && <span className="text-xs text-[var(--muted)]">Cap: {session.capacity}</span>}
                       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditingSession(session); }} className="text-indigo-600 hover:text-indigo-800 font-bold">
@@ -1992,6 +2022,14 @@ export default function ActivityDetailPage() {
                       ))}
                     </Select>
                   )}
+                  <Select label="Assigned Coach / Instructor (Optional)" name="coachId" defaultValue="">
+                    <option value="">— Select Coach —</option>
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
                   <Input label="Capacity" name="capacity" type="number" min={1} placeholder="e.g. 12" />
                   <Button type="submit" className="w-full" loading={submittingEvent}>Schedule Event</Button>
                 </form>
@@ -2566,6 +2604,7 @@ export default function ActivityDetailPage() {
         <EditSessionModal
           session={editingSession}
           clubs={clubs}
+          coaches={coaches}
           predefinedPlaces={predefinedPlaces}
           onClose={() => setEditingSession(null)}
           onSaved={loadActivityData}
