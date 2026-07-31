@@ -573,6 +573,7 @@ export default function UsersPage() {
 
       setAssignments((prev) => [...prev, newAssignment]);
       setMessage({ text: "Event session successfully linked to coach.", tone: "success" });
+      loadCoaches();
     } catch (err: any) {
       console.error("Link session error:", err);
       setMessage({ text: err.message || "Failed to link session.", tone: "danger" });
@@ -600,6 +601,7 @@ export default function UsersPage() {
         prev.filter((a) => !(a.coachId === coachId && a.sessionId === sessionId))
       );
       setMessage({ text: "Event session unlinked from coach.", tone: "success" });
+      loadCoaches();
     } catch (err: any) {
       console.error("Unlink session error:", err);
       setMessage({ text: err.message || "Failed to unlink session.", tone: "danger" });
@@ -1307,7 +1309,7 @@ export default function UsersPage() {
                 {coaches
                   .filter((c) => c.name.toLowerCase().includes(coachSearch.toLowerCase()))
                   .map((coach) => {
-                    const assignedCount = assignments.filter((a) => a.coachId === coach.id).length;
+                    const assignedCount = Math.max(coach._count?.sessions || 0, assignments.filter((a) => a.coachId === coach.id).length);
                     const historicalPayouts = payouts
                       .filter((p) => p.coachId === coach.id && p.status === "paid")
                       .reduce((sum, p) => sum + p.totalAmount, 0);
@@ -2012,17 +2014,71 @@ export default function UsersPage() {
 
               {/* Right Panel: Available Sessions to Link */}
               <div className="flex flex-col min-h-[300px] md:min-h-0 p-5 bg-[var(--surface-2)]/10">
-                <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
                   <h4 className="font-semibold text-sm uppercase tracking-wider text-[var(--muted)]">
                     Available Sessions
                   </h4>
-                  <input
-                    type="text"
-                    placeholder="Search sessions..."
-                    value={sessionSearch}
-                    onChange={(e) => setSessionSearch(e.target.value)}
-                    className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)] w-40"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Search sessions..."
+                      value={sessionSearch}
+                      onChange={(e) => setSessionSearch(e.target.value)}
+                      className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)] w-40"
+                    />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="cursor-pointer text-xs"
+                      onClick={async () => {
+                        if (!selectedCoach) return;
+                        const linkedSessionIds = assignments
+                          .filter((a) => a.coachId === selectedCoach.id)
+                          .map((a) => a.sessionId);
+                        const unlinkedSessions = dbSessions
+                          .filter((s) => !linkedSessionIds.includes(s.id))
+                          .filter((s) => {
+                            const matchesSearch =
+                              s.activity.name.toLowerCase().includes(sessionSearch.toLowerCase()) ||
+                              (s.location && s.location.toLowerCase().includes(sessionSearch.toLowerCase()));
+                            return matchesSearch;
+                          });
+                        if (unlinkedSessions.length === 0) {
+                          setMessage({ text: "No available sessions to link.", tone: "info" });
+                          return;
+                        }
+                        setMessage({ text: `Linking ${unlinkedSessions.length} sessions...`, tone: "info" });
+                        let linked = 0;
+                        for (const s of unlinkedSessions) {
+                          try {
+                            const res = await fetch(`/api/admin/sessions/${s.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ coachId: selectedCoach.id }),
+                            });
+                            if (res.ok) {
+                              linked++;
+                              setDbSessions((prev) =>
+                                prev.map((sess) => (sess.id === s.id ? { ...sess, coachId: selectedCoach.id } : sess))
+                              );
+                              setAssignments((prev) => [...prev, {
+                                id: `assign_${s.id}_${selectedCoach.id}`,
+                                coachId: selectedCoach.id,
+                                sessionId: s.id,
+                                createdAt: new Date().toISOString(),
+                              }]);
+                            }
+                          } catch (err) {
+                            console.error("Bulk link error for session", s.id, err);
+                          }
+                        }
+                        setMessage({ text: `Successfully linked ${linked} sessions to ${selectedCoach.name}.`, tone: "success" });
+                        loadCoaches();
+                      }}
+                    >
+                      Link All
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-2 pr-1">
