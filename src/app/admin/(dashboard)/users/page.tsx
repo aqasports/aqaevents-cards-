@@ -1338,29 +1338,13 @@ export default function UsersPage() {
               <h3 className="text-base font-semibold">
                 Coaches & Staff Profiles ({coaches.length})
               </h3>
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <input
-                  type="text"
-                  placeholder="Search by name..."
-                  value={coachSearch}
-                  onChange={(e) => setCoachSearch(e.target.value)}
-                  className="w-full sm:w-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
-                />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="cursor-pointer text-xs whitespace-nowrap"
-                  onClick={async () => {
-                    setMessage({ text: "Syncing payout invoices & relinking coach sessions in database...", tone: "info" });
-                    await loadPayouts();
-                    await loadSessions();
-                    await loadCoaches();
-                    setMessage({ text: "Coach sessions successfully relinked in production database.", tone: "success" });
-                  }}
-                >
-                  Sync & Relink Invoices
-                </Button>
-              </div>
+              <input
+                type="text"
+                placeholder="Search by name..."
+                value={coachSearch}
+                onChange={(e) => setCoachSearch(e.target.value)}
+                className="w-full sm:w-auto rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
+              />
             </div>
 
             {coaches.length === 0 ? (

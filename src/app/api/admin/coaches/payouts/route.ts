@@ -33,43 +33,6 @@ export interface CoachPayout {
   paidAt?: string;
 }
 
-// Helper to auto-relink sessions in PostgreSQL database based on payout invoices
-async function relinkSessionsFromPayouts(payouts: CoachPayout[]) {
-  try {
-    const coaches = await prisma.coach.findMany({ select: { id: true, name: true, email: true } });
-
-    for (const payout of payouts) {
-      if (!payout.sessions || !Array.isArray(payout.sessions) || payout.sessions.length === 0) continue;
-
-      // Match coach by ID or fallback to name/email match
-      let targetCoachId = payout.coachId;
-      const matchedCoach = coaches.find(
-        (c) => c.id === payout.coachId || c.name.toLowerCase() === payout.coachName?.toLowerCase() || (c.email && c.email.toLowerCase() === payout.coachEmail?.toLowerCase())
-      );
-
-      if (matchedCoach) {
-        targetCoachId = matchedCoach.id;
-      }
-
-      if (!targetCoachId) continue;
-
-      const sessionIds = payout.sessions.map((s) => s.sessionId).filter(Boolean);
-      if (sessionIds.length > 0) {
-        await prisma.activitySession.updateMany({
-          where: {
-            id: { in: sessionIds },
-          },
-          data: {
-            coachId: targetCoachId,
-          },
-        });
-      }
-    }
-  } catch (err) {
-    logger.error("Error auto-relinking sessions from payouts:", err);
-  }
-}
-
 export async function GET() {
   const { session, error } = await requireAdminSession();
   if (error || !session) return error;
@@ -94,11 +57,6 @@ export async function GET() {
       }
     }
 
-    // Auto-relink DB sessions in background whenever payouts are fetched
-    if (payouts.length > 0) {
-      await relinkSessionsFromPayouts(payouts);
-    }
-
     return NextResponse.json(payouts);
   } catch (err: unknown) {
     logger.error("GET coach payouts error:", err);
@@ -119,7 +77,6 @@ export async function POST(request: NextRequest) {
     for (const payout of inputPayouts) {
       if (!payout.invoiceCode || !payout.coachId) continue;
 
-      // Check if this payout invoice code already exists in AuditLog
       const existing = await prisma.auditLog.findFirst({
         where: {
           action: "COACH_PAYOUT_INVOICE",
@@ -138,7 +95,6 @@ export async function POST(request: NextRequest) {
         });
         savedPayouts.push(payout);
       } else {
-        // Update existing record
         await prisma.auditLog.update({
           where: { id: existing.id },
           data: {
@@ -147,11 +103,6 @@ export async function POST(request: NextRequest) {
         });
         savedPayouts.push(payout);
       }
-    }
-
-    // Auto-relink DB sessions for saved payouts
-    if (savedPayouts.length > 0) {
-      await relinkSessionsFromPayouts(savedPayouts);
     }
 
     return NextResponse.json({ success: true, count: savedPayouts.length }, { status: 201 });
@@ -173,7 +124,6 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invoice ID or code required" }, { status: 400 });
     }
 
-    // Find the log entry by target (invoiceCode) or by inspecting details
     const logs = await prisma.auditLog.findMany({
       where: { action: "COACH_PAYOUT_INVOICE" },
     });
