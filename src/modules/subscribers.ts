@@ -3,11 +3,12 @@ import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { syncClientCRM } from "@/lib/crm";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { getClientBalance } from "@/lib/balance";
-import { prisma } from "@/lib/prisma";
 import { ClientsRepository } from "./clients/repository";
 import { CardsRepository } from "./cards/repository";
 import { BillingRepository } from "./invoices/repository";
 import { ReportingRepository } from "./reports/repository";
+
+const getPrisma = () => (globalThis as any).prisma;
 
 const clientsRepo = new ClientsRepository();
 const cardsRepo = new CardsRepository();
@@ -36,7 +37,7 @@ async function uniqueInvoiceCode(tx: any): Promise<string> {
 async function resolveAdminId(adminId: string | null | undefined, tx?: any): Promise<string | null> {
   if (!adminId) return null;
   try {
-    const client = tx || prisma;
+    const client = tx || getPrisma();
     if (!client || !client.adminUser || typeof client.adminUser.findUnique !== "function") {
       return null;
     }

@@ -30,5 +30,3 @@ export const EVENTS = {
   REDEMPTION_DELETED: "REDEMPTION_DELETED",
 } as const;
 
-import "@/modules/subscribers";
-
