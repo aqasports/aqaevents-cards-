@@ -97,89 +97,132 @@ export class ClientsService {
   }
 
   async getClient(id: string) {
-    const clientSelect = {
-      id: true,
-      fullName: true,
-      email: true,
-      phone: true,
-      notes: true,
-      leadSource: true,
-      customerSegment: true,
-      totalSpent: true,
-      lastActivityDate: true,
-      favoriteActivity: true,
-      archived: true,
-      archivedAt: true,
-      createdAt: true,
-      updatedAt: true,
-      cards: {
-        select: {
-          id: true,
-          cardCode: true,
-          publicToken: true,
-          status: true,
-          issuedAt: true,
-          revokedAt: true,
-        },
-        orderBy: { issuedAt: "desc" as const },
-      },
-      invoices: {
-        select: {
-          id: true,
-          invoiceCode: true,
-          amount: true,
-          category: true,
-          items: true,
-          status: true,
-          paidAt: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: "desc" as const },
-      },
-      ledgerEntries: {
-        select: {
-          id: true,
-          delta: true,
-          reason: true,
-          createdAt: true,
-          package: {
-            select: { id: true, name: true },
+    try {
+      const clientSelect = {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        notes: true,
+        leadSource: true,
+        customerSegment: true,
+        totalSpent: true,
+        lastActivityDate: true,
+        favoriteActivity: true,
+        archived: true,
+        archivedAt: true,
+        createdAt: true,
+        updatedAt: true,
+        cards: {
+          select: {
+            id: true,
+            cardCode: true,
+            publicToken: true,
+            status: true,
+            issuedAt: true,
+            revokedAt: true,
           },
-          createdBy: { select: { name: true } },
+          orderBy: { issuedAt: "desc" as const },
         },
-        orderBy: { createdAt: "desc" as const },
-      },
-      redemptions: {
+        invoices: {
+          select: {
+            id: true,
+            invoiceCode: true,
+            amount: true,
+            category: true,
+            items: true,
+            status: true,
+            paidAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" as const },
+        },
+        ledgerEntries: {
+          select: {
+            id: true,
+            delta: true,
+            reason: true,
+            createdAt: true,
+            package: {
+              select: { id: true, name: true },
+            },
+            createdBy: { select: { name: true } },
+          },
+          orderBy: { createdAt: "desc" as const },
+        },
+        redemptions: {
+          select: {
+            id: true,
+            redeemedAt: true,
+            creditsUsed: true,
+            notes: true,
+            activity: {
+              select: { id: true, name: true },
+            },
+            session: {
+              select: { id: true, startTime: true },
+            },
+            staff: { select: { name: true } },
+            checkIns: {
+              select: { id: true, scannedAt: true, status: true },
+              orderBy: { scannedAt: "desc" as const },
+              take: 1,
+            },
+          },
+          orderBy: { redeemedAt: "desc" as const },
+        },
+      };
+
+      const client = await this.clientsRepo.findUnique({
+        where: { id },
+        select: clientSelect,
+      });
+
+      if (!client) return null;
+
+      const balance = await getClientBalance(id).catch(() => 0);
+      return { ...client, balance };
+    } catch (err) {
+      logger.error("Primary getClient query failed, executing fallback query:", err);
+      const basicClient = await this.clientsRepo.findUnique({
+        where: { id },
         select: {
           id: true,
-          redeemedAt: true,
+          fullName: true,
+          email: true,
+          phone: true,
           notes: true,
-          activity: {
-            select: { id: true, name: true },
-          },
-          session: {
-            select: { id: true, startTime: true },
-          },
-          staff: { select: { name: true } },
-          checkIns: {
-            select: { id: true, scannedAt: true, status: true },
-            orderBy: { scannedAt: "desc" as const },
-            take: 1,
+          createdAt: true,
+          updatedAt: true,
+          cards: {
+            select: {
+              id: true,
+              cardCode: true,
+              publicToken: true,
+              status: true,
+            },
           },
         },
-        orderBy: { redeemedAt: "desc" as const },
-      },
-    };
+      });
 
-    const client = await this.clientsRepo.findUnique({
-      where: { id },
-      select: clientSelect,
-    });
+      if (!basicClient) return null;
 
-    if (!client) return null;
-
-    const balance = await getClientBalance(id);
-    return { ...client, balance };
+      const balance = await getClientBalance(id).catch(() => 0);
+      return {
+        ...basicClient,
+        leadSource: null,
+        customerSegment: null,
+        totalSpent: 0,
+        lastActivityDate: null,
+        favoriteActivity: null,
+        archived: false,
+        archivedAt: null,
+        invoices: [],
+        ledgerEntries: [],
+        redemptions: [],
+        balance,
+      };
+    }
   }
 
   async createClient(
