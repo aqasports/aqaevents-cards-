@@ -75,10 +75,17 @@ export class CardsService {
       };
     };
 
+    const clientSelect = {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+    };
+
     if (token) {
       const card = await this.cardsRepo.findFirst({
         where: { publicToken: token, status: "active" },
-        include: { client: true },
+        select: { id: true, cardCode: true, publicToken: true, status: true, clientId: true, client: { select: clientSelect } },
       });
       if (!card || !card.client) return null;
       return getSingleResult(card, card.client);
@@ -87,7 +94,7 @@ export class CardsService {
     if (cardCode) {
       const card = await this.cardsRepo.findFirst({
         where: { cardCode, status: "active" },
-        include: { client: true },
+        select: { id: true, cardCode: true, publicToken: true, status: true, clientId: true, client: { select: clientSelect } },
       });
       if (!card || !card.client) return null;
       return getSingleResult(card, card.client);
@@ -99,7 +106,7 @@ export class CardsService {
       if (trimmedQuery.length > 20) {
         const card = await this.cardsRepo.findFirst({
           where: { publicToken: trimmedQuery, status: "active" },
-          include: { client: true },
+          select: { id: true, cardCode: true, publicToken: true, status: true, clientId: true, client: { select: clientSelect } },
         });
         if (card && card.client) {
           return getSingleResult(card, card.client);
@@ -108,7 +115,7 @@ export class CardsService {
 
       const cardByCode = await this.cardsRepo.findFirst({
         where: { cardCode: trimmedQuery, status: "active" },
-        include: { client: true },
+        select: { id: true, cardCode: true, publicToken: true, status: true, clientId: true, client: { select: clientSelect } },
       });
       if (cardByCode && cardByCode.client) {
         return getSingleResult(cardByCode, cardByCode.client);
@@ -122,8 +129,13 @@ export class CardsService {
             ...(isSqlite ? {} : { mode: "insensitive" as const }),
           } as any,
         },
-        include: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
           cards: {
+            select: { id: true, cardCode: true, publicToken: true, status: true },
             where: { status: "active" },
             take: 1,
           },
@@ -205,19 +217,37 @@ export class CardsService {
   async getPublicCardByToken(token: string) {
     const card = await this.cardsRepo.findUnique({
       where: { publicToken: token },
-      include: {
+      select: {
+        id: true,
+        cardCode: true,
+        publicToken: true,
+        status: true,
+        clientId: true,
         client: {
-          include: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
             redemptions: {
-              include: {
-                activity: true,
-                session: true,
+              select: {
+                id: true,
+                redeemedAt: true,
+                creditsUsed: true,
+                activity: { select: { id: true, name: true } },
+                session: { select: { id: true, sessionDate: true, location: true } },
               },
               orderBy: { redeemedAt: "desc" },
               take: 50,
             },
             ledgerEntries: {
-              include: { package: true },
+              select: {
+                id: true,
+                delta: true,
+                reason: true,
+                createdAt: true,
+                package: { select: { id: true, name: true } },
+              },
               orderBy: { createdAt: "desc" },
               take: 20,
             },

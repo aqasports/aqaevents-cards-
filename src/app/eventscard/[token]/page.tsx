@@ -25,16 +25,43 @@ export default async function EventCardPage({
 
   const card = await prisma.card.findUnique({
     where: { publicToken: token },
-    include: {
+    select: {
+      id: true,
+      cardCode: true,
+      publicToken: true,
+      status: true,
+      clientId: true,
       client: {
-        include: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
           ledgerEntries: {
-            include: {
-              package: true,
+            select: {
+              id: true,
+              delta: true,
+              reason: true,
+              createdAt: true,
+              package: {
+                select: {
+                  id: true,
+                  name: true,
+                  creditAmount: true,
+                  bonusCredits: true,
+                },
+              },
               redemption: {
-                include: {
-                  activity: true,
-                  session: true,
+                select: {
+                  id: true,
+                  redeemedAt: true,
+                  creditsUsed: true,
+                  activity: {
+                    select: { id: true, name: true },
+                  },
+                  session: {
+                    select: { id: true, sessionDate: true, location: true },
+                  },
                   checkIns: {
                     select: { scannedAt: true, status: true },
                     orderBy: { scannedAt: "desc" },
