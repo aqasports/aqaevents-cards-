@@ -11,6 +11,8 @@ interface Activity {
   sessions: Array<{ id: string; sessionDate: string; location: string | null }>;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function PortalActivitiesPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);

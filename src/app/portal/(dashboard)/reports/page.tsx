@@ -29,6 +29,8 @@ interface ReportData {
   }>;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function PortalReportsPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);

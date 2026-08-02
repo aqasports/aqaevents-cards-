@@ -8,8 +8,11 @@ interface Employee {
   fullName: string;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function PortalCreditsPage() {
-  const { data: session } = useSession();
+  const sessionRes = useSession();
+  const session = sessionRes?.data;
   const role = session?.user?.role || "VIEWER";
   const canManage = role === "OWNER" || role === "HR_MANAGER";
 

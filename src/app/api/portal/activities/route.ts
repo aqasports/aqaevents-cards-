@@ -16,7 +16,8 @@ const proposeActivitySchema = z.object({
 
 export async function GET() {
   const { session, organizationId, error } = await requireOrgSession();
-  if (error || !session || !organizationId) return error;
+  if (error) return error;
+  if (!session || !organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const activities = await prisma.activity.findMany({
@@ -39,7 +40,8 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const { session, organizationId, role, error } = await requireOrgSession();
-  if (error || !session || !organizationId) return error;
+  if (error) return error;
+  if (!session || !organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const body = await request.json();

@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const { session, organizationId, error } = await requireOrgSession();
-  if (error || !session || !organizationId) return error;
+  if (error) return error;
+  if (!session || !organizationId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     // 1. Total redemptions & credits used by org employees

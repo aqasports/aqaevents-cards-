@@ -18,8 +18,11 @@ interface OrgSettings {
   users: Array<{ id: string; email: string; role: string; active: boolean }>;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function PortalSettingsPage() {
-  const { data: session } = useSession();
+  const sessionRes = useSession();
+  const session = sessionRes?.data;
   const role = session?.user?.role || "VIEWER";
   const isOwner = role === "OWNER";
 

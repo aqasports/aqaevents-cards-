@@ -29,6 +29,8 @@ interface DashboardData {
   departmentsCount: number;
 }
 
+export const dynamic = "force-dynamic";
+
 export default function PortalDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
