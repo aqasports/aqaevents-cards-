@@ -30,7 +30,10 @@ export async function POST(
     if (waitlistId) {
       targetEntry = await prisma.sessionWaitlist.findUnique({
         where: { id: waitlistId },
-        include: { client: true, session: { include: { activity: true } } },
+        include: {
+          client: { select: { id: true, fullName: true, email: true, phone: true } },
+          session: { include: { activity: true } },
+        },
       });
     } else {
       targetEntry = await prisma.sessionWaitlist.findFirst({
@@ -39,7 +42,10 @@ export async function POST(
           status: "waiting",
         },
         orderBy: { createdAt: "asc" },
-        include: { client: true, session: { include: { activity: true } } },
+        include: {
+          client: { select: { id: true, fullName: true, email: true, phone: true } },
+          session: { include: { activity: true } },
+        },
       });
     }
 
@@ -53,7 +59,9 @@ export async function POST(
     const updated = await prisma.sessionWaitlist.update({
       where: { id: targetEntry.id },
       data: { status: "promoted" },
-      include: { client: true },
+      include: {
+        client: { select: { id: true, fullName: true, email: true, phone: true } },
+      },
     });
 
     const recipient = targetEntry.client.email || targetEntry.client.phone || "";

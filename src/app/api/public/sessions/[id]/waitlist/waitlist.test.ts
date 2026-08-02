@@ -122,7 +122,9 @@ describe("Session Waitlist API", () => {
       expect(prisma.sessionWaitlist.update).toHaveBeenCalledWith({
         where: { id: "w1" },
         data: { status: "promoted" },
-        include: { client: true },
+        include: {
+          client: { select: { id: true, fullName: true, email: true, phone: true } },
+        },
       });
     });
   });

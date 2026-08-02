@@ -166,7 +166,11 @@ export default async function AdminDashboardPage() {
     const lowBalanceClients = await prisma.client.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
         ledgerEntries: {
           select: { delta: true },
         },

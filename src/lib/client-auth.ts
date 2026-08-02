@@ -17,6 +17,13 @@ export async function generateMagicPin(phoneOrEmail: string): Promise<{ pin: str
       ],
       archived: false,
     },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      archived: true,
+    },
   });
 
   if (!client) {
@@ -78,6 +85,13 @@ export async function verifyMagicPin(
       ],
       archived: false,
     },
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      archived: true,
+    },
   });
 
   if (!client) {
@@ -135,9 +149,18 @@ export async function requireClientSession(request: NextRequest): Promise<{ clie
 
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    include: {
-      organization: true,
-      cards: true,
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      archived: true,
+      organization: {
+        select: { id: true, name: true, useSharedPool: true },
+      },
+      cards: {
+        select: { id: true, cardCode: true, publicToken: true, status: true },
+      },
     },
   });
 

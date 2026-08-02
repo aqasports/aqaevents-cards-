@@ -15,7 +15,12 @@ export async function GET(request: NextRequest) {
   try {
     const fullClient = await prisma.client.findUnique({
       where: { id: client.id },
-      include: {
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        customerSegment: true,
         organization: {
           select: { id: true, name: true, useSharedPool: true },
         },
@@ -29,7 +34,10 @@ export async function GET(request: NextRequest) {
         redemptions: {
           orderBy: { redeemedAt: "desc" },
           take: 50,
-          include: {
+          select: {
+            id: true,
+            redeemedAt: true,
+            creditsUsed: true,
             activity: {
               select: { id: true, name: true, creditCost: true, imageUrl: true },
             },
