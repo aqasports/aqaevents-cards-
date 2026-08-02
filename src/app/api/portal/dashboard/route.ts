@@ -30,7 +30,6 @@ export async function GET() {
           select: {
             id: true,
             name: true,
-            code: true,
             budgetCap: true,
             _count: { select: { clients: true } },
           },
