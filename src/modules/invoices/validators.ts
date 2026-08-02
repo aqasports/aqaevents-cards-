@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+export const invoiceLineItemSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  quantity: z.number().int().positive("Quantity must be greater than 0"),
+  unitPrice: z.number().nonnegative("Unit price must be at least 0"),
+  taxRate: z.number().refine((val) => val === 9 || val === 19, {
+    message: "Tax rate must be 9% or 19%",
+  }),
+});
+
 export const createInvoiceSchema = z.object({
   clientId: z.string(),
   amount: z.number().positive(),

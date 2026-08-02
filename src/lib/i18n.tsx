@@ -25,6 +25,7 @@ const dictionaries = {
       events: "Events",
       terminal: "Terminal Check-in",
       organizations: "Organizations",
+      contracts: "Contracts",
       equipment: "Equipment",
       campaigns: "Campaigns",
       insights: "Insights",
@@ -273,6 +274,7 @@ const dictionaries = {
       events: "Événements",
       terminal: "Terminal de présence",
       organizations: "Organisations",
+      contracts: "Contrats",
       equipment: "Équipements",
       campaigns: "Campagnes",
       insights: "Analyses",
@@ -521,6 +523,7 @@ const dictionaries = {
       events: "الفعاليات",
       terminal: "محطة الحضور",
       organizations: "المؤسسات",
+      contracts: "العقود",
       equipment: "المعدات",
       campaigns: "الحملات",
       insights: "التحليلات",
@@ -869,3 +872,6 @@ export function useTranslations(namespace?: string) {
     dir: context.dir,
   };
 }
+
+export { portalFr } from "./i18n/portal-fr";
+
