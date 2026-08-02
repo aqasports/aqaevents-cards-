@@ -23,5 +23,3 @@ export const prisma: PrismaClient =
 
 globalForPrisma.prisma = prisma;
 
-import "@/modules/subscribers";
-

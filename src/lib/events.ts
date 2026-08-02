@@ -29,3 +29,6 @@ export const EVENTS = {
   ACTIVITY_REDEEMED: "ACTIVITY_REDEEMED",
   REDEMPTION_DELETED: "REDEMPTION_DELETED",
 } as const;
+
+import "@/modules/subscribers";
+
