@@ -3,6 +3,7 @@ import { getClientBalances, getClientBalance } from "@/lib/balance";
 import { generateCardCode, generatePublicToken } from "@/lib/tokens";
 import { sendSimulatedNotification } from "@/lib/notifications";
 import { syncClientCRM } from "@/lib/crm";
+import { logger } from "@/lib/logger";
 import { ClientsRepository } from "./repository";
 import { CardsRepository } from "../cards/repository";
 import { BillingRepository } from "../invoices/repository";
