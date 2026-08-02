@@ -154,7 +154,13 @@ export class BillingService {
   ) {
     const client = await this.clientsRepo.findUnique({
       where: { id: data.clientId },
-      include: { cards: { where: { status: "active" }, take: 1 } },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        cards: { where: { status: "active" }, take: 1 },
+      },
     });
 
     if (!client) throw new Error("Client not found");
@@ -700,7 +706,13 @@ export class BillingService {
   ) {
     const client = await this.clientsRepo.findUnique({
       where: { id: clientId },
-      include: { cards: { where: { status: "active" }, take: 1 } },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        cards: { where: { status: "active" }, take: 1 },
+      },
     });
 
     if (!client) throw new Error("Client not found");
@@ -913,7 +925,13 @@ export class BillingService {
 
     const client = await this.clientsRepo.findUnique({
       where: { id: clientId },
-      include: { cards: { where: { status: "active" }, take: 1 } },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        cards: { where: { status: "active" }, take: 1 },
+      },
     });
 
     if (!client) throw new Error("CLIENT_NOT_FOUND");

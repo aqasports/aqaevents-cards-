@@ -47,15 +47,31 @@ export class ClientsService {
       where.archived = false;
     }
 
+    const clientSelect = {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      notes: true,
+      leadSource: true,
+      customerSegment: true,
+      totalSpent: true,
+      lastActivityDate: true,
+      favoriteActivity: true,
+      archived: true,
+      archivedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      cards: {
+        where: { status: "active" as const },
+        take: 1,
+        orderBy: { issuedAt: "desc" as const },
+      },
+    };
+
     const clients = await this.clientsRepo.findMany({
       where,
-      include: {
-        cards: {
-          where: { status: "active" },
-          take: 1,
-          orderBy: { issuedAt: "desc" },
-        },
-      },
+      select: clientSelect,
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -81,32 +97,48 @@ export class ClientsService {
   }
 
   async getClient(id: string) {
+    const clientSelect = {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      notes: true,
+      leadSource: true,
+      customerSegment: true,
+      totalSpent: true,
+      lastActivityDate: true,
+      favoriteActivity: true,
+      archived: true,
+      archivedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      cards: { orderBy: { issuedAt: "desc" as const } },
+      invoices: { orderBy: { createdAt: "desc" as const } },
+      ledgerEntries: {
+        include: {
+          package: true,
+          createdBy: { select: { name: true } },
+        },
+        orderBy: { createdAt: "desc" as const },
+      },
+      redemptions: {
+        include: {
+          activity: true,
+          session: true,
+          staff: { select: { name: true } },
+          checkIns: {
+            select: { id: true, scannedAt: true, status: true },
+            orderBy: { scannedAt: "desc" as const },
+            take: 1,
+          },
+        },
+        orderBy: { redeemedAt: "desc" as const },
+      },
+    };
+
     const client = await this.clientsRepo.findUnique({
       where: { id },
-      include: {
-        cards: { orderBy: { issuedAt: "desc" } },
-        invoices: { orderBy: { createdAt: "desc" } },
-        ledgerEntries: {
-          include: {
-            package: true,
-            createdBy: { select: { name: true } },
-          },
-          orderBy: { createdAt: "desc" },
-        },
-        redemptions: {
-          include: {
-            activity: true,
-            session: true,
-            staff: { select: { name: true } },
-            checkIns: {
-              select: { id: true, scannedAt: true, status: true },
-              orderBy: { scannedAt: "desc" },
-              take: 1,
-            },
-          },
-          orderBy: { redeemedAt: "desc" },
-        },
-      },
+      select: clientSelect,
     });
 
     if (!client) return null;
