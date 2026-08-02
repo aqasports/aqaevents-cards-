@@ -23,6 +23,8 @@ export class ProposedActionsService {
       actionType: validated.actionType,
       proposedPayload: validated.proposedPayload,
       reasoning: validated.reasoning,
+      organizationId: validated.organizationId ?? null,
+      targetEntityId: validated.targetEntityId ?? null,
       status: "pending",
     });
   }

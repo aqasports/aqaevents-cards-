@@ -88,6 +88,30 @@ export class BillingService {
     const paidAmount = Number(totals.paid_amount);
     const expenses = Number(expenseTotals.total_expenses);
 
+    const now = new Date();
+    const unpaidInvoices = invoices.filter((inv: any) => inv.status === "unpaid");
+
+    let current_0_30 = 0;
+    let overdue_31_60 = 0;
+    let overdue_61_90 = 0;
+    let overdue_90_plus = 0;
+
+    for (const inv of unpaidInvoices) {
+      const refDate = inv.dueDate ? new Date(inv.dueDate) : new Date(inv.createdAt);
+      const diffDays = Math.floor((now.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24));
+      const remaining = (inv.amount || 0) - (inv.paidAmount || 0);
+
+      if (diffDays <= 30) {
+        current_0_30 += remaining;
+      } else if (diffDays <= 60) {
+        overdue_31_60 += remaining;
+      } else if (diffDays <= 90) {
+        overdue_61_90 += remaining;
+      } else {
+        overdue_90_plus += remaining;
+      }
+    }
+
     return {
       invoices,
       stats: {
@@ -97,6 +121,12 @@ export class BillingService {
         refundedAmount: Number(totals.refunded_amount),
         totalExpenses: expenses,
         netProfit: paidAmount - expenses,
+        aging: {
+          current_0_30,
+          overdue_31_60,
+          overdue_61_90,
+          overdue_90_plus,
+        },
       },
     };
   }

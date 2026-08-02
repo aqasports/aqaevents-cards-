@@ -164,11 +164,32 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  if (pathname.startsWith("/portal")) {
+    if (pathname === "/portal/login") {
+      const res = NextResponse.next();
+      res.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
+      return res;
+    }
+
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    if (!token || !token.organizationId) {
+      const loginUrl = new URL("/portal/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      const redirectRes = NextResponse.redirect(loginUrl);
+      redirectRes.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
+      return redirectRes;
+    }
+  }
+
   const response = NextResponse.next();
   response.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
   return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/client/:path*"],
+  matcher: ["/admin/:path*", "/client/:path*", "/portal/:path*"],
 };

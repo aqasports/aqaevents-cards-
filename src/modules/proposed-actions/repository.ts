@@ -21,9 +21,9 @@ export class ProposedActionsRepository {
     });
   }
 
-  async create(data: Prisma.AiActionQueueCreateInput, tx?: Prisma.TransactionClient) {
+  async create(data: Prisma.AiActionQueueUncheckedCreateInput | Prisma.AiActionQueueCreateInput, tx?: Prisma.TransactionClient) {
     const client = tx || prisma;
-    return client.aiActionQueue.create({ data });
+    return client.aiActionQueue.create({ data: data as Prisma.AiActionQueueCreateInput });
   }
 
   async update(id: string, data: Prisma.AiActionQueueUpdateInput, tx?: Prisma.TransactionClient) {

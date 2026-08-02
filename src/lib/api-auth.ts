@@ -67,3 +67,56 @@ export async function requireSuperAdminSession() {
 
   return { session, error: null };
 }
+
+export async function requireOrgSession(allowedRoles?: string[]) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id || !session?.user?.organizationId) {
+      return {
+        session: null,
+        organizationId: null,
+        role: null,
+        error: NextResponse.json({ error: "Unauthorized: Corporate Portal session required" }, { status: 401 }),
+      };
+    }
+
+    const orgUser = await prisma.organizationUser.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, organizationId: true, role: true, active: true },
+    });
+
+    if (!orgUser || !orgUser.active) {
+      return {
+        session: null,
+        organizationId: null,
+        role: null,
+        error: NextResponse.json({ error: "Unauthorized: Organization user inactive or not found" }, { status: 401 }),
+      };
+    }
+
+    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(orgUser.role)) {
+      return {
+        session: null,
+        organizationId: orgUser.organizationId,
+        role: orgUser.role,
+        error: NextResponse.json({ error: "Forbidden: Insufficient portal role permissions" }, { status: 403 }),
+      };
+    }
+
+    return {
+      session,
+      organizationId: orgUser.organizationId,
+      role: orgUser.role,
+      user: orgUser,
+      error: null,
+    };
+  } catch (err) {
+    logger.error("[api-auth] Error in requireOrgSession:", err);
+    return {
+      session: null,
+      organizationId: null,
+      role: null,
+      error: NextResponse.json({ error: "Authentication service error" }, { status: 500 }),
+    };
+  }
+}

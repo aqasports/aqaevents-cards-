@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { actionType, proposedPayload, reasoning } = body;
+    const { actionType, proposedPayload, reasoning, organizationId, targetEntityId } = body;
 
     const trimmedActionType = actionType ? String(actionType).trim() : "";
     const trimmedReasoning = reasoning ? String(reasoning).trim() : "";
@@ -68,6 +68,8 @@ export async function POST(request: NextRequest) {
         actionType: trimmedActionType,
         proposedPayload: payloadString,
         reasoning: trimmedReasoning,
+        organizationId: organizationId || null,
+        targetEntityId: targetEntityId || null,
         status: "pending",
       },
     });

@@ -70,6 +70,12 @@ type Stats = {
   refundedAmount: number;
   totalExpenses: number;
   netProfit: number;
+  aging?: {
+    current_0_30: number;
+    overdue_31_60: number;
+    overdue_61_90: number;
+    overdue_90_plus: number;
+  };
 };
 
 type ReportsSummary = {
@@ -1524,6 +1530,34 @@ export default function InvoicesPage() {
               </p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Aging Breakdown Panel */}
+      {stats?.aging && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-slate-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Receivables Aging Breakdown</span>
+            <span className="text-[11px] text-slate-500 font-mono">Unpaid Invoices Aging</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+              <span className="text-[10px] uppercase font-bold text-emerald-400">0–30 Days (Current)</span>
+              <p className="text-lg font-bold font-mono mt-1 text-white">{fmt(stats.aging.current_0_30)}</p>
+            </div>
+            <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+              <span className="text-[10px] uppercase font-bold text-amber-400">31–60 Days</span>
+              <p className="text-lg font-bold font-mono mt-1 text-white">{fmt(stats.aging.overdue_31_60)}</p>
+            </div>
+            <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+              <span className="text-[10px] uppercase font-bold text-orange-400">61–90 Days</span>
+              <p className="text-lg font-bold font-mono mt-1 text-white">{fmt(stats.aging.overdue_61_90)}</p>
+            </div>
+            <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/60">
+              <span className="text-[10px] uppercase font-bold text-red-400">90+ Days Overdue</span>
+              <p className="text-lg font-bold font-mono mt-1 text-white">{fmt(stats.aging.overdue_90_plus)}</p>
+            </div>
+          </div>
         </div>
       )}
 

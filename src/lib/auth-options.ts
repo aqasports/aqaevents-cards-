@@ -17,48 +17,129 @@ export const authOptions: NextAuthOptions = {
   },
   providers: [
     CredentialsProvider({
+      id: "credentials",
       name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        token: { label: "Magic Token", type: "text" },
+        orgId: { label: "Organization ID", type: "text" },
+        loginType: { label: "Login Type", type: "text" },
       },
       async authorize(credentials) {
+        // ── 1. Magic Link Authentication (OrganizationUser) ────────────────
+        if (credentials?.token) {
+          const orgUser = await prisma.organizationUser.findFirst({
+            where: {
+              magicToken: credentials.token,
+              magicTokenExp: { gte: new Date() },
+              active: true,
+            },
+          });
+
+          if (orgUser) {
+            // Consume the magic token once used
+            await prisma.organizationUser.update({
+              where: { id: orgUser.id },
+              data: { magicToken: null, magicTokenExp: null },
+            });
+
+            return {
+              id: orgUser.id,
+              email: orgUser.email,
+              name: orgUser.email,
+              role: orgUser.role,
+              organizationId: orgUser.organizationId,
+              userType: "org" as const,
+            };
+          }
+          return null;
+        }
+
         if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
         const email = credentials.email.trim().toLowerCase();
 
-        // Check if locked out by email
+        // ── 2. Explicit Corporate Portal Login Path ─────────────────────────
+        if (credentials?.loginType === "org" || credentials?.orgId) {
+          const orgUser = await prisma.organizationUser.findFirst({
+            where: {
+              email,
+              active: true,
+              ...(credentials.orgId ? { organizationId: credentials.orgId } : {}),
+            },
+          });
+
+          if (!orgUser || !orgUser.passwordHash) {
+            await new Promise((r) => setTimeout(r, 1000));
+            return null;
+          }
+
+          const valid = await verifyPassword(credentials.password, orgUser.passwordHash);
+          if (!valid) {
+            await new Promise((r) => setTimeout(r, 1000));
+            return null;
+          }
+
+          return {
+            id: orgUser.id,
+            email: orgUser.email,
+            name: orgUser.email,
+            role: orgUser.role,
+            organizationId: orgUser.organizationId,
+            userType: "org" as const,
+          };
+        }
+
+        // ── 3. Admin / Staff Login Path ─────────────────────────────────────
         if (await isLockedOut(email)) {
           const time = await getLockoutTimeRemaining(email);
-          // Log the blocked attempt to the audit trail
           await logAdminAction(
             null,
             "LOGIN_BLOCKED_LOCKOUT",
             email,
-            `Account locked. ${time}s remaining.`,
+            `Account locked. ${time}s remaining.`
           );
           throw new Error(`ACCOUNT_LOCKED:${time}`);
         }
 
-        const user = await prisma.adminUser.findUnique({
+        const adminUser = await prisma.adminUser.findUnique({
           where: { email },
         });
 
-        if (!user) {
-          // Dynamic delay for non-existent users to prevent timing attacks
+        if (!adminUser) {
+          // Check if an OrganizationUser exists for this email as fallback
+          const orgUser = await prisma.organizationUser.findFirst({
+            where: { email, active: true },
+          });
+
+          if (orgUser && orgUser.passwordHash) {
+            const valid = await verifyPassword(credentials.password, orgUser.passwordHash);
+            if (valid) {
+              return {
+                id: orgUser.id,
+                email: orgUser.email,
+                name: orgUser.email,
+                role: orgUser.role,
+                organizationId: orgUser.organizationId,
+                userType: "org" as const,
+              };
+            }
+          }
+
           await new Promise((r) => setTimeout(r, 1000));
           await logAdminAction(
             null,
             "LOGIN_FAILED",
             email,
-            "Unknown email address.",
+            "Unknown email address."
           );
           return null;
         }
 
-        const valid = await verifyPassword(credentials.password, user.passwordHash);
+        const valid = await verifyPassword(credentials.password, adminUser.passwordHash);
         if (!valid) {
           await recordFailedAttempt(email);
           const locked = await isLockedOut(email);
@@ -68,7 +149,7 @@ export const authOptions: NextAuthOptions = {
               null,
               "LOGIN_BLOCKED_LOCKOUT",
               email,
-              `Account locked after too many failed attempts. ${time}s remaining.`,
+              `Account locked after too many failed attempts. ${time}s remaining.`
             );
             throw new Error(`ACCOUNT_LOCKED:${time}`);
           }
@@ -76,9 +157,8 @@ export const authOptions: NextAuthOptions = {
             null,
             "LOGIN_FAILED",
             email,
-            "Incorrect password.",
+            "Incorrect password."
           );
-          // Delay to slow down brute force
           await new Promise((r) => setTimeout(r, 1000));
           return null;
         }
@@ -86,10 +166,12 @@ export const authOptions: NextAuthOptions = {
         await resetAttempts(email);
 
         return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
+          id: adminUser.id,
+          email: adminUser.email,
+          name: adminUser.name,
+          role: adminUser.role,
+          organizationId: null,
+          userType: "admin" as const,
         };
       },
     }),
@@ -99,6 +181,8 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role ?? "staff";
+        token.organizationId = (user as { organizationId?: string | null }).organizationId ?? null;
+        token.userType = (user as { userType?: "admin" | "org" }).userType ?? "admin";
       }
       return token;
     },
@@ -106,28 +190,29 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as string;
+        session.user.organizationId = (token.organizationId as string) || null;
+        session.user.userType = (token.userType as "admin" | "org") || "admin";
       }
       return session;
     },
   },
   events: {
-    // Log successful sign-ins to the audit trail
     async signIn({ user }) {
       await logAdminAction(
         user.id ?? null,
         "LOGIN_SUCCESS",
         user.email ?? "unknown",
-        `Admin user signed in.`,
+        `User signed in (${(user as any).userType ?? "admin"}).`
       );
     },
-    // Log sign-outs
     async signOut({ token }) {
       await logAdminAction(
         (token?.id as string) ?? null,
         "LOGOUT",
         (token?.email as string) ?? "unknown",
-        "Admin user signed out.",
+        "User signed out."
       );
     },
   },
 };
+

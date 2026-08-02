@@ -43,6 +43,7 @@ model Client {
   // Organization Fields
   organizationId String?
   orgRole        String?
+  departmentId   String?
 
   // Marketing & Attribution Fields
   marketingConsent   Boolean   @default(false)
@@ -50,6 +51,7 @@ model Client {
   leadAttribution    String?
 
   organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  department       Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   cards            Card[]
   ledgerEntries    LedgerEntry[]
   redemptions      Redemption[]
@@ -58,6 +60,8 @@ model Client {
   checkIns         CheckIn[]
   publicPurchaseRequests PublicPurchaseRequest[]
   waitlists        SessionWaitlist[]
+
+  @@index([departmentId])
 }
 
 model Card {
@@ -213,20 +217,24 @@ model Redemption {
 }
 
 model Invoice {
-  id             String    @id @default(cuid())
+  id             String            @id @default(cuid())
   clientId       String
   organizationId String?
-  invoiceCode    String    @unique
+  invoiceCode    String            @unique
   amount         Int
-  status         String    @default("paid")
-  category       String    @default("package")
+  status         String            @default("paid")
+  category       String            @default("package")
   items          String
   notes          String?
   paidAt         DateTime?
-  createdAt      DateTime  @default(now())
+  poNumber       String?
+  dueDate        DateTime?
+  taxRate        Float             @default(19)
+  createdAt      DateTime          @default(now())
 
-  client       Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  client       Client              @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  organization Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  lineItems    InvoiceLineItem[]
 
   @@index([clientId])
   @@index([organizationId])
@@ -235,16 +243,97 @@ model Invoice {
 }
 
 model Organization {
-  id               String    @id @default(cuid())
-  name             String
-  slug             String    @unique
-  creditRate       Float?
-  sharedCreditPool Float     @default(0)
-  useSharedPool    Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  clients          Client[]
-  invoices         Invoice[]
+  id                     String             @id @default(cuid())
+  name                   String
+  slug                   String             @unique
+  creditRate             Float?
+  sharedCreditPool       Float              @default(0)
+  useSharedPool          Boolean            @default(false)
+  contactName            String?
+  contactEmail           String?
+  contactPhone           String?
+  billingAddress         String?
+  nif                    String?
+  nis                    String?
+  rc                     String?
+  defaultPaymentTermDays Int?
+  discountTier           String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  clients                Client[]
+  invoices               Invoice[]
+  users                  OrganizationUser[]
+  contracts              Contract[]
+  departments            Department[]
+  aiActionQueues         AiActionQueue[]
+}
+
+model OrganizationUser {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  passwordHash   String?
+  magicToken     String?      @unique
+  magicTokenExp  DateTime?
+  role           String       @default("VIEWER")
+  active         Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([email])
+}
+
+model Contract {
+  id             String       @id @default(cuid())
+  organizationId String
+  startDate      DateTime
+  endDate        DateTime?
+  creditRate     Float?
+  discountTier   String?
+  autoRenew      Boolean      @default(false)
+  expiryPolicy   String       @default("rollover")
+  status         String       @default("draft")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model Department {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  budgetCap      Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clients        Client[]
+
+  @@index([organizationId])
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Int
+  taxRate     Float    @default(19)
+  lineTotal   Int
+  createdAt   DateTime @default(now())
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
 }
 
 model Coach {
@@ -391,19 +480,24 @@ model CampaignPromo {
 }
 
 model AiActionQueue {
-  id              String    @id @default(cuid())
+  id              String        @id @default(cuid())
   actionType      String
   proposedPayload String
   reasoning       String
-  status          String    @default("pending") // "pending", "approved", "rejected"
+  status          String        @default("pending") // "pending", "approved", "rejected"
   reviewedBy      String?
   reviewedAt      DateTime?
   executedAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  organizationId  String?
+  targetEntityId  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([createdAt])
+  @@index([organizationId])
 }
 
 model SessionWaitlist {
