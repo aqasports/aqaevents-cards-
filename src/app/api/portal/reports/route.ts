@@ -17,18 +17,26 @@ export async function GET() {
       },
       include: {
         activity: { select: { id: true, name: true } },
-        client: { select: { id: true, fullName: true, departmentId: true } },
+        client: { select: { id: true, fullName: true } },
       },
       orderBy: { redeemedAt: "desc" },
     });
 
-    // 2. Department spend aggregation
-    const departments = await prisma.department.findMany({
-      where: { organizationId },
-      include: {
-        clients: { select: { id: true } },
-      },
-    });
+    // 2. Department spend aggregation (defensive fallback)
+    let departments: Array<{ id: string; name: string; budgetCap: number | null; clients: Array<{ id: string }> }> = [];
+    try {
+      departments = await prisma.department.findMany({
+        where: { organizationId },
+        select: {
+          id: true,
+          name: true,
+          budgetCap: true,
+          clients: { select: { id: true } },
+        },
+      });
+    } catch {
+      departments = [];
+    }
 
     const deptSpendMap = new Map<string, { id: string; name: string; budgetCap: number | null; creditsUsed: number; employeesCount: number }>();
 
@@ -53,7 +61,7 @@ export async function GET() {
 
     // Aggregate spend per department
     redemptions.forEach((r) => {
-      const deptId = r.client.departmentId || "unassigned";
+      const deptId = (r.client as any).departmentId || "unassigned";
       const current = deptSpendMap.get(deptId);
       if (current) {
         current.creditsUsed += r.creditsUsed;

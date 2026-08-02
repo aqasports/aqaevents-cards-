@@ -112,19 +112,54 @@ export class ClientsService {
       archivedAt: true,
       createdAt: true,
       updatedAt: true,
-      cards: { orderBy: { issuedAt: "desc" as const } },
-      invoices: { orderBy: { createdAt: "desc" as const } },
+      cards: {
+        select: {
+          id: true,
+          cardCode: true,
+          publicToken: true,
+          status: true,
+          issuedAt: true,
+          revokedAt: true,
+        },
+        orderBy: { issuedAt: "desc" as const },
+      },
+      invoices: {
+        select: {
+          id: true,
+          invoiceCode: true,
+          amount: true,
+          category: true,
+          items: true,
+          status: true,
+          paidAt: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "desc" as const },
+      },
       ledgerEntries: {
-        include: {
-          package: true,
+        select: {
+          id: true,
+          delta: true,
+          reason: true,
+          createdAt: true,
+          package: {
+            select: { id: true, name: true },
+          },
           createdBy: { select: { name: true } },
         },
         orderBy: { createdAt: "desc" as const },
       },
       redemptions: {
-        include: {
-          activity: true,
-          session: true,
+        select: {
+          id: true,
+          redeemedAt: true,
+          notes: true,
+          activity: {
+            select: { id: true, name: true },
+          },
+          session: {
+            select: { id: true, startTime: true },
+          },
           staff: { select: { name: true } },
           checkIns: {
             select: { id: true, scannedAt: true, status: true },

@@ -30,9 +30,17 @@ export async function GET() {
     const employees = await prisma.client.findMany({
       where: { organizationId },
       orderBy: { createdAt: "desc" },
-      include: {
-        department: true,
-        cards: { where: { status: "active" } },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        archived: true,
+        createdAt: true,
+        cards: {
+          select: { id: true, cardCode: true, publicToken: true, status: true },
+          where: { status: "active" },
+        },
         _count: { select: { redemptions: true } },
       },
     });

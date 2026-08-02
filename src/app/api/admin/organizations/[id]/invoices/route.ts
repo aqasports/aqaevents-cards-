@@ -67,7 +67,12 @@ export async function POST(
   try {
     const org = await prisma.organization.findUnique({
       where: { id: organizationId },
-      include: { clients: true },
+      select: {
+        id: true,
+        name: true,
+        creditRate: true,
+        clients: { select: { id: true } },
+      },
     });
 
     if (!org) {

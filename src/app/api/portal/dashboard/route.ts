@@ -12,14 +12,26 @@ export async function GET() {
   try {
     const org = await prisma.organization.findUnique({
       where: { id: organizationId },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        creditRate: true,
+        sharedCreditPool: true,
+        useSharedPool: true,
+        createdAt: true,
+        updatedAt: true,
         contracts: {
           where: { status: "active" },
           take: 1,
           orderBy: { createdAt: "desc" },
         },
         departments: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            budgetCap: true,
             _count: { select: { clients: true } },
           },
         },

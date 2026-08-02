@@ -11,7 +11,15 @@ export class OrganizationsRepository {
     return client.organization.findMany({
       where: params?.where,
       orderBy: params?.orderBy || { name: "asc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        creditRate: true,
+        sharedCreditPool: true,
+        useSharedPool: true,
+        createdAt: true,
+        updatedAt: true,
         _count: {
           select: { clients: true, invoices: true },
         },
@@ -23,13 +31,39 @@ export class OrganizationsRepository {
     const client = tx || prisma;
     return client.organization.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        creditRate: true,
+        sharedCreditPool: true,
+        useSharedPool: true,
+        createdAt: true,
+        updatedAt: true,
         clients: {
-          include: {
-            cards: true,
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            archived: true,
+            cards: {
+              select: { id: true, cardCode: true, publicToken: true, status: true },
+            },
           },
         },
-        invoices: true,
+        invoices: {
+          select: {
+            id: true,
+            invoiceCode: true,
+            amount: true,
+            category: true,
+            items: true,
+            status: true,
+            paidAt: true,
+            createdAt: true,
+          },
+        },
         _count: {
           select: { clients: true, invoices: true },
         },
@@ -41,6 +75,16 @@ export class OrganizationsRepository {
     const client = tx || prisma;
     return client.organization.findUnique({
       where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        creditRate: true,
+        sharedCreditPool: true,
+        useSharedPool: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
   }
 

@@ -25,6 +25,12 @@ export async function POST(
   try {
     const org = await prisma.organization.findUnique({
       where: { id: organizationId },
+      select: {
+        id: true,
+        name: true,
+        useSharedPool: true,
+        sharedCreditPool: true,
+      },
     });
 
     if (!org) {
