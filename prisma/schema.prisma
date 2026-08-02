@@ -246,6 +246,11 @@ model Organization {
   id                     String             @id @default(cuid())
   name                   String
   slug                   String             @unique
+  logoUrl                String?
+  allowedActivities      String?
+  whatsappGroupUrl       String?
+  commChannel            String?            @default("ads_tunnel")
+  feedApiKey             String?            @unique
   creditRate             Float?
   sharedCreditPool       Float              @default(0)
   useSharedPool          Boolean            @default(false)

@@ -42,10 +42,40 @@ type Department = {
   _count?: { clients: number };
 };
 
+type Activity = {
+  id: string;
+  name: string;
+  creditCost: number;
+  imageUrl: string | null;
+  duration: string | null;
+  eventType: string;
+};
+
+type Session = {
+  id: string;
+  sessionDate: string;
+  location: string | null;
+  activity: Activity;
+};
+
+type Redemption = {
+  id: string;
+  redeemedAt: string;
+  creditsUsed: number;
+  client: { fullName: string; email: string | null; phone: string | null };
+  activity: { name: string; creditCost: number };
+  session: { sessionDate: string; location: string | null } | null;
+};
+
 type OrganizationDetail = {
   id: string;
   name: string;
   slug: string;
+  logoUrl: string | null;
+  allowedActivities: string | null;
+  whatsappGroupUrl: string | null;
+  commChannel: string | null;
+  feedApiKey: string | null;
   creditRate: number | null;
   sharedCreditPool: number;
   useSharedPool: boolean;
@@ -66,9 +96,29 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [org, setOrg] = useState<OrganizationDetail | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [allowedActivityIds, setAllowedActivityIds] = useState<string[]>([]);
+  const [redemptions, setRedemptions] = useState<Redemption[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
-  const [activeTab, setActiveTab] = useState<"overview" | "contracts" | "departments" | "employees" | "statements">("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "contracts" | "activities" | "pool" | "redemptions" | "departments" | "employees" | "statements"
+  >("overview");
+
+  // Profile Edit State
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [whatsappGroupUrl, setWhatsappGroupUrl] = useState("");
+  const [commChannel, setCommChannel] = useState("ads_tunnel");
+  const [nif, setNif] = useState("");
+  const [nis, setNis] = useState("");
+  const [rc, setRc] = useState("");
 
   // Contract form state
   const [startDate, setStartDate] = useState("");
@@ -85,6 +135,18 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [deptCap, setDeptCap] = useState<string>("");
   const [creatingDept, setCreatingDept] = useState(false);
 
+  // Pool Top-Up state
+  const [poolDelta, setPoolDelta] = useState<string>("");
+  const [poolReason, setPoolReason] = useState("");
+  const [adjustingPool, setAdjustingPool] = useState(false);
+
+  // Direct Booking state
+  const [selectedClientForBook, setSelectedClientForBook] = useState("");
+  const [selectedActivityForBook, setSelectedActivityForBook] = useState("");
+  const [selectedSessionForBook, setSelectedSessionForBook] = useState("");
+  const [bookingNotes, setBookingNotes] = useState("");
+  const [bookingInProgress, setBookingInProgress] = useState(false);
+
   // CSV Import state
   const [bulkInput, setBulkInput] = useState("");
   const [provisioning, setProvisioning] = useState(false);
@@ -98,21 +160,41 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const loadOrgData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resOrg, resContracts, resDepts] = await Promise.all([
+      const [resOrg, resContracts, resDepts, resAct, resRed] = await Promise.all([
         fetch(`/api/admin/organizations/${orgId}`),
         fetch(`/api/admin/organizations/${orgId}/contracts`),
         fetch(`/api/admin/organizations/${orgId}/departments`),
+        fetch(`/api/admin/organizations/${orgId}/activities`),
+        fetch(`/api/admin/organizations/${orgId}/redemptions`),
       ]);
 
       if (resOrg.ok) {
-        const data = await resOrg.json();
+        const data: OrganizationDetail = await resOrg.json();
         setOrg(data);
+        setContactName(data.contactName || "");
+        setContactEmail(data.contactEmail || "");
+        setContactPhone(data.contactPhone || "");
+        setBillingAddress(data.billingAddress || "");
+        setLogoUrl(data.logoUrl || "");
+        setWhatsappGroupUrl(data.whatsappGroupUrl || "");
+        setCommChannel(data.commChannel || "ads_tunnel");
+        setNif(data.nif || "");
+        setNis(data.nis || "");
+        setRc(data.rc || "");
       }
       if (resContracts.ok) {
         setContracts(await resContracts.json());
       }
       if (resDepts.ok) {
         setDepartments(await resDepts.json());
+      }
+      if (resAct.ok) {
+        const actData = await resAct.json();
+        setActivities(actData.activities || []);
+        setAllowedActivityIds(actData.allowedActivityIds || []);
+      }
+      if (resRed.ok) {
+        setRedemptions(await resRed.json());
       }
     } catch {
       setMessage({ text: "Network error loading organization details", tone: "danger" });
@@ -124,6 +206,138 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   useEffect(() => {
     loadOrgData();
   }, [loadOrgData]);
+
+  async function handleSaveProfile(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactName,
+          contactEmail,
+          contactPhone,
+          billingAddress,
+          logoUrl,
+          whatsappGroupUrl,
+          commChannel,
+          nif: nif || null,
+          nis: nis || null,
+          rc: rc || null,
+        }),
+      });
+      if (res.ok) {
+        setMessage({ text: "Organization profile updated successfully.", tone: "success" });
+        setEditingProfile(false);
+        await loadOrgData();
+      } else {
+        const err = await res.json();
+        setMessage({ text: err.error || "Failed to update profile", tone: "danger" });
+      }
+    } catch {
+      setMessage({ text: "Network error updating profile", tone: "danger" });
+    }
+  }
+
+  async function handleGenerateFeedKey() {
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}/feed-key`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMessage({ text: "Generated new Ad Tunnel Feed API Key.", tone: "success" });
+        await loadOrgData();
+      }
+    } catch {
+      setMessage({ text: "Failed to generate feed API key", tone: "danger" });
+    }
+  }
+
+  async function handleSaveAllowedActivities() {
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}/activities`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityIds: allowedActivityIds }),
+      });
+      if (res.ok) {
+        setMessage({ text: "Saved allowed activities contract settings.", tone: "success" });
+        await loadOrgData();
+      }
+    } catch {
+      setMessage({ text: "Failed to update allowed activities", tone: "danger" });
+    }
+  }
+
+  async function handleAdjustPool(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setAdjustingPool(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}/pool`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          delta: Number(poolDelta),
+          reason: poolReason,
+        }),
+      });
+
+      if (res.ok) {
+        setMessage({ text: "Adjusted credit pool balance.", tone: "success" });
+        setPoolDelta("");
+        setPoolReason("");
+        await loadOrgData();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error || "Failed to adjust pool.", tone: "danger" });
+      }
+    } catch {
+      setMessage({ text: "Network error adjusting pool.", tone: "danger" });
+    } finally {
+      setAdjustingPool(false);
+    }
+  }
+
+  async function handleDirectBook(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBookingInProgress(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/organizations/${orgId}/redemptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: selectedClientForBook,
+          activityId: selectedActivityForBook,
+          sessionId: selectedSessionForBook || undefined,
+          notes: bookingNotes,
+        }),
+      });
+
+      if (res.ok) {
+        setMessage({ text: "Successfully redeemed & booked employee to event session.", tone: "success" });
+        setSelectedClientForBook("");
+        setSelectedActivityForBook("");
+        setSelectedSessionForBook("");
+        setBookingNotes("");
+        await loadOrgData();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error || "Failed to book employee.", tone: "danger" });
+      }
+    } catch {
+      setMessage({ text: "Network error during booking.", tone: "danger" });
+    } finally {
+      setBookingInProgress(false);
+    }
+  }
 
   async function handleCreateContract(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -282,6 +496,8 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
     );
   }
 
+  const feedUrl = typeof window !== "undefined" && org.feedApiKey ? `${window.location.origin}/api/public/b2b/events?apiKey=${org.feedApiKey}` : "";
+
   return (
     <div className="animate-fade-in space-y-6">
       <PageHeader
@@ -289,7 +505,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
         description={`Slug: ${org.slug} · NIF: ${org.nif || "N/A"} · NIS: ${org.nis || "N/A"} · RC: ${org.rc || "N/A"}`}
         action={
           <Link href="/admin/organizations">
-            <Button variant="secondary">← Back to Organizations</Button>
+            <Button variant="secondary">Back to Organizations</Button>
           </Link>
         }
       />
@@ -307,7 +523,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                 : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            Overview & Employees ({org.clients.length})
+            Profile & Overview
           </button>
           <button
             onClick={() => setActiveTab("contracts")}
@@ -318,6 +534,36 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
             }`}
           >
             Contracts ({contracts.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("activities")}
+            className={`py-3 px-1 border-b-2 font-bold text-sm transition-colors ${
+              activeTab === "activities"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Allowed Activities ({allowedActivityIds.length})
+          </button>
+          <button
+            onClick={() => setActiveTab("pool")}
+            className={`py-3 px-1 border-b-2 font-bold text-sm transition-colors ${
+              activeTab === "pool"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Shared Pool ({org.sharedCreditPool} cred)
+          </button>
+          <button
+            onClick={() => setActiveTab("redemptions")}
+            className={`py-3 px-1 border-b-2 font-bold text-sm transition-colors ${
+              activeTab === "redemptions"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Redemptions & Booking ({redemptions.length})
           </button>
           <button
             onClick={() => setActiveTab("departments")}
@@ -337,7 +583,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                 : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            Bulk CSV Import
+            CSV Bulk Import ({org.clients.length})
           </button>
           <button
             onClick={() => setActiveTab("statements")}
@@ -347,15 +593,15 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                 : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            Statements & Invoices
+            Invoices ({org.invoices.length})
           </button>
         </nav>
       </div>
 
-      {/* TAB 1: Overview */}
+      {/* TAB 1: Profile & Overview */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-4">
             <Card>
               <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Custom Credit Rate</h4>
               <p className="mt-1 text-lg font-black text-[var(--primary)]">
@@ -372,52 +618,119 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
               <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Shared Pool Balance</h4>
               <p className="mt-1 text-lg font-black text-emerald-600">{org.sharedCreditPool} credits</p>
             </Card>
+            <Card>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Communication Channel</h4>
+              <p className="mt-1 text-sm font-bold text-sky-400 capitalize">{org.commChannel?.replace(/_/g, " ") || "Ads Tunnel Feed"}</p>
+            </Card>
           </div>
 
-          <Card>
-            <h3 className="text-base font-semibold mb-4">Linked Employees</h3>
-            {org.clients.length === 0 ? (
-              <p className="text-xs text-[var(--muted)] py-4">No employees linked to this organization.</p>
+          {/* Edit Profile Form */}
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-base font-semibold">Company Profile & Contact Information</h3>
+              <Button variant="secondary" size="sm" onClick={() => setEditingProfile(!editingProfile)}>
+                {editingProfile ? "Cancel Edit" : "Edit Profile"}
+              </Button>
+            </div>
+
+            {editingProfile ? (
+              <form onSubmit={handleSaveProfile} className="grid gap-4 sm:grid-cols-2 text-xs">
+                <Input label="Contact Person Name" value={contactName} onChange={(e) => setContactName(e.target.value)} />
+                <Input label="Contact Email" type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
+                <Input label="Contact Phone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} />
+                <Input label="Billing Address" value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} />
+                <Input label="Company Logo URL" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
+                <Input label="WhatsApp Group Link" value={whatsappGroupUrl} onChange={(e) => setWhatsappGroupUrl(e.target.value)} placeholder="https://chat.whatsapp.com/..." />
+                
+                <div className="space-y-1">
+                  <label className="font-bold text-[var(--muted)]">Preferred Communication Channel</label>
+                  <select
+                    value={commChannel}
+                    onChange={(e) => setCommChannel(e.target.value)}
+                    className="w-full p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-xs outline-none"
+                  >
+                    <option value="ads_tunnel">Ad Tunnel Events Feed API</option>
+                    <option value="whatsapp">Dedicated WhatsApp Group</option>
+                    <option value="app_notification">AQA Event App Notification</option>
+                  </select>
+                </div>
+
+                <Input label="Tax NIF (15 digits)" value={nif} onChange={(e) => setNif(e.target.value)} maxLength={15} />
+                <Input label="Tax NIS (14 digits)" value={nis} onChange={(e) => setNis(e.target.value)} maxLength={14} />
+                <Input label="Tax RC (Register)" value={rc} onChange={(e) => setRc(e.target.value)} />
+
+                <div className="sm:col-span-2 pt-2">
+                  <Button type="submit" className="w-full">
+                    Save Profile Changes
+                  </Button>
+                </div>
+              </form>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-[var(--border)] uppercase text-[var(--muted)] font-bold">
-                    <tr>
-                      <th className="py-2">Employee Name</th>
-                      <th className="py-2">Department</th>
-                      <th className="py-2">Contact</th>
-                      <th className="py-2">Card Code</th>
-                      <th className="py-2 text-right">Reassign Department</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {org.clients.map((c) => (
-                      <tr key={c.id}>
-                        <td className="py-2.5 font-bold">{c.fullName}</td>
-                        <td className="py-2.5">
-                          {departments.find((d) => d.id === c.departmentId)?.name || "Unassigned"}
-                        </td>
-                        <td className="py-2.5 text-[var(--muted)]">{c.email || c.phone || "—"}</td>
-                        <td className="py-2.5 font-mono">{c.cards[0]?.cardCode || "No Card"}</td>
-                        <td className="py-2.5 text-right">
-                          <select
-                            value={c.departmentId || ""}
-                            onChange={(e) => handleReassignDepartment(c.id, e.target.value)}
-                            className="bg-[var(--surface-2)] text-xs border border-[var(--border)] rounded px-2 py-1 outline-none"
-                          >
-                            <option value="">-- No Department --</option>
-                            {departments.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid gap-4 sm:grid-cols-2 text-xs">
+                <div>
+                  <span className="text-[var(--muted)]">Contact Person:</span>
+                  <p className="font-bold">{org.contactName || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[var(--muted)]">Email & Phone:</span>
+                  <p className="font-bold">{org.contactEmail || "—"} / {org.contactPhone || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[var(--muted)]">Billing Address:</span>
+                  <p className="font-bold">{org.billingAddress || "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[var(--muted)]">WhatsApp Group:</span>
+                  <p className="font-bold">{org.whatsappGroupUrl ? <a href={org.whatsappGroupUrl} target="_blank" rel="noreferrer" className="text-sky-400 underline">Open WhatsApp Group</a> : "—"}</p>
+                </div>
+                <div>
+                  <span className="text-[var(--muted)]">Legal Tax Numbers:</span>
+                  <p className="font-mono">NIF: {org.nif || "N/A"} · NIS: {org.nis || "N/A"} · RC: {org.rc || "N/A"}</p>
+                </div>
+                <div>
+                  <span className="text-[var(--muted)]">Company Logo:</span>
+                  <p className="font-bold">{org.logoUrl ? "Configured" : "None"}</p>
+                </div>
               </div>
+            )}
+          </Card>
+
+          {/* Ad Tunnel API Feed Section */}
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div>
+                <h3 className="text-base font-semibold">Ad Tunnel & Upcoming Events Feed API</h3>
+                <p className="text-xs text-[var(--muted)]">External JSON feed for company TV screens, intranet, or ad tunnels.</p>
+              </div>
+              <Button size="sm" onClick={handleGenerateFeedKey}>
+                {org.feedApiKey ? "Rotate API Key" : "Generate Feed API Key"}
+              </Button>
+            </div>
+
+            {org.feedApiKey ? (
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[var(--muted)]">Public API Feed Endpoint URL:</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={feedUrl}
+                    className="w-full bg-[var(--surface-2)] border border-[var(--border)] p-2.5 rounded-xl font-mono text-xs text-sky-400 select-all"
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(feedUrl);
+                      setMessage({ text: "Copied Ad Tunnel Feed URL to clipboard.", tone: "success" });
+                    }}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-[var(--muted)] py-2">No API key generated yet. Click above to enable the events feed for this organization.</p>
             )}
           </Card>
         </div>
@@ -513,7 +826,159 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      {/* TAB 3: Departments */}
+      {/* TAB 3: Allowed Activities */}
+      {activeTab === "activities" && (
+        <Card className="space-y-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+            <div>
+              <h3 className="text-base font-semibold">Allowed Contract Activities</h3>
+              <p className="text-xs text-[var(--muted)]">Select which activities employees of this company are permitted to access and redeem.</p>
+            </div>
+            <Button size="sm" onClick={handleSaveAllowedActivities}>
+              Save Allowed Activities
+            </Button>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-2">
+            {activities.map((act) => {
+              const isAllowed = allowedActivityIds.includes(act.id);
+              return (
+                <div
+                  key={act.id}
+                  onClick={() => {
+                    if (isAllowed) {
+                      setAllowedActivityIds(allowedActivityIds.filter((id) => id !== act.id));
+                    } else {
+                      setAllowedActivityIds([...allowedActivityIds, act.id]);
+                    }
+                  }}
+                  className={`p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between ${
+                    isAllowed ? "bg-[var(--surface-2)] border-[var(--primary)]" : "border-[var(--border)] opacity-60"
+                  }`}
+                >
+                  <div>
+                    <h4 className="font-bold text-xs">{act.name}</h4>
+                    <p className="text-[10px] text-[var(--muted)]">{act.creditCost} credits per session</p>
+                  </div>
+                  <input type="checkbox" checked={isAllowed} readOnly className="rounded" />
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {/* TAB 4: Pool */}
+      {activeTab === "pool" && (
+        <div className="space-y-6">
+          <Card className="space-y-4">
+            <h3 className="text-base font-semibold">Shared Pool Balance Management</h3>
+            <div className="flex items-center justify-between bg-[var(--surface-2)] p-4 rounded-xl border border-[var(--border)]">
+              <div>
+                <span className="text-xs text-[var(--muted)] uppercase font-bold">Current Pool Balance</span>
+                <p className="text-2xl font-black text-emerald-500">{org.sharedCreditPool} Credits</p>
+              </div>
+              <Badge tone={org.useSharedPool ? "success" : "default"}>
+                {org.useSharedPool ? "Shared Pool Mode Enabled" : "Individual Mode"}
+              </Badge>
+            </div>
+
+            <form onSubmit={handleAdjustPool} className="grid gap-4 sm:grid-cols-3 items-end text-xs">
+              <Input label="Credits to Add (+) or Deduct (-)" type="number" required value={poolDelta} onChange={(e) => setPoolDelta(e.target.value)} placeholder="e.g. 50 or -10" />
+              <Input label="Accounting Reason / Audit Note" required value={poolReason} onChange={(e) => setPoolReason(e.target.value)} placeholder="Quarterly allocation top-up" />
+              <Button type="submit" loading={adjustingPool}>
+                Top Up / Adjust Pool
+              </Button>
+            </form>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 5: Redemptions & Direct Booking */}
+      {activeTab === "redemptions" && (
+        <div className="space-y-6">
+          {/* Direct Booking Form */}
+          <Card className="space-y-4">
+            <h3 className="text-base font-semibold">Direct Employee Event Booking</h3>
+            <form onSubmit={handleDirectBook} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-[var(--muted)]">Select Employee</label>
+                <select
+                  required
+                  value={selectedClientForBook}
+                  onChange={(e) => setSelectedClientForBook(e.target.value)}
+                  className="w-full p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-xs outline-none"
+                >
+                  <option value="">-- Choose Employee --</option>
+                  {org.clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName} ({c.email || c.phone || "No Contact"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-[var(--muted)]">Select Activity</label>
+                <select
+                  required
+                  value={selectedActivityForBook}
+                  onChange={(e) => setSelectedActivityForBook(e.target.value)}
+                  className="w-full p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-xs outline-none"
+                >
+                  <option value="">-- Choose Activity --</option>
+                  {activities.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({a.creditCost} cred)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Input label="Notes / Special Instructions" value={bookingNotes} onChange={(e) => setBookingNotes(e.target.value)} placeholder="VIP Guest booking" />
+
+              <Button type="submit" loading={bookingInProgress}>
+                Book Employee
+              </Button>
+            </form>
+          </Card>
+
+          {/* Redemptions Log */}
+          <Card className="space-y-4">
+            <h3 className="text-base font-semibold">Organization Employee Redemption History</h3>
+            {redemptions.length === 0 ? (
+              <p className="text-xs text-[var(--muted)] py-4">No event redemptions recorded for this organization.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-[var(--border)] uppercase text-[var(--muted)] font-bold">
+                    <tr>
+                      <th className="py-2">Date & Time</th>
+                      <th className="py-2">Employee</th>
+                      <th className="py-2">Activity</th>
+                      <th className="py-2">Credits Used</th>
+                      <th className="py-2">Session / Location</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {redemptions.map((r) => (
+                      <tr key={r.id}>
+                        <td className="py-2.5 text-[var(--muted)]">{new Date(r.redeemedAt).toLocaleString()}</td>
+                        <td className="py-2.5 font-bold">{r.client.fullName}</td>
+                        <td className="py-2.5 font-semibold text-sky-400">{r.activity.name}</td>
+                        <td className="py-2.5 font-mono">{r.creditsUsed} cred</td>
+                        <td className="py-2.5 text-[var(--muted)]">{r.session ? `${new Date(r.session.sessionDate).toLocaleDateString()} (${r.session.location || "TBD"})` : "Walk-in Session"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 6: Departments */}
       {activeTab === "departments" && (
         <div className="space-y-6">
           <Card className="space-y-4">
@@ -559,7 +1024,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
         </div>
       )}
 
-      {/* TAB 4: Bulk CSV Import */}
+      {/* TAB 7: CSV Bulk Import */}
       {activeTab === "employees" && (
         <Card className="space-y-4">
           <div>
@@ -595,7 +1060,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
         </Card>
       )}
 
-      {/* TAB 5: Statements */}
+      {/* TAB 8: Statements & Invoices */}
       {activeTab === "statements" && (
         <div className="space-y-6">
           <Card className="space-y-4">

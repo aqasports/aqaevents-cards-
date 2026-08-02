@@ -12,6 +12,10 @@ export const organizationLegalSchema = z.object({
 export const createOrganizationSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   slug: z.string().min(2).optional(),
+  logoUrl: z.string().optional().nullable(),
+  allowedActivities: z.string().optional().nullable(),
+  whatsappGroupUrl: z.string().optional().nullable(),
+  commChannel: z.enum(["ads_tunnel", "whatsapp", "app_notification"]).optional().default("ads_tunnel"),
   creditRate: z.number().positive().optional().nullable(),
   sharedCreditPool: z.number().min(0).optional().default(0),
   useSharedPool: z.boolean().optional().default(false),
@@ -27,6 +31,10 @@ export const createOrganizationSchema = z.object({
 export const updateOrganizationSchema = z.object({
   name: z.string().min(2).optional(),
   slug: z.string().min(2).optional(),
+  logoUrl: z.string().optional().nullable(),
+  allowedActivities: z.string().optional().nullable(),
+  whatsappGroupUrl: z.string().optional().nullable(),
+  commChannel: z.enum(["ads_tunnel", "whatsapp", "app_notification"]).optional(),
   creditRate: z.number().positive().optional().nullable(),
   sharedCreditPool: z.number().min(0).optional(),
   useSharedPool: z.boolean().optional(),
@@ -49,3 +57,17 @@ export const provisionEmployeesSchema = z.object({
     })
   ).min(1, "At least one employee required"),
 });
+
+export const poolAdjustmentSchema = z.object({
+  delta: z.number().describe("Credits to add (positive) or deduct (negative)"),
+  reason: z.string().min(3, "Reason for credit adjustment required"),
+});
+
+export const orgRedemptionSchema = z.object({
+  clientId: z.string().min(1, "Employee ID required"),
+  activityId: z.string().min(1, "Activity ID required"),
+  sessionId: z.string().optional().nullable(),
+  creditsUsed: z.number().positive().default(1),
+  notes: z.string().optional(),
+});
+
