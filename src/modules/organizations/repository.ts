@@ -90,7 +90,19 @@ export class OrganizationsRepository {
 
   async create(data: Prisma.OrganizationCreateInput, tx?: Prisma.TransactionClient) {
     const client = tx || prisma;
-    return client.organization.create({ data });
+    return client.organization.create({
+      data,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        creditRate: true,
+        sharedCreditPool: true,
+        useSharedPool: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
 
   async update(id: string, data: Prisma.OrganizationUpdateInput, tx?: Prisma.TransactionClient) {
@@ -98,6 +110,16 @@ export class OrganizationsRepository {
     return client.organization.update({
       where: { id },
       data,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        creditRate: true,
+        sharedCreditPool: true,
+        useSharedPool: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
   }
 

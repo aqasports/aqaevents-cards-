@@ -249,6 +249,16 @@ export class ClientsService {
             notes: data.notes || null,
             leadSource: data.leadSource || null,
           },
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            notes: true,
+            leadSource: true,
+            createdAt: true,
+            updatedAt: true,
+          },
         },
         tx
       );
@@ -306,6 +316,22 @@ export class ClientsService {
         phone: data.phone,
         notes: data.notes,
         leadSource: data.leadSource,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        phone: true,
+        notes: true,
+        leadSource: true,
+        customerSegment: true,
+        totalSpent: true,
+        lastActivityDate: true,
+        favoriteActivity: true,
+        archived: true,
+        archivedAt: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
