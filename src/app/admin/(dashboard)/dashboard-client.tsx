@@ -51,7 +51,8 @@ type DashboardClientProps = {
   inactiveCardsCount: number;
   newClientsThisMonth: number;
   returningClientsCount: number;
-  lifetimeValue: number;
+  soldCreditRevenue: number;
+  creditRate: number;
 };
 
 export default function DashboardClient({
@@ -73,7 +74,8 @@ export default function DashboardClient({
   inactiveCardsCount,
   newClientsThisMonth,
   returningClientsCount,
-  lifetimeValue,
+  soldCreditRevenue,
+  creditRate,
 }: DashboardClientProps) {
   const { t, dir, locale } = useTranslations("dashboard");
 
@@ -106,12 +108,22 @@ export default function DashboardClient({
       )
     },
     {
-      href: "/admin/print",
-      label: t("actionPrint"),
-      desc: t("printDesc"),
+      href: "/admin/products",
+      label: t("actionAddProduct"),
+      desc: t("addProductDesc"),
       icon: (
-        <svg className="h-6 w-6 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9m-2 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        <svg className="h-6 w-6 text-purple-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+        </svg>
+      )
+    },
+    {
+      href: "/admin/users?tab=coaches",
+      label: t("actionLinkCoach"),
+      desc: t("linkCoachDesc"),
+      icon: (
+        <svg className="h-6 w-6 text-cyan-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 100 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
       )
     },
@@ -335,11 +347,12 @@ export default function DashboardClient({
                 }
               />
               <StatCard
-                label={t("lifetimeValue")}
-                value={fmtCurrency(lifetimeValue)}
+                label={t("soldCreditRevenue")}
+                value={fmtCurrency(soldCreditRevenue)}
+                hint={`${creditsSold} ${t("sold")} × ${creditRate} DA`}
                 icon={
                   <svg className="h-5 w-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 }
               />

@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { prisma } from "@/lib/prisma";
+import { getCreditRate } from "@/lib/settings";
 import DashboardClient from "./dashboard-client";
 
 export default async function AdminDashboardPage() {
@@ -23,6 +24,7 @@ export default async function AdminDashboardPage() {
       totalRevenueAggregate,
       newClientsThisMonth,
       inactiveCardsCount,
+      creditRate,
     ] = await Promise.all([
       prisma.client.count(),
       prisma.card.count({
@@ -73,6 +75,7 @@ export default async function AdminDashboardPage() {
           ],
         },
       }),
+      getCreditRate(),
     ]);
 
     const creditsSold = Number((totalCreditsSold._sum.delta ?? 0).toFixed(2));
@@ -82,7 +85,6 @@ export default async function AdminDashboardPage() {
     const revenueToday = revenueTodayAggregate._sum.amount ?? 0;
     const revenueThisMonth = revenueThisMonthAggregate._sum.amount ?? 0;
     const revenueThisYear = revenueThisYearAggregate._sum.amount ?? 0;
-    const totalRevenue = totalRevenueAggregate._sum.amount ?? 0;
 
     // 2. Compute Activities metrics
     const popularActivities = await prisma.redemption.groupBy({
@@ -143,7 +145,7 @@ export default async function AdminDashboardPage() {
     } catch (err) {
       console.error("[Dashboard] Failed to query returning clients count:", err);
     }
-    const lifetimeValue = clientCount > 0 ? Math.round(totalRevenue / clientCount) : 0;
+    const soldCreditRevenue = Math.round(creditsSold * creditRate);
 
     // 4. Fetch Recent Redemptions & Low Balance Clients for existing list UI
     const recentRedemptions = await prisma.redemption.findMany({
@@ -229,7 +231,8 @@ export default async function AdminDashboardPage() {
         inactiveCardsCount={inactiveCardsCount}
         newClientsThisMonth={newClientsThisMonth}
         returningClientsCount={returningClientsCount}
-        lifetimeValue={lifetimeValue}
+        soldCreditRevenue={soldCreditRevenue}
+        creditRate={creditRate}
       />
     );
   } catch (error) {
@@ -253,7 +256,8 @@ export default async function AdminDashboardPage() {
         inactiveCardsCount={0}
         newClientsThisMonth={0}
         returningClientsCount={0}
-        lifetimeValue={0}
+        soldCreditRevenue={0}
+        creditRate={1900}
       />
     );
   }
