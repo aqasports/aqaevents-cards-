@@ -27,7 +27,7 @@ export async function GET(
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
 
-    const clientIds = org.clients.map((c) => c.id);
+    const clientIds = org.clients.map((c: { id: string }) => c.id);
 
     const redemptions = await prisma.redemption.findMany({
       where: {

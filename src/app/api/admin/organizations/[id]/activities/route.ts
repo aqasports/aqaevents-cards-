@@ -43,7 +43,7 @@ export async function GET(
         allowedIds = [];
       }
     } else {
-      allowedIds = allActivities.map((a) => a.id);
+      allowedIds = allActivities.map((a: { id: string }) => a.id);
     }
 
     return NextResponse.json({
