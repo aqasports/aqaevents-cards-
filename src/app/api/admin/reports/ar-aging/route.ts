@@ -15,7 +15,18 @@ export async function GET() {
       where: {
         status: { not: "paid" },
       },
-      include: {
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
         client: {
           select: { id: true, fullName: true, email: true, phone: true },
         },

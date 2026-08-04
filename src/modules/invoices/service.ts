@@ -62,7 +62,18 @@ export class BillingService {
 
     const invoices = await this.billingRepo.findInvoiceMany({
       where,
-      include: {
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
         client: {
           select: { id: true, fullName: true, phone: true, email: true },
         },
@@ -134,7 +145,20 @@ export class BillingService {
   async getInvoice(id: string) {
     return this.billingRepo.findInvoiceUnique({
       where: { id },
-      include: { client: { select: { id: true, fullName: true, phone: true, email: true } } },
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
+        client: { select: { id: true, fullName: true, phone: true, email: true } },
+      },
     });
   }
 
@@ -300,7 +324,18 @@ export class BillingService {
   ) {
     const invoice = await this.billingRepo.findInvoiceUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
         client: { include: { cards: { where: { status: "active" }, take: 1 } } },
       },
     });
@@ -467,7 +502,18 @@ export class BillingService {
   async deleteInvoice(id: string, adminId?: string | null) {
     const invoice = await this.billingRepo.findInvoiceUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
         client: {
           include: {
             cards: {
@@ -475,8 +521,8 @@ export class BillingService {
               take: 1
             }
           }
-        }
-      }
+        },
+      },
     });
     if (!invoice) throw new Error("Invoice not found");
 

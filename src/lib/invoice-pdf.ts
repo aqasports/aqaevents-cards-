@@ -14,9 +14,33 @@ export const AQA_LEGAL_CONFIG = {
 export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffer> {
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
-    include: {
-      client: true,
-      organization: true,
+    select: {
+      id: true,
+      clientId: true,
+      organizationId: true,
+      invoiceCode: true,
+      amount: true,
+      status: true,
+      category: true,
+      items: true,
+      notes: true,
+      paidAt: true,
+      createdAt: true,
+      client: {
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          notes: true,
+        },
+      },
+      organization: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       lineItems: true,
     },
   });
@@ -53,7 +77,7 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
             description: item.description || item.name || `Line Item #${idx + 1}`,
             quantity: qty,
             unitPrice: price,
-            taxRate: invoice.taxRate || AQA_LEGAL_CONFIG.defaultTaxRate,
+            taxRate: AQA_LEGAL_CONFIG.defaultTaxRate,
             lineTotal: qty * price,
           };
         });
@@ -69,7 +93,7 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
         description: `Prepaid Activity Credit Purchase (${invoice.category})`,
         quantity: 1,
         unitPrice: invoice.amount,
-        taxRate: invoice.taxRate || AQA_LEGAL_CONFIG.defaultTaxRate,
+        taxRate: AQA_LEGAL_CONFIG.defaultTaxRate,
         lineTotal: invoice.amount,
       },
     ];
@@ -84,7 +108,7 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
   const recipientRc = invoice.organization?.rc || "N/A";
 
   const createdDate = invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString("fr-DZ") : "";
-  const dueDateStr = invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString("fr-DZ") : "Due on receipt";
+  const dueDateStr = "Due on receipt";
   const paidDate = invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString("fr-DZ") : "N/A";
 
   const totalHT = lineItemsList.reduce((acc, item) => acc + item.lineTotal, 0);

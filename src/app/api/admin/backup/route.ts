@@ -22,7 +22,21 @@ export async function POST(request: NextRequest) {
     const cards = await prisma.card.findMany();
     const ledgerEntries = await prisma.ledgerEntry.findMany();
     const redemptions = await prisma.redemption.findMany();
-    const invoices = await prisma.invoice.findMany();
+    const invoices = await prisma.invoice.findMany({
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
+      },
+    });
     const packages = await prisma.package.findMany();
     const activities = await prisma.activity.findMany();
     const sessions = await prisma.activitySession.findMany();

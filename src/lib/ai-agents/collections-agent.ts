@@ -29,9 +29,20 @@ export class CollectionsAgent {
         where: {
           status: { in: ["unpaid", "pending", "overdue"] },
         },
-        include: {
-          client: true,
-          organization: true,
+        select: {
+          id: true,
+          clientId: true,
+          organizationId: true,
+          invoiceCode: true,
+          amount: true,
+          status: true,
+          category: true,
+          items: true,
+          notes: true,
+          paidAt: true,
+          createdAt: true,
+          client: { select: { id: true, fullName: true, email: true, phone: true } },
+          organization: { select: { id: true, name: true, slug: true } },
         },
       });
 

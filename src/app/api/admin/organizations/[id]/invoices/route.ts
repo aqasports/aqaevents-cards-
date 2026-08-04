@@ -19,7 +19,7 @@ function generateInvoiceCode(): string {
 async function uniqueInvoiceCode(): Promise<string> {
   let code = generateInvoiceCode();
   while (true) {
-    const existing = await prisma.invoice.findUnique({ where: { invoiceCode: code } });
+    const existing = await prisma.invoice.findUnique({ where: { invoiceCode: code }, select: { id: true } });
     if (!existing) return code;
     code = generateInvoiceCode();
   }
@@ -38,7 +38,18 @@ export async function GET(
     const invoices = await prisma.invoice.findMany({
       where: { organizationId },
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        clientId: true,
+        organizationId: true,
+        invoiceCode: true,
+        amount: true,
+        status: true,
+        category: true,
+        items: true,
+        notes: true,
+        paidAt: true,
+        createdAt: true,
         client: {
           select: { id: true, fullName: true, email: true, phone: true },
         },
@@ -122,6 +133,19 @@ export async function POST(
           notes: notes?.trim() || null,
           status: "paid",
           paidAt: new Date(),
+        },
+        select: {
+          id: true,
+          clientId: true,
+          organizationId: true,
+          invoiceCode: true,
+          amount: true,
+          status: true,
+          category: true,
+          items: true,
+          notes: true,
+          paidAt: true,
+          createdAt: true,
         },
       });
 
