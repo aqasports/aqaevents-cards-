@@ -28,7 +28,7 @@ async function uniqueInvoiceCode(tx: any): Promise<string> {
   let code = generateInvoiceCode();
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const existing = await billingRepo.findInvoiceUnique({ where: { invoiceCode: code } }, tx);
+    const existing = await billingRepo.findInvoiceUnique({ where: { invoiceCode: code }, select: { id: true } }, tx);
     if (!existing) return code;
     code = generateInvoiceCode();
   }
@@ -239,6 +239,19 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
           status,
           paidAt: status === "paid" ? new Date() : null,
         },
+        select: {
+          id: true,
+          clientId: true,
+          organizationId: true,
+          invoiceCode: true,
+          amount: true,
+          status: true,
+          category: true,
+          items: true,
+          notes: true,
+          paidAt: true,
+          createdAt: true,
+        },
       },
       payload.tx
     );
@@ -255,6 +268,19 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
           notes: payload.reason ?? null,
           status: "paid",
           paidAt: new Date(),
+        },
+        select: {
+          id: true,
+          clientId: true,
+          organizationId: true,
+          invoiceCode: true,
+          amount: true,
+          status: true,
+          category: true,
+          items: true,
+          notes: true,
+          paidAt: true,
+          createdAt: true,
         },
       },
       payload.tx

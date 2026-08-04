@@ -28,7 +28,12 @@ export async function fetchWithRetry(
 
     try {
       const response = await fetch(input, {
+        cache: "no-store",
         ...fetchOptions,
+        headers: {
+          "Cache-Control": "no-cache, no-store",
+          ...(fetchOptions.headers || {}),
+        },
         signal: fetchOptions.signal || controller.signal,
       });
 

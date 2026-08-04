@@ -119,15 +119,12 @@ export function useDataCache<T>(
     if (currentCached) {
       setData(currentCached.data);
       setLoading(false);
-      // Revalidate in background if stale
-      const isStale = Date.now() - currentCached.timestamp > ttlMs;
-      if (isStale) {
-        performFetch(true);
-      }
+      // SWR: serve cached data instantly for zero-latency UI, and always revalidate in background
+      performFetch(true);
     } else {
       performFetch(false);
     }
-  }, [key, enabled, ttlMs, performFetch]);
+  }, [key, enabled, performFetch]);
 
   const refetch = useCallback(async () => {
     await performFetch(false);

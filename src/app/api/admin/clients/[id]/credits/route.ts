@@ -4,6 +4,8 @@ import { BillingService } from "@/modules/invoices/service";
 import { addCreditsSchema } from "@/modules/invoices/validators";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 const billingService = new BillingService();
 
 export async function POST(

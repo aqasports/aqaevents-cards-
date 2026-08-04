@@ -4,8 +4,13 @@ import { ClientsService } from "@/modules/clients/service";
 import { createClientSchema } from "@/modules/clients/validators";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 const clientsService = new ClientsService();
 
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0, must-revalidate, proxy-revalidate",
+};
 
 export async function GET(request: NextRequest) {
   const { session, error } = await requireAdminSession();
@@ -18,7 +23,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const clients = await clientsService.getClients(search, limit, archived);
-    return NextResponse.json(clients);
+    return NextResponse.json(clients, { headers: NO_CACHE_HEADERS });
   } catch (err: unknown) {
     logger.error("GET clients API error:", err);
     const details = err instanceof Error ? err.message : String(err);

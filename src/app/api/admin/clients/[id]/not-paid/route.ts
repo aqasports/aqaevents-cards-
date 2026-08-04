@@ -45,6 +45,7 @@ export async function POST(
   // Idempotent: if flag already exists, return it
   const existing = await prisma.invoice.findFirst({
     where: { clientId: id, category: "not_paid_flag" },
+    select: { id: true },
   });
   if (existing) {
     return NextResponse.json({ isNotPaid: true });
@@ -65,6 +66,7 @@ export async function POST(
       notes: "Admin-flagged as not paid. Visible on client portal.",
       status: "unpaid",
     },
+    select: { id: true },
   });
 
   return NextResponse.json({ isNotPaid: true });

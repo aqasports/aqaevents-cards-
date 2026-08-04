@@ -4,7 +4,13 @@ import { BillingService } from "@/modules/invoices/service";
 import { createInvoiceSchema } from "@/modules/invoices/validators";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 const billingService = new BillingService();
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0, must-revalidate, proxy-revalidate",
+};
 
 export async function GET(request: NextRequest) {
   const { error } = await requireAdminSession();
@@ -16,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await billingService.getInvoicesWithStats(search, status);
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: NO_CACHE_HEADERS });
   } catch (err: unknown) {
     logger.error("GET invoices API error:", err);
     return NextResponse.json({ error: "Failed to fetch invoices" }, { status: 500 });

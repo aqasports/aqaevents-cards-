@@ -29,7 +29,7 @@ export class BillingService {
     let code = this.generateInvoiceCode();
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const existing = await this.billingRepo.findInvoiceUnique({ where: { invoiceCode: code } }, tx);
+      const existing = await this.billingRepo.findInvoiceUnique({ where: { invoiceCode: code }, select: { id: true } }, tx);
       if (!existing) return code;
       code = this.generateInvoiceCode();
     }
@@ -242,6 +242,19 @@ export class BillingService {
               notes: data.notes ?? null,
               status: data.status,
               paidAt: data.status === "paid" ? new Date() : null,
+            },
+            select: {
+              id: true,
+              clientId: true,
+              organizationId: true,
+              invoiceCode: true,
+              amount: true,
+              status: true,
+              category: true,
+              items: true,
+              notes: true,
+              paidAt: true,
+              createdAt: true,
             },
           },
           tx

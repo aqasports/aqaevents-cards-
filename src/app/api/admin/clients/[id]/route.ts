@@ -4,7 +4,13 @@ import { ClientsService } from "@/modules/clients/service";
 import { updateClientSchema } from "@/modules/clients/validators";
 import { logger } from "@/lib/logger";
 
+export const dynamic = "force-dynamic";
+
 const clientsService = new ClientsService();
+
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, max-age=0, must-revalidate, proxy-revalidate",
+};
 
 export async function GET(
   _request: NextRequest,
@@ -20,7 +26,7 @@ export async function GET(
     if (!client) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
-    return NextResponse.json(client);
+    return NextResponse.json(client, { headers: NO_CACHE_HEADERS });
   } catch (err: unknown) {
     logger.error("GET client details API error:", err);
     return NextResponse.json({ error: "Failed to fetch client details" }, { status: 500 });
