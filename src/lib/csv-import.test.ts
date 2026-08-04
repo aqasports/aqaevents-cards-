@@ -79,10 +79,10 @@ describe("Employee CSV Import Engine", () => {
       organizationId: "org-1",
     } as any);
 
-    vi.mocked(prisma.client.create).mockImplementation(async (args: any) => ({
+    (prisma.client.create as any).mockImplementation(async (args: any) => ({
       id: `client-${args.data.fullName}`,
       ...args.data,
-    }) as any);
+    }));
 
     vi.mocked(prisma.card.create).mockResolvedValue({ id: "card-1" } as any);
 

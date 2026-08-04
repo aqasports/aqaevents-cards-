@@ -336,7 +336,15 @@ export class BillingService {
         notes: true,
         paidAt: true,
         createdAt: true,
-        client: { include: { cards: { where: { status: "active" }, take: 1 } } },
+        client: {
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            cards: { where: { status: "active" }, take: 1, select: { id: true } },
+          },
+        },
       },
     });
 
@@ -515,12 +523,13 @@ export class BillingService {
         paidAt: true,
         createdAt: true,
         client: {
-          include: {
-            cards: {
-              where: { status: "active" },
-              take: 1
-            }
-          }
+          select: {
+            id: true,
+            fullName: true,
+            email: true,
+            phone: true,
+            cards: { where: { status: "active" }, take: 1, select: { id: true } },
+          },
         },
       },
     });

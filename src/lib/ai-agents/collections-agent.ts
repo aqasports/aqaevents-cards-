@@ -47,7 +47,7 @@ export class CollectionsAgent {
       });
 
       for (const invoice of overdueInvoices) {
-        const due = invoice.dueDate || invoice.createdAt;
+        const due = invoice.createdAt;
         const diffMs = now.getTime() - due.getTime();
         const daysOverdue = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 
@@ -66,7 +66,7 @@ export class CollectionsAgent {
         }
 
         const clientName = invoice.client?.fullName || invoice.organization?.name || "Client";
-        const contactEmail = invoice.organization?.contactEmail || invoice.client?.email || null;
+        const contactEmail = invoice.client?.email || null;
 
         const reasoning = `Invoice ${invoice.invoiceCode} for ${clientName} is ${daysOverdue} day(s) overdue. Outstanding balance: ${invoice.amount} DA. Due date: ${due.toISOString().split("T")[0]}.`;
 

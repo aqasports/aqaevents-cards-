@@ -26,6 +26,7 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
       notes: true,
       paidAt: true,
       createdAt: true,
+      poNumber: true,
       client: {
         select: {
           id: true,
@@ -39,6 +40,12 @@ export async function generateInvoicePdfBuffer(invoiceId: string): Promise<Buffe
         select: {
           id: true,
           name: true,
+          contactEmail: true,
+          contactPhone: true,
+          billingAddress: true,
+          nif: true,
+          nis: true,
+          rc: true,
         },
       },
       lineItems: true,
