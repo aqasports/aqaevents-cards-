@@ -909,14 +909,7 @@ export function EventCardClient({
               <>
                 {creditType === "package" ? (
                   <div className="space-y-3">
-                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 text-center text-xs text-slate-300 font-semibold">
-                      {locale === "ar"
-                        ? "التسجيل غير مسموح به (جميع المجموعات مغلقة)"
-                        : locale === "fr"
-                        ? "Inscription non autorisée (tous les groupes sont fermés)"
-                        : "Registration Not Allowed (All Groups Closed)"}
-                    </div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-bold">
+                    <label className="text-[10px] font-black text-cyan-400 uppercase tracking-widest block font-bold">
                       {t("choosePackage")}
                     </label>
                     <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
@@ -924,16 +917,20 @@ export function EventCardClient({
                         <button
                           key={pkg.id}
                           type="button"
-                          disabled
-                          className="w-full text-left p-3.5 rounded-2xl border border-slate-600 bg-slate-700/60 text-slate-400 cursor-not-allowed flex justify-between items-center opacity-70"
+                          onClick={() => setSelectedPackageId(pkg.id)}
+                          className={`w-full text-left p-3.5 rounded-2xl border transition-all flex justify-between items-center ${
+                            selectedPackageId === pkg.id
+                              ? "bg-cyan-500/10 border-cyan-400 text-white"
+                              : "bg-white/5 border-white/10 text-white/80 hover:bg-white/10"
+                          }`}
                         >
                           <div>
-                            <h4 className="text-xs font-bold text-slate-300">{pkg.name}</h4>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
+                            <h4 className="text-xs font-bold">{pkg.name}</h4>
+                            <p className="text-[10px] text-white/50 mt-0.5">
                               {pkg.creditAmount} + {pkg.bonusCredits} {t("freeSuffix")} ({pkg.totalCredits} {t("totalCreditsText")})
                             </p>
                           </div>
-                          <span className="text-xs font-black text-slate-400">
+                          <span className="text-xs font-black text-cyan-400">
                             {pkg.price.toLocaleString()} DA
                           </span>
                         </button>

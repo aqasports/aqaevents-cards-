@@ -158,110 +158,215 @@ export default function ClientDemandPage() {
 
       {/* Content Area */}
       <main className="flex-1 flex items-center justify-center p-4 z-10">
-        <div className="w-full max-w-lg bg-slate-800 border border-slate-700 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden text-slate-300">
-          <div className="space-y-5">
-            {/* Status Banner */}
-            <div className="bg-slate-700/80 border border-slate-600 rounded-xl p-4 text-center space-y-2">
-              <div className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-slate-600 text-slate-300 mb-1">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <div className="w-full max-w-lg bg-[var(--surface)]/70 backdrop-blur-lg border border-[var(--border)] rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden transition-all duration-300 hover:shadow-[var(--shadow-glow)] hover:border-[var(--primary)]/20">
+          
+          {success ? (
+            <div className="text-center py-8 space-y-5 animate-fade-in">
+              <div className="h-16 w-16 mx-auto bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-base font-bold text-slate-100">
-                {locale === "ar"
-                  ? "التسجيل غير مسموح به"
-                  : locale === "fr"
-                  ? "Inscription non autorisée"
-                  : "Registration Not Allowed"}
+              <h2 className="text-2xl font-extrabold text-[var(--foreground)]">
+                {locale === "ar" ? "تم إرسال الطلب بنجاح!" : locale === "fr" ? "Demande envoyée avec succès !" : "Demand Submitted Successfully!"}
               </h2>
-              <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
+              <p className="text-[var(--muted)] text-sm max-w-sm mx-auto leading-relaxed">
                 {locale === "ar"
-                  ? "جميع المجموعات والتسجيلات مغلقة حالياً. لا يمكن تقديم طلبات جديدة."
+                  ? "طلبك الآن في قائمة الانتظار. سنقوم بالتواصل معك عبر واتساب لتسليم بطاقتك الفعلية."
                   : locale === "fr"
-                  ? "Toutes les inscriptions et tous les groupes sont actuellement fermés. Impossible d'envoyer de nouvelles demandes."
-                  : "All group registrations are currently closed. New requests cannot be submitted."}
+                  ? "Votre demande est dans notre file d'attente. Nous vous contacterons via WhatsApp pour vous remettre votre carte physique."
+                  : "Your demand is in our queue. We will contact you via WhatsApp to deliver your physical card."}
               </p>
-            </div>
-
-            <div className="space-y-1 pt-2 opacity-60">
-              <h1 className="text-xl font-bold text-slate-300">
-                {locale === "ar" ? "طلب بطاقة AQA" : locale === "fr" ? "Demander une carte AQA" : "Request an AQA Card"}
-              </h1>
-              <p className="text-xs text-slate-400">
-                {locale === "ar"
-                  ? "نماذج التسجيل للمجموعات مغلقة."
-                  : locale === "fr"
-                  ? "Les formulaires d'inscription pour tous les groupes sont fermés."
-                  : "Group registration forms are closed."}
-              </p>
-            </div>
-
-            {/* Client Name (Disabled - Solid Grey) */}
-            <div className="space-y-1.5 opacity-60">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                {locale === "ar" ? "اسم الزبون" : locale === "fr" ? "Nom du client" : "Client Name"}
-              </label>
-              <input
-                type="text"
-                disabled
-                value=""
-                placeholder={locale === "ar" ? "التسجيل مغلق..." : locale === "fr" ? "Inscription fermée..." : "Registration closed..."}
-                className="w-full rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 text-sm text-slate-400 cursor-not-allowed outline-none"
-              />
-            </div>
-
-            {/* Phone (Disabled - Solid Grey) */}
-            <div className="space-y-1.5 opacity-60">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                {locale === "ar" ? "رقم الهاتف (واتساب)" : locale === "fr" ? "Téléphone (WhatsApp)" : "Phone (WhatsApp)"}
-              </label>
-              <input
-                type="tel"
-                disabled
-                value=""
-                placeholder="+213XXXXXXXXX"
-                className="w-full rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 text-sm text-slate-400 cursor-not-allowed outline-none font-mono"
-              />
-            </div>
-
-            {/* Groups / Credit Selector (Disabled - Solid Grey) */}
-            <div className="space-y-2 opacity-60">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
-                {locale === "ar" ? "المجموعات والباقات" : locale === "fr" ? "Groupes et forfaits" : "Groups & Packages"}
-              </label>
-              <div className="grid grid-cols-2 gap-2 bg-slate-700/50 p-1 border border-slate-600 rounded-xl">
-                <button
-                  type="button"
-                  disabled
-                  className="py-2 text-xs font-bold rounded-lg bg-slate-600 text-slate-400 cursor-not-allowed"
-                >
-                  {locale === "ar" ? "مجموعة مغلقة" : locale === "fr" ? "Groupe fermé" : "Group Closed"}
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="py-2 text-xs font-bold rounded-lg bg-slate-600 text-slate-400 cursor-not-allowed"
-                >
-                  {locale === "ar" ? "مجموعة مغلقة" : locale === "fr" ? "Groupe fermé" : "Group Closed"}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button (Disabled - Solid Grey) */}
-            <div className="border-t border-slate-700 pt-4 mt-6">
               <button
-                type="button"
-                disabled
-                className="w-full py-3 bg-slate-700 border border-slate-600 text-slate-400 text-sm font-bold rounded-xl cursor-not-allowed text-center shadow-none"
+                onClick={() => setSuccess(false)}
+                className="mt-4 px-6 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm font-bold rounded-xl transition-all duration-150 active:scale-[0.98] shadow-md shadow-sky-500/20"
               >
-                {locale === "ar"
-                  ? "التسجيل غير مسموح به (مغلق)"
-                  : locale === "fr"
-                  ? "Inscription non autorisée (fermé)"
-                  : "Registration Not Allowed (Closed)"}
+                {locale === "ar" ? "طلب بطاقة أخرى" : locale === "fr" ? "Demander une autre carte" : "Demand another card"}
               </button>
             </div>
-          </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-1">
+                <h1 className="text-2xl font-extrabold text-[var(--foreground)] tracking-tight">
+                  {locale === "ar" ? "طلب بطاقة AQA" : locale === "fr" ? "Demander une carte AQA" : "Request an AQA Card"}
+                </h1>
+                <p className="text-xs text-[var(--muted)]">
+                  {locale === "ar"
+                    ? "املأ هذا النموذج لطلب بطاقة أنشطة AQA الرياضية الخاصة بك."
+                    : locale === "fr"
+                    ? "Remplissez ce formulaire pour demander votre carte d'activités AQA Sports."
+                    : "Fill out this form to request your AQA Sports activity card."}
+                </p>
+              </div>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 rounded-xl px-4 py-3 text-xs font-semibold animate-fade-in">
+                  {error}
+                </div>
+              )}
+
+              {/* Client Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider block">
+                  {locale === "ar" ? "اسم الزبون" : locale === "fr" ? "Nom du client" : "Client Name"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={locale === "ar" ? "الاسم الكامل..." : locale === "fr" ? "Nom complet..." : "Full name..."}
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all"
+                />
+              </div>
+
+              {/* Phone (WhatsApp) */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider block">
+                  {locale === "ar" ? "رقم الهاتف (واتساب)" : locale === "fr" ? "Téléphone (WhatsApp)" : "Phone (WhatsApp)"}
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+213XXXXXXXXX"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all font-mono"
+                />
+                <span className="text-[10px] text-[var(--muted)] block">
+                  {locale === "ar"
+                    ? "يرجى كتابة رمز الدولة (مثال: +213540454907)"
+                    : locale === "fr"
+                    ? "Veuillez inclure l'indicatif pays (ex: +213540454907)"
+                    : "Please include country code (e.g. +213540454907)"}
+                </span>
+              </div>
+
+              {/* Credit Type Tab Selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider block">
+                  {locale === "ar" ? "نوع الرصيد المطلوب" : locale === "fr" ? "Type de crédit souhaité" : "Desired Credit Type"}
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-[var(--surface-2)]/40 p-1 border border-[var(--border)] rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setCreditType("package")}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                      creditType === "package"
+                        ? "bg-[var(--primary)] text-white shadow-sm"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    {locale === "ar" ? "باقة محددة" : locale === "fr" ? "Forfait prédéfini" : "Predefined Package"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreditType("custom")}
+                    className={`py-2 text-xs font-bold rounded-lg transition-all ${
+                      creditType === "custom"
+                        ? "bg-[var(--primary)] text-white shadow-sm"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    {locale === "ar" ? "رصيد مخصص" : locale === "fr" ? "Crédit personnalisé" : "Custom Credits"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Conditional Inputs */}
+              {creditType === "package" ? (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider block">
+                    {locale === "ar" ? "اختر الباقة" : locale === "fr" ? "Choisir le forfait" : "Select Package"}
+                  </label>
+                  {loadingPackages ? (
+                    <div className="h-11 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/30 animate-pulse flex items-center justify-center text-xs text-[var(--muted)]">
+                      {locale === "ar" ? "جاري تحميل الباقات..." : locale === "fr" ? "Chargement des forfaits..." : "Loading packages..."}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedPackageId}
+                      onChange={(e) => setSelectedPackageId(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)] transition-all cursor-pointer"
+                    >
+                      {packages.map((pkg) => (
+                        <option key={pkg.id} value={pkg.id}>
+                          {pkg.name} — {pkg.totalCredits} {locale === "ar" ? "حصة" : "credits"} ({pkg.price.toLocaleString("fr-DZ")} DA)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {selectedPackage && (
+                    <div className="bg-[var(--surface-2)]/20 border border-[var(--border)] rounded-xl p-3.5 text-xs text-[var(--muted)] space-y-1">
+                      <div className="flex justify-between">
+                        <span>{locale === "ar" ? "حصص مدفوعة" : locale === "fr" ? "Crédits payants" : "Paid credits"}:</span>
+                        <span className="font-bold text-[var(--foreground)]">{selectedPackage.creditAmount}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{locale === "ar" ? "حصص إضافية مجانية" : locale === "fr" ? "Crédits bonus offerts" : "Free bonus credits"}:</span>
+                        <span className="font-bold text-[var(--success-text)]">+{selectedPackage.bonusCredits}</span>
+                      </div>
+                      <div className="flex justify-between border-t border-[var(--border)] pt-1 mt-1">
+                        <span className="font-semibold text-[var(--foreground)]">{locale === "ar" ? "إجمالي الحصص" : locale === "fr" ? "Total des crédits" : "Total credits"}:</span>
+                        <span className="font-bold text-[var(--primary)]">{selectedPackage.totalCredits}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider block">
+                    {locale === "ar" ? "عدد الحصص المطلوبة" : locale === "fr" ? "Nombre de crédits requis" : "Amount of credits"}
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={customAmount}
+                    onChange={(e) => setCustomAmount(e.target.value)}
+                    placeholder={locale === "ar" ? "مثال: 10..." : locale === "fr" ? "Ex: 10..." : "E.g. 10..."}
+                    className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 px-4 py-3 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] transition-all font-mono"
+                  />
+                  <span className="text-[10px] text-[var(--muted)] block">
+                    {locale === "ar" ? `سعر الحصة هو ${creditRate.toLocaleString()} دج` : locale === "fr" ? `Le tarif est de ${creditRate.toLocaleString()} DA par crédit` : `Rate is ${creditRate.toLocaleString()} DA per credit`}
+                  </span>
+                </div>
+              )}
+
+              {/* Turnstile / Captcha Widget */}
+              <TurnstileWidget onVerify={(token) => setCaptchaToken(token)} />
+
+              {/* Price Preview & Submit */}
+              <div className="border-t border-[var(--border)] pt-4 mt-6 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-[var(--muted)] tracking-wider">
+                    {locale === "ar" ? "السعر الإجمالي التقديري" : locale === "fr" ? "Prix total estimé" : "Estimated Total Price"}
+                  </p>
+                  <p className="text-2xl font-black text-[var(--primary)] font-mono leading-none mt-1">
+                    {calculatedPrice.toLocaleString("fr-DZ")} <span className="text-xs font-bold text-[var(--foreground)]">DA</span>
+                  </p>
+                </div>
+                
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-3 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm font-bold rounded-xl transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-sky-500/25 active:scale-[0.98]"
+                >
+                  {submitting ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      <span>{locale === "ar" ? "جاري الإرسال..." : locale === "fr" ? "Envoi..." : "Submitting..."}</span>
+                    </>
+                  ) : (
+                    <span>{locale === "ar" ? "إرسال طلب البطاقة" : locale === "fr" ? "Envoyer la demande" : "Submit Demand"}</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
 
         </div>
       </main>
