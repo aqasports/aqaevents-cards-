@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, FormEvent, use } from "react";
 import Link from "next/link";
-import { Alert, Button, Card, Input, PageHeader, Badge } from "@/components/admin/ui";
+import { Alert, Button, Card, Input, PageHeader, Badge, ConfirmModal } from "@/components/admin/ui";
 
 type Client = {
   id: string;
@@ -170,11 +170,11 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   };
   const [orgCards, setOrgCards] = useState<OrgCard[]>([]);
   const [cardsLoading, setCardsLoading] = useState(false);
-  const [genCardCount, setGenCardCount] = useState<string>("10");
-  const [generatingCards, setGeneratingCards] = useState(false);
+  const [cardFilter, setCardFilter] = useState<"all" | "blank" | "assigned">("all");
   const [linkCardId, setLinkCardId] = useState("");
   const [linkEmployeeId, setLinkEmployeeId] = useState("");
   const [linkingCard, setLinkingCard] = useState(false);
+  const [unlinkConfirm, setUnlinkConfirm] = useState<{ cardId: string; cardCode: string; employeeName: string } | null>(null);
 
   // Pool Allocation state
   const [allocClientId, setAllocClientId] = useState("");
@@ -1286,94 +1286,106 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
       {/* ── CARD INVENTORY TAB ── */}
       {activeTab === "cards" && (
         <div className="space-y-6">
-          {/* Card Stats */}
+
+          {/* Unlink confirm modal */}
+          <ConfirmModal
+            isOpen={!!unlinkConfirm}
+            isDanger
+            title="Unlink Card"
+            message={unlinkConfirm ? `Unlink card ${unlinkConfirm.cardCode} from ${unlinkConfirm.employeeName}? The card will return to blank inventory.` : ""}
+            confirmLabel="Unlink"
+            onConfirm={async () => {
+              if (!unlinkConfirm) return;
+              try {
+                const res = await fetch(`/api/admin/organizations/${orgId}/cards/unlink`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ cardId: unlinkConfirm.cardId }),
+                });
+                if (res.ok) {
+                  setMessage({ text: `Card ${unlinkConfirm.cardCode} unlinked and returned to inventory.`, tone: "success" });
+                  await loadOrgData();
+                } else {
+                  const err = await res.json();
+                  setMessage({ text: err.error || "Failed to unlink", tone: "danger" });
+                }
+              } catch {
+                setMessage({ text: "Network error", tone: "danger" });
+              } finally {
+                setUnlinkConfirm(null);
+              }
+            }}
+            onCancel={() => setUnlinkConfirm(null)}
+          />
+
+          {/* KPI Strip */}
           <div className="grid grid-cols-3 gap-4">
-            <Card>
+            <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 space-y-1">
               <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">Total Cards</p>
-              <p className="text-2xl font-black text-[var(--foreground)] font-mono mt-1">{orgCards.length}</p>
-            </Card>
-            <Card>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">Blank / Available</p>
-              <p className="text-2xl font-black text-amber-500 font-mono mt-1">{orgCards.filter(c => !c.clientId).length}</p>
-            </Card>
-            <Card>
-              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">Assigned</p>
-              <p className="text-2xl font-black text-emerald-500 font-mono mt-1">{orgCards.filter(c => !!c.clientId).length}</p>
-            </Card>
+              <p className="text-2xl font-black text-[var(--foreground)] font-mono">{orgCards.length}</p>
+              <p className="text-[11px] text-[var(--muted)]">In org inventory</p>
+            </div>
+            <div className="bg-[var(--surface)] border border-amber-500/20 rounded-xl p-4 space-y-1">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-amber-500">Blank / Available</p>
+              <p className="text-2xl font-black text-amber-500 font-mono">{orgCards.filter(c => !c.clientId).length}</p>
+              <p className="text-[11px] text-[var(--muted)]">Ready to issue</p>
+            </div>
+            <div className="bg-[var(--surface)] border border-emerald-500/20 rounded-xl p-4 space-y-1">
+              <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-500">Assigned</p>
+              <p className="text-2xl font-black text-emerald-500 font-mono">{orgCards.filter(c => !!c.clientId).length}</p>
+              <p className="text-[11px] text-[var(--muted)]">Active employee cards</p>
+            </div>
           </div>
 
-          {/* Generate Blank Cards */}
-          <Card>
-            <h3 className="font-bold text-sm mb-3">Generate Blank Cards</h3>
-            <div className="flex gap-3 items-end">
-              <div className="flex-1">
-                <Input
-                  label="Number of cards"
-                  type="number"
-                  value={genCardCount}
-                  onChange={(e: any) => setGenCardCount(e.target.value)}
-                  min={1}
-                  max={200}
-                />
-              </div>
-              <Button
-                loading={generatingCards}
-                onClick={async () => {
-                  setGeneratingCards(true);
-                  setMessage(null);
-                  try {
-                    const res = await fetch(`/api/admin/organizations/${orgId}/cards`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ count: parseInt(genCardCount) || 10 }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setMessage({ text: `Generated ${data.cards.length} blank cards successfully.`, tone: "success" });
-                      await loadOrgData();
-                    } else {
-                      const err = await res.json();
-                      setMessage({ text: err.error || "Failed to generate cards", tone: "danger" });
-                    }
-                  } catch {
-                    setMessage({ text: "Network error generating cards", tone: "danger" });
-                  } finally {
-                    setGeneratingCards(false);
-                  }
-                }}
-              >
-                Generate Cards
-              </Button>
+          {/* Generate Cards -- Link to Print QR */}
+          <div className="flex items-center gap-4 bg-[var(--surface)] border border-[var(--primary)]/20 rounded-xl p-4">
+            <div className="flex-1">
+              <p className="text-sm font-bold text-[var(--foreground)]">Need to generate new org cards?</p>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                Blank card generation lives in the Print QR page. Click to open it with this organization pre-selected -- cards will use the org-branded prefix automatically.
+              </p>
             </div>
-          </Card>
+            <Link
+              href={`/admin/print?org=${orgId}`}
+              className="shrink-0 px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-bold text-xs rounded-xl transition flex items-center gap-2"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Open Print QR
+            </Link>
+          </div>
 
           {/* Link Card to Employee */}
           <Card>
-            <h3 className="font-bold text-sm mb-3">Link Blank Card to Employee</h3>
+            <h3 className="font-bold text-sm mb-4">Link Blank Card to Employee</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
               <div>
-                <label className="text-xs font-bold text-[var(--muted)] block mb-1">Blank Card</label>
+                <label className="text-xs font-bold text-[var(--muted)] block mb-1.5">Blank Card</label>
                 <select
                   value={linkCardId}
                   onChange={(e) => setLinkCardId(e.target.value)}
-                  className="w-full p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs outline-none focus:border-[var(--primary)]"
+                  className="w-full p-2.5 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
                 >
                   <option value="">-- Select blank card --</option>
                   {orgCards.filter(c => !c.clientId && c.status === "active").map(c => (
                     <option key={c.id} value={c.id}>{c.cardCode}</option>
                   ))}
                 </select>
+                {orgCards.filter(c => !c.clientId && c.status === "active").length === 0 && (
+                  <p className="text-[11px] text-amber-500 mt-1">No blank cards available. Generate cards in Print QR first.</p>
+                )}
               </div>
               <div>
-                <label className="text-xs font-bold text-[var(--muted)] block mb-1">Employee</label>
+                <label className="text-xs font-bold text-[var(--muted)] block mb-1.5">Employee</label>
                 <select
                   value={linkEmployeeId}
                   onChange={(e) => setLinkEmployeeId(e.target.value)}
-                  className="w-full p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs outline-none focus:border-[var(--primary)]"
+                  className="w-full p-2.5 bg-[var(--background)] border border-[var(--border)] rounded-lg text-sm outline-none focus:border-[var(--primary)] text-[var(--foreground)]"
                 >
                   <option value="">-- Select employee --</option>
                   {org.clients.map(emp => (
-                    <option key={emp.id} value={emp.id}>{emp.fullName}</option>
+                    <option key={emp.id} value={emp.id}>{emp.fullName}{emp.cards.length > 0 ? ` [${emp.cards[0].cardCode}]` : ""}</option>
                   ))}
                 </select>
               </div>
@@ -1410,78 +1422,131 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
             </div>
           </Card>
 
-          {/* Card List Table */}
-          <Card>
-            <h3 className="font-bold text-sm mb-3">All Cards ({orgCards.length})</h3>
-            {orgCards.length === 0 ? (
-              <p className="text-xs text-[var(--muted)] py-4 text-center">No cards found. Generate blank cards above.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="border-b border-[var(--border)] uppercase text-[10px] tracking-wider text-[var(--muted)] font-bold">
-                    <tr>
-                      <th className="py-2">Card Code</th>
-                      <th className="py-2">Status</th>
-                      <th className="py-2">Assigned To</th>
-                      <th className="py-2">Issued</th>
-                      <th className="py-2 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border)]">
-                    {orgCards.map((card) => (
-                      <tr key={card.id} className="hover:bg-[var(--surface-2)]/30">
-                        <td className="py-2.5 font-mono font-bold">{card.cardCode}</td>
-                        <td className="py-2.5">
-                          {card.clientId ? (
-                            <Badge tone="success">Assigned</Badge>
-                          ) : (
-                            <Badge tone="warning">Blank</Badge>
+          {/* Card List */}
+          <Card padding={false}>
+            {/* Table header + filter tabs */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-[var(--border)]">
+              <h3 className="font-bold text-sm text-[var(--foreground)]">
+                Card Inventory
+                <span className="ml-2 text-[var(--muted)] font-normal text-xs">({orgCards.length} total)</span>
+              </h3>
+              <div className="flex gap-1 bg-[var(--surface-2)] rounded-lg p-1">
+                {(["all", "blank", "assigned"] as const).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setCardFilter(f)}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold capitalize transition ${
+                      cardFilter === f
+                        ? "bg-[var(--primary)] text-white shadow"
+                        : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                    }`}
+                  >
+                    {f === "all" ? `All (${orgCards.length})` : f === "blank" ? `Blank (${orgCards.filter(c => !c.clientId).length})` : `Assigned (${orgCards.filter(c => !!c.clientId).length})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {(() => {
+              const filtered = orgCards.filter(c =>
+                cardFilter === "all" ? true : cardFilter === "blank" ? !c.clientId : !!c.clientId
+              );
+              if (filtered.length === 0) {
+                return (
+                  <div className="py-12 text-center">
+                    <svg className="h-10 w-10 mx-auto text-[var(--muted)] mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                    </svg>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">No {cardFilter === "all" ? "" : cardFilter} cards found</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">
+                      {cardFilter === "blank" ? "All cards are assigned to employees." : cardFilter === "assigned" ? "No cards have been assigned yet." : "Generate cards in Print QR to get started."}
+                    </p>
+                  </div>
+                );
+              }
+              return (
+                <>
+                  {/* Desktop table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-[var(--border)] text-[10px] uppercase tracking-wider text-[var(--muted)] font-bold">
+                        <tr>
+                          <th className="px-4 py-3">Card Code</th>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Assigned To</th>
+                          <th className="px-4 py-3">Department</th>
+                          <th className="px-4 py-3">Issued</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border)]">
+                        {filtered.map((card) => (
+                          <tr key={card.id} className="hover:bg-[var(--surface-2)]/40 transition-colors">
+                            <td className="px-4 py-3 font-mono font-bold text-[var(--foreground)] text-xs tracking-wider">{card.cardCode}</td>
+                            <td className="px-4 py-3">
+                              <Badge tone={card.clientId ? "success" : "warning"}>
+                                {card.clientId ? "Assigned" : "Blank"}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              {card.client?.fullName || <span className="text-[var(--muted)] italic text-xs">Unassigned</span>}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                              {card.client?.department?.name || "—"}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-[var(--muted)] font-mono">
+                              {new Date(card.issuedAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {card.clientId ? (
+                                <button
+                                  onClick={() => setUnlinkConfirm({ cardId: card.id, cardCode: card.cardCode, employeeName: card.client?.fullName ?? "" })}
+                                  className="text-xs text-[var(--danger)] hover:text-red-300 font-bold transition"
+                                >
+                                  Unlink
+                                </button>
+                              ) : (
+                                <span className="text-xs text-[var(--muted)]">Available</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile card stack */}
+                  <div className="md:hidden divide-y divide-[var(--border)]">
+                    {filtered.map((card) => (
+                      <div key={card.id} className="p-4 flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono font-bold text-xs text-[var(--foreground)] tracking-wider">{card.cardCode}</p>
+                          <p className="text-sm text-[var(--foreground)] mt-0.5 truncate">
+                            {card.client?.fullName || <span className="text-[var(--muted)] italic text-xs">Unassigned</span>}
+                          </p>
+                          {card.client?.department && (
+                            <p className="text-[11px] text-[var(--muted)]">{card.client.department.name}</p>
                           )}
-                        </td>
-                        <td className="py-2.5">
-                          {card.client?.fullName || <span className="text-[var(--muted)] italic">Unassigned</span>}
-                        </td>
-                        <td className="py-2.5 text-[var(--muted)] font-mono">
-                          {new Date(card.issuedAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-2.5 text-right">
-                          {card.clientId ? (
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge tone={card.clientId ? "success" : "warning"} size="sm">
+                            {card.clientId ? "Assigned" : "Blank"}
+                          </Badge>
+                          {card.clientId && (
                             <button
-                              onClick={async () => {
-                                if (!confirm(`Unlink card ${card.cardCode} from ${card.client?.fullName}?`)) return;
-                                try {
-                                  const res = await fetch(`/api/admin/organizations/${orgId}/cards/unlink`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ cardId: card.id }),
-                                  });
-                                  if (res.ok) {
-                                    setMessage({ text: `Card ${card.cardCode} unlinked.`, tone: "success" });
-                                    await loadOrgData();
-                                  } else {
-                                    const err = await res.json();
-                                    setMessage({ text: err.error || "Failed to unlink", tone: "danger" });
-                                  }
-                                } catch {
-                                  setMessage({ text: "Network error", tone: "danger" });
-                                }
-                              }}
-                              className="text-red-400 hover:text-red-300 font-bold"
+                              onClick={() => setUnlinkConfirm({ cardId: card.id, cardCode: card.cardCode, employeeName: card.client?.fullName ?? "" })}
+                              className="text-xs text-[var(--danger)] font-bold"
                             >
                               Unlink
                             </button>
-                          ) : (
-                            <span className="text-[var(--muted)]">
-                              Use form above
-                            </span>
                           )}
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  </div>
+                </>
+              );
+            })()}
           </Card>
         </div>
       )}

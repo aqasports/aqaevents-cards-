@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button, Card, PageHeader, Alert } from "@/components/admin/ui";
 import { useTranslations } from "@/lib/i18n";
 
@@ -13,9 +14,17 @@ type CardItem = {
   isBlank: boolean;
   url: string;
   qrDataUrl: string;
+  orgName?: string | null;
+  orgPrefix?: string | null;
 };
 
 type Mode = "prebatch" | "clientcards";
+
+type OrgOption = {
+  id: string;
+  name: string;
+  slug: string;
+};
 
 // ─── Card face component ──────────────────────────────────────────────────────
 
@@ -32,6 +41,8 @@ function QRCardFace({
 }) {
   const { t } = useTranslations("print");
   const previewSize = Math.min(qrSizePx, 160); // cap preview size
+
+  const isOrgCard = !!item.orgName;
 
   return (
     <div className={`relative ${!isSelected ? "print:hidden" : ""}`}>
@@ -63,9 +74,15 @@ function QRCardFace({
               AQA Sports
             </span>
           </div>
-          <span className="text-[9px] font-medium text-slate-400">
-            {item.isBlank ? t("labelPrePrinted") : t("labelEventCard")}
-          </span>
+          {isOrgCard ? (
+            <span className="text-[9px] font-bold text-sky-600 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+              {item.orgPrefix || item.orgName}
+            </span>
+          ) : (
+            <span className="text-[9px] font-medium text-slate-400">
+              {item.isBlank ? t("labelPrePrinted") : t("labelEventCard")}
+            </span>
+          )}
         </div>
 
         {/* QR code */}
@@ -84,6 +101,8 @@ function QRCardFace({
           </p>
           {item.clientName ? (
             <p className="text-sm font-semibold text-slate-700">{item.clientName}</p>
+          ) : isOrgCard ? (
+            <p className="text-xs font-semibold text-sky-600">{item.orgName}</p>
           ) : (
             <p className="text-xs italic text-slate-400">{t("unassigned")}</p>
           )}
@@ -101,6 +120,7 @@ function QRCardFace({
 
 export default function PrintPage() {
   const { t, dir } = useTranslations("print");
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("prebatch");
 
   // Pre-batch state
@@ -118,7 +138,30 @@ export default function PrintPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" | "info" } | null>(null);
 
+  // Organization selector state
+  const [orgs, setOrgs] = useState<OrgOption[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>("");
+  const [orgsLoading, setOrgsLoading] = useState(false);
+
   const hasFetchedClientCards = useRef(false);
+
+  // Load organizations for selector
+  useEffect(() => {
+    setOrgsLoading(true);
+    fetch("/api/admin/organizations")
+      .then((r) => r.ok ? r.json() : [])
+      .then((data: OrgOption[]) => setOrgs(Array.isArray(data) ? data : []))
+      .catch(() => setOrgs([]))
+      .finally(() => setOrgsLoading(false));
+  }, []);
+
+  // Pre-select org from URL param ?org=<id>
+  useEffect(() => {
+    const orgParam = searchParams.get("org");
+    if (orgParam) {
+      setSelectedOrgId(orgParam);
+    }
+  }, [searchParams]);
 
   // Load client cards on mode switch
   useEffect(() => {
@@ -153,7 +196,6 @@ export default function PrintPage() {
       hasFetchedClientCards.current = false;
       loadClientCards();
     } else if (items.length > 0) {
-      // Re-render existing batch with new size (QR data URLs are size-dependent)
       setBatchGenerating(true);
       const res = await fetch("/api/admin/cards/export", {
         method: "POST",
@@ -161,7 +203,6 @@ export default function PrintPage() {
         body: JSON.stringify({
           mode: "blank",
           qrSize: qrSizePx,
-          // Only re-export the ones we already have
           clientIds: [],
         }),
       });
@@ -176,27 +217,56 @@ export default function PrintPage() {
     setBatchGenerating(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/admin/cards/prebatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ count: batchCount, qrSize: qrSizePx }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ text: data.error ?? t("networkError"), tone: "danger" });
-        return;
-      }
+      let newItems: CardItem[];
 
-      const newItems: CardItem[] = data.cards.map(
-        (c: { id: string; cardCode: string; url: string; qrDataUrl: string }) => ({
-          cardId: c.id,
-          cardCode: c.cardCode,
-          clientName: null,
-          isBlank: true,
-          url: c.url,
-          qrDataUrl: c.qrDataUrl,
-        }),
-      );
+      if (selectedOrgId) {
+        // Org-scoped generation via org cards API
+        const res = await fetch(`/api/admin/organizations/${selectedOrgId}/cards`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ count: batchCount, qrSize: qrSizePx }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessage({ text: data.error ?? t("networkError"), tone: "danger" });
+          return;
+        }
+        const orgName = orgs.find((o) => o.id === selectedOrgId)?.name ?? null;
+        newItems = (data.cards ?? []).map(
+          (c: { id: string; cardCode: string; url: string; qrDataUrl: string }) => ({
+            cardId: c.id,
+            cardCode: c.cardCode,
+            clientName: null,
+            isBlank: true,
+            url: c.url,
+            qrDataUrl: c.qrDataUrl,
+            orgName,
+            orgPrefix: c.cardCode.split("-")[0],
+          })
+        );
+      } else {
+        // Standard AQA-XXXXXX generation
+        const res = await fetch("/api/admin/cards/prebatch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ count: batchCount, qrSize: qrSizePx }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setMessage({ text: data.error ?? t("networkError"), tone: "danger" });
+          return;
+        }
+        newItems = (data.cards ?? []).map(
+          (c: { id: string; cardCode: string; url: string; qrDataUrl: string }) => ({
+            cardId: c.id,
+            cardCode: c.cardCode,
+            clientName: null,
+            isBlank: true,
+            url: c.url,
+            qrDataUrl: c.qrDataUrl,
+          })
+        );
+      }
 
       setItems(newItems);
       setSelected(new Set(newItems.map((i) => i.cardId)));
@@ -230,16 +300,23 @@ export default function PrintPage() {
       setMessage({ text: t("selectOneCardFirst"), tone: "info" });
       return;
     }
+    const orgName = orgs.find((o) => o.id === selectedOrgId)?.name ?? "AQA";
     const rows = [
-      ["Card Code (ID)", "Status", "Client", "QR URL"],
-      ...visible.map((i) => [i.cardCode, i.isBlank ? "BLANK" : "ASSIGNED", i.clientName ?? "", i.url]),
+      ["Card Code (ID)", "Status", "Client", "Organization", "QR URL"],
+      ...visible.map((i) => [
+        i.cardCode,
+        i.isBlank ? "BLANK" : "ASSIGNED",
+        i.clientName ?? "",
+        i.orgName ?? "",
+        i.url,
+      ]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `aqa-qr-batch-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `${selectedOrgId ? orgName.toLowerCase().replace(/\s+/g, "-") : "aqa"}-qr-batch-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -265,16 +342,32 @@ export default function PrintPage() {
       const gap = 5;
 
       const itemWidth = qrSizeMm;
-      const itemHeight = qrSizeMm + 6; // QR code height + card code label gap
+      const itemHeight = qrSizeMm + 6;
 
-      // Calculate columns and rows that can fit on an A4 page
       const cols = Math.max(1, Math.floor((pageWidth - 2 * margin + gap) / (itemWidth + gap)));
       const rows = Math.max(1, Math.floor((pageHeight - 2 * margin + gap) / (itemHeight + gap)));
       const itemsPerPage = cols * rows;
 
+      // PDF header with org branding if applicable
+      const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
+      if (selectedOrg) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(14, 165, 233);
+        doc.text(`${selectedOrg.name} x AQA Sports Events Cards`, margin, 7);
+        doc.setTextColor(0, 0, 0);
+      }
+
       visible.forEach((item, index) => {
         if (index > 0 && index % itemsPerPage === 0) {
           doc.addPage();
+          if (selectedOrg) {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(14, 165, 233);
+            doc.text(`${selectedOrg.name} x AQA Sports Events Cards`, margin, 7);
+            doc.setTextColor(0, 0, 0);
+          }
         }
 
         const pageIdx = index % itemsPerPage;
@@ -284,16 +377,15 @@ export default function PrintPage() {
         const x = margin + col * (itemWidth + gap);
         const y = margin + row * (itemHeight + gap);
 
-        // Add QR code image
         doc.addImage(item.qrDataUrl, "PNG", x, y, itemWidth, itemWidth);
 
-        // Add centered card code text below the QR code
         doc.setFont("courier", "bold");
         doc.setFontSize(8);
         doc.text(item.cardCode, x + itemWidth / 2, y + itemWidth + 4, { align: "center" });
       });
 
-      doc.save(`aqa-qr-cards-${new Date().toISOString().split("T")[0]}.pdf`);
+      const orgSlug = selectedOrg ? selectedOrg.name.toLowerCase().replace(/\s+/g, "-") : "aqa";
+      doc.save(`${orgSlug}-qr-cards-${new Date().toISOString().split("T")[0]}.pdf`);
       setMessage({ text: t("successExportPdf"), tone: "success" });
     } catch (err) {
       console.error(err);
@@ -302,6 +394,7 @@ export default function PrintPage() {
   }
 
   const visibleItems = items.filter((i) => selected.has(i.cardId));
+  const selectedOrg = orgs.find((o) => o.id === selectedOrgId);
 
   return (
     <div className="animate-fade-in" dir={dir}>
@@ -407,9 +500,38 @@ export default function PrintPage() {
               <h3 className={`text-sm font-black uppercase tracking-wide text-slate-500 mb-3 ${dir === "rtl" ? "text-right" : "text-left"}`}>
                 {t("generateBatchTitle")}
               </h3>
-              <p className={`text-xs text-slate-500 mb-4 ${dir === "rtl" ? "text-right" : "text-left"}`}>
-                {t("generateBatchDesc")}
-              </p>
+
+              {/* Organization selector */}
+              <div className="mb-4">
+                <label className={`block text-xs font-semibold text-slate-600 mb-1.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                  Organization (optional)
+                </label>
+                <select
+                  value={selectedOrgId}
+                  onChange={(e) => setSelectedOrgId(e.target.value)}
+                  disabled={orgsLoading}
+                  className={`w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] ${
+                    dir === "rtl" ? "text-right" : "text-left"
+                  }`}
+                >
+                  <option value="">-- Standard AQA Cards --</option>
+                  {orgs.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name}
+                    </option>
+                  ))}
+                </select>
+                {selectedOrg && (
+                  <p className={`text-[11px] mt-1.5 text-sky-600 font-semibold ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                    Cards will use {selectedOrg.name.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3)}-XXXXXX format and be scoped to this organization.
+                  </p>
+                )}
+                {!selectedOrg && (
+                  <p className={`text-[11px] text-slate-400 mt-1.5 ${dir === "rtl" ? "text-right" : "text-left"}`}>
+                    {t("generateBatchDesc")}
+                  </p>
+                )}
+              </div>
 
               <div className="space-y-3">
                 <div>
@@ -456,7 +578,14 @@ export default function PrintPage() {
                       {t("generatingCardsBtn", { count: batchCount })}
                     </>
                   ) : (
-                    t("generateBtn", { count: batchCount })
+                    <>
+                      {selectedOrg && (
+                        <span className="bg-white/20 text-white text-[10px] font-black px-1.5 py-0.5 rounded uppercase">
+                          {selectedOrg.name.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3)}
+                        </span>
+                      )}
+                      {t("generateBtn", { count: batchCount })}
+                    </>
                   )}
                 </button>
               </div>
@@ -499,7 +628,7 @@ export default function PrintPage() {
             <ol className={`space-y-2.5 text-xs text-slate-500 list-none ${dir === "rtl" ? "text-right" : "text-left"}`}>
               {[
                 [1, t("workflowStep1")],
-                [2, t("workflowStep2")],
+                [2, selectedOrg ? `Select organization "${selectedOrg.name}" for branded org-specific card codes` : t("workflowStep2")],
                 [3, t("workflowStep3")],
                 [4, t("workflowStep4")],
                 [5, t("workflowStep5")],
