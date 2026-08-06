@@ -33,7 +33,7 @@ export class OrganizationsRepository {
         createdAt: true,
         updatedAt: true,
         _count: {
-          select: { clients: true, invoices: true },
+          select: { clients: true, invoices: true, cards: true },
         },
       },
     });
@@ -91,7 +91,7 @@ export class OrganizationsRepository {
           },
         },
         _count: {
-          select: { clients: true, invoices: true },
+          select: { clients: true, invoices: true, cards: true },
         },
       },
     });

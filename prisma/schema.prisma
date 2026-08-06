@@ -65,18 +65,21 @@ model Client {
 }
 
 model Card {
-  id          String   @id @default(cuid())
-  clientId    String? // null = pre-printed blank, not yet assigned to a client
-  publicToken String   @unique
-  cardCode    String   @unique
-  status      String   @default("active") // active | voided
-  issuedAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  clientId       String? // null = pre-printed blank, not yet assigned to a client
+  organizationId String? // org-scoped blank cards belong to this org's inventory
+  publicToken    String   @unique
+  cardCode       String   @unique
+  status         String   @default("active") // active | voided
+  issuedAt       DateTime @default(now())
 
   client        Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   ledgerEntries LedgerEntry[]
   publicPurchaseRequests PublicPurchaseRequest[]
 
   @@index([clientId])
+  @@index([organizationId])
 }
 
 model Package {
@@ -271,6 +274,7 @@ model Organization {
   users                  OrganizationUser[]
   contracts              Contract[]
   departments            Department[]
+  cards                  Card[]
   aiActionQueues         AiActionQueue[]
 }
 

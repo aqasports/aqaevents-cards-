@@ -104,7 +104,7 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "overview" | "contracts" | "activities" | "pool" | "redemptions" | "departments" | "employees" | "statements"
+    "overview" | "contracts" | "activities" | "pool" | "redemptions" | "departments" | "employees" | "statements" | "cards"
   >("overview");
 
   // Profile Edit State
@@ -157,15 +157,51 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
   const [statementEnd, setStatementEnd] = useState("");
   const [generatingStatement, setGeneratingStatement] = useState(false);
 
+  // Card Inventory state
+  type OrgCard = {
+    id: string;
+    cardCode: string;
+    publicToken: string;
+    status: string;
+    issuedAt: string;
+    clientId: string | null;
+    organizationId: string | null;
+    client: { id: string; fullName: string; email: string | null; department?: { name: string } | null } | null;
+  };
+  const [orgCards, setOrgCards] = useState<OrgCard[]>([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
+  const [genCardCount, setGenCardCount] = useState<string>("10");
+  const [generatingCards, setGeneratingCards] = useState(false);
+  const [linkCardId, setLinkCardId] = useState("");
+  const [linkEmployeeId, setLinkEmployeeId] = useState("");
+  const [linkingCard, setLinkingCard] = useState(false);
+
+  // Pool Allocation state
+  const [allocClientId, setAllocClientId] = useState("");
+  const [allocAmount, setAllocAmount] = useState<string>("");
+  const [allocReason, setAllocReason] = useState("");
+  const [allocating, setAllocating] = useState(false);
+  type PoolAllocation = {
+    id: string;
+    delta: number;
+    reason: string;
+    createdAt: string;
+    client: { id: string; fullName: string; email: string | null; department?: { name: string } | null } | null;
+    card: { id: string; cardCode: string } | null;
+  };
+  const [poolHistory, setPoolHistory] = useState<PoolAllocation[]>([]);
+
   const loadOrgData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resOrg, resContracts, resDepts, resAct, resRed] = await Promise.all([
+      const [resOrg, resContracts, resDepts, resAct, resRed, resCards, resPoolHist] = await Promise.all([
         fetch(`/api/admin/organizations/${orgId}`),
         fetch(`/api/admin/organizations/${orgId}/contracts`),
         fetch(`/api/admin/organizations/${orgId}/departments`),
         fetch(`/api/admin/organizations/${orgId}/activities`),
         fetch(`/api/admin/organizations/${orgId}/redemptions`),
+        fetch(`/api/admin/organizations/${orgId}/cards`),
+        fetch(`/api/admin/organizations/${orgId}/pool/history`),
       ]);
 
       if (resOrg.ok) {
@@ -195,6 +231,12 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
       }
       if (resRed.ok) {
         setRedemptions(await resRed.json());
+      }
+      if (resCards.ok) {
+        setOrgCards(await resCards.json());
+      }
+      if (resPoolHist.ok) {
+        setPoolHistory(await resPoolHist.json());
       }
     } catch {
       setMessage({ text: "Network error loading organization details", tone: "danger" });
@@ -586,6 +628,16 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
             CSV Bulk Import ({org.clients.length})
           </button>
           <button
+            onClick={() => setActiveTab("cards")}
+            className={`py-3 px-1 border-b-2 font-bold text-sm transition-colors ${
+              activeTab === "cards"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Card Inventory ({orgCards.length})
+          </button>
+          <button
             onClick={() => setActiveTab("statements")}
             className={`py-3 px-1 border-b-2 font-bold text-sm transition-colors ${
               activeTab === "statements"
@@ -891,6 +943,119 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
               </Button>
             </form>
           </Card>
+
+          {/* Allocate to Employee */}
+          {org.useSharedPool && (
+            <Card className="space-y-4">
+              <h3 className="text-base font-semibold">Allocate Credits to Employee</h3>
+              <p className="text-xs text-[var(--muted)]">
+                Split credits from the shared pool to an individual employee&apos;s card balance. This creates a ledger entry on their card.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-4 items-end text-xs">
+                <div className="space-y-1">
+                  <label className="font-bold text-[var(--muted)]">Employee</label>
+                  <select
+                    value={allocClientId}
+                    onChange={(e) => setAllocClientId(e.target.value)}
+                    className="w-full p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-xl text-xs outline-none"
+                  >
+                    <option value="">-- Select Employee --</option>
+                    {org.clients.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName} {c.cards.length > 0 ? `[${c.cards[0].cardCode}]` : "(No Card)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Input
+                  label="Credits to Allocate"
+                  type="number"
+                  min={1}
+                  value={allocAmount}
+                  onChange={(e) => setAllocAmount(e.target.value)}
+                  placeholder="e.g. 10"
+                />
+                <Input
+                  label="Reason"
+                  value={allocReason}
+                  onChange={(e) => setAllocReason(e.target.value)}
+                  placeholder="Monthly allocation"
+                />
+                <Button
+                  loading={allocating}
+                  disabled={!allocClientId || !allocAmount}
+                  onClick={async () => {
+                    setAllocating(true);
+                    setMessage(null);
+                    try {
+                      const res = await fetch(`/api/admin/organizations/${orgId}/pool/allocate`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          clientId: allocClientId,
+                          amount: Number(allocAmount),
+                          reason: allocReason || "Pool allocation",
+                        }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setMessage({
+                          text: `Allocated ${data.allocatedAmount} credits to ${data.employeeName}. New pool balance: ${data.newPoolBalance}`,
+                          tone: "success",
+                        });
+                        setAllocClientId("");
+                        setAllocAmount("");
+                        setAllocReason("");
+                        await loadOrgData();
+                      } else {
+                        const err = await res.json();
+                        setMessage({ text: err.error || "Failed to allocate credits", tone: "danger" });
+                      }
+                    } catch {
+                      setMessage({ text: "Network error allocating credits", tone: "danger" });
+                    } finally {
+                      setAllocating(false);
+                    }
+                  }}
+                >
+                  Allocate
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {/* Allocation History */}
+          {poolHistory.length > 0 && (
+            <Card>
+              <h3 className="text-base font-semibold mb-3">Pool Allocation History</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-[var(--border)] uppercase text-[10px] tracking-wider text-[var(--muted)] font-bold">
+                    <tr>
+                      <th className="py-2">Date</th>
+                      <th className="py-2">Employee</th>
+                      <th className="py-2">Card</th>
+                      <th className="py-2">Amount</th>
+                      <th className="py-2">Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {poolHistory.map((alloc) => (
+                      <tr key={alloc.id} className="hover:bg-[var(--surface-2)]/30">
+                        <td className="py-2.5 text-[var(--muted)] font-mono">
+                          {new Date(alloc.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-2.5 font-semibold">{alloc.client?.fullName ?? "Unknown"}</td>
+                        <td className="py-2.5 font-mono text-[var(--muted)]">{alloc.card?.cardCode ?? "--"}</td>
+                        <td className="py-2.5 font-bold text-emerald-500">+{alloc.delta}</td>
+                        <td className="py-2.5 text-[var(--muted)]">{alloc.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -1108,6 +1273,209 @@ export default function OrganizationDetailPage({ params }: { params: Promise<{ i
                           </Badge>
                         </td>
                         <td className="py-2.5 text-[var(--muted)]">{new Date(inv.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {/* ── CARD INVENTORY TAB ── */}
+      {activeTab === "cards" && (
+        <div className="space-y-6">
+          {/* Card Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">Total Cards</p>
+              <p className="text-2xl font-black text-[var(--foreground)] font-mono mt-1">{orgCards.length}</p>
+            </Card>
+            <Card>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">Blank / Available</p>
+              <p className="text-2xl font-black text-amber-500 font-mono mt-1">{orgCards.filter(c => !c.clientId).length}</p>
+            </Card>
+            <Card>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-[var(--muted)]">Assigned</p>
+              <p className="text-2xl font-black text-emerald-500 font-mono mt-1">{orgCards.filter(c => !!c.clientId).length}</p>
+            </Card>
+          </div>
+
+          {/* Generate Blank Cards */}
+          <Card>
+            <h3 className="font-bold text-sm mb-3">Generate Blank Cards</h3>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <Input
+                  label="Number of cards"
+                  type="number"
+                  value={genCardCount}
+                  onChange={(e: any) => setGenCardCount(e.target.value)}
+                  min={1}
+                  max={200}
+                />
+              </div>
+              <Button
+                loading={generatingCards}
+                onClick={async () => {
+                  setGeneratingCards(true);
+                  setMessage(null);
+                  try {
+                    const res = await fetch(`/api/admin/organizations/${orgId}/cards`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ count: parseInt(genCardCount) || 10 }),
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      setMessage({ text: `Generated ${data.cards.length} blank cards successfully.`, tone: "success" });
+                      await loadOrgData();
+                    } else {
+                      const err = await res.json();
+                      setMessage({ text: err.error || "Failed to generate cards", tone: "danger" });
+                    }
+                  } catch {
+                    setMessage({ text: "Network error generating cards", tone: "danger" });
+                  } finally {
+                    setGeneratingCards(false);
+                  }
+                }}
+              >
+                Generate Cards
+              </Button>
+            </div>
+          </Card>
+
+          {/* Link Card to Employee */}
+          <Card>
+            <h3 className="font-bold text-sm mb-3">Link Blank Card to Employee</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="text-xs font-bold text-[var(--muted)] block mb-1">Blank Card</label>
+                <select
+                  value={linkCardId}
+                  onChange={(e) => setLinkCardId(e.target.value)}
+                  className="w-full p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs outline-none focus:border-[var(--primary)]"
+                >
+                  <option value="">-- Select blank card --</option>
+                  {orgCards.filter(c => !c.clientId && c.status === "active").map(c => (
+                    <option key={c.id} value={c.id}>{c.cardCode}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-[var(--muted)] block mb-1">Employee</label>
+                <select
+                  value={linkEmployeeId}
+                  onChange={(e) => setLinkEmployeeId(e.target.value)}
+                  className="w-full p-2 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs outline-none focus:border-[var(--primary)]"
+                >
+                  <option value="">-- Select employee --</option>
+                  {org.clients.map(emp => (
+                    <option key={emp.id} value={emp.id}>{emp.fullName}</option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                loading={linkingCard}
+                disabled={!linkCardId || !linkEmployeeId}
+                onClick={async () => {
+                  setLinkingCard(true);
+                  setMessage(null);
+                  try {
+                    const res = await fetch(`/api/admin/organizations/${orgId}/cards/link`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ cardId: linkCardId, clientId: linkEmployeeId }),
+                    });
+                    if (res.ok) {
+                      setMessage({ text: "Card linked to employee successfully.", tone: "success" });
+                      setLinkCardId("");
+                      setLinkEmployeeId("");
+                      await loadOrgData();
+                    } else {
+                      const err = await res.json();
+                      setMessage({ text: err.error || "Failed to link card", tone: "danger" });
+                    }
+                  } catch {
+                    setMessage({ text: "Network error linking card", tone: "danger" });
+                  } finally {
+                    setLinkingCard(false);
+                  }
+                }}
+              >
+                Link Card
+              </Button>
+            </div>
+          </Card>
+
+          {/* Card List Table */}
+          <Card>
+            <h3 className="font-bold text-sm mb-3">All Cards ({orgCards.length})</h3>
+            {orgCards.length === 0 ? (
+              <p className="text-xs text-[var(--muted)] py-4 text-center">No cards found. Generate blank cards above.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-[var(--border)] uppercase text-[10px] tracking-wider text-[var(--muted)] font-bold">
+                    <tr>
+                      <th className="py-2">Card Code</th>
+                      <th className="py-2">Status</th>
+                      <th className="py-2">Assigned To</th>
+                      <th className="py-2">Issued</th>
+                      <th className="py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {orgCards.map((card) => (
+                      <tr key={card.id} className="hover:bg-[var(--surface-2)]/30">
+                        <td className="py-2.5 font-mono font-bold">{card.cardCode}</td>
+                        <td className="py-2.5">
+                          {card.clientId ? (
+                            <Badge tone="success">Assigned</Badge>
+                          ) : (
+                            <Badge tone="warning">Blank</Badge>
+                          )}
+                        </td>
+                        <td className="py-2.5">
+                          {card.client?.fullName || <span className="text-[var(--muted)] italic">Unassigned</span>}
+                        </td>
+                        <td className="py-2.5 text-[var(--muted)] font-mono">
+                          {new Date(card.issuedAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          {card.clientId ? (
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Unlink card ${card.cardCode} from ${card.client?.fullName}?`)) return;
+                                try {
+                                  const res = await fetch(`/api/admin/organizations/${orgId}/cards/unlink`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ cardId: card.id }),
+                                  });
+                                  if (res.ok) {
+                                    setMessage({ text: `Card ${card.cardCode} unlinked.`, tone: "success" });
+                                    await loadOrgData();
+                                  } else {
+                                    const err = await res.json();
+                                    setMessage({ text: err.error || "Failed to unlink", tone: "danger" });
+                                  }
+                                } catch {
+                                  setMessage({ text: "Network error", tone: "danger" });
+                                }
+                              }}
+                              className="text-red-400 hover:text-red-300 font-bold"
+                            >
+                              Unlink
+                            </button>
+                          ) : (
+                            <span className="text-[var(--muted)]">
+                              Use form above
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
