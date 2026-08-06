@@ -163,10 +163,17 @@ function main() {
 
   const syncMigration = "20260727090000_sync_production_schema";
 
+  // Only auto-resolve migrations that pre-date or equal the sync migration.
+  // Newer migrations contain real DDL that MUST be executed, not skipped.
+  const syncTimestamp = syncMigration.split("_")[0]; // "20260727090000"
+
   for (const migration of migrationFolders) {
-    if (migration !== syncMigration) {
+    const migrationTimestamp = migration.split("_")[0];
+    if (migrationTimestamp <= syncTimestamp) {
       console.log(`Marking baseline migration as already applied: ${migration}`);
       runCommand(`npx prisma migrate resolve --applied "${migration}"`);
+    } else {
+      console.log(`Skipping auto-resolve for post-sync migration: ${migration}`);
     }
   }
 

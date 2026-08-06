@@ -119,4 +119,16 @@ describe("safe-migrate.js -- hardening checks", () => {
     const autoResolveIndex = scriptContent.indexOf("FALLBACK PATH ACTIVATED -- AUTO-RESOLVE");
     expect(migrateDeployIndex).toBeLessThan(autoResolveIndex);
   });
+
+  // -----------------------------------------------------------------------
+  // Verify auto-resolve only baselines pre-sync migrations
+  // -----------------------------------------------------------------------
+
+  it("only auto-resolves migrations at or before the sync timestamp", () => {
+    // The script must use timestamp comparison, not a simple name exclusion,
+    // to ensure post-sync migrations (which contain real DDL) are never
+    // silently marked as "applied" without their SQL actually running.
+    expect(scriptContent).toContain("migrationTimestamp <= syncTimestamp");
+    expect(scriptContent).toContain("Skipping auto-resolve for post-sync migration");
+  });
 });
