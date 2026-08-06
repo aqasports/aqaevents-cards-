@@ -27,7 +27,12 @@ export default function OrganizationsPage() {
 
   const fetcher = useCallback(async () => {
     const res = await fetchWithRetry("/api/admin/organizations");
-    const data = await res.json();
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server error (${res.status} ${res.statusText})`);
+    }
     if (!res.ok || !Array.isArray(data)) {
       throw new Error(data?.error || "Failed to load organizations");
     }

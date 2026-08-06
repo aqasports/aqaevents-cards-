@@ -15,6 +15,21 @@ const nextConfig: NextConfig = {
         destination: "/eventscard/:path*",
         permanent: true,
       },
+      {
+        source: "/admin/organisations",
+        destination: "/admin/organizations",
+        permanent: true,
+      },
+      {
+        source: "/admin/organisations/:path*",
+        destination: "/admin/organizations/:path*",
+        permanent: true,
+      },
+      {
+        source: "/api/admin/organisations/:path*",
+        destination: "/api/admin/organizations/:path*",
+        permanent: true,
+      },
     ];
   },
   async headers() {
