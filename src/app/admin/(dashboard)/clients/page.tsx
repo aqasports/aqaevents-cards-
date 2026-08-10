@@ -31,6 +31,10 @@ export default function ClientsPage() {
   const { locale } = useLocale();
   const [search, setSearch] = useState("");
   const [activeCrmTab, setActiveCrmTab] = useState("all");
+  const [sortKey, setSortKey] = useState<
+    "fullName" | "customerSegment" | "cardCode" | "balance" | "leadSource" | "totalSpent" | "lastActivityDate" | "favoriteActivity" | "createdAt"
+  >("fullName");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -178,18 +182,98 @@ export default function ClientsPage() {
     );
   }
 
-  const filtered = clients.filter(
-    (c) =>
-      (!search ||
-        c.fullName.toLowerCase().includes(search.toLowerCase()) ||
-        (c.card?.cardCode ?? "").toLowerCase().includes(search.toLowerCase()) ||
-        (c.phone ?? "").includes(search) ||
-        (c.email ?? "").toLowerCase().includes(search.toLowerCase())) &&
-      (activeCrmTab === "all" ||
-        (activeCrmTab === "vip" && c.customerSegment === "VIP") ||
-        (activeCrmTab === "high-value" && c.customerSegment === "High-Value") ||
-        (activeCrmTab === "inactive" && c.customerSegment === "Inactive"))
-  );
+  const filtered = clients
+    .filter(
+      (c) =>
+        (!search ||
+          c.fullName.toLowerCase().includes(search.toLowerCase()) ||
+          (c.card?.cardCode ?? "").toLowerCase().includes(search.toLowerCase()) ||
+          (c.phone ?? "").includes(search) ||
+          (c.email ?? "").toLowerCase().includes(search.toLowerCase())) &&
+        (activeCrmTab === "all" ||
+          (activeCrmTab === "vip" && c.customerSegment === "VIP") ||
+          (activeCrmTab === "high-value" && c.customerSegment === "High-Value") ||
+          (activeCrmTab === "inactive" && c.customerSegment === "Inactive"))
+    )
+    .sort((a, b) => {
+      let av: string | number | null;
+      let bv: string | number | null;
+      switch (sortKey) {
+        case "fullName":
+          av = a.fullName.toLowerCase();
+          bv = b.fullName.toLowerCase();
+          break;
+        case "customerSegment":
+          av = (a.customerSegment ?? "").toLowerCase();
+          bv = (b.customerSegment ?? "").toLowerCase();
+          break;
+        case "cardCode":
+          av = (a.card?.cardCode ?? "").toLowerCase();
+          bv = (b.card?.cardCode ?? "").toLowerCase();
+          break;
+        case "balance":
+          av = a.balance;
+          bv = b.balance;
+          break;
+        case "leadSource":
+          av = (a.leadSource ?? "").toLowerCase();
+          bv = (b.leadSource ?? "").toLowerCase();
+          break;
+        case "totalSpent":
+          av = a.totalSpent ?? 0;
+          bv = b.totalSpent ?? 0;
+          break;
+        case "lastActivityDate":
+          av = a.lastActivityDate ?? "";
+          bv = b.lastActivityDate ?? "";
+          break;
+        case "favoriteActivity":
+          av = (a.favoriteActivity ?? "").toLowerCase();
+          bv = (b.favoriteActivity ?? "").toLowerCase();
+          break;
+        case "createdAt":
+          av = a.createdAt;
+          bv = b.createdAt;
+          break;
+        default:
+          return 0;
+      }
+      if (av === null || av === undefined) av = "";
+      if (bv === null || bv === undefined) bv = "";
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+
+  function handleSort(
+    key: "fullName" | "customerSegment" | "cardCode" | "balance" | "leadSource" | "totalSpent" | "lastActivityDate" | "favoriteActivity" | "createdAt"
+  ) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  function SortArrow({ col }: { col: typeof sortKey }) {
+    if (sortKey !== col) {
+      return (
+        <svg width="10" height="10" viewBox="0 0 10 10" className="inline ml-1 opacity-25" fill="currentColor">
+          <path d="M5 1L8.5 5H1.5L5 1ZM5 9L1.5 5H8.5L5 9Z" />
+        </svg>
+      );
+    }
+    return sortDir === "asc" ? (
+      <svg width="10" height="10" viewBox="0 0 10 10" className="inline ml-1 text-[var(--primary)]" fill="currentColor">
+        <path d="M5 1L8.5 6H1.5L5 1Z" />
+      </svg>
+    ) : (
+      <svg width="10" height="10" viewBox="0 0 10 10" className="inline ml-1 text-[var(--primary)]" fill="currentColor">
+        <path d="M5 9L1.5 4H8.5L5 9Z" />
+      </svg>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -281,15 +365,26 @@ export default function ClientsPage() {
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]">
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Name</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Segment</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Card code</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Balance</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Lead source</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Total spent</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Last activity</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Fav Activity</th>
-                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Joined</th>
+                  {([
+                    { key: "fullName", label: "Name" },
+                    { key: "customerSegment", label: "Segment" },
+                    { key: "cardCode", label: "Card code" },
+                    { key: "balance", label: "Balance" },
+                    { key: "leadSource", label: "Lead source" },
+                    { key: "totalSpent", label: "Total spent" },
+                    { key: "lastActivityDate", label: "Last activity" },
+                    { key: "favoriteActivity", label: "Fav Activity" },
+                    { key: "createdAt", label: "Joined" },
+                  ] as const).map(({ key, label }) => (
+                    <th
+                      key={key}
+                      onClick={() => handleSort(key)}
+                      className="px-4 py-3 font-medium text-[var(--muted)] cursor-pointer select-none whitespace-nowrap hover:text-[var(--foreground)] transition-colors"
+                    >
+                      {label}
+                      <SortArrow col={key} />
+                    </th>
+                  ))}
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
