@@ -98,7 +98,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
-  const [tab, setTab] = useState<"overview" | "transactions" | "invoices" | "notifications" | "activities" | "store">("overview");
+  const [tab, setTab] = useState<"overview" | "transactions" | "invoices" | "notifications" | "activities" | "store" | "activity-log">("overview");
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
@@ -117,6 +117,49 @@ export default function ClientDetailPage() {
   // Not Paid flag state
   const [isNotPaid, setIsNotPaid] = useState(false);
   const [togglingNotPaid, setTogglingNotPaid] = useState(false);
+
+  // Activity Log state
+  type ActivityLogEntry = {
+    id: string;
+    type:
+      | "redeem"
+      | "topup"
+      | "manual_adjustment"
+      | "invoice_paid"
+      | "invoice_unpaid"
+      | "invoice_refunded"
+      | "invoice_created"
+      | "card_issued";
+    timestamp: string;
+    title: string;
+    subtitle: string | null;
+    delta: number | null;
+    amountDA: number | null;
+    staff: string | null;
+    meta: Record<string, string | number | null>;
+  };
+  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
+  const [loadingActivityLog, setLoadingActivityLog] = useState(false);
+  const [activityLogError, setActivityLogError] = useState("");
+
+  const loadActivityLog = useCallback(async () => {
+    setLoadingActivityLog(true);
+    setActivityLogError("");
+    try {
+      const res = await fetch(`/api/admin/clients/${params.id}/activity-log`);
+      if (res.ok) {
+        const data = await res.json();
+        setActivityLog(data);
+      } else {
+        const data = await res.json();
+        setActivityLogError(data.error ?? "Failed to fetch activity log.");
+      }
+    } catch {
+      setActivityLogError("Network error. Failed to fetch activity log.");
+    } finally {
+      setLoadingActivityLog(false);
+    }
+  }, [params.id]);
 
   const loadNotifications = useCallback(async () => {
     setLoadingNotifications(true);
@@ -141,7 +184,10 @@ export default function ClientDetailPage() {
     if (tab === "notifications") {
       loadNotifications();
     }
-  }, [tab, loadNotifications]);
+    if (tab === "activity-log") {
+      loadActivityLog();
+    }
+  }, [tab, loadNotifications, loadActivityLog]);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -914,6 +960,7 @@ export default function ClientDetailPage() {
             { id: "invoices", label: "Invoices" },
             { id: "notifications", label: "Notifications" },
             { id: "activities", label: "Activities & Redeem" },
+            { id: "activity-log", label: "Activity Log" },
           ] as const
         ).map((tItem) => (
           <button
@@ -1682,6 +1729,291 @@ export default function ClientDetailPage() {
               )}
             </Card>
           </div>
+        </div>
+      )}
+
+
+      {/* Tab: Activity Log */}
+      {tab === "activity-log" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-[var(--foreground)]">Client Activity Log</h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">Complete chronological history of all client actions — redeems, top-ups, sales, invoice changes, and card events.</p>
+            </div>
+            <button
+              onClick={loadActivityLog}
+              disabled={loadingActivityLog}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--surface-2)] border border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] transition-all disabled:opacity-50"
+            >
+              <svg className={`h-3.5 w-3.5 ${loadingActivityLog ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+
+          {loadingActivityLog && (
+            <div className="flex items-center justify-center py-16">
+              <div className="text-center space-y-3">
+                <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--primary)]" />
+                <p className="text-sm text-[var(--muted)]">Loading activity log...</p>
+              </div>
+            </div>
+          )}
+
+          {activityLogError && !loadingActivityLog && (
+            <Alert tone="danger">{activityLogError}</Alert>
+          )}
+
+          {!loadingActivityLog && !activityLogError && activityLog.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <svg className="h-10 w-10 text-[var(--muted)] mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-sm font-medium text-[var(--muted)]">No activity recorded yet for this client.</p>
+            </div>
+          )}
+
+          {!loadingActivityLog && activityLog.length > 0 && (() => {
+            const getEntryIcon = (type: ActivityLogEntry["type"]) => {
+              switch (type) {
+                case "redeem":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 text-orange-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
+                      </svg>
+                    </div>
+                  );
+                case "topup":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    </div>
+                  );
+                case "manual_adjustment":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+                      </svg>
+                    </div>
+                  );
+                case "invoice_created":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                      </svg>
+                    </div>
+                  );
+                case "invoice_paid":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  );
+                case "invoice_unpaid":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                      </svg>
+                    </div>
+                  );
+                case "invoice_refunded":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                      </svg>
+                    </div>
+                  );
+                case "card_issued":
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-cyan-600 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                      </svg>
+                    </div>
+                  );
+                default:
+                  return (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 ring-4 ring-[var(--background)]">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  );
+              }
+            };
+
+            const getEntryBadge = (entry: ActivityLogEntry) => {
+              switch (entry.type) {
+                case "redeem":
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-bold text-orange-700">
+                      <span>Redeem</span>
+                      {entry.delta !== null && (
+                        <span className="font-mono">{entry.delta.toFixed(2)} cr</span>
+                      )}
+                    </span>
+                  );
+                case "topup":
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+                      <span>Top-up</span>
+                      {entry.delta !== null && (
+                        <span className="font-mono">+{entry.delta.toFixed(2)} cr</span>
+                      )}
+                    </span>
+                  );
+                case "manual_adjustment":
+                  return (
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      (entry.delta ?? 0) >= 0
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-red-100 text-red-700"
+                    }`}>
+                      <span>Adjustment</span>
+                      {entry.delta !== null && (
+                        <span className="font-mono">{entry.delta > 0 ? "+" : ""}{entry.delta.toFixed(2)} cr</span>
+                      )}
+                    </span>
+                  );
+                case "invoice_created":
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                      Invoice
+                      {entry.amountDA !== null && (
+                        <span className="font-mono">{entry.amountDA.toLocaleString()} DA</span>
+                      )}
+                    </span>
+                  );
+                case "invoice_paid":
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-bold text-green-700">
+                      Paid
+                      {entry.amountDA !== null && (
+                        <span className="font-mono">{entry.amountDA.toLocaleString()} DA</span>
+                      )}
+                    </span>
+                  );
+                case "invoice_unpaid":
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700">
+                      Unpaid
+                      {entry.amountDA !== null && (
+                        <span className="font-mono">{entry.amountDA.toLocaleString()} DA</span>
+                      )}
+                    </span>
+                  );
+                case "invoice_refunded":
+                  return (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-bold text-purple-700">
+                      Refunded
+                      {entry.amountDA !== null && (
+                        <span className="font-mono">{entry.amountDA.toLocaleString()} DA</span>
+                      )}
+                    </span>
+                  );
+                case "card_issued":
+                  return (
+                    <span className="inline-flex items-center rounded-full bg-cyan-100 px-2.5 py-0.5 text-xs font-bold text-cyan-700">
+                      Card
+                    </span>
+                  );
+                default:
+                  return null;
+              }
+            };
+
+            return (
+              <div className="relative">
+                {/* Timeline line */}
+                <div className="absolute left-4 top-4 bottom-0 w-px bg-[var(--border)]" />
+
+                <ul className="space-y-0">
+                  {activityLog.map((entry, idx) => {
+                    const entryDate = new Date(entry.timestamp);
+                    const prevEntry = idx > 0 ? activityLog[idx - 1] : null;
+                    const prevDate = prevEntry ? new Date(prevEntry.timestamp) : null;
+                    const showDateSeparator =
+                      !prevDate ||
+                      entryDate.toDateString() !== prevDate.toDateString();
+
+                    return (
+                      <li key={entry.id}>
+                        {showDateSeparator && (
+                          <div className="relative flex items-center py-4 pl-14">
+                            <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
+                              {entryDate.toLocaleDateString("en-GB", {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </div>
+                        )}
+                        <div className="relative flex gap-4 pb-6 last:pb-0">
+                          {/* Icon */}
+                          <div className="relative z-10 shrink-0">
+                            {getEntryIcon(entry.type)}
+                          </div>
+
+                          {/* Content card */}
+                          <div className="flex-1 min-w-0 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm hover:border-[rgba(255,255,255,0.15)] transition-colors">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-[var(--foreground)] leading-snug">
+                                  {entry.title}
+                                </p>
+                                {entry.subtitle && (
+                                  <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">
+                                    {entry.subtitle}
+                                  </p>
+                                )}
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
+                                  <span className="text-[11px] text-[var(--muted)] tabular-nums">
+                                    {entryDate.toLocaleTimeString("en-GB", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                  {entry.staff && (
+                                    <span className="text-[11px] text-[var(--muted)]">
+                                      by {entry.staff}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="shrink-0">
+                                {getEntryBadge(entry)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {/* End of timeline marker */}
+                <div className="relative flex items-center gap-3 pt-2 pl-1">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--border)] ring-4 ring-[var(--background)]">
+                    <div className="h-2 w-2 rounded-full bg-[var(--muted)]" />
+                  </div>
+                  <span className="text-xs text-[var(--muted)]">Start of client history</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
