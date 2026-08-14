@@ -908,7 +908,7 @@ export default function ClientDetailPage() {
       )}
 
       {/* Top Banner Overview: Quick Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
         <Card className="bg-slate-50 border-slate-200">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Current Balance</p>
           <div className="flex items-baseline gap-2 mt-2">
@@ -996,7 +996,8 @@ export default function ClientDetailPage() {
       </div>
 
       {/* Main Tab Navigation */}
-      <div className="border-b border-[var(--border)] flex flex-wrap gap-2">
+      <div className="border-b border-[var(--border)] overflow-x-auto">
+        <div className="flex min-w-max gap-1">
         {(
           [
             { id: "overview", label: "Overview" },
@@ -1022,6 +1023,7 @@ export default function ClientDetailPage() {
             {tItem.label}
           </button>
         ))}
+        </div>
       </div>
 
       {/* Tab 1: Overview */}
@@ -1228,9 +1230,10 @@ export default function ClientDetailPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-4 items-end">
-                {/* Add 1 Credit */}
-                <div className="flex flex-col gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] min-w-[240px]">
+              {/* Quick Actions panels — stack on mobile, row on sm+ */}
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-start">
+                {/* Add 1 Credit — full width on mobile, fixed min-width on sm+ */}
+                <div className="w-full sm:flex-1 sm:min-w-[240px] sm:max-w-xs flex flex-col gap-2.5 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
                   <div className="flex items-center gap-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shrink-0">
                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1247,7 +1250,7 @@ export default function ClientDetailPage() {
                     placeholder="Note (optional)"
                     value={quickAddCustomNotes}
                     onChange={(e) => setQuickAddCustomNotes(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                   />
                   <button
                     id="quick-add-1-credit-btn"
@@ -1260,7 +1263,7 @@ export default function ClientDetailPage() {
                       )
                     }
                     disabled={quickAddingCredit}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     {quickAddingCredit ? (
                       <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -1273,46 +1276,49 @@ export default function ClientDetailPage() {
                   </button>
                 </div>
 
-                {/* Quick link: Go to Transactions */}
-                <div className="flex flex-col gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] min-w-[180px]">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 shrink-0">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-                      </svg>
+                {/* Shortcut buttons — 2-col grid on mobile, flex row on sm+ */}
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
+                  {/* Full Top-Up shortcut */}
+                  <div className="flex flex-col gap-2 p-3 sm:p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] sm:min-w-[160px]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 shrink-0">
+                        <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs sm:text-sm font-bold text-[var(--foreground)] leading-tight">Full Top-Up</p>
+                        <p className="text-[10px] sm:text-xs text-[var(--muted)] leading-tight">Packages &amp; custom</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-[var(--foreground)]">Full Top-Up</p>
-                      <p className="text-xs text-[var(--muted)]">Packages, custom amounts</p>
-                    </div>
+                    <button
+                      onClick={() => { setTab("transactions"); setMessage(null); }}
+                      className="flex w-full items-center justify-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-2.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] active:scale-[0.97] transition-all"
+                    >
+                      Open →
+                    </button>
                   </div>
-                  <button
-                    onClick={() => { setTab("transactions"); setMessage(null); }}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
-                  >
-                    Go to Transactions →
-                  </button>
-                </div>
 
-                {/* Quick link: Go to Activities */}
-                <div className="flex flex-col gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] min-w-[180px]">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 text-orange-600 shrink-0">
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
-                      </svg>
+                  {/* Redeem Activity shortcut */}
+                  <div className="flex flex-col gap-2 p-3 sm:p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] sm:min-w-[160px]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-orange-100 text-orange-600 shrink-0">
+                        <svg className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs sm:text-sm font-bold text-[var(--foreground)] leading-tight">Redeem</p>
+                        <p className="text-[10px] sm:text-xs text-[var(--muted)] leading-tight">Deduct credits</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-[var(--foreground)]">Redeem Activity</p>
-                      <p className="text-xs text-[var(--muted)]">Deduct credits for a session</p>
-                    </div>
+                    <button
+                      onClick={() => { setTab("activities"); setMessage(null); }}
+                      className="flex w-full items-center justify-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-2.5 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] active:scale-[0.97] transition-all"
+                    >
+                      Open →
+                    </button>
                   </div>
-                  <button
-                    onClick={() => { setTab("activities"); setMessage(null); }}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
-                  >
-                    Go to Activities →
-                  </button>
                 </div>
               </div>
             </Card>
