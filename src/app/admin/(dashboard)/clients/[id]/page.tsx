@@ -118,6 +118,10 @@ export default function ClientDetailPage() {
   const [isNotPaid, setIsNotPaid] = useState(false);
   const [togglingNotPaid, setTogglingNotPaid] = useState(false);
 
+  // Quick Add 1 Credit state
+  const [quickAddingCredit, setQuickAddingCredit] = useState(false);
+  const [quickAddCustomNotes, setQuickAddCustomNotes] = useState("");
+
   // Activity Log state
   type ActivityLogEntry = {
     id: string;
@@ -349,6 +353,46 @@ export default function ClientDetailPage() {
       setMessage({ text: "Network error updating Not Paid status.", tone: "danger" });
     } finally {
       setTogglingNotPaid(false);
+    }
+  }
+
+  async function handleQuickAddOneCredit() {
+    setQuickAddingCredit(true);
+    setMessage(null);
+    const invoiceAmount = creditRate;
+    const reason = quickAddCustomNotes
+      ? `Manual top-up: 1 credit — ${quickAddCustomNotes}`
+      : `Manual top-up: 1 credit (${invoiceAmount.toLocaleString()} DA)`;
+    try {
+      const res = await fetch(`/api/admin/clients/${params.id}/credits`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customAmount: 1,
+          reason,
+          invoice: {
+            amount: invoiceAmount,
+            category: "custom",
+            items: `Manual top-up — 1 credit (${invoiceAmount.toLocaleString()} DA)`,
+            notes: quickAddCustomNotes || undefined,
+            status: "paid",
+          },
+        }),
+      });
+      if (res.ok) {
+        const resData = await res.json();
+        const invoiceMsg = resData.invoice ? ` Invoice ${resData.invoice.invoiceCode} created.` : "";
+        setMessage({ text: `1 credit added successfully.${invoiceMsg}`, tone: "success" });
+        setQuickAddCustomNotes("");
+        await loadClient();
+      } else {
+        const data = await res.json();
+        setMessage({ text: data.error ?? "Failed to add credit.", tone: "danger" });
+      }
+    } catch {
+      setMessage({ text: "Network error adding credit.", tone: "danger" });
+    } finally {
+      setQuickAddingCredit(false);
     }
   }
 
@@ -1173,6 +1217,106 @@ export default function ClientDetailPage() {
               </dl>
             )}
           </Card>
+
+          {/* Quick Actions — full width below the 2-col grid */}
+          <div className="lg:col-span-3">
+            <Card>
+              <div className="flex items-center justify-between mb-4 border-b border-[var(--border)] pb-3">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-wide text-[var(--foreground)]">Quick Actions</h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">Common operations without leaving the overview.</p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-4 items-end">
+                {/* Add 1 Credit */}
+                <div className="flex flex-col gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] min-w-[240px]">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shrink-0">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[var(--foreground)]">Add 1 Credit</p>
+                      <p className="text-xs text-[var(--muted)]">{creditRate.toLocaleString()} DA · paid invoice created</p>
+                    </div>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Note (optional)"
+                    value={quickAddCustomNotes}
+                    onChange={(e) => setQuickAddCustomNotes(e.target.value)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-1.5 text-xs text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
+                  />
+                  <button
+                    id="quick-add-1-credit-btn"
+                    onClick={() =>
+                      triggerConfirm(
+                        "Add 1 Credit",
+                        `Add 1 credit and create a paid invoice for ${creditRate.toLocaleString()} DA?`,
+                        handleQuickAddOneCredit,
+                        false,
+                      )
+                    }
+                    disabled={quickAddingCredit}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {quickAddingCredit ? (
+                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      </svg>
+                    )}
+                    + 1 Credit ({creditRate.toLocaleString()} DA)
+                  </button>
+                </div>
+
+                {/* Quick link: Go to Transactions */}
+                <div className="flex flex-col gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] min-w-[180px]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600 shrink-0">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[var(--foreground)]">Full Top-Up</p>
+                      <p className="text-xs text-[var(--muted)]">Packages, custom amounts</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setTab("transactions"); setMessage(null); }}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+                  >
+                    Go to Transactions →
+                  </button>
+                </div>
+
+                {/* Quick link: Go to Activities */}
+                <div className="flex flex-col gap-2 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] min-w-[180px]">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 text-orange-600 shrink-0">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347c-.75.412-1.667-.13-1.667-.986V5.653z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-[var(--foreground)]">Redeem Activity</p>
+                      <p className="text-xs text-[var(--muted)]">Deduct credits for a session</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setTab("activities"); setMessage(null); }}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition-colors"
+                  >
+                    Go to Activities →
+                  </button>
+                </div>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
 
