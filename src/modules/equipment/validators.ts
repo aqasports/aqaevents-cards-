@@ -21,3 +21,11 @@ export const updateEquipmentSchema = z.object({
   status: z.string().optional(),
   notes: z.string().optional().nullable(),
 });
+
+export const logUsageSchema = z.object({
+  equipmentAssetId: z.string().min(1, "Equipment asset ID is required"),
+  sessionId: z.string().optional().nullable(),
+  loggedAt: z.string().optional(),
+  notes: z.string().optional().nullable(),
+});
+

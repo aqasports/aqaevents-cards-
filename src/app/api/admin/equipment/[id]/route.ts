@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(
       where: { id },
       include: {
         usageLogs: {
-          take: 20,
+          take: 50,
           orderBy: { loggedAt: "desc" },
           include: {
             session: {
@@ -99,6 +100,15 @@ export async function PATCH(
       data: updateData,
     });
 
+    if (session.user?.id) {
+      await logAdminAction(
+        session.user.id,
+        "UPDATE_EQUIPMENT",
+        updatedAsset.name,
+        `Updated equipment asset ${updatedAsset.name}`
+      );
+    }
+
     return NextResponse.json(updatedAsset);
   } catch (err: unknown) {
     logger.error("PATCH equipment asset error:", err);
@@ -126,6 +136,16 @@ export async function DELETE(
     }
 
     await prisma.equipmentAsset.delete({ where: { id } });
+
+    if (session.user?.id) {
+      await logAdminAction(
+        session.user.id,
+        "DELETE_EQUIPMENT",
+        existing.name,
+        `Deleted equipment asset ${existing.name}`
+      );
+    }
+
     return NextResponse.json({ success: true, message: "Equipment asset deleted" });
   } catch (err: unknown) {
     logger.error("DELETE equipment asset error:", err);

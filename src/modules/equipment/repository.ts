@@ -56,4 +56,54 @@ export class EquipmentRepository {
       where: { id },
     });
   }
+
+  async createUsageLog(
+    data: {
+      equipmentAssetId: string;
+      sessionId?: string | null;
+      loggedAt?: Date;
+      notes?: string | null;
+    },
+    tx?: Prisma.TransactionClient
+  ) {
+    const client = tx || prisma;
+    return client.equipmentUsage.create({
+      data: {
+        equipmentAssetId: data.equipmentAssetId,
+        sessionId: data.sessionId ?? null,
+        loggedAt: data.loggedAt ?? new Date(),
+        notes: data.notes ?? null,
+      },
+      include: {
+        session: {
+          include: {
+            activity: true,
+          },
+        },
+      },
+    });
+  }
+
+  async deleteUsageLog(id: string, tx?: Prisma.TransactionClient) {
+    const client = tx || prisma;
+    return client.equipmentUsage.delete({
+      where: { id },
+    });
+  }
+
+  async findUsageLogsByAssetId(equipmentAssetId: string, tx?: Prisma.TransactionClient) {
+    const client = tx || prisma;
+    return client.equipmentUsage.findMany({
+      where: { equipmentAssetId },
+      orderBy: { loggedAt: "desc" },
+      include: {
+        session: {
+          include: {
+            activity: true,
+          },
+        },
+      },
+    });
+  }
 }
+

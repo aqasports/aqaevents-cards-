@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET as getEquipment, POST as createEquipment } from "./route";
 import { GET as getAsset, PATCH as updateAsset, DELETE as deleteAsset } from "./[id]/route";
+import { GET as getUsage, POST as logUsage, DELETE as deleteUsage } from "./[id]/usage/route";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
@@ -18,6 +19,18 @@ vi.mock("@/lib/prisma", () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
+    },
+    equipmentUsage: {
+      findMany: vi.fn(),
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+    activitySession: {
+      findUnique: vi.fn(),
+    },
+    auditLog: {
+      create: vi.fn(),
     },
   },
 }));
@@ -38,11 +51,30 @@ describe("Equipment API Endpoints", () => {
         { id: "asset-1", name: "Sea Kayak Pro 2", category: "Kayak", purchasePrice: 350000 },
       ] as any);
 
-      const res = await getEquipment();
+      const req = new NextRequest("http://localhost:3000/api/admin/equipment");
+      const res = await getEquipment(req);
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body).toHaveLength(1);
       expect(body[0].name).toBe("Sea Kayak Pro 2");
+    });
+
+
+    it("should filter by search and category", async () => {
+      vi.mocked(prisma.equipmentAsset.findMany).mockResolvedValue([
+        { id: "asset-1", name: "Sea Kayak Pro 2", category: "Kayak" },
+      ] as any);
+
+      const req = new NextRequest("http://localhost:3000/api/admin/equipment?category=Kayak&search=Sea");
+      const res = await getEquipment(req);
+      expect(res.status).toBe(200);
+      expect(prisma.equipmentAsset.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            category: "Kayak",
+          }),
+        })
+      );
     });
   });
 
@@ -128,6 +160,54 @@ describe("Equipment API Endpoints", () => {
       });
 
       const res = await deleteAsset(req, { params: Promise.resolve({ id: "asset-1" }) });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+    });
+  });
+
+  describe("Usage Logs API /api/admin/equipment/[id]/usage", () => {
+    it("should fetch usage logs for asset", async () => {
+      vi.mocked(prisma.equipmentUsage.findMany).mockResolvedValue([
+        { id: "log-1", equipmentAssetId: "asset-1", notes: "Tour use" },
+      ] as any);
+
+      const req = new NextRequest("http://localhost:3000/api/admin/equipment/asset-1/usage");
+      const res = await getUsage(req, { params: Promise.resolve({ id: "asset-1" }) });
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toHaveLength(1);
+    });
+
+    it("should log usage for asset", async () => {
+      vi.mocked(prisma.equipmentAsset.findUnique).mockResolvedValue({ id: "asset-1", name: "Kayak 1" } as any);
+      vi.mocked(prisma.equipmentUsage.create).mockResolvedValue({
+        id: "log-1",
+        equipmentAssetId: "asset-1",
+        notes: "Assigned to Sunset Kayak",
+      } as any);
+
+      const req = new NextRequest("http://localhost:3000/api/admin/equipment/asset-1/usage", {
+        method: "POST",
+        body: JSON.stringify({ notes: "Assigned to Sunset Kayak" }),
+      });
+
+      const res = await logUsage(req, { params: Promise.resolve({ id: "asset-1" }) });
+      expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.notes).toBe("Assigned to Sunset Kayak");
+    });
+
+    it("should delete usage log for asset", async () => {
+      vi.mocked(prisma.equipmentUsage.findFirst).mockResolvedValue({ id: "log-1", equipmentAssetId: "asset-1" } as any);
+      vi.mocked(prisma.equipmentUsage.delete).mockResolvedValue({ id: "log-1" } as any);
+
+      const req = new NextRequest("http://localhost:3000/api/admin/equipment/asset-1/usage?usageId=log-1", {
+        method: "DELETE",
+      });
+
+      const res = await deleteUsage(req, { params: Promise.resolve({ id: "asset-1" }) });
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);

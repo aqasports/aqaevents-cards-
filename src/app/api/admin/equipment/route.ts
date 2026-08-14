@@ -2,16 +2,50 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { session, error } = await requireAdminSession();
   if (error || !session) return error;
 
   try {
+    const searchParams = request?.nextUrl?.searchParams;
+    const category = searchParams?.get("category");
+    const status = searchParams?.get("status");
+    const search = searchParams?.get("search")?.trim();
+    const sortBy = searchParams?.get("sortBy") || "createdAt";
+    const sortDir = searchParams?.get("sortDir") === "asc" ? "asc" : "desc";
+
+    const where: Record<string, unknown> = {};
+
+    if (category && category !== "all") {
+      where.category = category;
+    }
+
+    if (status && status !== "all") {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { category: { contains: search, mode: "insensitive" } },
+        { notes: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    let orderBy: Record<string, "asc" | "desc"> = { createdAt: "desc" };
+    if (sortBy === "name") orderBy = { name: sortDir };
+    else if (sortBy === "purchasePrice") orderBy = { purchasePrice: sortDir };
+    else if (sortBy === "purchaseDate") orderBy = { purchaseDate: sortDir };
+    else if (sortBy === "usefulLifeMonths") orderBy = { usefulLifeMonths: sortDir };
+    else if (sortBy === "maintenanceCost") orderBy = { maintenanceCost: sortDir };
+
     const equipment = await prisma.equipmentAsset.findMany({
-      orderBy: { createdAt: "desc" },
+      where: Object.keys(where).length > 0 ? where : undefined,
+      orderBy,
       include: {
         _count: { select: { usageLogs: true } },
       },
@@ -68,6 +102,15 @@ export async function POST(request: NextRequest) {
         notes: notes?.trim() || null,
       },
     });
+
+    if (session.user?.id) {
+      await logAdminAction(
+        session.user.id,
+        "CREATE_EQUIPMENT",
+        asset.name,
+        `Created equipment asset ${asset.name} (${asset.category})`
+      );
+    }
 
     return NextResponse.json(asset, { status: 201 });
   } catch (err: unknown) {

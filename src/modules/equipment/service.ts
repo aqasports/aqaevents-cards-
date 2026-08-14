@@ -83,4 +83,53 @@ export class EquipmentService {
 
     return deleted;
   }
+
+  async logUsage(
+    input: {
+      equipmentAssetId: string;
+      sessionId?: string | null;
+      loggedAt?: string | Date;
+      notes?: string | null;
+    },
+    adminId?: string
+  ) {
+    const existing = await this.repo.findById(input.equipmentAssetId);
+    if (!existing) throw new Error("Equipment asset not found");
+
+    const usageLog = await this.repo.createUsageLog({
+      equipmentAssetId: input.equipmentAssetId,
+      sessionId: input.sessionId ?? null,
+      loggedAt: input.loggedAt ? new Date(input.loggedAt) : new Date(),
+      notes: input.notes?.trim() || null,
+    });
+
+    if (adminId) {
+      await logAdminAction(
+        adminId,
+        "LOG_EQUIPMENT_USAGE",
+        existing.name,
+        `Logged usage for equipment ${existing.name}${input.notes ? `: ${input.notes}` : ""}`
+      );
+    }
+
+    return usageLog;
+  }
+
+  async deleteUsage(usageId: string, adminId?: string) {
+    const deleted = await this.repo.deleteUsageLog(usageId);
+    if (adminId) {
+      await logAdminAction(
+        adminId,
+        "DELETE_EQUIPMENT_USAGE",
+        usageId,
+        `Deleted equipment usage record ${usageId}`
+      );
+    }
+    return deleted;
+  }
+
+  async getAssetUsageLogs(equipmentAssetId: string) {
+    return this.repo.findUsageLogsByAssetId(equipmentAssetId);
+  }
 }
+
