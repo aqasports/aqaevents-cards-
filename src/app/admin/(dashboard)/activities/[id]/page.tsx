@@ -742,6 +742,7 @@ export default function ActivityDetailPage() {
   const [bulkCustomLocation, setBulkCustomLocation] = useState("");
   const [bulkCapacity, setBulkCapacity] = useState("");
   const [bulkClubId, setBulkClubId] = useState("");
+  const [bulkCoachId, setBulkCoachId] = useState("");
 
   // Event form states
   const [submittingEvent, setSubmittingEvent] = useState(false);
@@ -944,6 +945,7 @@ export default function ActivityDetailPage() {
     const actualLocation = bulkLocation || bulkCustomLocation || undefined;
     const actualCapacity = bulkCapacity ? Number(bulkCapacity) : undefined;
     const actualClubId = bulkClubId || undefined;
+    const actualCoachId = bulkCoachId || undefined;
 
     const dates = getNextFourDates(selectedDays, bulkTime);
     if (dates.length < 4) {
@@ -964,6 +966,7 @@ export default function ActivityDetailPage() {
             location: actualLocation,
             capacity: actualCapacity,
             clubId: actualClubId,
+            coachId: actualCoachId,
           }),
         });
         if (res.ok) {
@@ -979,6 +982,7 @@ export default function ActivityDetailPage() {
         setBulkCustomLocation("");
         setBulkCapacity("");
         setBulkClubId("");
+        setBulkCoachId("");
         await loadActivityData();
       } else if (successCount > 0) {
         setMessage({ text: `Scheduled ${successCount} of 4 events successfully.`, tone: "success" });
@@ -988,6 +992,7 @@ export default function ActivityDetailPage() {
         setBulkCustomLocation("");
         setBulkCapacity("");
         setBulkClubId("");
+        setBulkCoachId("");
         await loadActivityData();
       } else {
         setMessage({ text: "Failed to schedule events.", tone: "danger" });
@@ -2122,6 +2127,18 @@ export default function ActivityDetailPage() {
                       ))}
                     </Select>
                   )}
+                  <Select
+                    label="Assigned Coach / Instructor (Optional)"
+                    value={bulkCoachId}
+                    onChange={(e) => setBulkCoachId(e.target.value)}
+                  >
+                    <option value="">— Select Coach / Instructor —</option>
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
                   <Input
                     label="Capacity"
                     type="number"

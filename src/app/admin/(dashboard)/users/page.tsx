@@ -126,8 +126,8 @@ export default function UsersPage() {
   const [coachType, setCoachType] = useState<"coach" | "staff">("coach");
   const [coachEmail, setCoachEmail] = useState("");
   const [coachPhone, setCoachPhone] = useState("");
-  const [coachBaseRate, setCoachBaseRate] = useState("2000");
-  const [coachBonusPerAttendee, setCoachBonusPerAttendee] = useState("150");
+  const [coachBaseRate, setCoachBaseRate] = useState("");
+  const [coachBonusPerAttendee, setCoachBonusPerAttendee] = useState("");
   const [coachNotes, setCoachNotes] = useState("");
 
   // Salary Calculator / Report filter state
@@ -210,7 +210,7 @@ export default function UsersPage() {
         const data = await res.json();
         setDbSessions(data);
 
-        // Derive assignments from sessions containing coachId
+        // Derive assignments directly from PostgreSQL sessions with coachId
         const dbAssignments: CoachAssignment[] = [];
         data.forEach((s: any) => {
           if (s.coachId) {
@@ -223,32 +223,10 @@ export default function UsersPage() {
           }
         });
 
-        // Auto-sync legacy local assignments to DB if not yet saved
-        const savedAssignments = localStorage.getItem("aqa_coach_assignments");
-        if (savedAssignments) {
-          try {
-            const parsed: CoachAssignment[] = JSON.parse(savedAssignments);
-            for (const localAssign of parsed) {
-              const matchingSession = data.find((s: any) => s.id === localAssign.sessionId);
-              if (matchingSession && !matchingSession.coachId) {
-                fetch(`/api/admin/sessions/${localAssign.sessionId}`, {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ coachId: localAssign.coachId }),
-                }).catch((err) => console.error("Auto-sync coach assignment failed:", err));
-
-                dbAssignments.push(localAssign);
-              }
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }
-
         setAssignments(dbAssignments);
       }
     } catch (err) {
-      console.error("Failed to load sessions:", err);
+      console.error("Failed to load sessions from DB:", err);
     } finally {
       setSessionsLoading(false);
     }
@@ -257,11 +235,10 @@ export default function UsersPage() {
   const loadCoaches = async () => {
     try {
       const res = await fetch("/api/admin/coaches");
-      let dbCoaches: Coach[] = [];
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          dbCoaches = data.map((c: any) => ({
+        if (Array.isArray(data)) {
+          const dbCoaches: Coach[] = data.map((c: any) => ({
             ...c,
             id: c.id,
             name: c.name,
@@ -277,111 +254,46 @@ export default function UsersPage() {
             notes: c.notes ?? c.specialties ?? "",
             createdAt: c.createdAt ? new Date(c.createdAt).toISOString() : new Date().toISOString(),
           }));
+          setCoaches(dbCoaches);
+          return;
         }
       }
-
-      // Check legacy localStorage if DB returned empty
-      const savedCoaches = localStorage.getItem("aqa_coaches");
-      let localCoaches: Coach[] = [];
-      if (savedCoaches) {
-        try {
-          const parsed = JSON.parse(savedCoaches);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            localCoaches = parsed.map((c: any) => ({
-              ...c,
-              id: c.id || "coach_" + Math.random().toString(36).substr(2, 9),
-              name: c.name,
-              type: c.type || "coach",
-              email: c.email || "",
-              phone: c.phone || "",
-              baseRate: Number(c.baseRate ?? c.defaultPayRate) || 0,
-              bonusPerAttendee: Number(c.bonusPerAttendee ?? c.commissionRate) || 0,
-              notes: c.notes ?? c.specialties ?? "",
-              createdAt: c.createdAt || new Date().toISOString(),
-            }));
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      }
-
-      if (dbCoaches.length > 0) {
-        setCoaches(dbCoaches);
-      } else if (localCoaches.length > 0) {
-        setCoaches(localCoaches);
-        // Auto-migrate local coaches to DB in background
-        for (const c of localCoaches) {
-          fetch("/api/admin/coaches", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: c.name,
-              email: c.email || null,
-              phone: c.phone || null,
-              specialties: c.notes || null,
-              defaultPayRate: Number(c.baseRate) || 0,
-              commissionRate: Number(c.bonusPerAttendee) || 0,
-              active: true,
-            }),
-          }).catch(() => {});
-        }
-      } else {
-        setCoaches([]);
-      }
+      setCoaches([]);
     } catch (e) {
       console.error("Failed to load coaches from DB:", e);
-      const savedCoaches = localStorage.getItem("aqa_coaches");
-      if (savedCoaches) {
-        try { setCoaches(JSON.parse(savedCoaches)); } catch {}
-      }
+      setCoaches([]);
     }
   };
 
   const loadPayouts = async () => {
     try {
       const res = await fetch("/api/admin/coaches/payouts");
-      let dbPayouts: CoachPayout[] = [];
       if (res.ok) {
-        dbPayouts = await res.json();
+        const dbPayouts: CoachPayout[] = await res.json();
+        setPayouts(dbPayouts);
+      } else {
+        setPayouts([]);
       }
-
-      // Check legacy localStorage for unmigrated local payouts
-      const savedPayouts = localStorage.getItem("aqa_coach_payouts");
-      if (savedPayouts) {
-        try {
-          const localPayouts: CoachPayout[] = JSON.parse(savedPayouts);
-          if (Array.isArray(localPayouts) && localPayouts.length > 0) {
-            const unmigrated = localPayouts.filter(
-              (lp) => !dbPayouts.some((dp) => dp.invoiceCode === lp.invoiceCode || dp.id === lp.id)
-            );
-            if (unmigrated.length > 0) {
-              await fetch("/api/admin/coaches/payouts", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(unmigrated),
-              });
-              dbPayouts = [...unmigrated, ...dbPayouts];
-            }
-          }
-        } catch (e) {
-          console.error("Local payouts parse error:", e);
-        }
-      }
-
-      setPayouts(dbPayouts);
     } catch (e) {
-      console.error("Failed to load payouts:", e);
+      console.error("Failed to load payouts from DB:", e);
+      setPayouts([]);
     }
   };
 
-  // Hydration sync and database API loads
+  // Hydration sync and automated server-side data recovery
   useEffect(() => {
     setMounted(true);
     loadUsers();
-    loadCoaches();
-    loadPayouts().then(() => {
-      loadSessions();
-    });
+
+    // Trigger server-side recovery check from audit logs to ensure historical coach assignments are restored in DB
+    fetch("/api/admin/coaches/recover-assignments", { method: "POST" })
+      .catch((err) => console.error("Auto coach assignment recovery failed:", err))
+      .finally(() => {
+        loadCoaches();
+        loadPayouts().then(() => {
+          loadSessions();
+        });
+      });
   }, []);
 
   // User account management handlers
@@ -508,8 +420,8 @@ export default function UsersPage() {
     setCoachType("coach");
     setCoachEmail("");
     setCoachPhone("");
-    setCoachBaseRate("2000");
-    setCoachBonusPerAttendee("150");
+    setCoachBaseRate("");
+    setCoachBonusPerAttendee("");
     setCoachNotes("");
   }
 
@@ -575,15 +487,16 @@ export default function UsersPage() {
       );
 
       const newAssignment: CoachAssignment = {
-        id: "assign_" + Math.random().toString(36).substr(2, 9),
+        id: `assign_${sessionId}_${coachId}`,
         coachId,
         sessionId,
         createdAt: new Date().toISOString(),
       };
 
-      setAssignments((prev) => [...prev, newAssignment]);
+      setAssignments((prev) => [...prev.filter((a) => a.sessionId !== sessionId), newAssignment]);
       setMessage({ text: "Event session successfully linked to coach.", tone: "success" });
-      loadCoaches();
+      await loadSessions();
+      await loadCoaches();
     } catch (err: any) {
       console.error("Link session error:", err);
       setMessage({ text: err.message || "Failed to link session.", tone: "danger" });
@@ -611,7 +524,8 @@ export default function UsersPage() {
         prev.filter((a) => !(a.coachId === coachId && a.sessionId === sessionId))
       );
       setMessage({ text: "Event session unlinked from coach.", tone: "success" });
-      loadCoaches();
+      await loadSessions();
+      await loadCoaches();
     } catch (err: any) {
       console.error("Unlink session error:", err);
       setMessage({ text: err.message || "Failed to unlink session.", tone: "danger" });
