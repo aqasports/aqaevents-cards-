@@ -32,6 +32,7 @@ export class ActivitiesService {
         sessions: {
           ...sessionFilter,
           include: {
+            coach: true,
             sessionExpenses: {
               include: {
                 activityExpense: true,
@@ -70,6 +71,7 @@ export class ActivitiesService {
               orderBy: { redeemedAt: "desc" },
             },
             club: true,
+            coach: true,
             sessionExpenses: {
               include: {
                 activityExpense: true,

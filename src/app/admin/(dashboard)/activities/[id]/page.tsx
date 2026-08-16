@@ -2166,6 +2166,8 @@ export default function ActivityDetailPage() {
                           count: Number(formData.get("count")) || 10,
                           location: formData.get("location") || null,
                           capacity: formData.get("capacity") ? Number(formData.get("capacity")) : null,
+                          coachId: (formData.get("coachId") as string) || null,
+                          clubId: (formData.get("clubId") as string) || null,
                         }),
                       });
                       if (res.ok) {
@@ -2196,6 +2198,24 @@ export default function ActivityDetailPage() {
                   <Input label="Number of Sessions to Generate" name="count" type="number" defaultValue={10} min={1} max={52} required />
                   <Input label="Location" name="location" placeholder="e.g. Club Nautique" />
                   <Input label="Capacity Limit" name="capacity" type="number" placeholder="Optional capacity limit" />
+                  <Select label="Assigned Coach / Instructor (Optional)" name="coachId" defaultValue="">
+                    <option value="">-- Select Coach / Instructor --</option>
+                    {coaches.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {activity?.requiresCheck && (
+                    <Select label="Partner Club (Optional)" name="clubId" defaultValue="">
+                      <option value="">-- Select Partner Club --</option>
+                      {clubs.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                   <Button type="submit" className="w-full" loading={submittingEvent}>Generate Recurring Series</Button>
                 </form>
               )}

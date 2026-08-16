@@ -22,6 +22,9 @@ export class EventSeriesService {
           sessionDate,
           location: validated.location ?? null,
           capacity: validated.capacity ?? null,
+          coachId: validated.coachId ?? null,
+          clubId: validated.clubId ?? null,
+          coachPayOverride: validated.coachPayOverride ?? null,
         },
       });
       sessions.push(session);
