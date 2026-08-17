@@ -151,6 +151,10 @@ function EditSessionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track initial values so we only send fields the user actually changed
+  const initialCoachId = session.coachId ?? "";
+  const initialClubId = session.clubId ?? "";
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -161,17 +165,29 @@ function EditSessionModal({
 
     setSaving(true);
     try {
+      // Build payload with only the fields the user actually modified
+      // This prevents stale cached JS from accidentally wiping coach/club assignments
+      const payload: Record<string, unknown> = {
+        sessionDate: new Date(sessionDate).toISOString(),
+        location: location.trim() || null,
+        capacity: capacity ? parseInt(capacity) : null,
+        active,
+      };
+
+      // Only include coachId if the user actually changed the coach selection
+      if (coachId !== initialCoachId) {
+        payload.coachId = coachId || null;
+      }
+
+      // Only include clubId if the user actually changed the club selection
+      if (clubId !== initialClubId) {
+        payload.clubId = clubId || null;
+      }
+
       const res = await fetch(`/api/admin/sessions/${session.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionDate: new Date(sessionDate).toISOString(),
-          location: location.trim() || null,
-          capacity: capacity ? parseInt(capacity) : null,
-          clubId: clubId || null,
-          coachId: coachId || null,
-          active,
-        }),
+        body: JSON.stringify(payload),
       });
 
       setSaving(false);
