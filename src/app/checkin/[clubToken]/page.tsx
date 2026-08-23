@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import Scanner from "@/components/checkin/scanner";
 import ResultBanner from "@/components/checkin/result-banner";
 import RosterList from "@/components/checkin/roster-list";
+import { playSensorySound, triggerHaptic } from "@/lib/sensory";
 
 type Session = {
   id: string;
@@ -29,36 +30,6 @@ type TerminalData = {
   club: { name: string; logoUrl: string | null };
   activities: Activity[];
 };
-
-function playAudioFeedback(type: "success" | "error") {
-  if (typeof window === "undefined") return;
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === "success") {
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.15);
-    } else {
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(220, ctx.currentTime);
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.3);
-    }
-  } catch (err) {
-    console.error("Audio feedback error:", err);
-  }
-}
 
 export default function CheckinTerminalPage({ params }: { params: Promise<{ clubToken: string }> }) {
   const { clubToken } = use(params);
@@ -174,11 +145,16 @@ export default function CheckinTerminalPage({ params }: { params: Promise<{ club
       if (res.ok || res.status === 404 || res.status === 400 || res.status === 422) {
         const status = data.status as "SUCCESS" | "DUPLICATE" | "NOT_REDEEMED" | "INVALID_CARD";
         
-        // Play beep sound
+        // Play sensory sound and haptics
         if (status === "SUCCESS") {
-          playAudioFeedback("success");
+          playSensorySound("success");
+          triggerHaptic("success");
+        } else if (status === "DUPLICATE") {
+          playSensorySound("warning");
+          triggerHaptic("warning");
         } else {
-          playAudioFeedback("error");
+          playSensorySound("error");
+          triggerHaptic("heavy");
         }
 
         const resolvedClientName = data.client?.name as string | undefined;
@@ -208,7 +184,8 @@ export default function CheckinTerminalPage({ params }: { params: Promise<{ club
           ]);
         }
       } else {
-        playAudioFeedback("error");
+        playSensorySound("error");
+        triggerHaptic("heavy");
         setScanResult({
           status: "INVALID_CARD",
           errorMessage: data.error || "Check-in failed. Please try again.",
@@ -216,7 +193,8 @@ export default function CheckinTerminalPage({ params }: { params: Promise<{ club
       }
     } catch (err) {
       console.error(err);
-      playAudioFeedback("error");
+      playSensorySound("error");
+      triggerHaptic("heavy");
       setScanResult({
         status: "INVALID_CARD",
         errorMessage: "Network error. Please check connection.",

@@ -85,16 +85,28 @@ export default function Scanner({
       <div className="relative aspect-square w-full max-w-md mx-auto overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 shadow-[0_0_30px_rgba(14,165,233,0.1)] backdrop-blur-md">
         <div id={containerId} className="w-full h-full" />
         
-        {/* Scanning Target Overlay */}
+        {/* Sci-Fi HUD Scanning Target Overlay */}
         {cameraPermission === "granted" && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="w-60 h-60 border-2 border-cyan-500/30 rounded-2xl relative shadow-[0_0_20px_rgba(6,182,212,0.1)]">
-              <div className="absolute -top-1.5 -left-1.5 w-6 h-6 border-t-4 border-l-4 border-cyan-400 rounded-tl-md" />
-              <div className="absolute -top-1.5 -right-1.5 w-6 h-6 border-t-4 border-r-4 border-cyan-400 rounded-tr-md" />
-              <div className="absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 border-cyan-400 rounded-bl-md" />
-              <div className="absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 border-cyan-400 rounded-br-md" />
+            {/* Ambient radar pulse ring */}
+            <div className="absolute w-72 h-72 rounded-full border border-cyan-500/20 animate-radar-pulse pointer-events-none" />
+
+            <div className="w-64 h-64 border border-cyan-500/30 rounded-3xl relative shadow-[0_0_30px_rgba(0,242,255,0.15)] bg-cyan-950/5">
+              {/* Glowing Sci-Fi Corner Reticles */}
+              <div className="absolute -top-2 -left-2 w-7 h-7 border-t-3 border-l-3 border-cyan-400 rounded-tl-xl shadow-[0_0_10px_#00f2ff]" />
+              <div className="absolute -top-2 -right-2 w-7 h-7 border-t-3 border-r-3 border-cyan-400 rounded-tr-xl shadow-[0_0_10px_#00f2ff]" />
+              <div className="absolute -bottom-2 -left-2 w-7 h-7 border-b-3 border-l-3 border-cyan-400 rounded-bl-xl shadow-[0_0_10px_#00f2ff]" />
+              <div className="absolute -bottom-2 -right-2 w-7 h-7 border-b-3 border-r-3 border-cyan-400 rounded-br-xl shadow-[0_0_10px_#00f2ff]" />
+
+              {/* Center subtle crosshair marks */}
+              <div className="absolute top-1/2 left-3 right-3 h-[1px] bg-cyan-400/15" />
+              <div className="absolute left-1/2 top-3 bottom-3 w-[1px] bg-cyan-400/15" />
+              
+              {/* Sweeping Laser Scan Line */}
               {!isPaused && (
-                <div className="absolute left-0 right-0 h-0.5 bg-cyan-400 shadow-[0_0_12px_#00f2ff] animate-bounce" style={{ top: "10%" }} />
+                <div className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-cyan-300 to-transparent shadow-[0_0_15px_#00f2ff] animate-laser-sweep">
+                  <div className="absolute left-1/2 -translate-x-1/2 -top-1 w-2 h-2 rounded-full bg-white shadow-[0_0_8px_#00f2ff]" />
+                </div>
               )}
             </div>
           </div>

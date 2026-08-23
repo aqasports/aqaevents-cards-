@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import TurnstileWidget from "@/components/TurnstileWidget";
+import { playSensorySound, triggerHaptic } from "@/lib/sensory";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
 
 type HistoryItem = {
   activity: string;
@@ -71,6 +73,12 @@ export function EventCardClient({
 }: Props) {
   const { t, locale, setLocale, dir } = useTranslations("publicCard");
   const [isFlipped, setIsFlipped] = useState(false);
+  const [tilt, setTilt] = useState<{ x: number; y: number; sheenX: number; sheenY: number }>({
+    x: 0,
+    y: 0,
+    sheenX: 50,
+    sheenY: 50,
+  });
   const [purchasingItemId, setPurchasingItemId] = useState<string | null>(null);
   const [purchaseMessage, setPurchaseMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
@@ -82,10 +90,36 @@ export function EventCardClient({
   const [isConfirming, setIsConfirming] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
+  const handleCardMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+
+    const rotateX = ((y - centerY) / centerY) * -12;
+    const rotateY = ((x - centerX) / centerX) * 12;
+    const sheenX = (x / rect.width) * 100;
+    const sheenY = (y / rect.height) * 100;
+
+    setTilt({ x: rotateX, y: rotateY, sheenX, sheenY });
+  };
+
+  const handleCardMouseLeave = () => {
+    setTilt({ x: 0, y: 0, sheenX: 50, sheenY: 50 });
+  };
+
+  const toggleFlip = () => {
+    playSensorySound("flip");
+    triggerHaptic("light");
+    setIsFlipped(!isFlipped);
+  };
+
   async function handleBuy(
     type: "package" | "custom" | "product",
     payloadValue: string | number
   ) {
+    playSensorySound("click");
     setPurchasingItemId(String(payloadValue));
     setPurchaseMessage(null);
     setPendingRequestId(null);
@@ -110,12 +144,14 @@ export function EventCardClient({
       const data = await res.json();
 
       if (res.ok && data.status === "confirmation_required") {
+        playSensorySound("sparkle");
         setPendingRequestId(data.requestId);
         setPurchaseMessage({
           text: "We sent a 6-digit confirmation code to your phone/email. Enter it below to complete your order.",
           tone: "success",
         });
       } else if (res.ok) {
+        playSensorySound("success");
         setPurchaseMessage({
           text: t("orderSuccess"),
           tone: "success",
@@ -125,6 +161,7 @@ export function EventCardClient({
           window.location.reload();
         }, 2500);
       } else {
+        playSensorySound("error");
         setPurchaseMessage({
           text: data.error ?? t("orderError"),
           tone: "danger",
@@ -132,6 +169,7 @@ export function EventCardClient({
       }
     } catch (err) {
       console.error(err);
+      playSensorySound("error");
       setPurchaseMessage({
         text: t("orderError"),
         tone: "danger",
@@ -159,6 +197,7 @@ export function EventCardClient({
       const data = await res.json();
 
       if (res.ok && data.success) {
+        playSensorySound("success");
         setPurchaseMessage({
           text: t("orderSuccess"),
           tone: "success",
@@ -170,6 +209,7 @@ export function EventCardClient({
           window.location.reload();
         }, 2500);
       } else {
+        playSensorySound("error");
         setPurchaseMessage({
           text: data.error ?? t("orderError"),
           tone: "danger",
@@ -177,6 +217,7 @@ export function EventCardClient({
       }
     } catch (err) {
       console.error(err);
+      playSensorySound("error");
       setPurchaseMessage({
         text: t("orderError"),
         tone: "danger",
@@ -238,9 +279,14 @@ export function EventCardClient({
         {/* Interactive 3D flip card */}
         <div className="flex flex-col items-center select-none">
           <div
-            className="relative w-full aspect-[1.58/1] cursor-pointer group"
-            style={{ perspective: "1000px" }}
-            onClick={() => setIsFlipped(!isFlipped)}
+            className="relative w-full aspect-[1.58/1] cursor-pointer group transition-transform duration-200"
+            style={{
+              perspective: "1200px",
+              transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
+            }}
+            onMouseMove={handleCardMouseMove}
+            onMouseLeave={handleCardMouseLeave}
+            onClick={toggleFlip}
           >
             <div
               className="relative w-full h-full duration-500 transition-transform"
@@ -259,6 +305,14 @@ export function EventCardClient({
                   backgroundPosition: "center",
                 }}
               >
+                {/* Dynamic holographic sheen overlay */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-40 mix-blend-overlay transition-opacity duration-300 group-hover:opacity-80"
+                  style={{
+                    background: `radial-gradient(circle at ${tilt.sheenX}% ${tilt.sheenY}%, rgba(255,255,255,0.7) 0%, rgba(0,242,255,0.25) 30%, transparent 65%)`,
+                  }}
+                />
+
                 {/* Front overlay details */}
                 <div className={`absolute inset-0 bg-black/10 flex flex-col justify-between p-6 text-white ${
                   dir === "rtl" ? "flex-col" : ""
@@ -266,7 +320,7 @@ export function EventCardClient({
                   <div className={`flex justify-end items-start ${
                     dir === "rtl" ? "flex-row-reverse" : ""
                   }`}>
-                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider bg-white/10 backdrop-blur-sm px-2.5 py-0.5 rounded-full">
+                    <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider bg-white/10 backdrop-blur-sm px-2.5 py-0.5 rounded-full border border-white/10">
                       {t("subtitle")}
                     </span>
                   </div>
@@ -277,7 +331,7 @@ export function EventCardClient({
                       <h1 className="text-xl font-bold tracking-wide drop-shadow-md">
                         {clientFirstName}
                       </h1>
-                      <p className="font-mono text-[10px] text-white/50 tracking-widest">
+                      <p className="font-mono text-[10px] text-white/60 tracking-widest">
                         {cardCode}
                       </p>
                     </div>
@@ -354,9 +408,17 @@ export function EventCardClient({
                   backgroundPosition: "center",
                 }}
               >
-                {/* Back overlay details: QR sticker */}
-                <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center p-4">
-                  <div className="bg-white p-2 rounded-xl shadow-2xl flex flex-col items-center gap-1">
+                {/* Holographic light reflection sheen overlay on back */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-30 mix-blend-overlay transition-opacity duration-300 group-hover:opacity-60"
+                  style={{
+                    background: `radial-gradient(circle at ${100 - tilt.sheenX}% ${tilt.sheenY}%, rgba(255,255,255,0.6) 0%, rgba(0,242,255,0.2) 30%, transparent 65%)`,
+                  }}
+                />
+
+                {/* Back overlay details: QR sticker with Breathing Aura */}
+                <div className="absolute inset-0 bg-black/25 flex flex-col items-center justify-center p-4">
+                  <div className="relative p-2 rounded-2xl bg-white shadow-2xl flex flex-col items-center gap-1 animate-aura-breathe">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={qrDataUrl}
@@ -367,7 +429,7 @@ export function EventCardClient({
                       {cardCode}
                     </span>
                   </div>
-                  <span className="text-[9px] text-white/80 font-bold tracking-widest uppercase mt-3 drop-shadow bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm">
+                  <span className="text-[9px] text-white/90 font-bold tracking-widest uppercase mt-3 drop-shadow bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm border border-white/10">
                     {t("scanToCheck")}
                   </span>
                 </div>
@@ -375,7 +437,7 @@ export function EventCardClient({
             </div>
           </div>
 
-          <p className="text-[11px] text-white/40 mt-3 text-center italic">
+          <p className="text-[11px] text-white/50 mt-3 text-center italic">
             {t("tapToFlip")}
           </p>
         </div>
@@ -388,15 +450,21 @@ export function EventCardClient({
               <div className={`grid grid-cols-3 gap-3 ${dir === "rtl" ? "flex-row-reverse" : ""}`}>
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-3 text-center backdrop-blur-md">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 leading-none">{t("paidCredits")}</p>
-                  <p className="text-lg font-black text-white mt-1.5 leading-none">{totalPaid}</p>
+                  <p className="text-lg font-black text-white mt-1.5 leading-none">
+                    <AnimatedCounter value={totalPaid} />
+                  </p>
                 </div>
                 <div className="bg-cyan-500/5 border border-cyan-500/10 rounded-2xl p-3 text-center backdrop-blur-md relative overflow-hidden">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400/60 leading-none">{t("bonusCredits")}</p>
-                  <p className="text-lg font-black text-cyan-400 mt-1.5 leading-none">{totalBonus}</p>
+                  <p className="text-lg font-black text-cyan-400 mt-1.5 leading-none">
+                    <AnimatedCounter value={totalBonus} />
+                  </p>
                 </div>
                 <div className="bg-white/10 border border-white/15 rounded-2xl p-3 text-center backdrop-blur-md">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-white/60 leading-none">{t("totalCredits")}</p>
-                  <p className="text-lg font-black text-cyan-300 mt-1.5 leading-none">{totalAll}</p>
+                  <p className="text-lg font-black text-cyan-300 mt-1.5 leading-none">
+                    <AnimatedCounter value={totalAll} />
+                  </p>
                 </div>
               </div>
 

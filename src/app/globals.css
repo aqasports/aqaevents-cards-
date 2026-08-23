@@ -279,3 +279,62 @@ a, button, [role="button"], select, input[type="checkbox"], input[type="radio"] 
   .bg-glow-orb-1, .bg-glow-orb-2 { display: none; }
 }
 
+/* ─── Kinetic Animations & Visual Effects ───────────────────────────────── */
+@keyframes laser-sweep {
+  0% { top: 6%; opacity: 0.8; }
+  50% { top: 94%; opacity: 1; }
+  100% { top: 6%; opacity: 0.8; }
+}
+
+.animate-laser-sweep {
+  animation: laser-sweep 2.8s infinite ease-in-out;
+}
+
+@keyframes radar-pulse {
+  0% { transform: scale(0.96); opacity: 0.8; box-shadow: 0 0 0 0 rgba(0, 242, 255, 0.4); }
+  70% { transform: scale(1.02); opacity: 1; box-shadow: 0 0 0 16px rgba(0, 242, 255, 0); }
+  100% { transform: scale(0.96); opacity: 0.8; box-shadow: 0 0 0 0 rgba(0, 242, 255, 0); }
+}
+
+.animate-radar-pulse {
+  animation: radar-pulse 2.4s infinite cubic-bezier(0.4, 0, 0.6, 1);
+}
+
+@keyframes aura-breathe {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 242, 255, 0.3)); }
+  50% { filter: drop-shadow(0 0 24px rgba(0, 242, 255, 0.7)); }
+}
+
+.animate-aura-breathe {
+  animation: aura-breathe 3s infinite ease-in-out;
+}
+
+@keyframes slide-in-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-in-down {
+  animation: slide-in-down 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shimmer-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-shimmer-sweep {
+  animation: shimmer-sweep 2.2s infinite linear;
+}
+
+/* Reduced motion preference override */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+

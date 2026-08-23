@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import TurnstileWidget from "@/components/TurnstileWidget";
+import { playSensorySound, triggerHaptic } from "@/lib/sensory";
 
 type Package = {
   id: string;
@@ -111,15 +112,21 @@ export default function ClientDemandPage() {
       });
 
       if (res.ok) {
+        playSensorySound("success");
+        triggerHaptic("success");
         setSuccess(true);
         setName("");
         setPhone("");
         setCustomAmount("");
       } else {
+        playSensorySound("error");
+        triggerHaptic("heavy");
         const data = await res.json();
         setError(data.error ?? "Failed to submit demand");
       }
-    } catch (err) {
+    } catch {
+      playSensorySound("error");
+      triggerHaptic("heavy");
       setError("Network error. Please try again.");
     } finally {
       setSubmitting(false);

@@ -164,6 +164,8 @@ export default function DashboardClient({
         <StatCard
           label={t("totalClients")}
           value={clientCount}
+          animated={true}
+          sparklineData={[clientCount > 4 ? clientCount - 4 : 1, clientCount > 2 ? clientCount - 2 : 2, clientCount - 1, clientCount]}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -173,6 +175,8 @@ export default function DashboardClient({
         <StatCard
           label={t("activeCards")}
           value={activeCards}
+          animated={true}
+          sparklineData={[activeCards > 3 ? activeCards - 3 : 1, activeCards > 1 ? activeCards - 1 : 2, activeCards, activeCards]}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -182,6 +186,8 @@ export default function DashboardClient({
         <StatCard
           label={t("redemptionsToday")}
           value={todayRedemptions}
+          animated={true}
+          sparklineData={[0, Math.max(0, todayRedemptions - 3), Math.max(0, todayRedemptions - 1), todayRedemptions]}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -191,6 +197,7 @@ export default function DashboardClient({
         <StatCard
           label={t("creditsRemaining")}
           value={creditsRemaining}
+          animated={true}
           hint={`${creditsSold} ${t("sold")} · ${creditsUsed} ${t("used")}`}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
