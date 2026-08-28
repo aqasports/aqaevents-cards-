@@ -82,7 +82,8 @@ export class BillingRepository {
       where: { clientId },
       _sum: { delta: true },
     });
-    return aggregate._sum.delta ?? 0;
+    const raw = aggregate._sum.delta ?? 0;
+    return Math.round(raw * 100) / 100;
   }
 
   // Redemption operations

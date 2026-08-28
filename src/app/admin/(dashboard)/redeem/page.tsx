@@ -350,7 +350,8 @@ export default function RedeemPage() {
     }
 
     const cost = 0.7;
-    const isInsufficient = lookup.balance < cost;
+    const currentBal = Math.round(lookup.balance * 100) / 100;
+    const isInsufficient = currentBal < cost;
 
     if (isInsufficient) {
       if (isSuperAdmin) {
@@ -373,8 +374,9 @@ export default function RedeemPage() {
     const activity = activities.find((a) => a.id === activityId);
     if (!activity) return;
 
-    const cost = creditsUsed ?? activity.creditCost;
-    const isInsufficient = lookup.balance < cost;
+    const cost = Math.round((creditsUsed ?? activity.creditCost) * 100) / 100;
+    const currentBal = Math.round(lookup.balance * 100) / 100;
+    const isInsufficient = currentBal < cost;
 
     const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
     const upcomingSessions = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
@@ -793,9 +795,10 @@ export default function RedeemPage() {
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {activities.map((activity) => {
-                      const cost = activity.creditCost;
-                      const hasSufficient = lookup.balance >= cost;
-                      const hasKidSufficient = lookup.balance >= 0.7;
+                      const cost = Math.round(activity.creditCost * 100) / 100;
+                      const currentBal = Math.round(lookup.balance * 100) / 100;
+                      const hasSufficient = currentBal >= cost;
+                      const hasKidSufficient = currentBal >= 0.7;
 
                       return (
                         <div key={activity.id} className="rounded-xl border border-[var(--border)] bg-slate-50/50 p-4 hover:border-[var(--primary)]/40 hover:bg-[var(--primary-light)]/5 transition-all duration-300 group flex flex-col justify-between">

@@ -172,6 +172,56 @@ describe("Redemptions POST API", () => {
     expect(body.redemption).toEqual(mockRedemption);
   });
 
+  it("should successfully redeem 1 credit activity when client balance has floating-point delta (e.g. 0.9999999999999999)", async () => {
+    vi.mocked(requireAdminSession).mockResolvedValue({
+      session: { user: { id: "admin-1" } } as any,
+      error: null,
+    });
+
+    vi.mocked(prisma.activity.findUnique).mockResolvedValue({
+      id: "act-1",
+      active: true,
+      creditCost: 1,
+      name: "Swimming",
+    } as any);
+
+    vi.mocked(prisma.client.findUnique).mockResolvedValue({
+      id: "client-1",
+      fullName: "Adouka Salah",
+      cards: [{ id: "card-1" }],
+    } as any);
+
+    const mockRedemption = { id: "redempt-2", clientId: "client-1", activityId: "act-1" };
+
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
+      const mockTx = {
+        ledgerEntry: {
+          aggregate: vi.fn().mockResolvedValue({
+            _sum: { delta: 0.9999999999999999 }, // 0.9999999999999999 from float math
+          }),
+          create: vi.fn(),
+        },
+        redemption: {
+          create: vi.fn().mockResolvedValue(mockRedemption),
+        },
+      };
+      return await callback(mockTx as any);
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/redemptions", {
+      method: "POST",
+      body: JSON.stringify({
+        clientId: "client-1",
+        activityId: "act-1",
+      }),
+    });
+
+    const res = await POST(request);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.redemption).toEqual(mockRedemption);
+  });
+
   it("should successfully redeem activity for a kid (0.7 credits)", async () => {
     vi.mocked(requireAdminSession).mockResolvedValue({
       session: { user: { id: "admin-1" } } as any,

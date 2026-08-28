@@ -342,8 +342,8 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
 
 // Ledger Listener
 eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
-  const currentBalance = await billingRepo.sumLedgerDelta(payload.client.id, payload.tx);
-  const cost = payload.creditsUsed ?? payload.activity.creditCost;
+  const currentBalance = Math.round((await billingRepo.sumLedgerDelta(payload.client.id, payload.tx)) * 100) / 100;
+  const cost = Math.round((payload.creditsUsed ?? payload.activity.creditCost) * 100) / 100;
   if (currentBalance < cost && !payload.bypassBalanceCheck) {
     throw new Error("INSUFFICIENT_BALANCE");
   }

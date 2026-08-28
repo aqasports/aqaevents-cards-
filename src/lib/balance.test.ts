@@ -34,6 +34,24 @@ describe("balance utils", () => {
       });
     });
 
+    it("should correctly handle floating-point precision artifacts (e.g. 0.9999999999999999 -> 1)", async () => {
+      vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({
+        _sum: { delta: 0.9999999999999999 },
+      } as any);
+
+      const balance = await getClientBalance("client-float");
+      expect(balance).toBe(1);
+    });
+
+    it("should correctly round 2-decimal fractional credits (e.g. 0.7)", async () => {
+      vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({
+        _sum: { delta: 0.7000000000000001 },
+      } as any);
+
+      const balance = await getClientBalance("client-kid");
+      expect(balance).toBe(0.7);
+    });
+
     it("should return 0 if no entries exist (sum is null)", async () => {
       vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({
         _sum: { delta: null },
