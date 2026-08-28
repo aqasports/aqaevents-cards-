@@ -108,6 +108,7 @@ export async function GET(
         amountDA: null,
         staff: r.staff?.name ?? null,
         meta: {
+          redemptionId: r.id,
           activityName: r.activity.name,
           creditsUsed: r.creditsUsed,
           sessionDate: r.session?.sessionDate
@@ -162,7 +163,9 @@ export async function GET(
         amountDA: null,
         staff: entry.createdBy?.name ?? null,
         meta: {
+          ledgerId: entry.id,
           ledgerType: entry.type,
+          delta: entry.delta,
           reason: entry.reason ?? null,
           packageName: entry.package?.name ?? null,
         },
@@ -182,6 +185,7 @@ export async function GET(
         amountDA: inv.amount,
         staff: null,
         meta: {
+          invoiceId: inv.id,
           invoiceCode: inv.invoiceCode,
           status: inv.status,
           category: inv.category,
@@ -206,6 +210,7 @@ export async function GET(
             amountDA: inv.amount,
             staff: null,
             meta: {
+              invoiceId: inv.id,
               invoiceCode: inv.invoiceCode,
               category: inv.category,
               items: inv.items,
@@ -225,6 +230,7 @@ export async function GET(
           amountDA: inv.amount,
           staff: null,
           meta: {
+            invoiceId: inv.id,
             invoiceCode: inv.invoiceCode,
             category: inv.category,
             items: inv.items,
@@ -243,6 +249,7 @@ export async function GET(
           amountDA: inv.amount,
           staff: null,
           meta: {
+            invoiceId: inv.id,
             invoiceCode: inv.invoiceCode,
             category: inv.category,
             items: inv.items,
@@ -263,6 +270,7 @@ export async function GET(
         amountDA: null,
         staff: null,
         meta: {
+          cardId: card.id,
           cardCode: card.cardCode,
           status: card.status,
         },

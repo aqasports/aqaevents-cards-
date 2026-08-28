@@ -87,7 +87,7 @@ type ClientDetail = {
 import { useCreditRate } from "@/lib/use-credit-rate";
 
 export default function ClientDetailPage() {
-  const { locale } = useLocale();
+  const { locale, t } = useLocale();
   const params = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -102,6 +102,7 @@ export default function ClientDetailPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [notificationsError, setNotificationsError] = useState("");
+  const [reversingEntryId, setReversingEntryId] = useState<string | null>(null);
 
   // Additional states for Activities, Store and Invoices
   const [activities, setActivities] = useState<any[]>([]);
@@ -769,8 +770,8 @@ export default function ClientDetailPage() {
 
   async function refundRedemption(id: string) {
     triggerConfirm(
-      "Refund Redemption",
-      "Refund this redemption? This will cancel the redemption record and return the credits to the client's balance.",
+      t("clientActivityLog.refundRedeemTitle"),
+      "Refund this redemption? This will cancel the redemption record, return the credits to the client balance, and remove the client from the event attendee list.",
       async () => {
         setRefundingRedemptionId(id);
         try {
@@ -778,8 +779,11 @@ export default function ClientDetailPage() {
             method: "DELETE",
           });
           if (res.ok) {
-            setMessage({ text: "Redemption refunded successfully.", tone: "success" });
+            setMessage({ text: t("clientActivityLog.refundRedeemSuccess"), tone: "success" });
             await loadClient();
+            if (tab === "activity-log") {
+              await loadActivityLog();
+            }
           } else {
             let errorMsg = "Failed to refund redemption.";
             try {
@@ -793,6 +797,197 @@ export default function ClientDetailPage() {
           setMessage({ text: "Network error refunding redemption.", tone: "danger" });
         } finally {
           setRefundingRedemptionId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
+
+  function handleReverseRedeem(entry: ActivityLogEntry) {
+    const redemptionId = (entry.meta.redemptionId as string) || entry.id.replace(/^redeem-/, "");
+    const activityName = (entry.meta.activityName as string) || "activity";
+    const creditsUsed = entry.meta.creditsUsed !== undefined && entry.meta.creditsUsed !== null ? String(entry.meta.creditsUsed) : "1";
+
+    triggerConfirm(
+      t("clientActivityLog.refundRedeemTitle"),
+      t("clientActivityLog.refundRedeemMsg", { activity: activityName, credits: creditsUsed }),
+      async () => {
+        setReversingEntryId(entry.id);
+        setMessage(null);
+        try {
+          const res = await fetch(`/api/admin/redemptions/${redemptionId}`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            setMessage({ text: t("clientActivityLog.refundRedeemSuccess"), tone: "success" });
+            await loadClient();
+            await loadActivityLog();
+          } else {
+            let errorMsg = "Failed to refund redemption.";
+            try {
+              const data = await res.json();
+              errorMsg = data.error ?? errorMsg;
+            } catch {}
+            setMessage({ text: errorMsg, tone: "danger" });
+          }
+        } catch (err) {
+          console.error(err);
+          setMessage({ text: "Network error refunding redemption.", tone: "danger" });
+        } finally {
+          setReversingEntryId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
+
+  function handleReverseLedger(entry: ActivityLogEntry) {
+    const ledgerId = (entry.meta.ledgerId as string) || entry.id.replace(/^ledger-/, "");
+    const deltaVal = entry.delta ?? (typeof entry.meta.delta === "number" ? entry.meta.delta : 0);
+    const deltaStr = `${deltaVal > 0 ? "+" : ""}${Number(deltaVal).toFixed(2)}`;
+
+    triggerConfirm(
+      t("clientActivityLog.reverseLedgerTitle"),
+      t("clientActivityLog.reverseLedgerMsg", { delta: deltaStr }),
+      async () => {
+        setReversingEntryId(entry.id);
+        setMessage(null);
+        try {
+          const res = await fetch(`/api/admin/ledger/${ledgerId}`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            setMessage({ text: t("clientActivityLog.reverseLedgerSuccess"), tone: "success" });
+            await loadClient();
+            await loadActivityLog();
+          } else {
+            let errorMsg = "Failed to reverse ledger entry.";
+            try {
+              const data = await res.json();
+              errorMsg = data.error ?? errorMsg;
+            } catch {}
+            setMessage({ text: errorMsg, tone: "danger" });
+          }
+        } catch (err) {
+          console.error(err);
+          setMessage({ text: "Network error reversing ledger entry.", tone: "danger" });
+        } finally {
+          setReversingEntryId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
+
+  function handleReverseInvoicePaid(entry: ActivityLogEntry) {
+    const invoiceId = (entry.meta.invoiceId as string) || entry.id.replace(/^invoice-paid-/, "").replace(/^invoice-created-/, "");
+    const invoiceCode = (entry.meta.invoiceCode as string) || "";
+
+    triggerConfirm(
+      t("clientActivityLog.reverseInvoicePaidTitle"),
+      t("clientActivityLog.reverseInvoicePaidMsg", { code: invoiceCode }),
+      async () => {
+        setReversingEntryId(entry.id);
+        setMessage(null);
+        try {
+          const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "refunded" }),
+          });
+          if (res.ok) {
+            setMessage({ text: t("clientActivityLog.invoiceRefundedSuccess"), tone: "success" });
+            await loadClient();
+            await loadActivityLog();
+          } else {
+            let errorMsg = "Failed to refund invoice.";
+            try {
+              const data = await res.json();
+              errorMsg = data.error ?? errorMsg;
+            } catch {}
+            setMessage({ text: errorMsg, tone: "danger" });
+          }
+        } catch (err) {
+          console.error(err);
+          setMessage({ text: "Network error refunding invoice.", tone: "danger" });
+        } finally {
+          setReversingEntryId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
+
+  function handleCancelInvoice(entry: ActivityLogEntry) {
+    const invoiceId = (entry.meta.invoiceId as string) || entry.id.replace(/^invoice-created-/, "").replace(/^invoice-unpaid-/, "");
+    const invoiceCode = (entry.meta.invoiceCode as string) || "";
+
+    triggerConfirm(
+      t("clientActivityLog.cancelInvoiceTitle"),
+      t("clientActivityLog.cancelInvoiceMsg", { code: invoiceCode }),
+      async () => {
+        setReversingEntryId(entry.id);
+        setMessage(null);
+        try {
+          const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            setMessage({ text: t("clientActivityLog.invoiceCancelledSuccess"), tone: "success" });
+            await loadClient();
+            await loadActivityLog();
+          } else {
+            let errorMsg = "Failed to cancel invoice.";
+            try {
+              const data = await res.json();
+              errorMsg = data.error ?? errorMsg;
+            } catch {}
+            setMessage({ text: errorMsg, tone: "danger" });
+          }
+        } catch (err) {
+          console.error(err);
+          setMessage({ text: "Network error cancelling invoice.", tone: "danger" });
+        } finally {
+          setReversingEntryId(null);
+        }
+      },
+      true // isDanger
+    );
+  }
+
+  function handleReopenInvoice(entry: ActivityLogEntry) {
+    const invoiceId = (entry.meta.invoiceId as string) || entry.id.replace(/^invoice-refunded-/, "");
+    const invoiceCode = (entry.meta.invoiceCode as string) || "";
+
+    triggerConfirm(
+      t("clientActivityLog.reopenInvoiceTitle"),
+      t("clientActivityLog.reopenInvoiceMsg", { code: invoiceCode }),
+      async () => {
+        setReversingEntryId(entry.id);
+        setMessage(null);
+        try {
+          const res = await fetch(`/api/admin/invoices/${invoiceId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "paid" }),
+          });
+          if (res.ok) {
+            setMessage({ text: t("clientActivityLog.invoiceReopenedSuccess"), tone: "success" });
+            await loadClient();
+            await loadActivityLog();
+          } else {
+            let errorMsg = "Failed to reopen invoice.";
+            try {
+              const data = await res.json();
+              errorMsg = data.error ?? errorMsg;
+            } catch {}
+            setMessage({ text: errorMsg, tone: "danger" });
+          }
+        } catch (err) {
+          console.error(err);
+          setMessage({ text: "Network error reopening invoice.", tone: "danger" });
+        } finally {
+          setReversingEntryId(null);
         }
       }
     );
@@ -1888,8 +2083,8 @@ export default function ClientDetailPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-[var(--foreground)]">Client Activity Log</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">Complete chronological history of all client actions — redeems, top-ups, sales, invoice changes, and card events.</p>
+              <h3 className="text-base font-bold text-[var(--foreground)]">{t("clientActivityLog.title")}</h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">{t("clientActivityLog.description")}</p>
             </div>
             <button
               onClick={loadActivityLog}
@@ -1899,7 +2094,7 @@ export default function ClientDetailPage() {
               <svg className={`h-3.5 w-3.5 ${loadingActivityLog ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
-              Refresh
+              {t("clientActivityLog.refresh")}
             </button>
           </div>
 
@@ -1907,7 +2102,7 @@ export default function ClientDetailPage() {
             <div className="flex items-center justify-center py-16">
               <div className="text-center space-y-3">
                 <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-[var(--border)] border-t-[var(--primary)]" />
-                <p className="text-sm text-[var(--muted)]">Loading activity log...</p>
+                <p className="text-sm text-[var(--muted)]">{t("clientActivityLog.loading")}</p>
               </div>
             </div>
           )}
@@ -1921,7 +2116,7 @@ export default function ClientDetailPage() {
               <svg className="h-10 w-10 text-[var(--muted)] mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm font-medium text-[var(--muted)]">No activity recorded yet for this client.</p>
+              <p className="text-sm font-medium text-[var(--muted)]">{t("clientActivityLog.empty")}</p>
             </div>
           )}
 
@@ -2083,6 +2278,135 @@ export default function ClientDetailPage() {
               }
             };
 
+            const renderReverseButton = (entry: ActivityLogEntry) => {
+              const isReversing = reversingEntryId === entry.id;
+
+              switch (entry.type) {
+                case "redeem":
+                  return (
+                    <button
+                      type="button"
+                      disabled={isReversing}
+                      onClick={() => handleReverseRedeem(entry)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all disabled:opacity-50 shadow-sm"
+                      title={t("clientActivityLog.refundRedeemTitle")}
+                    >
+                      {isReversing ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-rose-400 border-t-transparent" />
+                      ) : (
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                        </svg>
+                      )}
+                      <span>{t("clientActivityLog.refundBtn")}</span>
+                    </button>
+                  );
+
+                case "topup":
+                case "manual_adjustment":
+                  return (
+                    <button
+                      type="button"
+                      disabled={isReversing}
+                      onClick={() => handleReverseLedger(entry)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition-all disabled:opacity-50 shadow-sm"
+                      title={t("clientActivityLog.reverseLedgerTitle")}
+                    >
+                      {isReversing ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                      ) : (
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                        </svg>
+                      )}
+                      <span>{t("clientActivityLog.reverseBtn")}</span>
+                    </button>
+                  );
+
+                case "invoice_paid":
+                  return (
+                    <button
+                      type="button"
+                      disabled={isReversing}
+                      onClick={() => handleReverseInvoicePaid(entry)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all disabled:opacity-50 shadow-sm"
+                      title={t("clientActivityLog.reverseInvoicePaidTitle")}
+                    >
+                      {isReversing ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-rose-400 border-t-transparent" />
+                      ) : (
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                        </svg>
+                      )}
+                      <span>{t("clientActivityLog.refundBtn")}</span>
+                    </button>
+                  );
+
+                case "invoice_created":
+                case "invoice_unpaid":
+                  return (
+                    <button
+                      type="button"
+                      disabled={isReversing}
+                      onClick={() => handleCancelInvoice(entry)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-300 hover:text-rose-300 bg-slate-500/10 hover:bg-rose-500/20 border border-[var(--border)] hover:border-rose-500/30 transition-all disabled:opacity-50 shadow-sm"
+                      title={t("clientActivityLog.cancelInvoiceTitle")}
+                    >
+                      {isReversing ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-slate-400 border-t-transparent" />
+                      ) : (
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                      <span>{t("clientActivityLog.cancelInvoiceBtn")}</span>
+                    </button>
+                  );
+
+                case "invoice_refunded":
+                  return (
+                    <button
+                      type="button"
+                      disabled={isReversing}
+                      onClick={() => handleReopenInvoice(entry)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all disabled:opacity-50 shadow-sm"
+                      title={t("clientActivityLog.reopenInvoiceTitle")}
+                    >
+                      {isReversing ? (
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+                      ) : (
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                      <span>{t("clientActivityLog.reopenPaidBtn")}</span>
+                    </button>
+                  );
+
+                case "card_issued":
+                  if (entry.meta.status === "active") {
+                    return (
+                      <button
+                        type="button"
+                        onClick={reissueCard}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 transition-all shadow-sm"
+                        title={t("clientActivityLog.reissueCardBtn")}
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        <span>{t("clientActivityLog.reissueCardBtn")}</span>
+                      </button>
+                    );
+                  }
+                  return null;
+
+                default:
+                  return null;
+              }
+            };
+
             return (
               <div className="relative">
                 {/* Timeline line */}
@@ -2102,12 +2426,7 @@ export default function ClientDetailPage() {
                         {showDateSeparator && (
                           <div className="relative flex items-center py-4 pl-14">
                             <span className="text-xs font-bold uppercase tracking-widest text-[var(--muted)]">
-                              {entryDate.toLocaleDateString("en-GB", {
-                                weekday: "long",
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
+                              {formatDate(entryDate, locale)}
                             </span>
                           </div>
                         )}
@@ -2119,8 +2438,8 @@ export default function ClientDetailPage() {
 
                           {/* Content card */}
                           <div className="flex-1 min-w-0 bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 shadow-sm hover:border-[rgba(255,255,255,0.15)] transition-colors">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                              <div className="min-w-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                              <div className="min-w-0 flex-1">
                                 <p className="text-sm font-semibold text-[var(--foreground)] leading-snug">
                                   {entry.title}
                                 </p>
@@ -2131,20 +2450,18 @@ export default function ClientDetailPage() {
                                 )}
                                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                                   <span className="text-[11px] text-[var(--muted)] tabular-nums">
-                                    {entryDate.toLocaleTimeString("en-GB", {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
+                                    {formatDate(entry.timestamp, locale, true)}
                                   </span>
                                   {entry.staff && (
                                     <span className="text-[11px] text-[var(--muted)]">
-                                      by {entry.staff}
+                                      {t("clientActivityLog.byStaff", { name: entry.staff })}
                                     </span>
                                   )}
                                 </div>
                               </div>
-                              <div className="shrink-0">
+                              <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
                                 {getEntryBadge(entry)}
+                                {renderReverseButton(entry)}
                               </div>
                             </div>
                           </div>
@@ -2159,7 +2476,7 @@ export default function ClientDetailPage() {
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--border)] ring-4 ring-[var(--background)]">
                     <div className="h-2 w-2 rounded-full bg-[var(--muted)]" />
                   </div>
-                  <span className="text-xs text-[var(--muted)]">Start of client history</span>
+                  <span className="text-xs text-[var(--muted)]">{t("clientActivityLog.startOfHistory")}</span>
                 </div>
               </div>
             );

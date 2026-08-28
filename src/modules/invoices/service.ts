@@ -1054,6 +1054,7 @@ export class BillingService {
     if (!redemption) throw new Error("Redemption not found");
 
     const result = await prisma.$transaction(async (tx) => {
+      await tx.checkIn.deleteMany({ where: { redemptionId: id } });
       await tx.redemption.delete({ where: { id } });
 
       const eventPayload: any = {
@@ -1100,6 +1101,7 @@ export class BillingService {
 
     for (const redemption of redemptions) {
       const result = await prisma.$transaction(async (tx) => {
+        await tx.checkIn.deleteMany({ where: { redemptionId: redemption.id } });
         await tx.redemption.delete({ where: { id: redemption.id } });
 
         const eventPayload: any = {
