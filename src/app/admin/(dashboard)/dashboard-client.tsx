@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, Card, Badge, Alert } from "@/components/admin/ui";
 import { QuickBalanceCharger } from "@/components/admin/QuickBalanceCharger";
 import { useTranslations, formatDate } from "@/lib/i18n";
@@ -77,6 +78,7 @@ export default function DashboardClient({
   soldCreditRevenue,
   creditRate,
 }: DashboardClientProps) {
+  const router = useRouter();
   const { t, dir, locale } = useTranslations("dashboard");
 
   const lowBalanceNames = lowBalance.map((c) => c.fullName).join(", ");
@@ -156,7 +158,7 @@ export default function DashboardClient({
 
       {/* Quick Balance Charger - Section 1 */}
       <div className="mb-6">
-        <QuickBalanceCharger />
+        <QuickBalanceCharger onBalanceUpdated={() => router.refresh()} />
       </div>
 
       {/* Stats grid */}
