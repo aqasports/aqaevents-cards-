@@ -33,32 +33,30 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const {
-      fullName,
-      phone,
-      email,
-      birthDate,
-      category,
-      level,
-      frequency,
-      formula,
-      duration,
-      preferredDays,
-      notes,
-      marketingConsent,
-      utmSource,
-      utmMedium,
-      utmCampaign,
-    } = body;
+    const resolvedName = (body.fullName || body.nom || body.payload?.nom || "").trim();
+    const resolvedPhone = (body.phone || body.telephone || body.payload?.telephone || "").trim();
+    const email = (body.email || body.payload?.email || "").trim() || null;
+    const birthDate = body.birthDate || null;
+    const category = body.category || body.payload?.category || "homme";
+    const level = body.level || body.goal || body.payload?.goal || "beginner";
+    const frequency = body.frequency || body.payload?.frequency || "1x";
+    const formula = body.formula || body.formule || body.payload?.formule || "G10";
+    const duration = body.duration || body.payload?.duration || "3m";
+    const preferredDays = body.preferredDays || body.dayNight || body.payload?.timePref || null;
+    const notes = body.notes || (body.channel ? `Canal: ${body.channel}` : null);
+    const marketingConsent = body.marketingConsent;
+    const utmSource = body.utmSource;
+    const utmMedium = body.utmMedium;
+    const utmCampaign = body.utmCampaign;
 
-    if (!fullName || !fullName.trim()) {
+    if (!resolvedName) {
       return NextResponse.json(
         { error: "Full name is required" },
         { status: 400, headers: corsHeaders }
       );
     }
 
-    if (!phone || !phone.trim()) {
+    if (!resolvedPhone) {
       return NextResponse.json(
         { error: "Phone number is required" },
         { status: 400, headers: corsHeaders }
@@ -67,8 +65,8 @@ export async function POST(request: NextRequest) {
 
     const lead = await prisma.swimLead.create({
       data: {
-        fullName: fullName.trim(),
-        phone: phone.trim(),
+        fullName: resolvedName,
+        phone: resolvedPhone,
         email: email?.trim() || null,
         birthDate: birthDate ? new Date(birthDate) : null,
         category: category || "homme",
