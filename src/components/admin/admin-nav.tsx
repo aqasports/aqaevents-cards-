@@ -136,6 +136,15 @@ const links = [
     ),
   },
   {
+    key: "swim",
+    href: "/admin/swim",
+    icon: (
+      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
     key: "proposals",
     href: "/admin/proposals",
     icon: (
@@ -220,6 +229,7 @@ export function AdminNav() {
   const [pendingDemandsCount, setPendingDemandsCount] = useState(0);
   const [pendingProposalsCount, setPendingProposalsCount] = useState(0);
   const [newCheckInsCount, setNewCheckInsCount] = useState(0);
+  const [pendingSwimCount, setPendingSwimCount] = useState(0);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -284,16 +294,29 @@ export function AdminNav() {
         console.error("Failed to fetch new check-ins count:", err);
       }
     }
+    async function fetchPendingSwimCount() {
+      try {
+        const res = await fetch("/api/admin/swim/leads/pending-count");
+        if (res.ok) {
+          const data = await res.json();
+          setPendingSwimCount(data.count);
+        }
+      } catch (err) {
+        console.error("Failed to fetch pending swim count:", err);
+      }
+    }
     fetchPendingCount();
     fetchPendingDemandsCount();
     fetchPendingProposalsCount();
     fetchNewCheckInsCount();
+    fetchPendingSwimCount();
 
     const interval = setInterval(() => {
       fetchPendingCount();
       fetchPendingDemandsCount();
       fetchPendingProposalsCount();
       fetchNewCheckInsCount();
+      fetchPendingSwimCount();
     }, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -393,6 +416,11 @@ export function AdminNav() {
             {link.key === "clubs" && newCheckInsCount > 0 && (
               <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.4)] leading-none">
                 {newCheckInsCount}
+              </span>
+            )}
+            {link.key === "swim" && pendingSwimCount > 0 && (
+              <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950 animate-pulse shadow-[0_0_8px_rgba(0,242,255,0.5)] leading-none">
+                {pendingSwimCount}
               </span>
             )}
           </Link>
