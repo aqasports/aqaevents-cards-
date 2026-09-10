@@ -75,9 +75,9 @@ export async function POST(request: NextRequest) {
       cardCode,
     } = body;
 
-    if (!fullName || !phone || !level || !formula) {
+    if (!fullName || !level || !formula) {
       return NextResponse.json(
-        { error: "Full name, phone, level and formula are required" },
+        { error: "Full name, level and formula are required" },
         { status: 400 }
       );
     }
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       data: {
         swimId,
         fullName: fullName.trim(),
-        phone: phone.trim(),
+        phone: phone?.trim() || "",
         email: email?.trim() || null,
         photoUrl: photoUrl?.trim() || null,
         dateOfStart: dateOfStart ? new Date(dateOfStart) : new Date(),

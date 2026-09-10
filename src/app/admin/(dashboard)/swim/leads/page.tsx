@@ -175,7 +175,7 @@ export default function SwimLeadsPage() {
     const q = searchTerm.toLowerCase();
     return (
       l.fullName.toLowerCase().includes(q) ||
-      l.phone.includes(q) ||
+      (l.phone && l.phone.includes(q)) ||
       (l.email && l.email.toLowerCase().includes(q))
     );
   });
@@ -294,6 +294,19 @@ export default function SwimLeadsPage() {
                       {new Date(lead.createdAt).toLocaleDateString("fr-DZ")}
                     </td>
                     <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      {lead.phone && (
+                        <a
+                          href={`https://wa.me/${lead.phone.replace(/[^0-9]/g, "").startsWith("0") ? "213" + lead.phone.replace(/[^0-9]/g, "").slice(1) : lead.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                            `Salam ${lead.fullName}, nous vous contactons concernant votre demande d'inscription AQA Swim (${lead.formula}). Êtes-vous disponible pour finaliser votre groupe ?`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 font-semibold text-xs transition-colors"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+
                       {lead.status === "pending" && (
                         <Button
                           size="sm"
@@ -458,13 +471,12 @@ export default function SwimLeadsPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Phone *
+                    Phone (Optional)
                   </label>
                   <Input
-                    required
                     value={newPhone}
                     onChange={(e) => setNewPhone(e.target.value)}
-                    placeholder="0550123456"
+                    placeholder="0550123456 (Optional)"
                   />
                 </div>
               </div>

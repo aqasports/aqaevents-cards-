@@ -202,12 +202,78 @@ export default function SwimMembersPage() {
     }
   }
 
+  function getWhatsAppUrl(member: SwimMember) {
+    if (!member.phone) return null;
+    const cleanPhone = member.phone.replace(/[^0-9]/g, "");
+    const formattedPhone = cleanPhone.startsWith("0") ? `213${cleanPhone.slice(1)}` : cleanPhone;
+    const groupText = member.group ? `${member.group.name} (${member.group.schedule})` : "En attente d'affectation";
+    const coachText = member.group?.coachName ? `Coach: ${member.group.coachName}` : "";
+    const portalUrl = `https://aqasports.pro/swim/profile/${member.swimId}`;
+
+    const text = encodeURIComponent(
+      `Salam ${member.fullName},\n\n` +
+      `Votre inscription AQA Swim est confirmee.\n` +
+      `Identifiant Nageur: ${member.swimId}\n` +
+      `Groupe: ${groupText}\n` +
+      `${coachText ? coachText + "\n" : ""}` +
+      `Consultez votre profil et badge en ligne ici:\n${portalUrl}\n\n` +
+      `A tres bientot au bassin!\nEquipe AQA Sports`
+    );
+
+    return `https://wa.me/${formattedPhone}?text=${text}`;
+  }
+
+  function handleExportCSV() {
+    const headers = [
+      "Swimmer ID",
+      "Full Name",
+      "Phone",
+      "Email",
+      "Category",
+      "Level",
+      "Formula",
+      "Duration",
+      "Price DA",
+      "Group",
+      "Coach",
+      "Payment Status",
+      "Group Status",
+      "Date of Start",
+    ];
+
+    const rows = filteredMembers.map((m) => [
+      m.swimId,
+      `"${m.fullName.replace(/"/g, '""')}"`,
+      `"${m.phone || ""}"`,
+      `"${m.email || ""}"`,
+      m.category,
+      m.level,
+      m.formula,
+      m.duration || "3m",
+      m.priceDA,
+      `"${m.group?.name || "Unassigned"}"`,
+      `"${m.group?.coachName || ""}"`,
+      m.paymentStatus,
+      m.groupStatus,
+      new Date(m.dateOfStart).toLocaleDateString("fr-DZ"),
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `aqa_swim_members_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   const filteredMembers = members.filter((m) => {
     const q = searchTerm.toLowerCase();
     const matchSearch =
       !searchTerm ||
       m.fullName.toLowerCase().includes(q) ||
-      m.phone.includes(q) ||
+      (m.phone && m.phone.includes(q)) ||
       m.swimId.toLowerCase().includes(q) ||
       (m.card?.cardCode && m.card.cardCode.toLowerCase().includes(q));
 
@@ -223,9 +289,14 @@ export default function SwimMembersPage() {
         title="Sector 2: Old Clients Profiles"
         description="Register and manage swimmer profiles with solid group allocation, personal coach advice, payment ledger, and unique Swimmer IDs."
         action={
-          <Button onClick={() => setShowAddModal(true)} variant="primary">
-            + Add Swimmer
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowAddModal(true)} variant="primary">
+              + Add Swimmer
+            </Button>
+            <Button onClick={handleExportCSV} variant="secondary">
+              Export CSV
+            </Button>
+          </div>
         }
       />
 
@@ -400,6 +471,17 @@ export default function SwimMembersPage() {
                     </td>
 
                     <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                      {getWhatsAppUrl(m) && (
+                        <a
+                          href={getWhatsAppUrl(m)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 font-semibold text-xs transition-colors"
+                          title="Send WhatsApp Confirmation"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
                       <Button
                         size="sm"
                         variant="secondary"
@@ -472,13 +554,12 @@ export default function SwimMembersPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Phone *
+                    Phone (Optional)
                   </label>
                   <Input
-                    required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="0661234567"
+                    placeholder="0661234567 (Optional)"
                   />
                 </div>
               </div>

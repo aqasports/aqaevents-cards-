@@ -71,7 +71,7 @@ export async function PATCH(
       where: { id },
       data: {
         ...(fullName && { fullName: fullName.trim() }),
-        ...(phone && { phone: phone.trim() }),
+        ...(phone !== undefined && { phone: phone?.trim() || "" }),
         ...(email !== undefined && { email: email?.trim() || null }),
         ...(photoUrl !== undefined && { photoUrl: photoUrl?.trim() || null }),
         ...(dateOfStart && { dateOfStart: new Date(dateOfStart) }),
