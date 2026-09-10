@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { decodeSolidNotes, encodeSolidNotes } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,13 @@ export async function GET(
       return NextResponse.json({ error: "Swim group not found" }, { status: 404 });
     }
 
-    return NextResponse.json(group);
+    const { isSolid, cleanNotes } = decodeSolidNotes(group.notes);
+
+    return NextResponse.json({
+      ...group,
+      isSolid,
+      cleanNotes,
+    });
   } catch (err: unknown) {
     logger.error("GET admin swim group detail error:", err);
     return NextResponse.json({ error: "Failed to fetch swim group" }, { status: 500 });
@@ -49,7 +56,19 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { name, category, level, coachName, schedule, capacity, active, notes } = body;
+    const { name, category, level, coachName, schedule, capacity, active, notes, isSolid } = body;
+
+    let updatedNotes: string | null | undefined = undefined;
+    if (isSolid !== undefined || notes !== undefined) {
+      const existing = await prisma.swimGroup.findUnique({
+        where: { id },
+        select: { notes: true },
+      });
+      const currentDecoded = decodeSolidNotes(existing?.notes);
+      const targetSolid = isSolid !== undefined ? Boolean(isSolid) : currentDecoded.isSolid;
+      const targetNotes = notes !== undefined ? notes : currentDecoded.cleanNotes;
+      updatedNotes = encodeSolidNotes(targetNotes, targetSolid);
+    }
 
     const updated = await prisma.swimGroup.update({
       where: { id },
@@ -61,11 +80,17 @@ export async function PATCH(
         ...(schedule !== undefined && { schedule: typeof schedule === "string" ? schedule : JSON.stringify(schedule) }),
         ...(capacity !== undefined && { capacity: parseInt(capacity, 10) }),
         ...(active !== undefined && { active: Boolean(active) }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
+        ...(updatedNotes !== undefined && { notes: updatedNotes }),
       },
     });
 
-    return NextResponse.json(updated);
+    const { isSolid: decodedSolid, cleanNotes } = decodeSolidNotes(updated.notes);
+
+    return NextResponse.json({
+      ...updated,
+      isSolid: decodedSolid,
+      cleanNotes,
+    });
   } catch (err: unknown) {
     logger.error("PATCH admin swim group error:", err);
     return NextResponse.json({ error: "Failed to update swim group" }, { status: 500 });
