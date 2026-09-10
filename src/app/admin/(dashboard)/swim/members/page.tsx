@@ -428,22 +428,36 @@ export default function SwimMembersPage() {
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="max-w-xl w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4 my-8">
-            <h3 className="text-base font-bold text-white">
-              Add Old Client / Swimmer Profile
-            </h3>
-            <p className="text-xs text-slate-400">
-              Input old client details. The system automatically creates a personal Swimmer ID (SWM-XXXXXX) for their online portal access.
-            </p>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="max-w-xl w-full bg-slate-900 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col max-h-[92vh] my-auto">
+            {/* Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-white/10 shrink-0">
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  Add Old Client / Swimmer Profile
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Input old client details. The system automatically creates a personal Swimmer ID (SWM-XXXXXX) for their online portal access.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
 
             {addSuccessId && (
-              <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center">
+              <div className="mt-3 p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-bold text-center shrink-0">
                 Swimmer Profile Created! ID: {addSuccessId}
               </div>
             )}
 
-            <form onSubmit={handleAddMemberSubmit} className="space-y-3.5">
+            <form onSubmit={handleAddMemberSubmit} className="flex flex-col flex-1 min-h-0 mt-3">
+              <div className="overflow-y-auto flex-1 pr-1.5 -mr-1.5 space-y-3.5">
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -670,8 +684,10 @@ export default function SwimMembersPage() {
                   </div>
                 )}
               </div>
+              </div>
 
-              <div className="flex gap-2 pt-2">
+              {/* Pinned Footer Actions */}
+              <div className="flex gap-2 pt-3 mt-3 border-t border-white/10 shrink-0">
                 <Button
                   type="button"
                   variant="secondary"
@@ -696,8 +712,8 @@ export default function SwimMembersPage() {
 
       {/* Record Payment Modal */}
       {payingMember && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto max-h-[90vh] overflow-y-auto">
             <h3 className="text-base font-bold text-white">
               Record Swim Payment: {payingMember.fullName}
             </h3>
@@ -747,7 +763,7 @@ export default function SwimMembersPage() {
                 />
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 border-t border-white/10">
                 <Button
                   type="button"
                   variant="secondary"
@@ -772,9 +788,9 @@ export default function SwimMembersPage() {
 
       {/* Member Detail Modal */}
       {viewingMember && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-lg w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="max-w-lg w-full bg-slate-900 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col max-h-[90vh] my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10 shrink-0">
               <div>
                 <h3 className="text-base font-bold text-white">
                   {viewingMember.fullName}
@@ -792,7 +808,7 @@ export default function SwimMembersPage() {
               </Button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="overflow-y-auto flex-1 pr-1.5 -mr-1.5 space-y-3 text-xs my-2">
               <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-800/60">
                 <div>
                   <span className="text-slate-400">Phone:</span>{" "}
@@ -868,7 +884,7 @@ export default function SwimMembersPage() {
               </div>
             </div>
 
-            <div className="pt-2 flex gap-2">
+            <div className="pt-3 border-t border-white/10 flex gap-2 shrink-0">
               <Link
                 href={`/swim/profile/${viewingMember.swimId}`}
                 target="_blank"

@@ -296,8 +296,8 @@ export default function SwimCardsPage() {
 
       {/* Link Card Modal */}
       {showLinkModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             <h3 className="text-base font-bold text-white">Link PVC Card to Swimmer</h3>
             <p className="text-xs text-slate-400">
               Enter the card code (from pre-printed PVC batch) and the swimmer&apos;s personal ID.
