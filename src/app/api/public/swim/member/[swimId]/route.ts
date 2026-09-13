@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { decodeSolidNotes } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +23,63 @@ export async function GET(
   const normalizedId = swimId.trim().toUpperCase();
 
   try {
-    const member = await prisma.swimMember.findUnique({
+    let member = await prisma.swimMember.findUnique({
       where: { swimId: normalizedId },
       include: {
-        group: true,
+        group: {
+          include: {
+            swimmers: {
+              select: {
+                id: true,
+                swimId: true,
+                fullName: true,
+                groupStatus: true,
+              },
+            },
+          },
+        },
         card: true,
       },
     });
+
+    // Fallback: search by phone or partial ID if not matched directly
+    if (!member) {
+      const cleanDigits = normalizedId.replace(/\D/g, "");
+      const allMembers = await prisma.swimMember.findMany({
+        include: {
+          group: {
+            include: {
+              swimmers: {
+                select: {
+                  id: true,
+                  swimId: true,
+                  fullName: true,
+                  groupStatus: true,
+                },
+              },
+            },
+          },
+          card: true,
+        },
+        take: 30,
+      });
+
+      member = allMembers.find((m) => {
+        const sId = m.swimId.toUpperCase();
+        const mPhone = m.phone.replace(/\D/g, "");
+        if (sId === normalizedId || (normalizedId.length >= 4 && sId.endsWith(normalizedId))) {
+          return true;
+        }
+        if (
+          cleanDigits.length >= 8 &&
+          mPhone.length >= 8 &&
+          (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
+        ) {
+          return true;
+        }
+        return false;
+      }) || null;
+    }
 
     if (!member) {
       return NextResponse.json(
@@ -37,7 +88,28 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(member, { headers: corsHeaders });
+    const isSolid = member.group ? decodeSolidNotes(member.group.notes).isSolid : false;
+    const solidNotes = member.group ? decodeSolidNotes(member.group.notes).cleanNotes : "";
+
+    const teammates = member.group?.swimmers
+      ? member.group.swimmers
+          .filter((s) => s.swimId !== member.swimId)
+          .map((s) => {
+            const parts = s.fullName.trim().split(/\s+/);
+            return parts[0] || "";
+          })
+          .filter(Boolean)
+      : [];
+
+    return NextResponse.json(
+      {
+        ...member,
+        isSolid,
+        solidNotes,
+        teammates,
+      },
+      { headers: corsHeaders }
+    );
   } catch (err: unknown) {
     logger.error("GET public swim member error:", err);
     return NextResponse.json(
@@ -58,9 +130,30 @@ export async function POST(
     const body = await request.json();
     const { action, reason, preferredDays } = body;
 
-    const member = await prisma.swimMember.findUnique({
+    let member = await prisma.swimMember.findUnique({
       where: { swimId: normalizedId },
     });
+
+    if (!member) {
+      const cleanDigits = normalizedId.replace(/\D/g, "");
+      const allMembers = await prisma.swimMember.findMany({ take: 30 });
+      member =
+        allMembers.find((m) => {
+          const sId = m.swimId.toUpperCase();
+          const mPhone = m.phone.replace(/\D/g, "");
+          if (sId === normalizedId || (normalizedId.length >= 4 && sId.endsWith(normalizedId))) {
+            return true;
+          }
+          if (
+            cleanDigits.length >= 8 &&
+            mPhone.length >= 8 &&
+            (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
+          ) {
+            return true;
+          }
+          return false;
+        }) || null;
+    }
 
     if (!member) {
       return NextResponse.json(
