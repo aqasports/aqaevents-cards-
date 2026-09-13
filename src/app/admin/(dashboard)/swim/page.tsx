@@ -2,8 +2,13 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, Card, Badge, Button, Input } from "@/components/admin/ui";
-import { calculateSwimPrice, SwimCategory, SwimDuration, SwimFrequency } from "@/lib/swim-pricing";
+import {
+  FRENCH_DAYS,
+  SWIM_TIME_SLOTS,
+  getSwimLevelLabel,
+} from "@/lib/swim-groups";
 
 interface SwimPaymentItem {
   id: string;
@@ -32,13 +37,26 @@ interface SwimMember {
   rejectionReason: string | null;
   notes: string | null;
   createdAt: string;
+  groupId: string | null;
   group: {
     id: string;
     name: string;
     coachName: string | null;
     schedule: string;
     level?: string;
+    category?: string;
+    active?: boolean;
   } | null;
+  effectiveGroup?: {
+    id: string;
+    name: string;
+    coachName: string | null;
+    schedule: string;
+    level?: string;
+    category?: string;
+    active?: boolean;
+  } | null;
+  effectivelyUnassigned?: boolean;
   card: {
     id: string;
     cardCode: string;
@@ -67,10 +85,18 @@ interface SwimLead {
 interface SwimGroup {
   id: string;
   name: string;
+  category: string;
   level: string;
   coachName: string | null;
   schedule: string;
   capacity: number;
+  active: boolean;
+  notes: string | null;
+  isSolid?: boolean;
+  cleanNotes?: string;
+  _count?: {
+    swimmers: number;
+  };
 }
 
 interface SwimCardItem {
@@ -86,7 +112,8 @@ interface SwimCardItem {
 }
 
 export default function SwimOverviewPage() {
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "cards" | "sectors">("confirmed");
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Data States
@@ -102,25 +129,27 @@ export default function SwimOverviewPage() {
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>("pending");
 
-  // Profile Dossier Modal
-  const [viewingMember, setViewingMember] = useState<SwimMember | null>(null);
+  // Groups Tab Category Filter
+  const [groupsCategoryFilter, setGroupsCategoryFilter] = useState("all");
 
-  // Add Member Modal (Phone strictly optional)
+  // Coach Calendar Filters
+  const [calendarCoachFilter, setCalendarCoachFilter] = useState("all");
+  const [calendarCategoryFilter, setCalendarCategoryFilter] = useState("all");
+
+  // Add Member Modal
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [dateOfStart, setDateOfStart] = useState(new Date().toISOString().split("T")[0]);
-  const [category, setCategory] = useState<SwimCategory>("homme");
-  const [level, setLevel] = useState("beginner");
-  const [frequency, setFrequency] = useState<SwimFrequency>("1x");
-  const [formula, setFormula] = useState("G10");
-  const [duration, setDuration] = useState<SwimDuration>("3m");
-  const [priceOverride, setPriceOverride] = useState<string>("");
+  const [category, setCategory] = useState<string>("homme");
+  const [level, setLevel] = useState("new_aqa");
   const [groupId, setGroupId] = useState("");
+  const [showSolidOnlyAdd, setShowSolidOnlyAdd] = useState(false);
   const [coachMessage, setCoachMessage] = useState("");
   const [notes, setNotes] = useState("");
+  const [whatsappField, setWhatsappField] = useState("");
   const [issueCard, setIssueCard] = useState(true);
   const [cardCode, setCardCode] = useState("");
   const [submittingAddMember, setSubmittingAddMember] = useState(false);
@@ -136,6 +165,7 @@ export default function SwimOverviewPage() {
   // Promote Lead Modal
   const [promotingLead, setPromotingLead] = useState<SwimLead | null>(null);
   const [promoteGroupId, setPromoteGroupId] = useState("");
+  const [showSolidOnlyPromote, setShowSolidOnlyPromote] = useState(false);
   const [promoteCoachMessage, setPromoteCoachMessage] = useState("");
   const [promoteIssueCard, setPromoteIssueCard] = useState(true);
   const [promoteCardCode, setPromoteCardCode] = useState("");
@@ -147,21 +177,10 @@ export default function SwimOverviewPage() {
   const [newLeadPhone, setNewLeadPhone] = useState("");
   const [newLeadEmail, setNewLeadEmail] = useState("");
   const [newLeadCategory, setNewLeadCategory] = useState("homme");
-  const [newLeadLevel, setNewLeadLevel] = useState("beginner");
-  const [newLeadFrequency, setNewLeadFrequency] = useState("1x");
-  const [newLeadFormula, setNewLeadFormula] = useState("G10");
-  const [newLeadDuration, setNewLeadDuration] = useState("3m");
+  const [newLeadLevel, setNewLeadLevel] = useState("new_aqa");
   const [newLeadPreferredDays, setNewLeadPreferredDays] = useState("");
   const [newLeadNotes, setNewLeadNotes] = useState("");
   const [submittingAddLead, setSubmittingAddLead] = useState(false);
-
-  // Edit Coach Message on the fly
-  const [editingCoachMessageId, setEditingCoachMessageId] = useState<string | null>(null);
-  const [editCoachMessageText, setEditCoachMessageText] = useState("");
-  const [savingCoachMessage, setSavingCoachMessage] = useState(false);
-
-  // Copy Alert state
-  const [copiedLink, setCopiedLink] = useState(false);
 
   async function loadAllData() {
     setLoading(true);
@@ -188,11 +207,6 @@ export default function SwimOverviewPage() {
     loadAllData();
   }, []);
 
-  // Update computed price for add member form
-  const computedPrice = priceOverride
-    ? parseInt(priceOverride, 10)
-    : calculateSwimPrice(category, formula, duration, frequency);
-
   // Filtered Members
   const filteredMembers = useMemo(() => {
     return members.filter((m) => {
@@ -205,7 +219,12 @@ export default function SwimOverviewPage() {
         (m.card?.cardCode && m.card.cardCode.toLowerCase().includes(q)) ||
         (m.group?.name && m.group.name.toLowerCase().includes(q));
 
-      const matchLevel = levelFilter === "all" || m.level === levelFilter;
+      const matchLevel =
+        levelFilter === "all" ||
+        m.level === levelFilter ||
+        (levelFilter === "new_aqa" && m.level === "beginner") ||
+        (levelFilter === "old_aqa" && (m.level === "intermediate" || m.level === "advanced"));
+
       const matchCategory = categoryFilter === "all" || m.category === categoryFilter;
       const matchPayment = paymentFilter === "all" || m.paymentStatus === paymentFilter;
 
@@ -236,7 +255,52 @@ export default function SwimOverviewPage() {
   );
   const pendingLeadsCount = leads.filter((l) => l.status === "pending").length;
 
-  // Handle Add Member Submit (Phone Optional!)
+  // Active coaches for calendar
+  const activeCoaches = useMemo(() => {
+    const names = new Set<string>();
+    groups.forEach((g) => {
+      if (g.coachName) names.add(g.coachName);
+    });
+    return Array.from(names).sort();
+  }, [groups]);
+
+  // Calendar filtered groups
+  const calendarGroups = useMemo(() => {
+    return groups.filter((g) => {
+      if (!g.active) return false;
+      if (calendarCoachFilter !== "all" && g.coachName !== calendarCoachFilter) return false;
+      if (calendarCategoryFilter !== "all" && g.category !== calendarCategoryFilter) return false;
+      return true;
+    });
+  }, [groups, calendarCoachFilter, calendarCategoryFilter]);
+
+  // Helper to parse day and time from group schedule string
+  const parseSchedule = (schedule: string) => {
+    let day = "";
+    let time = "";
+    let location = "";
+
+    for (const d of FRENCH_DAYS) {
+      if (schedule.toLowerCase().includes(d.toLowerCase())) {
+        day = d;
+        break;
+      }
+    }
+
+    const timeMatch = schedule.match(/\b([0-2]?[0-9]:[0-5][0-9])\b/);
+    if (timeMatch) {
+      time = timeMatch[1].padStart(5, "0");
+    }
+
+    const parts = schedule.split("·");
+    if (parts.length > 1) {
+      location = parts[1].trim();
+    }
+
+    return { day, time, location };
+  };
+
+  // Handle Add Member Submit (Formula and Frequency computed later; no auto-price)
   async function handleAddMemberSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmittingAddMember(true);
@@ -246,16 +310,16 @@ export default function SwimOverviewPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName,
-          phone, // Optional
+          phone,
+          whatsapp: whatsappField || null,
           email,
           photoUrl,
           dateOfStart,
           category,
           level,
-          frequency,
-          formula,
-          duration,
-          priceDA: computedPrice,
+          formula: "G10",
+          duration: "3m",
+          priceDA: 0,
           groupId: groupId || null,
           coachMessage,
           notes,
@@ -270,14 +334,15 @@ export default function SwimOverviewPage() {
         setTimeout(() => {
           setAddMemberSuccess(null);
           setShowAddMemberModal(false);
-          // Reset form
           setFullName("");
           setPhone("");
+          setWhatsappField("");
           setEmail("");
           setPhotoUrl("");
           setCoachMessage("");
           setNotes("");
           setCardCode("");
+          setGroupId("");
           loadAllData();
         }, 1500);
       }
@@ -310,10 +375,6 @@ export default function SwimOverviewPage() {
         setPaymentAmount("");
         setPaymentNotes("");
         await loadAllData();
-        if (viewingMember && viewingMember.id === payingMember.id) {
-          const updated = members.find((m) => m.id === payingMember.id);
-          if (updated) setViewingMember(updated);
-        }
       }
     } catch (err) {
       console.error(err);
@@ -385,9 +446,9 @@ export default function SwimOverviewPage() {
           email: newLeadEmail,
           category: newLeadCategory,
           level: newLeadLevel,
-          frequency: newLeadFrequency,
-          formula: newLeadFormula,
-          duration: newLeadDuration,
+          frequency: "1x",
+          formula: "G10",
+          duration: "3m",
           preferredDays: newLeadPreferredDays,
           notes: newLeadNotes,
         }),
@@ -408,36 +469,14 @@ export default function SwimOverviewPage() {
     }
   }
 
-  // Quick Save Coach Message
-  async function handleSaveCoachMessage(memberId: string) {
-    setSavingCoachMessage(true);
-    try {
-      const res = await fetch(`/api/admin/swim/members/${memberId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coachMessage: editCoachMessageText }),
-      });
-      if (res.ok) {
-        setEditingCoachMessageId(null);
-        await loadAllData();
-        if (viewingMember && viewingMember.id === memberId) {
-          setViewingMember((prev) => (prev ? { ...prev, coachMessage: editCoachMessageText } : null));
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSavingCoachMessage(false);
-    }
-  }
-
   // Generate WhatsApp Message for Confirmed Member
   function getWhatsAppUrl(member: SwimMember) {
     if (!member.phone) return null;
     const cleanPhone = member.phone.replace(/[^0-9]/g, "");
     const formattedPhone = cleanPhone.startsWith("0") ? `213${cleanPhone.slice(1)}` : cleanPhone;
-    const groupText = member.group ? `${member.group.name} (${member.group.schedule})` : "En attente d'affectation";
-    const coachText = member.group?.coachName ? `Coach: ${member.group.coachName}` : "";
+    const effectiveGrp = member.effectiveGroup || (!member.effectivelyUnassigned && member.group?.active ? member.group : null);
+    const groupText = effectiveGrp ? `${effectiveGrp.name} (${effectiveGrp.schedule})` : "En attente d'affectation";
+    const coachText = effectiveGrp?.coachName ? `Coach: ${effectiveGrp.coachName}` : "";
     const portalUrl = `https://aqasports.pro/swim/profile/${member.swimId}`;
 
     const text = encodeURIComponent(
@@ -472,22 +511,25 @@ export default function SwimOverviewPage() {
       "Date of Start",
     ];
 
-    const rows = filteredMembers.map((m) => [
-      m.swimId,
-      `"${m.fullName.replace(/"/g, '""')}"`,
-      `"${m.phone || ""}"`,
-      `"${m.email || ""}"`,
-      m.category,
-      m.level,
-      m.formula,
-      m.duration || "3m",
-      m.priceDA,
-      `"${m.group?.name || "Unassigned"}"`,
-      `"${m.group?.coachName || ""}"`,
-      m.paymentStatus,
-      m.groupStatus,
-      new Date(m.dateOfStart).toLocaleDateString("fr-DZ"),
-    ]);
+    const rows = filteredMembers.map((m) => {
+      const effectiveGrp = m.effectiveGroup || (!m.effectivelyUnassigned && m.group?.active ? m.group : null);
+      return [
+        m.swimId,
+        `"${m.fullName.replace(/"/g, '""')}"`,
+        `"${m.phone || ""}"`,
+        `"${m.email || ""}"`,
+        m.category,
+        getSwimLevelLabel(m.level),
+        m.formula,
+        m.duration || "3m",
+        m.priceDA,
+        `"${effectiveGrp?.name || "Unassigned"}"`,
+        `"${effectiveGrp?.coachName || ""}"`,
+        m.paymentStatus,
+        m.groupStatus,
+        new Date(m.dateOfStart).toLocaleDateString("fr-DZ"),
+      ];
+    });
 
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -534,6 +576,35 @@ export default function SwimOverviewPage() {
       actionText: "Generate & Print",
     },
   ];
+
+  // Eligible groups for Add Member modal (category-scoped + optional solid filter)
+  const addMemberEligibleGroups = useMemo(() => {
+    return groups.filter((g) => {
+      if (!g.active) return false;
+      if (g.category !== category) return false;
+      if (showSolidOnlyAdd && !g.isSolid) return false;
+      return true;
+    });
+  }, [groups, category, showSolidOnlyAdd]);
+
+  // Eligible groups for Promote Lead modal (category-scoped + optional solid filter)
+  const promoteLeadEligibleGroups = useMemo(() => {
+    if (!promotingLead) return [];
+    return groups.filter((g) => {
+      if (!g.active) return false;
+      if (g.category !== promotingLead.category) return false;
+      if (showSolidOnlyPromote && !g.isSolid) return false;
+      return true;
+    });
+  }, [groups, promotingLead, showSolidOnlyPromote]);
+
+  // Groups tab categorized items
+  const filteredGroupsList = useMemo(() => {
+    return groups.filter((g) => {
+      if (groupsCategoryFilter !== "all" && g.category !== groupsCategoryFilter) return false;
+      return true;
+    });
+  }, [groups, groupsCategoryFilter]);
 
   return (
     <div className="space-y-6">
@@ -590,7 +661,7 @@ export default function SwimOverviewPage() {
         />
         <StatCard
           label="Active Groups"
-          value={groups.length}
+          value={groups.filter((g) => g.active).length}
           animated
           hint="Configured training slots"
           icon={
@@ -613,7 +684,7 @@ export default function SwimOverviewPage() {
 
       {/* Main Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
-        <div className="flex bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] gap-1">
+        <div className="flex flex-wrap bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] gap-1">
           <button
             onClick={() => setActiveTab("confirmed")}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
@@ -622,7 +693,7 @@ export default function SwimOverviewPage() {
                 : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
             }`}
           >
-            <span>Confirmed Swimmers & Profiles</span>
+            <span>Confirmed Swimmers</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-950 text-sky-300 border border-sky-800/40">
               {members.length}
             </span>
@@ -653,6 +724,17 @@ export default function SwimOverviewPage() {
             }`}
           >
             Training Groups ({groups.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab("calendar")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === "calendar"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+            }`}
+          >
+            <span>Coach Calendar</span>
           </button>
 
           <button
@@ -713,9 +795,8 @@ export default function SwimOverviewPage() {
               className="px-3 py-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs text-slate-200 focus:outline-none focus:border-cyan-400"
             >
               <option value="all">All Levels</option>
-              <option value="beginner">Debutante</option>
-              <option value="intermediate">Intermediaire</option>
-              <option value="advanced">Avance</option>
+              <option value="new_aqa">New AQA Member</option>
+              <option value="old_aqa">Old AQA Member</option>
             </select>
 
             <select
@@ -742,8 +823,8 @@ export default function SwimOverviewPage() {
                   <tr className="border-b border-[var(--border)] text-[var(--muted)] uppercase tracking-wider">
                     <th className="py-3 px-4">Swimmer ID</th>
                     <th className="py-3 px-4">Client</th>
-                    <th className="py-3 px-4">Level & Formula</th>
-                    <th className="py-3 px-4">Solid Group</th>
+                    <th className="py-3 px-4">Level</th>
+                    <th className="py-3 px-4">Group Assignment</th>
                     <th className="py-3 px-4">Client Status</th>
                     <th className="py-3 px-4">Payment</th>
                     <th className="py-3 px-4">PVC Pass</th>
@@ -766,16 +847,19 @@ export default function SwimOverviewPage() {
                   ) : (
                     filteredMembers.map((m) => {
                       const waUrl = getWhatsAppUrl(m);
+                      const effectiveGrp = m.effectiveGroup || (!m.effectivelyUnassigned && m.group?.active ? m.group : null);
+                      const isArchived = m.effectivelyUnassigned || (m.group && !m.group.active);
+
                       return (
                         <tr key={m.id} className="hover:bg-white/[0.02] transition-colors">
                           <td className="py-3 px-4 font-mono">
-                            <button
-                              onClick={() => setViewingMember(m)}
+                            <Link
+                              href={`/admin/swim/members/${m.swimId}`}
                               className="text-cyan-400 font-bold hover:underline inline-flex items-center gap-1"
-                              title="Inspect Full Profile Dossier"
+                              title="Open Full Swimmer Profile Page"
                             >
                               <span>{m.swimId}</span>
-                            </button>
+                            </Link>
                           </td>
 
                           <td className="py-3 px-4">
@@ -792,7 +876,12 @@ export default function SwimOverviewPage() {
                                 </div>
                               )}
                               <div>
-                                <div className="font-bold text-white">{m.fullName}</div>
+                                <Link
+                                  href={`/admin/swim/members/${m.swimId}`}
+                                  className="font-bold text-white hover:text-cyan-400 transition-colors"
+                                >
+                                  {m.fullName}
+                                </Link>
                                 <div className="text-[11px] text-[var(--muted)] flex items-center gap-2">
                                   {m.phone ? (
                                     <span className="font-mono text-cyan-400/90">{m.phone}</span>
@@ -806,21 +895,26 @@ export default function SwimOverviewPage() {
                           </td>
 
                           <td className="py-3 px-4">
-                            <div className="font-semibold text-slate-200 capitalize">
-                              {m.level}
+                            <div className="font-semibold text-slate-200">
+                              {getSwimLevelLabel(m.level)}
                             </div>
                             <div className="text-[11px] text-[var(--muted)]">
-                              {m.formula} ({m.duration || "3m"})
+                              Type: {m.formula}
                             </div>
                           </td>
 
                           <td className="py-3 px-4">
-                            {m.group ? (
+                            {effectiveGrp ? (
                               <div>
-                                <div className="font-semibold text-white">{m.group.name}</div>
+                                <div className="font-semibold text-white">{effectiveGrp.name}</div>
                                 <div className="text-[10px] text-cyan-400">
-                                  {m.group.coachName ? `Coach: ${m.group.coachName}` : m.group.schedule}
+                                  {effectiveGrp.coachName ? `Coach: ${effectiveGrp.coachName}` : effectiveGrp.schedule}
                                 </div>
+                              </div>
+                            ) : isArchived ? (
+                              <div>
+                                <span className="text-amber-400 font-semibold">Unassigned</span>
+                                <div className="text-[10px] text-slate-500 italic">Group archived</div>
                               </div>
                             ) : (
                               <span className="text-[var(--muted)] italic">Unassigned</span>
@@ -883,13 +977,12 @@ export default function SwimOverviewPage() {
                               + Pay
                             </Button>
 
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              onClick={() => setViewingMember(m)}
+                            <Link
+                              href={`/admin/swim/members/${m.swimId}`}
+                              className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-cyan-400 font-semibold text-xs transition-colors border border-white/10"
                             >
                               Profile
-                            </Button>
+                            </Link>
                           </td>
                         </tr>
                       );
@@ -987,7 +1080,7 @@ export default function SwimOverviewPage() {
 
                           <td className="py-3 px-4">
                             <div className="capitalize font-semibold text-slate-200">{lead.category}</div>
-                            <div className="text-[11px] text-[var(--muted)] capitalize">{lead.level}</div>
+                            <div className="text-[11px] text-[var(--muted)]">{getSwimLevelLabel(lead.level)}</div>
                           </td>
 
                           <td className="py-3 px-4">
@@ -1070,10 +1163,24 @@ export default function SwimOverviewPage() {
       {/* TAB 3: TRAINING GROUPS */}
       {activeTab === "groups" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              Active Swim Groups ({groups.length})
-            </h3>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--muted)] font-semibold">Category:</span>
+              {["all", "homme", "femme", "enfants", "apnea"].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setGroupsCategoryFilter(cat)}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize transition-colors ${
+                    groupsCategoryFilter === cat
+                      ? "bg-cyan-500 text-slate-950"
+                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  {cat === "all" ? "All Groups" : cat}
+                </button>
+              ))}
+            </div>
+
             <Link
               href="/admin/swim/groups"
               className="text-xs text-cyan-400 hover:underline font-semibold"
@@ -1083,24 +1190,45 @@ export default function SwimOverviewPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {groups.map((g) => {
-              const enrolledCount = members.filter((m) => m.group?.id === g.id).length;
-              const capPercent = Math.min(100, Math.round((enrolledCount / (g.capacity || 20)) * 100));
+            {filteredGroupsList.map((g) => {
+              const enrolledCount = members.filter((m) => {
+                const eff = m.effectiveGroup || (!m.effectivelyUnassigned && m.group?.active ? m.group : null);
+                return eff?.id === g.id;
+              }).length;
+              const capPercent = Math.min(100, Math.round((enrolledCount / (g.capacity || 10)) * 100));
 
               return (
                 <div
                   key={g.id}
-                  className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 space-y-3 flex flex-col justify-between"
+                  className={`rounded-2xl border bg-[var(--surface)] p-4 space-y-3 flex flex-col justify-between ${
+                    g.active ? "border-[var(--border)]" : "border-white/5 opacity-60"
+                  }`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-bold text-white text-sm">{g.name}</h4>
+                      <div>
+                        <h4 className="font-bold text-white text-sm">{g.name}</h4>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                            {g.category}
+                          </span>
+                          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-cyan-950/70 text-cyan-400">
+                            {g.level}
+                          </span>
+                          {g.isSolid && (
+                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-emerald-950/70 text-emerald-400 border border-emerald-800/40">
+                              Solid
+                            </span>
+                          )}
+                          {!g.active && <Badge tone="danger">Archived</Badge>}
+                        </div>
+                      </div>
                       <Badge tone={enrolledCount >= g.capacity ? "danger" : "info"}>
-                        {enrolledCount} / {g.capacity || 20}
+                        {enrolledCount} / {g.capacity || 10}
                       </Badge>
                     </div>
 
-                    <div className="text-xs text-slate-300 mt-1">
+                    <div className="text-xs text-slate-300 mt-2">
                       {g.coachName ? `Coach: ${g.coachName}` : "Coach unassigned"}
                     </div>
                     <div className="text-xs text-[var(--muted)] mt-0.5">
@@ -1128,7 +1256,7 @@ export default function SwimOverviewPage() {
                     href={`/admin/swim/groups`}
                     className="block text-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 transition-colors"
                   >
-                    View Group Roster
+                    Manage Roster in Groups Manager
                   </Link>
                 </div>
               );
@@ -1137,7 +1265,149 @@ export default function SwimOverviewPage() {
         </div>
       )}
 
-      {/* TAB 4: PVC CARDS */}
+      {/* TAB 4: COACH CALENDAR */}
+      {activeTab === "calendar" && (
+        <div className="space-y-4">
+          {/* Calendar Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
+            <div className="flex flex-wrap items-center gap-3">
+              <div>
+                <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-1">
+                  Filter by Coach
+                </label>
+                <select
+                  value={calendarCoachFilter}
+                  onChange={(e) => setCalendarCoachFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="all">All Coaches ({activeCoaches.length})</option>
+                  {activeCoaches.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-slate-400 uppercase font-semibold mb-1">
+                  Filter by Category
+                </label>
+                <select
+                  value={calendarCategoryFilter}
+                  onChange={(e) => setCalendarCategoryFilter(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="homme">Homme</option>
+                  <option value="femme">Femme</option>
+                  <option value="enfants">Enfants</option>
+                  <option value="apnea">Apnee</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-xs text-[var(--muted)] font-mono">
+              {calendarGroups.length} active sessions scheduled
+            </div>
+          </div>
+
+          {/* Weekly Calendar Grid */}
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[900px]">
+                <thead>
+                  <tr className="border-b border-[var(--border)] bg-slate-900/60">
+                    <th className="py-3 px-3 w-20 text-[11px] font-semibold text-[var(--muted)] text-center uppercase tracking-wider">
+                      Time
+                    </th>
+                    {FRENCH_DAYS.map((day) => (
+                      <th
+                        key={day}
+                        className="py-3 px-3 text-xs font-bold text-white text-center border-l border-white/5"
+                      >
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-xs">
+                  {SWIM_TIME_SLOTS.map((timeSlot) => {
+                    return (
+                      <tr key={timeSlot} className="hover:bg-white/[0.01]">
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--muted)] text-center bg-slate-900/30">
+                          {timeSlot}
+                        </td>
+                        {FRENCH_DAYS.map((day) => {
+                          // Find groups matching this day and time
+                          const matchingGroups = calendarGroups.filter((g) => {
+                            const parsed = parseSchedule(g.schedule);
+                            return (
+                              parsed.day.toLowerCase() === day.toLowerCase() &&
+                              parsed.time === timeSlot
+                            );
+                          });
+
+                          return (
+                            <td
+                              key={`${day}-${timeSlot}`}
+                              className="py-2 px-2 border-l border-white/5 align-top min-w-[120px]"
+                            >
+                              {matchingGroups.length > 0 ? (
+                                <div className="space-y-1.5">
+                                  {matchingGroups.map((grp) => {
+                                    const parsed = parseSchedule(grp.schedule);
+                                    const enrolled = members.filter((m) => {
+                                      const eff = m.effectiveGroup || (!m.effectivelyUnassigned && m.group?.active ? m.group : null);
+                                      return eff?.id === grp.id;
+                                    }).length;
+
+                                    return (
+                                      <div
+                                        key={grp.id}
+                                        onClick={() => router.push("/admin/swim/groups")}
+                                        className={`p-2 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] shadow-sm ${
+                                          grp.level === "G10"
+                                            ? "bg-sky-950/60 border-sky-600/40 text-sky-200"
+                                            : grp.level === "MAX5"
+                                            ? "bg-indigo-950/60 border-indigo-600/40 text-indigo-200"
+                                            : "bg-teal-950/60 border-teal-600/40 text-teal-200"
+                                        }`}
+                                      >
+                                        <div className="font-bold text-[11px] leading-tight text-white">
+                                          {grp.name}
+                                        </div>
+                                        <div className="text-[10px] text-cyan-300 font-semibold mt-0.5">
+                                          Coach: {grp.coachName || "Unassigned"}
+                                        </div>
+                                        {parsed.location && (
+                                          <div className="text-[9px] text-slate-300 truncate">
+                                            {parsed.location}
+                                          </div>
+                                        )}
+                                        <div className="flex items-center justify-between gap-1 mt-1 pt-1 border-t border-white/10 text-[9px]">
+                                          <span className="uppercase font-semibold">{grp.category}</span>
+                                          <span className="font-mono font-bold text-white">
+                                            {enrolled}/{grp.capacity}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 5: PVC CARDS */}
       {activeTab === "cards" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -1203,7 +1473,7 @@ export default function SwimOverviewPage() {
         </div>
       )}
 
-      {/* TAB 5: SECTORS OVERVIEW */}
+      {/* TAB 6: SECTORS OVERVIEW */}
       {activeTab === "sectors" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {sectors.map((sec) => (
@@ -1231,268 +1501,15 @@ export default function SwimOverviewPage() {
         </div>
       )}
 
-      {/* ─── FULL SWIMMER PROFILE DOSSIER MODAL ───────────────────────── */}
-      {viewingMember && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="max-w-2xl w-full bg-slate-900 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5 my-auto max-h-[92vh] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="flex items-start justify-between pb-4 border-b border-white/10">
-              <div className="flex items-center gap-3">
-                {viewingMember.photoUrl ? (
-                  <img
-                    src={viewingMember.photoUrl}
-                    alt=""
-                    className="h-14 w-14 rounded-2xl object-cover border border-cyan-400/40"
-                  />
-                ) : (
-                  <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-slate-950 font-black text-xl flex items-center justify-center">
-                    {viewingMember.fullName.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-bold text-white">{viewingMember.fullName}</h3>
-                    <Badge tone="info">{viewingMember.swimId}</Badge>
-                  </div>
-                  <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
-                    {viewingMember.phone ? (
-                      <span className="font-mono text-cyan-400">{viewingMember.phone}</span>
-                    ) : (
-                      <span className="italic text-slate-500">No phone provided</span>
-                    )}
-                    {viewingMember.email && <span>· {viewingMember.email}</span>}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setViewingMember(null)}
-                className="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg hover:bg-slate-800"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Profile Overview Details */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Category</span>
-                <p className="text-xs font-bold text-white capitalize mt-0.5">{viewingMember.category}</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Level</span>
-                <p className="text-xs font-bold text-white capitalize mt-0.5">{viewingMember.level}</p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Formula</span>
-                <p className="text-xs font-bold text-cyan-300 mt-0.5">
-                  {viewingMember.formula} ({viewingMember.duration || "3m"})
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5">
-                <span className="text-[10px] text-slate-400 uppercase font-semibold">Start Date</span>
-                <p className="text-xs font-mono font-bold text-slate-200 mt-0.5">
-                  {new Date(viewingMember.dateOfStart).toLocaleDateString("fr-DZ")}
-                </p>
-              </div>
-            </div>
-
-            {/* Solid Group Card */}
-            <div className="p-4 rounded-xl bg-slate-800/70 border border-white/10 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  Assigned Solid Group
-                </span>
-                {viewingMember.groupStatus === "accepted" && <Badge tone="success">Confirmed & Accepted</Badge>}
-                {viewingMember.groupStatus === "proposed" && <Badge tone="warning">Awaiting Confirmation</Badge>}
-                {viewingMember.groupStatus === "rejected" && <Badge tone="danger">Change Requested</Badge>}
-              </div>
-
-              {viewingMember.group ? (
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Group:</span>
-                    <span className="font-bold text-white">{viewingMember.group.name}</span>
-                  </div>
-                  {viewingMember.group.coachName && (
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Coach:</span>
-                      <span className="font-semibold text-cyan-300">{viewingMember.group.coachName}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Weekly Schedule:</span>
-                    <span className="text-slate-200">{viewingMember.group.schedule}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs italic text-slate-400">No solid group assigned yet.</p>
-              )}
-            </div>
-
-            {/* Word From Coach */}
-            <div className="p-4 rounded-xl bg-gradient-to-br from-sky-950/40 to-slate-900 border border-sky-500/30 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">
-                  Word From Your Coach
-                </span>
-                {editingCoachMessageId !== viewingMember.id && (
-                  <button
-                    onClick={() => {
-                      setEditingCoachMessageId(viewingMember.id);
-                      setEditCoachMessageText(viewingMember.coachMessage || "");
-                    }}
-                    className="text-[11px] text-cyan-400 hover:underline"
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-
-              {editingCoachMessageId === viewingMember.id ? (
-                <div className="space-y-2">
-                  <textarea
-                    value={editCoachMessageText}
-                    onChange={(e) => setEditCoachMessageText(e.target.value)}
-                    rows={3}
-                    placeholder="e.g. Bienvenue dans l'equipe! On commence lundi..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setEditingCoachMessageId(null)}
-                      className="px-3 py-1 rounded-lg bg-slate-800 text-xs text-slate-400"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={savingCoachMessage}
-                      onClick={() => handleSaveCoachMessage(viewingMember.id)}
-                      className="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs"
-                    >
-                      Save Note
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-xs italic text-slate-200 leading-relaxed">
-                  {viewingMember.coachMessage
-                    ? `“${viewingMember.coachMessage}”`
-                    : "No personal coach note added yet."}
-                </p>
-              )}
-            </div>
-
-            {/* Financial Ledger & Payments */}
-            <div className="p-4 rounded-xl bg-slate-800/60 border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">
-                    Financial Ledger
-                  </span>
-                  <p className="text-[11px] text-slate-400">
-                    Total: {viewingMember.priceDA.toLocaleString("fr-DZ")} DA · Paid:{" "}
-                    {(viewingMember.payments
-                      ? viewingMember.payments.reduce((s, p) => s + p.amount, 0)
-                      : 0
-                    ).toLocaleString("fr-DZ")}{" "}
-                    DA
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setPayingMember(viewingMember);
-                    setPaymentAmount(String(viewingMember.priceDA));
-                  }}
-                >
-                  + Add Payment
-                </Button>
-              </div>
-
-              {viewingMember.payments && viewingMember.payments.length > 0 ? (
-                <div className="divide-y divide-white/5 max-h-32 overflow-y-auto">
-                  {viewingMember.payments.map((p) => (
-                    <div key={p.id} className="py-2 flex items-center justify-between text-xs font-mono">
-                      <div>
-                        <span className="text-emerald-400 font-bold">+{p.amount.toLocaleString("fr-DZ")} DA</span>
-                        <span className="text-slate-400 ml-2 capitalize">({p.method})</span>
-                        {p.notes && <span className="text-slate-500 ml-2">- {p.notes}</span>}
-                      </div>
-                      <span className="text-slate-500 text-[11px]">
-                        {new Date(p.paidAt).toLocaleDateString("fr-DZ")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs italic text-slate-400">No payment receipts logged yet.</p>
-              )}
-            </div>
-
-            {/* Quick Action Buttons */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/10">
-              <div className="flex flex-wrap gap-2">
-                {getWhatsAppUrl(viewingMember) && (
-                  <a
-                    href={getWhatsAppUrl(viewingMember)!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
-                  >
-                    <span>Send WhatsApp Invite</span>
-                  </a>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(`https://aqasports.pro/swim/profile/${viewingMember.swimId}`);
-                    setCopiedLink(true);
-                    setTimeout(() => setCopiedLink(false), 2000);
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-semibold text-xs border border-white/10 transition-colors"
-                >
-                  {copiedLink ? "Copied Link!" : "Copy Portal URL"}
-                </button>
-
-                <Link
-                  href={`/swim/profile/${viewingMember.swimId}`}
-                  target="_blank"
-                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-white/10 transition-colors"
-                >
-                  Open Client Portal ↗
-                </Link>
-              </div>
-
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setViewingMember(null)}
-              >
-                Close Dossier
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── ADD SWIMMER MODAL (PHONE NOT REQUIRED) ───────────────────── */}
+      {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}
       {showAddMemberModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="max-w-xl w-full bg-slate-900 border border-white/10 rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col max-h-[92vh] my-auto">
-            {/* Modal Header */}
             <div className="flex items-start justify-between pb-3 border-b border-white/10 shrink-0">
               <div>
                 <h3 className="text-base font-bold text-white">Add Swimmer Profile</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Register a confirmed swimmer. Phone is optional. System automatically creates Swimmer ID (SWM-XXXXXX).
+                  Register a swimmer. Level is New or Old AQA Member. Formula and frequency are managed through group enrollment.
                 </p>
               </div>
               <button
@@ -1568,12 +1585,15 @@ export default function SwimOverviewPage() {
                     </label>
                     <select
                       value={category}
-                      onChange={(e) => setCategory(e.target.value as SwimCategory)}
+                      onChange={(e) => {
+                        setCategory(e.target.value);
+                        setGroupId(""); // Reset group if category changes
+                      }}
                       className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                     >
-                      <option value="homme">Homme (Adults)</option>
-                      <option value="femme">Femme (Adults)</option>
-                      <option value="enfants">Enfants (Kids)</option>
+                      <option value="homme">Homme</option>
+                      <option value="femme">Femme</option>
+                      <option value="enfants">Enfants</option>
                       <option value="apnea">Apnee</option>
                     </select>
                   </div>
@@ -1586,134 +1606,45 @@ export default function SwimOverviewPage() {
                       onChange={(e) => setLevel(e.target.value)}
                       className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                     >
-                      <option value="beginner">Debutante / Apprentissage</option>
-                      <option value="intermediate">Intermediaire / Perfectionnement</option>
-                      <option value="advanced">Avance / Performance</option>
+                      <option value="new_aqa">New AQA Member</option>
+                      <option value="old_aqa">Old AQA Member</option>
                     </select>
                   </div>
                 </div>
 
-                {category !== "enfants" && category !== "apnea" && (
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Frequency
-                      </label>
-                      <select
-                        value={frequency}
-                        onChange={(e) => setFrequency(e.target.value as SwimFrequency)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                      >
-                        <option value="1x">1x / semaine</option>
-                        <option value="2x">2x / semaine</option>
-                        <option value="3x">3x / semaine</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Formula *
-                      </label>
-                      <select
-                        value={formula}
-                        onChange={(e) => setFormula(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                      >
-                        <option value="G10">G10 (Groupe 10)</option>
-                        <option value="MAX5">MAX5 (Max 5)</option>
-                        <option value="INDIVID">INDIVID (Personnel)</option>
-                        {frequency === "2x" && (
-                          <>
-                            <option value="2G10">2G10</option>
-                            <option value="2MAX5">2MAX5</option>
-                            <option value="G10MAX5">G10MAX5</option>
-                            <option value="2INDIVID">2INDIVID</option>
-                          </>
-                        )}
-                        {frequency === "3x" && (
-                          <>
-                            <option value="3G10">3G10</option>
-                            <option value="3MAX5">3MAX5</option>
-                            <option value="3INDIVID">3INDIVID</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-300 mb-1">
-                        Duration *
-                      </label>
-                      <select
-                        value={duration}
-                        onChange={(e) => setDuration(e.target.value as SwimDuration)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                      >
-                        <option value="1m">1 Mois</option>
-                        <option value="3m">3 Mois (Trimestre)</option>
-                        <option value="6m">6 Mois (Semestre)</option>
-                        <option value="9m">9 Mois (Annuel)</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-
-                {category === "enfants" && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Kids Formula *
+                {/* Group Assignment with Solid toggle & Category scoped */}
+                <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Assign Group ({category})
                     </label>
-                    <select
-                      value={formula}
-                      onChange={(e) => setFormula(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                    >
-                      <option value="Decouverte">Decouverte (Trimestre 3m - 28,700 DA)</option>
-                      <option value="Recommande">Recommande (Semestre 6m - 46,500 DA)</option>
-                      <option value="Economique">Economique (Annuel 9m - 65,800 DA)</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Price Display */}
-                <div className="p-3 rounded-xl bg-slate-800/80 border border-cyan-500/20 flex items-center justify-between">
-                  <div>
-                    <span className="text-[11px] text-slate-400 uppercase font-semibold">
-                      Calculated Price
-                    </span>
-                    <p className="text-base font-bold text-cyan-400 font-mono">
-                      {computedPrice.toLocaleString("fr-DZ")} DA
-                    </p>
-                  </div>
-                  <div className="w-36">
-                    <label className="block text-[10px] text-slate-400 mb-0.5">
-                      Price Override (DA)
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={showSolidOnlyAdd}
+                        onChange={(e) => setShowSolidOnlyAdd(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-cyan-500 rounded"
+                      />
+                      <span>Show Solid Only</span>
                     </label>
-                    <input
-                      type="number"
-                      value={priceOverride}
-                      onChange={(e) => setPriceOverride(e.target.value)}
-                      placeholder="Optional"
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
-                    />
                   </div>
-                </div>
-
-                {/* Solid Group assignment */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Assign Solid Group
-                  </label>
                   <select
                     value={groupId}
                     onChange={(e) => setGroupId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                   >
                     <option value="">No group assigned yet (Awaiting allocation)</option>
-                    {groups.map((g) => (
+                    {addMemberEligibleGroups.map((g) => (
                       <option key={g.id} value={g.id}>
-                        {g.name} ({g.level} - Coach: {g.coachName || "Unassigned"} - {g.schedule})
+                        {g.name} ({g.level} - Coach: {g.coachName || "Unassigned"} - {g.schedule}) {g.isSolid ? "[SOLID]" : ""}
                       </option>
                     ))}
                   </select>
+                  {addMemberEligibleGroups.length === 0 && (
+                    <p className="text-[11px] text-amber-400/90 italic">
+                      No active {showSolidOnlyAdd ? "solid " : ""}groups found for category &quot;{category}&quot;.
+                    </p>
+                  )}
                 </div>
 
                 {/* Coach message */}
@@ -1788,8 +1719,7 @@ export default function SwimOverviewPage() {
               Record Swim Payment: {payingMember.fullName}
             </h3>
             <p className="text-xs text-slate-400">
-              Swimmer ID: <span className="font-mono text-cyan-300">{payingMember.swimId}</span> · Formula:{" "}
-              {payingMember.formula} ({payingMember.priceDA.toLocaleString("fr-DZ")} DA)
+              Swimmer ID: <span className="font-mono text-cyan-300">{payingMember.swimId}</span>
             </p>
 
             <form onSubmit={handlePaymentSubmit} className="space-y-4">
@@ -1864,26 +1794,42 @@ export default function SwimOverviewPage() {
               Confirm & Promote Swimmer: {promotingLead.fullName}
             </h3>
             <p className="text-xs text-slate-400">
-              Assign a training group and configure official pass access.
+              Assign a training group ({promotingLead.category}) and configure official pass access.
             </p>
 
             <form onSubmit={handlePromoteSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Propose Solid Group
-                </label>
+              <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-300">
+                    Propose Group ({promotingLead.category})
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={showSolidOnlyPromote}
+                      onChange={(e) => setShowSolidOnlyPromote(e.target.checked)}
+                      className="h-3.5 w-3.5 accent-cyan-500 rounded"
+                    />
+                    <span>Show Solid Only</span>
+                  </label>
+                </div>
                 <select
                   value={promoteGroupId}
                   onChange={(e) => setPromoteGroupId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                 >
                   <option value="">No group assigned yet</option>
-                  {groups.map((g) => (
+                  {promoteLeadEligibleGroups.map((g) => (
                     <option key={g.id} value={g.id}>
-                      {g.name} ({g.level} - Coach: {g.coachName || "Unassigned"} - {g.schedule})
+                      {g.name} ({g.level} - Coach: {g.coachName || "Unassigned"} - {g.schedule}) {g.isSolid ? "[SOLID]" : ""}
                     </option>
                   ))}
                 </select>
+                {promoteLeadEligibleGroups.length === 0 && (
+                  <p className="text-[11px] text-amber-400/90 italic">
+                    No active {showSolidOnlyPromote ? "solid " : ""}groups found for category &quot;{promotingLead.category}&quot;.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -2004,9 +1950,8 @@ export default function SwimOverviewPage() {
                     onChange={(e) => setNewLeadLevel(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                   >
-                    <option value="beginner">Debutante</option>
-                    <option value="intermediate">Intermediaire</option>
-                    <option value="advanced">Avance</option>
+                    <option value="new_aqa">New AQA Member</option>
+                    <option value="old_aqa">Old AQA Member</option>
                   </select>
                 </div>
               </div>
@@ -2060,4 +2005,3 @@ export default function SwimOverviewPage() {
     </div>
   );
 }
-

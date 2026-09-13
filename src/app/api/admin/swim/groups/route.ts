@@ -6,12 +6,30 @@ import { decodeSolidNotes, encodeSolidNotes } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const { session, error } = await requireAdminSession();
   if (error || !session) return error;
 
+  const { searchParams } = new URL(request.url);
+  const category = searchParams.get("category");
+  const activeParam = searchParams.get("active");
+
   try {
+    const where: Record<string, unknown> = {};
+
+    if (category && category !== "all") {
+      where.category = category;
+    }
+
+    if (activeParam === "true") {
+      where.active = true;
+    } else if (activeParam === "false") {
+      where.active = false;
+    }
+    // If activeParam is null/missing, return all groups (no active filter)
+
     const groups = await prisma.swimGroup.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       include: {
         _count: {

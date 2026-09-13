@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useId, useCallback } from "react";
+import Link from "next/link";
 import { PageHeader, Badge, Button, Input } from "@/components/admin/ui";
 import {
   FRENCH_DAYS,
@@ -11,13 +12,16 @@ import {
   SwimGroupType,
   generateSwimGroupName,
   decodeSolidNotes,
+  getSwimLevelLabel,
 } from "@/lib/swim-groups";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SwimGroup {
   id: string;
   name: string;
   category: string;
-  level: string; // Used as Type: G10, MAX5, indiv
+  level: string;
   coachName: string | null;
   schedule: string;
   capacity: number;
@@ -26,9 +30,7 @@ interface SwimGroup {
   isSolid?: boolean;
   cleanNotes?: string;
   createdAt: string;
-  _count?: {
-    swimmers: number;
-  };
+  _count?: { swimmers: number };
 }
 
 interface Coach {
@@ -39,18 +41,44 @@ interface Coach {
   active: boolean;
 }
 
-interface GroupDetail extends SwimGroup {
-  swimmers: Array<{
-    id: string;
-    swimId: string;
-    fullName: string;
-    phone: string;
-    level: string;
-    paymentStatus: string;
-    groupStatus: string;
-    card: { cardCode: string } | null;
-  }>;
+interface SwimmerInGroup {
+  id: string;
+  swimId: string;
+  fullName: string;
+  phone: string;
+  level: string;
+  paymentStatus: string;
+  groupStatus: string;
+  card: { cardCode: string } | null;
 }
+
+interface GroupDetail extends SwimGroup {
+  swimmers: SwimmerInGroup[];
+}
+
+interface SwimMemberSearch {
+  id: string;
+  swimId: string;
+  fullName: string;
+  phone: string;
+  level: string;
+  category: string;
+  groupId: string | null;
+  formula: string;
+  effectivelyUnassigned?: boolean;
+  group: { active: boolean; name: string; id: string } | null;
+}
+
+const CATEGORIES = ["homme", "femme", "enfants", "apnea"] as const;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  homme: "Homme",
+  femme: "Femme",
+  enfants: "Enfants",
+  apnea: "Apnee",
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SwimGroupsPage() {
   const [groups, setGroups] = useState<SwimGroup[]>([]);
@@ -58,14 +86,14 @@ export default function SwimGroupsPage() {
   const [locations, setLocations] = useState<string[]>([...DEFAULT_SWIM_LOCATIONS]);
   const [loading, setLoading] = useState(true);
 
-  // Filters & Search
+  // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [solidFilter, setSolidFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("active");
 
-  // Add Group Modal State
+  // Add Group Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [addName, setAddName] = useState("");
   const [addCategory, setAddCategory] = useState("homme");
@@ -80,7 +108,7 @@ export default function SwimGroupsPage() {
   const [nameManuallyEdited, setNameManuallyEdited] = useState(false);
   const [submittingAdd, setSubmittingAdd] = useState(false);
 
-  // Edit Group Modal State
+  // Edit Group Modal
   const [editingGroup, setEditingGroup] = useState<SwimGroup | null>(null);
   const [editName, setEditName] = useState("");
   const [editCategory, setEditCategory] = useState("homme");
@@ -94,7 +122,7 @@ export default function SwimGroupsPage() {
   const [editNotes, setEditNotes] = useState("");
   const [submittingEdit, setSubmittingEdit] = useState(false);
 
-  // Preferences Modal State
+  // Preferences Modal
   const [showPreferencesModal, setShowPreferencesModal] = useState(false);
   const [newCoachName, setNewCoachName] = useState("");
   const [newCoachPhone, setNewCoachPhone] = useState("");
@@ -103,9 +131,16 @@ export default function SwimGroupsPage() {
   const [newLocationName, setNewLocationName] = useState("");
   const [savingLocation, setSavingLocation] = useState(false);
 
-  // View Group Detail Modal
+  // Group Detail Modal (Roster Manager)
   const [selectedGroup, setSelectedGroup] = useState<GroupDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  // Assign swimmer search
+  const [searchAssignQuery, setSearchAssignQuery] = useState("");
+  const [searchAssignResults, setSearchAssignResults] = useState<SwimMemberSearch[]>([]);
+  const [searchingAssign, setSearchingAssign] = useState(false);
+  const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   // Accessible Form IDs
   const addCategoryId = useId();
@@ -118,7 +153,6 @@ export default function SwimGroupsPage() {
   const addCapacityId = useId();
   const addNotesId = useId();
   const addSolidId = useId();
-
   const editCategoryId = useId();
   const editTypeId = useId();
   const editCoachId = useId();
@@ -129,11 +163,12 @@ export default function SwimGroupsPage() {
   const editCapacityId = useId();
   const editNotesId = useId();
   const editSolidId = useId();
-
   const prefCoachNameId = useId();
   const prefCoachPhoneId = useId();
   const prefCoachSpecId = useId();
   const prefLocNameId = useId();
+
+  // ─── Data Loading ───────────────────────────────────────────────────────────
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -172,13 +207,44 @@ export default function SwimGroupsPage() {
     loadData();
   }, [loadData]);
 
-  // Update auto-generated name for Add Modal if user hasn't manually overridden it
+  // Auto-generate group name when add modal fields change
   useEffect(() => {
     if (!nameManuallyEdited) {
       const generated = generateSwimGroupName(addDay, addTime, addCoach, addLocation);
       setAddName(generated);
     }
   }, [addDay, addTime, addCoach, addLocation, nameManuallyEdited]);
+
+  // Search assign swimmers (debounced)
+  useEffect(() => {
+    if (!selectedGroup || !searchAssignQuery.trim() || searchAssignQuery.trim().length < 2) {
+      setSearchAssignResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchingAssign(true);
+      try {
+        const res = await fetch(`/api/admin/swim/members?q=${encodeURIComponent(searchAssignQuery)}`);
+        if (res.ok) {
+          const all: SwimMemberSearch[] = await res.json();
+          const eligible = all.filter((m) => {
+            if (m.category !== selectedGroup.category) return false;
+            // Already in this group
+            if (m.groupId === selectedGroup.id) return false;
+            // In another active group
+            if (m.groupId && m.group && m.group.active && m.group.id !== selectedGroup.id) return false;
+            return true;
+          });
+          setSearchAssignResults(eligible);
+        }
+      } finally {
+        setSearchingAssign(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchAssignQuery, selectedGroup]);
+
+  // ─── Handlers ───────────────────────────────────────────────────────────────
 
   function handleTypeChange(newType: SwimGroupType) {
     setAddType(newType);
@@ -204,17 +270,15 @@ export default function SwimGroupsPage() {
   async function handleAddGroup(e: React.FormEvent) {
     e.preventDefault();
     setSubmittingAdd(true);
-
     try {
       const scheduleString = `${addDay} ${addTime} · ${addLocation}`;
-
       const res = await fetch("/api/admin/swim/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: addName.trim(),
           category: addCategory,
-          level: addType, // Stored in level column
+          level: addType,
           coachName: addCoach.trim() || null,
           schedule: scheduleString,
           capacity: parseInt(addCapacity, 10) || 10,
@@ -222,7 +286,6 @@ export default function SwimGroupsPage() {
           isSolid: addIsSolid,
         }),
       });
-
       if (res.ok) {
         setShowAddModal(false);
         setAddName("");
@@ -242,44 +305,28 @@ export default function SwimGroupsPage() {
     setEditingGroup(group);
     setEditName(group.name);
     setEditCategory(group.category || "homme");
-
-    // Map level to SwimGroupType
     const matchedType = (SWIM_GROUP_TYPES.includes(group.level as SwimGroupType)
       ? group.level
       : "G10") as SwimGroupType;
     setEditType(matchedType);
-
     setEditCoach(group.coachName || (coaches[0]?.name ?? ""));
     setEditCapacity(String(group.capacity));
-
     const decoded = decodeSolidNotes(group.notes);
     setEditIsSolid(decoded.isSolid);
     setEditNotes(decoded.cleanNotes);
-
-    // Try to parse day, time, location from schedule
     let foundDay = "Lundi";
     let foundTime = "18:00";
     let foundLoc = locations[0] || "Bassin Olympique";
-
     if (group.schedule) {
       for (const d of FRENCH_DAYS) {
-        if (group.schedule.toLowerCase().includes(d.toLowerCase())) {
-          foundDay = d;
-          break;
-        }
+        if (group.schedule.toLowerCase().includes(d.toLowerCase())) { foundDay = d; break; }
       }
       const timeMatch = group.schedule.match(/\b([0-2]?[0-9]:[0-5][0-9])\b/);
-      if (timeMatch) {
-        foundTime = timeMatch[1];
-      }
+      if (timeMatch) foundTime = timeMatch[1];
       for (const loc of locations) {
-        if (group.schedule.toLowerCase().includes(loc.toLowerCase())) {
-          foundLoc = loc;
-          break;
-        }
+        if (group.schedule.toLowerCase().includes(loc.toLowerCase())) { foundLoc = loc; break; }
       }
     }
-
     setEditDay(foundDay);
     setEditTime(foundTime);
     setEditLocation(foundLoc);
@@ -289,10 +336,8 @@ export default function SwimGroupsPage() {
     e.preventDefault();
     if (!editingGroup) return;
     setSubmittingEdit(true);
-
     try {
       const scheduleString = `${editDay} ${editTime} · ${editLocation}`;
-
       const res = await fetch(`/api/admin/swim/groups/${editingGroup.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -307,7 +352,6 @@ export default function SwimGroupsPage() {
           isSolid: editIsSolid,
         }),
       });
-
       if (res.ok) {
         setEditingGroup(null);
         await loadData();
@@ -323,7 +367,6 @@ export default function SwimGroupsPage() {
     e.preventDefault();
     if (!newCoachName.trim()) return;
     setSavingCoach(true);
-
     try {
       const res = await fetch("/api/admin/swim/preferences", {
         method: "POST",
@@ -335,7 +378,6 @@ export default function SwimGroupsPage() {
           specialties: newCoachSpecialties.trim() || null,
         }),
       });
-
       if (res.ok) {
         const data = await res.json();
         if (data.coach) {
@@ -357,17 +399,12 @@ export default function SwimGroupsPage() {
     e.preventDefault();
     if (!newLocationName.trim()) return;
     setSavingLocation(true);
-
     try {
       const res = await fetch("/api/admin/swim/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add_location",
-          locationName: newLocationName.trim(),
-        }),
+        body: JSON.stringify({ action: "add_location", locationName: newLocationName.trim() }),
       });
-
       if (res.ok) {
         const data = await res.json();
         if (data.locations) {
@@ -388,17 +425,11 @@ export default function SwimGroupsPage() {
       const res = await fetch("/api/admin/swim/preferences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete_location",
-          locationName: locToDelete,
-        }),
+        body: JSON.stringify({ action: "delete_location", locationName: locToDelete }),
       });
-
       if (res.ok) {
         const data = await res.json();
-        if (data.locations) {
-          setLocations(data.locations);
-        }
+        if (data.locations) setLocations(data.locations);
       }
     } catch (err) {
       console.error("Failed to delete location:", err);
@@ -407,6 +438,8 @@ export default function SwimGroupsPage() {
 
   async function openGroupDetail(groupId: string) {
     setLoadingDetail(true);
+    setSearchAssignQuery("");
+    setSearchAssignResults([]);
     try {
       const res = await fetch(`/api/admin/swim/groups/${groupId}`);
       if (res.ok) {
@@ -427,55 +460,189 @@ export default function SwimGroupsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !group.active }),
       });
-      if (res.ok) {
-        loadData();
-      }
+      if (res.ok) loadData();
     } catch (err) {
       console.error(err);
     }
   }
 
-  // Filter groups
+  async function handleAssignSwimmer(memberId: string) {
+    if (!selectedGroup) return;
+    setAssigningMemberId(memberId);
+    try {
+      const res = await fetch(`/api/admin/swim/groups/${selectedGroup.id}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId, groupStatus: "proposed" }),
+      });
+      if (res.ok) {
+        setSearchAssignQuery("");
+        setSearchAssignResults([]);
+        await openGroupDetail(selectedGroup.id);
+        await loadData();
+      } else {
+        const d = await res.json();
+        alert(d.error || "Failed to assign swimmer.");
+      }
+    } finally {
+      setAssigningMemberId(null);
+    }
+  }
+
+  async function handleRemoveSwimmer(memberId: string) {
+    if (!selectedGroup) return;
+    if (!confirm("Remove this swimmer from the group?")) return;
+    setRemovingMemberId(memberId);
+    try {
+      const res = await fetch(`/api/admin/swim/groups/${selectedGroup.id}/assign?memberId=${memberId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        await openGroupDetail(selectedGroup.id);
+        await loadData();
+      }
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
+  // ─── Filtering ──────────────────────────────────────────────────────────────
+
   const filteredGroups = groups.filter((g) => {
-    // Status filter
     if (statusFilter === "active" && !g.active) return false;
     if (statusFilter === "archived" && g.active) return false;
-
-    // Type filter
     if (typeFilter !== "all" && g.level !== typeFilter) return false;
-
-    // Category filter
     if (categoryFilter !== "all" && g.category !== categoryFilter) return false;
-
-    // Solid filter
     const isSolid = g.isSolid ?? decodeSolidNotes(g.notes).isSolid;
     if (solidFilter === "solid" && !isSolid) return false;
     if (solidFilter === "regular" && isSolid) return false;
-
-    // Search query
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = g.name.toLowerCase().includes(q);
-      const matchCoach = (g.coachName || "").toLowerCase().includes(q);
-      const matchSchedule = g.schedule.toLowerCase().includes(q);
-      if (!matchName && !matchCoach && !matchSchedule) return false;
+      if (
+        !g.name.toLowerCase().includes(q) &&
+        !(g.coachName || "").toLowerCase().includes(q) &&
+        !g.schedule.toLowerCase().includes(q)
+      )
+        return false;
     }
-
     return true;
   });
+
+  // Group by category for "all" view
+  const groupsByCategory = CATEGORIES.map((cat) => ({
+    category: cat,
+    label: CATEGORY_LABELS[cat],
+    items: filteredGroups.filter((g) => g.category === cat),
+  })).filter((sec) => sec.items.length > 0);
+
+  // ─── Render Group Card ──────────────────────────────────────────────────────
+
+  function renderGroupCard(g: SwimGroup) {
+    const count = g._count?.swimmers ?? 0;
+    const isFull = count >= g.capacity;
+    const isSolid = g.isSolid ?? decodeSolidNotes(g.notes).isSolid;
+    const cleanNotes = g.cleanNotes ?? decodeSolidNotes(g.notes).cleanNotes;
+
+    return (
+      <div
+        key={g.id}
+        className={`rounded-2xl border bg-[var(--surface)]/80 backdrop-blur-md p-5 flex flex-col justify-between hover:border-[var(--primary)]/40 transition-all shadow-sm group ${
+          g.active ? "border-[var(--border)]" : "border-white/5 opacity-60"
+        }`}
+      >
+        <div>
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <h3 className="font-bold text-white text-base group-hover:text-cyan-400 transition-colors">
+              {g.name}
+            </h3>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!g.active && <Badge tone="danger">Archived</Badge>}
+              {g.active && <Badge tone="success">Active</Badge>}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-800 text-slate-300 border border-white/10">
+              {CATEGORY_LABELS[g.category] ?? g.category}
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                g.level === "G10"
+                  ? "bg-sky-950/70 text-sky-400 border border-sky-800/50"
+                  : g.level === "MAX5"
+                  ? "bg-indigo-950/70 text-indigo-400 border border-indigo-800/50"
+                  : "bg-teal-950/70 text-teal-400 border border-teal-800/50"
+              }`}
+            >
+              {g.level}
+            </span>
+            {isSolid && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 shadow-[0_0_10px_rgba(16,185,129,0.15)]">
+                Solid
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1.5 text-xs text-slate-300 mb-4 bg-slate-900/40 p-3 rounded-xl border border-white/5">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Coach:</span>
+              <span className="font-semibold text-cyan-300">{g.coachName || "Unassigned"}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2">
+              <span className="text-slate-400 shrink-0">Schedule:</span>
+              <span className="font-medium text-slate-200 text-right">{g.schedule}</span>
+            </div>
+            {cleanNotes && (
+              <div className="pt-1 text-[11px] text-slate-400 border-t border-white/5">{cleanNotes}</div>
+            )}
+          </div>
+
+          <div className="space-y-1 mb-4">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-slate-400">Capacity Enrolled</span>
+              <span className="font-mono font-bold text-white">{count} / {g.capacity}</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  isFull ? "bg-rose-500" : count > g.capacity * 0.7 ? "bg-amber-400" : "bg-cyan-400"
+                }`}
+                style={{ width: `${Math.min((count / g.capacity) * 100, 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-white/5 flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="flex-1 text-xs"
+            onClick={() => openGroupDetail(g.id)}
+          >
+            Manage Roster ({count})
+          </Button>
+          <Button size="sm" variant="secondary" className="text-xs" onClick={() => openEditModal(g)}>
+            Edit
+          </Button>
+          <Button size="sm" variant="secondary" className="text-xs" onClick={() => toggleActive(g)}>
+            {g.active ? "Archive" : "Activate"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sector 3: AQA Swim Groups Manager"
-        description="Configure solid training groups, assign certified coaches, manage capacity quotas, and review enrolled swimmers."
+        title="AQA Swim Groups Manager"
+        description="Manage solid training groups, assign coaches, set capacity, and enroll swimmers directly."
         action={
           <div className="flex items-center gap-2.5">
-            <Button
-              onClick={() => setShowPreferencesModal(true)}
-              variant="secondary"
-              className="text-xs"
-            >
+            <Button onClick={() => setShowPreferencesModal(true)} variant="secondary" className="text-xs">
               Preferences
             </Button>
             <Button onClick={() => setShowAddModal(true)} variant="primary">
@@ -485,10 +652,9 @@ export default function SwimGroupsPage() {
         }
       />
 
-      {/* Filter and Search Bar */}
+      {/* Filter Bar */}
       <div className="p-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-          {/* Search Input */}
           <div className="md:col-span-2">
             <Input
               placeholder="Search by group name, coach, or schedule..."
@@ -496,8 +662,6 @@ export default function SwimGroupsPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-
-          {/* Type Filter */}
           <div>
             <select
               value={typeFilter}
@@ -505,13 +669,11 @@ export default function SwimGroupsPage() {
               className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
             >
               <option value="all">All Types</option>
-              <option value="G10">Type: G10</option>
-              <option value="MAX5">Type: MAX5</option>
-              <option value="indiv">Type: indiv</option>
+              <option value="G10">G10</option>
+              <option value="MAX5">MAX5</option>
+              <option value="indiv">indiv</option>
             </select>
           </div>
-
-          {/* Solid Filter */}
           <div>
             <select
               value={solidFilter}
@@ -523,8 +685,6 @@ export default function SwimGroupsPage() {
               <option value="regular">Regular Groups Only</option>
             </select>
           </div>
-
-          {/* Status Filter */}
           <div>
             <select
               value={statusFilter}
@@ -538,7 +698,7 @@ export default function SwimGroupsPage() {
           </div>
         </div>
 
-        {/* Quick Category Pills */}
+        {/* Category Pills */}
         <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
           <span className="text-slate-400 text-[11px] font-medium mr-1">Category:</span>
           {["all", "homme", "femme", "enfants", "apnea"].map((cat) => (
@@ -552,7 +712,7 @@ export default function SwimGroupsPage() {
                   : "bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
               }`}
             >
-              {cat === "all" ? "All Categories" : cat}
+              {cat === "all" ? "All Categories" : CATEGORY_LABELS[cat] ?? cat}
             </button>
           ))}
           <span className="ml-auto text-slate-400 text-xs font-mono">
@@ -561,189 +721,61 @@ export default function SwimGroupsPage() {
         </div>
       </div>
 
-      {/* Groups Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? (
-          <div className="col-span-full py-16 text-center text-slate-400">
-            Loading groups...
-          </div>
-        ) : filteredGroups.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-slate-400 border border-dashed border-white/10 rounded-2xl">
-            No training groups match your criteria. Click &quot;+ New Group&quot; to create one.
-          </div>
-        ) : (
-          filteredGroups.map((g) => {
-            const count = g._count?.swimmers ?? 0;
-            const isFull = count >= g.capacity;
-            const isSolid = g.isSolid ?? decodeSolidNotes(g.notes).isSolid;
-            const cleanNotes = g.cleanNotes ?? decodeSolidNotes(g.notes).cleanNotes;
-
-            return (
-              <div
-                key={g.id}
-                className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md p-5 flex flex-col justify-between hover:border-[var(--primary)]/40 transition-all shadow-sm group"
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-bold text-white text-base group-hover:text-cyan-400 transition-colors">
-                      {g.name}
-                    </h3>
-                    <Badge tone={g.active ? "success" : "danger"}>
-                      {g.active ? "Active" : "Archived"}
-                    </Badge>
-                  </div>
-
-                  {/* Badges: Category, Type (G10/MAX5/indiv), Solid */}
-                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-800 text-slate-300 border border-white/10">
-                      {g.category}
-                    </span>
-
-                    {/* Type Badge */}
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        g.level === "G10"
-                          ? "bg-sky-950/70 text-sky-400 border border-sky-800/50"
-                          : g.level === "MAX5"
-                          ? "bg-indigo-950/70 text-indigo-400 border border-indigo-800/50"
-                          : "bg-teal-950/70 text-teal-400 border border-teal-800/50"
-                      }`}
-                    >
-                      Type: {g.level}
-                    </span>
-
-                    {/* Solid Badge */}
-                    {isSolid && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 shadow-[0_0_10px_rgba(16,185,129,0.15)]">
-                        Solid
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Coach & Schedule */}
-                  <div className="space-y-1.5 text-xs text-slate-300 mb-4 bg-slate-900/40 p-3 rounded-xl border border-white/5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Coach:</span>
-                      <span className="font-semibold text-cyan-300">
-                        {g.coachName || "Unassigned"}
-                      </span>
-                    </div>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-slate-400 shrink-0">Schedule:</span>
-                      <span className="font-medium text-slate-200 text-right">
-                        {g.schedule}
-                      </span>
-                    </div>
-                    {cleanNotes && (
-                      <div className="pt-1 text-[11px] text-slate-400 border-t border-white/5">
-                        {cleanNotes}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Capacity Progress Bar */}
-                  <div className="space-y-1 mb-4">
-                    <div className="flex justify-between text-[11px]">
-                      <span className="text-slate-400">Capacity Enrolled</span>
-                      <span className="font-mono font-bold text-white">
-                        {count} / {g.capacity}
-                      </span>
-                    </div>
-                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          isFull
-                            ? "bg-rose-500"
-                            : count > g.capacity * 0.7
-                            ? "bg-amber-400"
-                            : "bg-cyan-400"
-                        }`}
-                        style={{
-                          width: `${Math.min((count / g.capacity) * 100, 100)}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Actions */}
-                <div className="pt-3 border-t border-white/5 flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="flex-1 text-xs"
-                    onClick={() => openGroupDetail(g.id)}
-                  >
-                    Swimmers ({count})
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="text-xs"
-                    onClick={() => openEditModal(g)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="text-xs"
-                    onClick={() => toggleActive(g)}
-                  >
-                    {g.active ? "Archive" : "Activate"}
-                  </Button>
-                </div>
+      {/* Groups Display */}
+      {loading ? (
+        <div className="py-16 text-center text-slate-400">Loading groups...</div>
+      ) : filteredGroups.length === 0 ? (
+        <div className="py-16 text-center text-slate-400 border border-dashed border-white/10 rounded-2xl">
+          No training groups match your criteria. Click &quot;+ New Group&quot; to create one.
+        </div>
+      ) : categoryFilter === "all" ? (
+        // Category-organized view
+        <div className="space-y-8">
+          {groupsByCategory.map((sec) => (
+            <div key={sec.category}>
+              <div className="flex items-center gap-3 mb-4">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider">{sec.label}</h2>
+                <span className="text-xs text-[var(--muted)]">{sec.items.length} group{sec.items.length !== 1 ? "s" : ""}</span>
+                <div className="flex-1 h-px bg-white/5" />
               </div>
-            );
-          })
-        )}
-      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sec.items.map(renderGroupCard)}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        // Single-category flat grid
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredGroups.map(renderGroupCard)}
+        </div>
+      )}
 
-      {/* Add Group Modal */}
+      {/* ─── ADD GROUP MODAL ─────────────────────────────────────────────── */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="max-w-lg w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <h3 className="text-base font-bold text-white">Create Solid Training Group</h3>
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-white text-xs px-2 py-1"
-              >
-                ✕
+              <h3 className="text-base font-bold text-white">Create Training Group</h3>
+              <button type="button" onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white text-xs px-2 py-1">
+                Close
               </button>
             </div>
 
             <form onSubmit={handleAddGroup} className="space-y-3.5">
-              {/* Category & Type */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor={addCategoryId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Category
-                  </label>
-                  <select
-                    id={addCategoryId}
-                    value={addCategory}
-                    onChange={(e) => setAddCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
+                  <label htmlFor={addCategoryId} className="block text-xs font-semibold text-slate-300 mb-1">Category</label>
+                  <select id={addCategoryId} value={addCategory} onChange={(e) => setAddCategory(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
                     <option value="homme">Homme</option>
                     <option value="femme">Femme</option>
                     <option value="enfants">Enfants</option>
                     <option value="apnea">Apnee</option>
                   </select>
                 </div>
-
                 <div>
-                  <label htmlFor={addTypeId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Type *
-                  </label>
-                  <select
-                    id={addTypeId}
-                    value={addType}
-                    onChange={(e) => handleTypeChange(e.target.value as SwimGroupType)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
+                  <label htmlFor={addTypeId} className="block text-xs font-semibold text-slate-300 mb-1">Type *</label>
+                  <select id={addTypeId} value={addType} onChange={(e) => handleTypeChange(e.target.value as SwimGroupType)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
                     <option value="G10">G10 (10 pers.)</option>
                     <option value="MAX5">MAX5 (5 pers.)</option>
                     <option value="indiv">indiv (1 pers.)</option>
@@ -751,185 +783,72 @@ export default function SwimGroupsPage() {
                 </div>
               </div>
 
-              {/* Coach Selector */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label htmlFor={addCoachId} className="block text-xs font-semibold text-slate-300">
-                    Coach Name *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPreferencesModal(true);
-                    }}
-                    className="text-[11px] text-cyan-400 hover:underline"
-                  >
-                    + Add Coach in Preferences
+                  <label htmlFor={addCoachId} className="block text-xs font-semibold text-slate-300">Coach Name *</label>
+                  <button type="button" onClick={() => setShowPreferencesModal(true)} className="text-[11px] text-cyan-400 hover:underline">
+                    + Add Coach
                   </button>
                 </div>
-                <select
-                  id={addCoachId}
-                  required
-                  value={addCoach}
-                  onChange={(e) => setAddCoach(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                >
+                <select id={addCoachId} required value={addCoach} onChange={(e) => setAddCoach(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
                   <option value="">-- Select Coach --</option>
                   {coaches.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name} {c.specialties ? `(${c.specialties})` : ""}
-                    </option>
+                    <option key={c.id} value={c.name}>{c.name}{c.specialties ? ` (${c.specialties})` : ""}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Day, Time, Location Dropdowns */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor={addDayId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Day *
-                  </label>
-                  <select
-                    id={addDayId}
-                    value={addDay}
-                    onChange={(e) => setAddDay(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
-                    {FRENCH_DAYS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
+                  <label htmlFor={addDayId} className="block text-xs font-semibold text-slate-300 mb-1">Day *</label>
+                  <select id={addDayId} value={addDay} onChange={(e) => setAddDay(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                    {FRENCH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label htmlFor={addTimeId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Time (hour:min) *
-                  </label>
-                  <select
-                    id={addTimeId}
-                    value={addTime}
-                    onChange={(e) => setAddTime(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
-                    {SWIM_TIME_SLOTS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
+                  <label htmlFor={addTimeId} className="block text-xs font-semibold text-slate-300 mb-1">Time *</label>
+                  <select id={addTimeId} value={addTime} onChange={(e) => setAddTime(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                    {SWIM_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label htmlFor={addLocationId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Location *
-                  </label>
-                  <select
-                    id={addLocationId}
-                    value={addLocation}
-                    onChange={(e) => setAddLocation(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
-                    {locations.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
+                  <label htmlFor={addLocationId} className="block text-xs font-semibold text-slate-300 mb-1">Location *</label>
+                  <select id={addLocationId} value={addLocation} onChange={(e) => setAddLocation(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                    {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Group Name (Auto-Generated by formula with override) */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label htmlFor={addNameId} className="block text-xs font-semibold text-slate-300">
-                    Group Name (Auto-Generated) *
-                  </label>
-                  <button
-                    type="button"
-                    onClick={regenerateAddName}
-                    className="text-[11px] text-cyan-400 hover:underline"
-                  >
-                    Regenerate formula
-                  </button>
+                  <label htmlFor={addNameId} className="block text-xs font-semibold text-slate-300">Group Name (Auto-Generated) *</label>
+                  <button type="button" onClick={regenerateAddName} className="text-[11px] text-cyan-400 hover:underline">Regenerate</button>
                 </div>
-                <Input
-                  id={addNameId}
-                  required
-                  value={addName}
-                  onChange={(e) => {
-                    setAddName(e.target.value);
-                    setNameManuallyEdited(true);
-                  }}
-                  placeholder="e.g. Lun 18:00 Karim B Bass"
-                />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Format: (3 letters day) (time) (7 letters coach) (4 letters location)
-                </p>
+                <Input id={addNameId} required value={addName} onChange={(e) => { setAddName(e.target.value); setNameManuallyEdited(true); }} placeholder="e.g. Lun 18:00 Karim B Bass" />
+                <p className="text-[10px] text-slate-500 mt-1">Format: (3 letters day) (time) (7 letters coach) (4 letters location)</p>
               </div>
 
-              {/* Capacity & Solid Check */}
               <div className="grid grid-cols-2 gap-3 items-center">
                 <div>
-                  <label htmlFor={addCapacityId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Max Capacity
-                  </label>
-                  <Input
-                    id={addCapacityId}
-                    type="number"
-                    value={addCapacity}
-                    onChange={(e) => setAddCapacity(e.target.value)}
-                    placeholder="10"
-                  />
+                  <label htmlFor={addCapacityId} className="block text-xs font-semibold text-slate-300 mb-1">Max Capacity</label>
+                  <Input id={addCapacityId} type="number" value={addCapacity} onChange={(e) => setAddCapacity(e.target.value)} placeholder="10" />
                 </div>
-
                 <div className="pt-5">
                   <label htmlFor={addSolidId} className="flex items-center gap-2.5 cursor-pointer bg-slate-800/80 p-2.5 rounded-xl border border-white/10 hover:border-cyan-500/50 transition-colors">
-                    <input
-                      id={addSolidId}
-                      type="checkbox"
-                      checked={addIsSolid}
-                      onChange={(e) => setAddIsSolid(e.target.checked)}
-                      className="h-4 w-4 accent-cyan-500 rounded"
-                    />
-                    <span className="text-xs font-semibold text-white">
-                      Solid Group Check
-                    </span>
+                    <input id={addSolidId} type="checkbox" checked={addIsSolid} onChange={(e) => setAddIsSolid(e.target.checked)} className="h-4 w-4 accent-cyan-500 rounded" />
+                    <span className="text-xs font-semibold text-white">Mark as Solid Group</span>
                   </label>
                 </div>
               </div>
 
-              {/* Additional Notes */}
               <div>
-                <label htmlFor={addNotesId} className="block text-xs font-semibold text-slate-300 mb-1">
-                  Pool Lane / Notes
-                </label>
-                <textarea
-                  id={addNotesId}
-                  value={addNotes}
-                  onChange={(e) => setAddNotes(e.target.value)}
-                  placeholder="e.g. Bassin olympique, lignes 3 et 4..."
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
-                />
+                <label htmlFor={addNotesId} className="block text-xs font-semibold text-slate-300 mb-1">Pool Lane / Notes</label>
+                <textarea id={addNotesId} value={addNotes} onChange={(e) => setAddNotes(e.target.value)} placeholder="e.g. Bassin olympique, lignes 3 et 4..." rows={2} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400" />
               </div>
 
               <div className="flex gap-2 pt-2 border-t border-white/10">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={submittingAdd}
-                  className="flex-1"
-                >
+                <Button type="button" variant="secondary" onClick={() => setShowAddModal(false)} className="flex-1">Cancel</Button>
+                <Button type="submit" variant="primary" disabled={submittingAdd} className="flex-1">
                   {submittingAdd ? "Creating..." : "Create Group"}
                 </Button>
               </div>
@@ -938,51 +857,29 @@ export default function SwimGroupsPage() {
         </div>
       )}
 
-      {/* Edit Group Modal */}
+      {/* ─── EDIT GROUP MODAL ─────────────────────────────────────────────── */}
       {editingGroup && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="max-w-lg w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <h3 className="text-base font-bold text-white">Edit Training Group</h3>
-              <button
-                type="button"
-                onClick={() => setEditingGroup(null)}
-                className="text-slate-400 hover:text-white text-xs px-2 py-1"
-              >
-                ✕
-              </button>
+              <button type="button" onClick={() => setEditingGroup(null)} className="text-slate-400 hover:text-white text-xs px-2 py-1">Close</button>
             </div>
 
             <form onSubmit={handleEditGroup} className="space-y-3.5">
-              {/* Category & Type */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor={editCategoryId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Category
-                  </label>
-                  <select
-                    id={editCategoryId}
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
+                  <label htmlFor={editCategoryId} className="block text-xs font-semibold text-slate-300 mb-1">Category</label>
+                  <select id={editCategoryId} value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
                     <option value="homme">Homme</option>
                     <option value="femme">Femme</option>
                     <option value="enfants">Enfants</option>
                     <option value="apnea">Apnee</option>
                   </select>
                 </div>
-
                 <div>
-                  <label htmlFor={editTypeId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Type *
-                  </label>
-                  <select
-                    id={editTypeId}
-                    value={editType}
-                    onChange={(e) => handleEditTypeChange(e.target.value as SwimGroupType)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
+                  <label htmlFor={editTypeId} className="block text-xs font-semibold text-slate-300 mb-1">Type *</label>
+                  <select id={editTypeId} value={editType} onChange={(e) => handleEditTypeChange(e.target.value as SwimGroupType)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
                     <option value="G10">G10 (10 pers.)</option>
                     <option value="MAX5">MAX5 (5 pers.)</option>
                     <option value="indiv">indiv (1 pers.)</option>
@@ -990,164 +887,64 @@ export default function SwimGroupsPage() {
                 </div>
               </div>
 
-              {/* Coach Selector */}
               <div>
-                <label htmlFor={editCoachId} className="block text-xs font-semibold text-slate-300 mb-1">
-                  Coach Name
-                </label>
-                <select
-                  id={editCoachId}
-                  value={editCoach}
-                  onChange={(e) => setEditCoach(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                >
+                <label htmlFor={editCoachId} className="block text-xs font-semibold text-slate-300 mb-1">Coach Name</label>
+                <select id={editCoachId} value={editCoach} onChange={(e) => setEditCoach(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
                   <option value="">-- Select Coach --</option>
-                  {coaches.map((c) => (
-                    <option key={c.id} value={c.name}>
-                      {c.name} {c.specialties ? `(${c.specialties})` : ""}
-                    </option>
-                  ))}
+                  {coaches.map((c) => <option key={c.id} value={c.name}>{c.name}{c.specialties ? ` (${c.specialties})` : ""}</option>)}
                 </select>
               </div>
 
-              {/* Day, Time, Location Dropdowns */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor={editDayId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Day
-                  </label>
-                  <select
-                    id={editDayId}
-                    value={editDay}
-                    onChange={(e) => setEditDay(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
-                    {FRENCH_DAYS.map((d) => (
-                      <option key={d} value={d}>
-                        {d}
-                      </option>
-                    ))}
+                  <label htmlFor={editDayId} className="block text-xs font-semibold text-slate-300 mb-1">Day</label>
+                  <select id={editDayId} value={editDay} onChange={(e) => setEditDay(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                    {FRENCH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label htmlFor={editTimeId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Time (hour:min)
-                  </label>
-                  <select
-                    id={editTimeId}
-                    value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
-                    {SWIM_TIME_SLOTS.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
+                  <label htmlFor={editTimeId} className="block text-xs font-semibold text-slate-300 mb-1">Time</label>
+                  <select id={editTimeId} value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                    {SWIM_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label htmlFor={editLocationId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Location
-                  </label>
-                  <select
-                    id={editLocationId}
-                    value={editLocation}
-                    onChange={(e) => setEditLocation(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  >
-                    {locations.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
+                  <label htmlFor={editLocationId} className="block text-xs font-semibold text-slate-300 mb-1">Location</label>
+                  <select id={editLocationId} value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                    {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Group Name with Regenerate */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label htmlFor={editNameId} className="block text-xs font-semibold text-slate-300">
-                    Group Name
-                  </label>
-                  <button
-                    type="button"
-                    onClick={regenerateEditName}
-                    className="text-[11px] text-cyan-400 hover:underline"
-                  >
-                    Regenerate formula
-                  </button>
+                  <label htmlFor={editNameId} className="block text-xs font-semibold text-slate-300">Group Name</label>
+                  <button type="button" onClick={regenerateEditName} className="text-[11px] text-cyan-400 hover:underline">Regenerate</button>
                 </div>
-                <Input
-                  id={editNameId}
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
+                <Input id={editNameId} required value={editName} onChange={(e) => setEditName(e.target.value)} />
               </div>
 
-              {/* Capacity & Solid Check */}
               <div className="grid grid-cols-2 gap-3 items-center">
                 <div>
-                  <label htmlFor={editCapacityId} className="block text-xs font-semibold text-slate-300 mb-1">
-                    Max Capacity
-                  </label>
-                  <Input
-                    id={editCapacityId}
-                    type="number"
-                    value={editCapacity}
-                    onChange={(e) => setEditCapacity(e.target.value)}
-                  />
+                  <label htmlFor={editCapacityId} className="block text-xs font-semibold text-slate-300 mb-1">Max Capacity</label>
+                  <Input id={editCapacityId} type="number" value={editCapacity} onChange={(e) => setEditCapacity(e.target.value)} />
                 </div>
-
                 <div className="pt-5">
                   <label htmlFor={editSolidId} className="flex items-center gap-2.5 cursor-pointer bg-slate-800/80 p-2.5 rounded-xl border border-white/10 hover:border-cyan-500/50 transition-colors">
-                    <input
-                      id={editSolidId}
-                      type="checkbox"
-                      checked={editIsSolid}
-                      onChange={(e) => setEditIsSolid(e.target.checked)}
-                      className="h-4 w-4 accent-cyan-500 rounded"
-                    />
-                    <span className="text-xs font-semibold text-white">
-                      Solid Group Check
-                    </span>
+                    <input id={editSolidId} type="checkbox" checked={editIsSolid} onChange={(e) => setEditIsSolid(e.target.checked)} className="h-4 w-4 accent-cyan-500 rounded" />
+                    <span className="text-xs font-semibold text-white">Mark as Solid Group</span>
                   </label>
                 </div>
               </div>
 
-              {/* Notes */}
               <div>
-                <label htmlFor={editNotesId} className="block text-xs font-semibold text-slate-300 mb-1">
-                  Pool Lane / Notes
-                </label>
-                <textarea
-                  id={editNotesId}
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
-                />
+                <label htmlFor={editNotesId} className="block text-xs font-semibold text-slate-300 mb-1">Pool Lane / Notes</label>
+                <textarea id={editNotesId} value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={2} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400" />
               </div>
 
               <div className="flex gap-2 pt-2 border-t border-white/10">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setEditingGroup(null)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={submittingEdit}
-                  className="flex-1"
-                >
+                <Button type="button" variant="secondary" onClick={() => setEditingGroup(null)} className="flex-1">Cancel</Button>
+                <Button type="submit" variant="primary" disabled={submittingEdit} className="flex-1">
                   {submittingEdit ? "Saving..." : "Save Changes"}
                 </Button>
               </div>
@@ -1156,151 +953,73 @@ export default function SwimGroupsPage() {
         </div>
       )}
 
-      {/* Preferences Modal (Coaches & Locations Manager) */}
+      {/* ─── PREFERENCES MODAL ───────────────────────────────────────────── */}
       {showPreferencesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="max-w-xl w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
-                <h3 className="text-base font-bold text-white">
-                  Groups Manager Preferences
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Manage coaches and training pool locations available in dropdowns.
-                </p>
+                <h3 className="text-base font-bold text-white">Groups Manager Preferences</h3>
+                <p className="text-xs text-slate-400">Manage coaches and training pool locations.</p>
               </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setShowPreferencesModal(false)}
-              >
-                ✕ Close
-              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setShowPreferencesModal(false)}>Close</Button>
             </div>
 
-            {/* Section 1: Coach Adder & List */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                1. Coach Adder &amp; Directory
-              </h4>
-
+              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400">1. Coach Directory</h4>
               <form onSubmit={handleAddCoach} className="bg-slate-800/60 p-3 rounded-xl border border-white/5 space-y-2.5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
                     <label htmlFor={prefCoachNameId} className="block text-[11px] text-slate-400 mb-1">Coach Name *</label>
-                    <Input
-                      id={prefCoachNameId}
-                      required
-                      placeholder="e.g. Coach Karim"
-                      value={newCoachName}
-                      onChange={(e) => setNewCoachName(e.target.value)}
-                    />
+                    <Input id={prefCoachNameId} required placeholder="e.g. Coach Karim" value={newCoachName} onChange={(e) => setNewCoachName(e.target.value)} />
                   </div>
                   <div>
                     <label htmlFor={prefCoachPhoneId} className="block text-[11px] text-slate-400 mb-1">Phone</label>
-                    <Input
-                      id={prefCoachPhoneId}
-                      placeholder="0550 00 00 00"
-                      value={newCoachPhone}
-                      onChange={(e) => setNewCoachPhone(e.target.value)}
-                    />
+                    <Input id={prefCoachPhoneId} placeholder="0550 00 00 00" value={newCoachPhone} onChange={(e) => setNewCoachPhone(e.target.value)} />
                   </div>
                   <div>
                     <label htmlFor={prefCoachSpecId} className="block text-[11px] text-slate-400 mb-1">Specialties</label>
-                    <Input
-                      id={prefCoachSpecId}
-                      placeholder="Natation / Apnée"
-                      value={newCoachSpecialties}
-                      onChange={(e) => setNewCoachSpecialties(e.target.value)}
-                    />
+                    <Input id={prefCoachSpecId} placeholder="Natation / Apnee" value={newCoachSpecialties} onChange={(e) => setNewCoachSpecialties(e.target.value)} />
                   </div>
                 </div>
-
                 <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    disabled={savingCoach || !newCoachName.trim()}
-                  >
+                  <Button type="submit" variant="primary" size="sm" disabled={savingCoach || !newCoachName.trim()}>
                     {savingCoach ? "Adding..." : "+ Add Coach"}
                   </Button>
                 </div>
               </form>
-
-              {/* Coach List */}
               <div className="max-h-40 overflow-y-auto divide-y divide-white/5 border border-white/5 rounded-xl bg-slate-900/50">
                 {coaches.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-slate-400">
-                    No coaches configured yet. Add your first coach above.
-                  </div>
+                  <div className="p-3 text-center text-xs text-slate-400">No coaches configured yet.</div>
                 ) : (
                   coaches.map((c) => (
                     <div key={c.id} className="p-2.5 flex items-center justify-between text-xs">
                       <div>
                         <span className="font-semibold text-white">{c.name}</span>
-                        {c.specialties && (
-                          <span className="ml-2 text-[11px] text-slate-400">
-                            ({c.specialties})
-                          </span>
-                        )}
-                        {c.phone && (
-                          <span className="ml-2 font-mono text-[10px] text-cyan-400">
-                            {c.phone}
-                          </span>
-                        )}
+                        {c.specialties && <span className="ml-2 text-[11px] text-slate-400">({c.specialties})</span>}
+                        {c.phone && <span className="ml-2 font-mono text-[10px] text-cyan-400">{c.phone}</span>}
                       </div>
-                      <Badge tone={c.active ? "success" : "danger"}>
-                        {c.active ? "Active" : "Inactive"}
-                      </Badge>
+                      <Badge tone={c.active ? "success" : "danger"}>{c.active ? "Active" : "Inactive"}</Badge>
                     </div>
                   ))
                 )}
               </div>
             </div>
 
-            {/* Section 2: Location Adder & List */}
             <div className="space-y-3 pt-3 border-t border-white/10">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400">
-                2. Pool Locations
-              </h4>
-
+              <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-400">2. Pool Locations</h4>
               <form onSubmit={handleAddLocation} className="flex gap-2">
                 <label htmlFor={prefLocNameId} className="sr-only">New Pool Location Name</label>
-                <Input
-                  id={prefLocNameId}
-                  required
-                  placeholder="e.g. Piscine Olympique Kouba..."
-                  value={newLocationName}
-                  onChange={(e) => setNewLocationName(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  disabled={savingLocation || !newLocationName.trim()}
-                >
-                  {savingLocation ? "Saving..." : "+ Add Location"}
+                <Input id={prefLocNameId} required placeholder="e.g. Piscine Olympique Kouba..." value={newLocationName} onChange={(e) => setNewLocationName(e.target.value)} className="flex-1" />
+                <Button type="submit" variant="primary" size="sm" disabled={savingLocation || !newLocationName.trim()}>
+                  {savingLocation ? "Saving..." : "+ Add"}
                 </Button>
               </form>
-
-              {/* Locations List */}
               <div className="flex flex-wrap gap-2 pt-1">
                 {locations.map((loc) => (
-                  <div
-                    key={loc}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800 text-xs text-slate-200 border border-white/10"
-                  >
+                  <div key={loc} className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-800 text-xs text-slate-200 border border-white/10">
                     <span>{loc}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteLocation(loc)}
-                      className="text-slate-400 hover:text-rose-400 ml-1 font-bold"
-                      title="Delete location"
-                    >
-                      ×
-                    </button>
+                    <button type="button" onClick={() => handleDeleteLocation(loc)} className="text-slate-400 hover:text-rose-400 ml-1 font-bold">x</button>
                   </div>
                 ))}
               </div>
@@ -1309,88 +1028,160 @@ export default function SwimGroupsPage() {
         </div>
       )}
 
-      {/* View Swimmers in Group Modal */}
+      {/* ─── GROUP ROSTER MANAGER MODAL ──────────────────────────────────── */}
       {selectedGroup && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-xl w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+          <div className="max-w-2xl w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[90vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-white/10 shrink-0">
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-white">
-                    {selectedGroup.name}
-                  </h3>
-                  {selectedGroup.isSolid && (
-                    <Badge tone="success">Solid</Badge>
-                  )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-bold text-white">{selectedGroup.name}</h3>
+                  {selectedGroup.isSolid && <Badge tone="success">Solid</Badge>}
+                  <Badge tone={selectedGroup.active ? "success" : "danger"}>
+                    {selectedGroup.active ? "Active" : "Archived"}
+                  </Badge>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      selectedGroup.level === "G10"
+                        ? "bg-sky-950/70 text-sky-400 border border-sky-800/50"
+                        : selectedGroup.level === "MAX5"
+                        ? "bg-indigo-950/70 text-indigo-400 border border-indigo-800/50"
+                        : "bg-teal-950/70 text-teal-400 border border-teal-800/50"
+                    }`}
+                  >
+                    {selectedGroup.level}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-slate-800 text-slate-300 border border-white/10">
+                    {CATEGORY_LABELS[selectedGroup.category] ?? selectedGroup.category}
+                  </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Coach: {selectedGroup.coachName || "Unassigned"} · {selectedGroup.schedule}
                 </p>
               </div>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setSelectedGroup(null)}
-              >
-                ✕ Close
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button size="sm" variant="secondary" onClick={() => { openEditModal(selectedGroup); setSelectedGroup(null); }}>Edit Group</Button>
+                <Button size="sm" variant="secondary" onClick={() => setSelectedGroup(null)}>Close</Button>
+              </div>
             </div>
 
-            <div className="overflow-y-auto flex-1">
+            <div className="overflow-y-auto flex-1 space-y-5 pt-4">
               {loadingDetail ? (
-                <div className="py-8 text-center text-xs text-slate-400">Loading details...</div>
-              ) : selectedGroup.swimmers.length === 0 ? (
-                <p className="text-xs text-slate-400 py-8 text-center">
-                  No swimmers currently assigned to this group.
-                </p>
+                <div className="py-8 text-center text-xs text-slate-400">Loading roster...</div>
               ) : (
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-white/10 text-slate-400">
-                      <th className="py-2 px-3">Swimmer</th>
-                      <th className="py-2 px-3">Status</th>
-                      <th className="py-2 px-3">Payment</th>
-                      <th className="py-2 px-3">Pass</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {selectedGroup.swimmers.map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-2.5 px-3">
-                          <div className="font-bold text-white">{s.fullName}</div>
-                          <div className="text-[10px] font-mono text-cyan-400">
-                            {s.swimId} · {s.phone}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {s.groupStatus === "accepted" && (
-                            <Badge tone="success">Confirmed</Badge>
-                          )}
-                          {s.groupStatus === "proposed" && (
-                            <Badge tone="warning">Proposed</Badge>
-                          )}
-                          {s.groupStatus === "rejected" && (
-                            <Badge tone="danger">Rejected</Badge>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          {s.paymentStatus === "paid" && (
-                            <Badge tone="success">Paid</Badge>
-                          )}
-                          {s.paymentStatus === "partial" && (
-                            <Badge tone="warning">Partial</Badge>
-                          )}
-                          {s.paymentStatus === "unpaid" && (
-                            <Badge tone="danger">Unpaid</Badge>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-[11px] text-slate-300">
-                          {s.card ? s.card.cardCode : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <>
+                  {/* Search & Assign Section */}
+                  {selectedGroup.active && (
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold text-cyan-400 uppercase tracking-wider">
+                        Assign Swimmer to This Group
+                      </div>
+                      <p className="text-[11px] text-[var(--muted)]">
+                        Search {CATEGORY_LABELS[selectedGroup.category]} swimmers who are unassigned or in an archived group.
+                      </p>
+                      <Input
+                        placeholder="Search by name, phone, or swimmer ID..."
+                        value={searchAssignQuery}
+                        onChange={(e) => setSearchAssignQuery(e.target.value)}
+                      />
+                      {searchingAssign && (
+                        <div className="text-xs text-[var(--muted)] animate-pulse">Searching...</div>
+                      )}
+                      {searchAssignResults.length > 0 && (
+                        <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                          {searchAssignResults.map((m) => (
+                            <div key={m.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white/[0.02]">
+                              <div>
+                                <span className="font-bold text-white">{m.fullName}</span>
+                                <span className="ml-2 font-mono text-[10px] text-cyan-400">{m.swimId}</span>
+                                <span className="ml-2 text-[var(--muted)]">{getSwimLevelLabel(m.level)}</span>
+                                {m.phone && <span className="ml-2 text-[var(--muted)] font-mono">{m.phone}</span>}
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                disabled={assigningMemberId === m.id}
+                                onClick={() => handleAssignSwimmer(m.id)}
+                              >
+                                {assigningMemberId === m.id ? "..." : "Assign"}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {searchAssignQuery.trim().length >= 2 && !searchingAssign && searchAssignResults.length === 0 && (
+                        <p className="text-xs text-[var(--muted)] italic">No eligible swimmers found for this search.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Current Roster */}
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-white uppercase tracking-wider">
+                      Enrolled Swimmers ({selectedGroup.swimmers.length} / {selectedGroup.capacity})
+                    </div>
+                    {selectedGroup.swimmers.length === 0 ? (
+                      <p className="text-xs text-[var(--muted)] italic py-4 text-center">No swimmers enrolled in this group yet.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="border-b border-white/10 text-slate-400">
+                              <th className="py-2 px-3">Swimmer</th>
+                              <th className="py-2 px-3">Level</th>
+                              <th className="py-2 px-3">Payment</th>
+                              <th className="py-2 px-3">Status</th>
+                              <th className="py-2 px-3">Pass</th>
+                              <th className="py-2 px-3 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {selectedGroup.swimmers.map((s) => (
+                              <tr key={s.id} className="hover:bg-white/[0.02]">
+                                <td className="py-2.5 px-3">
+                                  <div className="font-bold text-white">{s.fullName}</div>
+                                  <div className="text-[10px] font-mono text-cyan-400">{s.swimId}</div>
+                                  {s.phone && <div className="text-[10px] text-[var(--muted)]">{s.phone}</div>}
+                                </td>
+                                <td className="py-2.5 px-3 text-[var(--muted)]">{getSwimLevelLabel(s.level)}</td>
+                                <td className="py-2.5 px-3">
+                                  {s.paymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
+                                  {s.paymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
+                                  {s.paymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  {s.groupStatus === "accepted" && <Badge tone="success">Confirmed</Badge>}
+                                  {s.groupStatus === "proposed" && <Badge tone="warning">Proposed</Badge>}
+                                  {s.groupStatus === "rejected" && <Badge tone="danger">Rejected</Badge>}
+                                </td>
+                                <td className="py-2.5 px-3 font-mono text-[11px] text-slate-300">
+                                  {s.card ? s.card.cardCode : "-"}
+                                </td>
+                                <td className="py-2.5 px-3 text-right space-x-1.5 whitespace-nowrap">
+                                  <Link
+                                    href={`/admin/swim/members/${s.swimId}`}
+                                    className="inline-flex items-center px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold transition-colors"
+                                  >
+                                    Profile
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    disabled={removingMemberId === s.id}
+                                    onClick={() => handleRemoveSwimmer(s.id)}
+                                    className="inline-flex items-center px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-xs font-semibold transition-colors disabled:opacity-50"
+                                  >
+                                    {removingMemberId === s.id ? "..." : "Remove"}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>

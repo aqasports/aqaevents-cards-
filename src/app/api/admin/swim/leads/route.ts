@@ -43,10 +43,21 @@ export async function POST(request: NextRequest) {
       duration,
       preferredDays,
       notes,
+      whatsapp,
     } = body;
 
     if (!fullName || !phone) {
       return NextResponse.json({ error: "Full name and phone are required" }, { status: 400 });
+    }
+
+    let finalNotes = notes?.trim() || null;
+    if (whatsapp && typeof whatsapp === "string" && whatsapp.trim()) {
+      const waTrimmed = whatsapp.trim();
+      if (!finalNotes) {
+        finalNotes = `WhatsApp: ${waTrimmed}`;
+      } else if (!finalNotes.toLowerCase().includes("whatsapp")) {
+        finalNotes = `${finalNotes} | WhatsApp: ${waTrimmed}`;
+      }
     }
 
     const lead = await prisma.swimLead.create({
@@ -61,7 +72,7 @@ export async function POST(request: NextRequest) {
         formula: formula || "G10",
         duration: duration || "3m",
         preferredDays: preferredDays || null,
-        notes: notes?.trim() || null,
+        notes: finalNotes,
         status: "pending",
       },
     });

@@ -4,6 +4,8 @@ import {
   encodeSolidNotes,
   decodeSolidNotes,
   SWIM_GROUP_DEFAULT_CAPACITIES,
+  SWIM_TIME_SLOTS,
+  getSwimLevelLabel,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -75,11 +77,27 @@ describe("Swim Groups Utilities", () => {
     });
   });
 
-  describe("Group capacities", () => {
+  describe("Group capacities and time slots", () => {
     it("provides expected defaults for each group type", () => {
       expect(SWIM_GROUP_DEFAULT_CAPACITIES.G10).toBe(10);
       expect(SWIM_GROUP_DEFAULT_CAPACITIES.MAX5).toBe(5);
       expect(SWIM_GROUP_DEFAULT_CAPACITIES.indiv).toBe(1);
+    });
+
+    it("starts time slots from 06:00", () => {
+      expect(SWIM_TIME_SLOTS[0]).toBe("06:00");
+      expect(SWIM_TIME_SLOTS[1]).toBe("06:30");
+      expect(SWIM_TIME_SLOTS[2]).toBe("07:00");
+    });
+  });
+
+  describe("Swim Levels", () => {
+    it("maps new and legacy level labels properly", () => {
+      expect(getSwimLevelLabel("new_aqa")).toBe("New AQA Member");
+      expect(getSwimLevelLabel("old_aqa")).toBe("Old AQA Member");
+      expect(getSwimLevelLabel("beginner")).toBe("New AQA Member");
+      expect(getSwimLevelLabel("intermediate")).toBe("Old AQA Member");
+      expect(getSwimLevelLabel("advanced")).toBe("Old AQA Member");
     });
   });
 });

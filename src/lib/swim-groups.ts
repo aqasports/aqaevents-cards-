@@ -31,6 +31,8 @@ export const DEFAULT_SWIM_LOCATIONS = [
 ] as const;
 
 export const SWIM_TIME_SLOTS = [
+  "06:00",
+  "06:30",
   "07:00",
   "07:30",
   "08:00",
@@ -64,6 +66,31 @@ export const SWIM_TIME_SLOTS = [
   "22:00",
 ] as const;
 
+// ─── Swimmer Level Constants ──────────────────────────────────────────────────
+
+export const SWIM_LEVELS = ["new_aqa", "old_aqa"] as const;
+export type SwimLevel = (typeof SWIM_LEVELS)[number];
+
+export const SWIM_LEVEL_LABELS: Record<string, string> = {
+  new_aqa: "New AQA Member",
+  old_aqa: "Old AQA Member",
+  // Legacy values - backward compatible display
+  beginner: "New AQA Member",
+  intermediate: "Old AQA Member",
+  advanced: "Old AQA Member",
+};
+
+/**
+ * Returns a human-readable label for a swim level value.
+ * Handles both new values (new_aqa, old_aqa) and legacy values
+ * (beginner, intermediate, advanced) for backward compatibility.
+ */
+export function getSwimLevelLabel(level: string): string {
+  return SWIM_LEVEL_LABELS[level] ?? level;
+}
+
+// ─── Group Name Generation ────────────────────────────────────────────────────
+
 /**
  * Generates group name according to specification:
  * (first three letters of french day name)
@@ -89,6 +116,8 @@ export function generateSwimGroupName(
 
   return [dayPart, timePart, coachPart, locPart].filter(Boolean).join(" ");
 }
+
+// ─── Solid Group Encoding ─────────────────────────────────────────────────────
 
 const SOLID_TAG = "[SOLID]";
 

@@ -76,7 +76,7 @@ export function PageHeader({
   action,
 }: {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   action?: React.ReactNode;
 }) {
   return (
@@ -84,7 +84,11 @@ export function PageHeader({
       <div>
         <h2 className="text-2xl font-bold text-[var(--foreground)] tracking-tight">{title}</h2>
         {description ? (
-          <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
+          typeof description === "string" ? (
+            <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
+          ) : (
+            <div className="mt-1 text-sm text-[var(--muted)]">{description}</div>
+          )
         ) : null}
       </div>
       {action}

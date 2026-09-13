@@ -3,7 +3,6 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { generateSwimId, generateSwimToken, generateSwimCardCode } from "@/lib/swim-id";
-import { calculateSwimPrice, SwimCategory, SwimDuration, SwimFrequency } from "@/lib/swim-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +15,10 @@ export async function GET(request: NextRequest) {
   const level = searchParams.get("level");
   const groupId = searchParams.get("groupId");
   const paymentStatus = searchParams.get("paymentStatus");
+  const category = searchParams.get("category");
 
   try {
-    const where: any = {};
+    const where: Record<string, unknown> = {};
     if (q) {
       where.OR = [
         { fullName: { contains: q, mode: "insensitive" } },
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     if (level && level !== "all") where.level = level;
     if (groupId && groupId !== "all") where.groupId = groupId;
     if (paymentStatus && paymentStatus !== "all") where.paymentStatus = paymentStatus;
+    if (category && category !== "all") where.category = category;
 
     const members = await prisma.swimMember.findMany({
       where,
@@ -42,7 +43,17 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(members);
+    // Enrich each member with effectiveGroup / effectivelyUnassigned
+    const enriched = members.map((m) => {
+      const effectivelyUnassigned = !!(m.groupId && m.group && !m.group.active);
+      return {
+        ...m,
+        effectiveGroup: effectivelyUnassigned ? null : m.group,
+        effectivelyUnassigned,
+      };
+    });
+
+    return NextResponse.json(enriched);
   } catch (err: unknown) {
     logger.error("GET admin swim members error:", err);
     return NextResponse.json({ error: "Failed to fetch swim members" }, { status: 500 });
@@ -58,6 +69,7 @@ export async function POST(request: NextRequest) {
     const {
       fullName,
       phone,
+      whatsapp,
       email,
       photoUrl,
       dateOfStart,
@@ -66,7 +78,6 @@ export async function POST(request: NextRequest) {
       groupId,
       formula,
       duration,
-      frequency,
       priceDA,
       coachMessage,
       paymentStatus,
@@ -82,11 +93,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cat = (category || "homme") as SwimCategory;
-    const dur = (duration || "3m") as SwimDuration;
-    const freq = (frequency || "1x") as SwimFrequency;
-
-    const calculatedPrice = priceDA ? parseInt(priceDA, 10) : calculateSwimPrice(cat, formula, dur, freq);
+    // Price is provided directly or defaults to 0 - no auto-calculation
+    const finalPriceDA = priceDA ? parseInt(priceDA, 10) : 0;
 
     // Generate collision-free swimId
     let swimId = generateSwimId();
@@ -94,6 +102,30 @@ export async function POST(request: NextRequest) {
     while (existing) {
       swimId = generateSwimId();
       existing = await prisma.swimMember.findUnique({ where: { swimId } });
+    }
+
+    let finalNotes = notes?.trim() || null;
+    if (whatsapp && typeof whatsapp === "string" && whatsapp.trim()) {
+      const waTrimmed = whatsapp.trim();
+      if (!finalNotes) {
+        finalNotes = `WhatsApp: ${waTrimmed}`;
+      } else if (!finalNotes.toLowerCase().includes("whatsapp")) {
+        finalNotes = `${finalNotes} | WhatsApp: ${waTrimmed}`;
+      }
+    }
+
+    // Validate groupId if provided
+    if (groupId) {
+      const targetGroup = await prisma.swimGroup.findUnique({ where: { id: groupId } });
+      if (targetGroup && !targetGroup.active) {
+        return NextResponse.json({ error: "Cannot assign to an archived group" }, { status: 400 });
+      }
+      if (targetGroup && targetGroup.category !== (category || "homme")) {
+        return NextResponse.json(
+          { error: "Group category does not match member category" },
+          { status: 400 }
+        );
+      }
     }
 
     const member = await prisma.swimMember.create({
@@ -104,16 +136,16 @@ export async function POST(request: NextRequest) {
         email: email?.trim() || null,
         photoUrl: photoUrl?.trim() || null,
         dateOfStart: dateOfStart ? new Date(dateOfStart) : new Date(),
-        category: cat,
+        category: category || "homme",
         level: level.trim(),
         groupId: groupId || null,
         formula: formula.trim(),
-        duration: dur,
-        priceDA: calculatedPrice,
+        duration: duration || "3m",
+        priceDA: finalPriceDA,
         coachMessage: coachMessage?.trim() || null,
         paymentStatus: paymentStatus || "unpaid",
-        groupStatus: groupId ? "proposed" : "proposed",
-        notes: notes?.trim() || null,
+        groupStatus: "proposed",
+        notes: finalNotes,
       },
     });
 

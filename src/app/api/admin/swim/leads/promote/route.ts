@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { leadId, groupId, coachMessage, priceDA, issueCard, cardCode } = body;
+    const { leadId, groupId, coachMessage, priceDA, issueCard, cardCode, notes } = body;
 
     if (!leadId) {
       return NextResponse.json({ error: "leadId is required" }, { status: 400 });
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         coachMessage: coachMessage || null,
         paymentStatus: "unpaid",
         groupStatus: groupId ? "proposed" : "proposed",
+        notes: notes !== undefined ? notes : (lead.notes || null),
       },
     });
 

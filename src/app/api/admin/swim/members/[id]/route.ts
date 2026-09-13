@@ -15,22 +15,39 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const member = await prisma.swimMember.findUnique({
-      where: { id },
-      include: {
-        group: true,
-        card: true,
-        payments: {
-          orderBy: { paidAt: "desc" },
-        },
-      },
-    });
+    // Support lookup by swimId (SWM-XXXXXX) or internal DB id
+    const isSwimlId = id.toUpperCase().startsWith("SWM-");
+    const member = isSwimlId
+      ? await prisma.swimMember.findFirst({
+          where: { swimId: id.toUpperCase() },
+          include: {
+            group: true,
+            card: true,
+            payments: { orderBy: { paidAt: "desc" } },
+          },
+        })
+      : await prisma.swimMember.findUnique({
+          where: { id },
+          include: {
+            group: true,
+            card: true,
+            payments: { orderBy: { paidAt: "desc" } },
+          },
+        });
 
     if (!member) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    return NextResponse.json(member);
+    // Archived group logic: if group is inactive, treat as unassigned
+    const effectivelyUnassigned = !!(member.groupId && member.group && !member.group.active);
+    const effectiveGroup = effectivelyUnassigned ? null : member.group;
+
+    return NextResponse.json({
+      ...member,
+      effectiveGroup,
+      effectivelyUnassigned,
+    });
   } catch (err: unknown) {
     logger.error("GET admin swim member detail error:", err);
     return NextResponse.json({ error: "Failed to fetch member detail" }, { status: 500 });
@@ -65,7 +82,51 @@ export async function PATCH(
       groupStatus,
       rejectionReason,
       notes,
+      whatsapp,
     } = body;
+
+    // Validate groupId update: category must match and group must be active
+    if (groupId !== undefined && groupId !== null) {
+      const targetGroup = await prisma.swimGroup.findUnique({ where: { id: groupId } });
+      if (!targetGroup) {
+        return NextResponse.json({ error: "Target group not found" }, { status: 404 });
+      }
+      if (!targetGroup.active) {
+        return NextResponse.json({ error: "Cannot assign to an archived group" }, { status: 400 });
+      }
+      // Get current member category to validate
+      const currentMember = await prisma.swimMember.findUnique({ where: { id }, select: { category: true } });
+      const memberCategory = category || currentMember?.category;
+      if (targetGroup.category !== memberCategory) {
+        return NextResponse.json(
+          { error: "Group category does not match member category" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Build notes with optional whatsapp
+    let updatedNotes: string | null | undefined = undefined;
+    if (notes !== undefined || whatsapp !== undefined) {
+      const currentMember = await prisma.swimMember.findUnique({ where: { id }, select: { notes: true } });
+      let currentNotesVal = notes !== undefined ? (notes?.trim() || null) : currentMember?.notes ?? null;
+      if (whatsapp !== undefined) {
+        const wa = whatsapp?.trim();
+        if (wa) {
+          if (!currentNotesVal) {
+            currentNotesVal = `WhatsApp: ${wa}`;
+          } else if (/(?:whatsapp|wa)\s*[:=]\s*[+0-9\s().-]+/i.test(currentNotesVal)) {
+            currentNotesVal = currentNotesVal.replace(
+              /(?:whatsapp|wa)\s*[:=]\s*[+0-9\s().-]+/i,
+              `WhatsApp: ${wa}`
+            );
+          } else {
+            currentNotesVal = `${currentNotesVal} | WhatsApp: ${wa}`;
+          }
+        }
+      }
+      updatedNotes = currentNotesVal;
+    }
 
     const updated = await prisma.swimMember.update({
       where: { id },
@@ -85,16 +146,19 @@ export async function PATCH(
         ...(paymentStatus && { paymentStatus }),
         ...(groupStatus && { groupStatus }),
         ...(rejectionReason !== undefined && { rejectionReason }),
-        ...(notes !== undefined && { notes: notes?.trim() || null }),
+        ...(updatedNotes !== undefined && { notes: updatedNotes }),
       },
       include: {
         group: true,
         card: true,
-        payments: true,
+        payments: { orderBy: { paidAt: "desc" } },
       },
     });
 
-    return NextResponse.json(updated);
+    const effectivelyUnassigned = !!(updated.groupId && updated.group && !updated.group.active);
+    const effectiveGroup = effectivelyUnassigned ? null : updated.group;
+
+    return NextResponse.json({ ...updated, effectiveGroup, effectivelyUnassigned });
   } catch (err: unknown) {
     logger.error("PATCH admin swim member error:", err);
     return NextResponse.json({ error: "Failed to update member" }, { status: 500 });
