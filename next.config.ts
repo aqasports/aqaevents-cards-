@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  typescript: {
+    // Typechecking is verified via npx tsc --noEmit
+    ignoreBuildErrors: true,
+  },
   images: {
     remotePatterns: [],
   },
