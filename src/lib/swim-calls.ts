@@ -160,17 +160,31 @@ export function formatWhatsAppReinscriptionUrl(
   return `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`;
 }
 
+let cachedCallRecords: { data: Record<string, SwimCallRecord>; timestamp: number } | null = null;
+const CACHE_TTL_MS = 15000; // 15 seconds
+
+export function invalidateCallRecordsCache(): void {
+  cachedCallRecords = null;
+}
+
 /**
  * Reads all stored call records from PlatformSetting.
  */
 export async function getStoredCallRecords(): Promise<Record<string, SwimCallRecord>> {
+  const now = Date.now();
+  if (cachedCallRecords && now - cachedCallRecords.timestamp < CACHE_TTL_MS) {
+    return cachedCallRecords.data;
+  }
+
   try {
     const setting = await prisma.platformSetting.findUnique({
       where: { key: SWIM_CALLS_SETTING_KEY },
+      select: { value: true },
     });
     if (setting?.value) {
       const parsed = JSON.parse(setting.value);
       if (typeof parsed === "object" && parsed !== null) {
+        cachedCallRecords = { data: parsed as Record<string, SwimCallRecord>, timestamp: now };
         return parsed as Record<string, SwimCallRecord>;
       }
     }
@@ -184,6 +198,7 @@ export async function getStoredCallRecords(): Promise<Record<string, SwimCallRec
  * Persists all stored call records to PlatformSetting.
  */
 export async function saveStoredCallRecords(records: Record<string, SwimCallRecord>): Promise<void> {
+  cachedCallRecords = { data: records, timestamp: Date.now() };
   const serialized = JSON.stringify(records);
   await prisma.platformSetting.upsert({
     where: { key: SWIM_CALLS_SETTING_KEY },

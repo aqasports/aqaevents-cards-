@@ -95,6 +95,24 @@ export default function SwimCallsPage() {
   const [historyTarget, setHistoryTarget] = useState<SwimCallRecord | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
 
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  // Debounce search input typing
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  // Load groups once on mount
+  useEffect(() => {
+    fetch("/api/admin/swim/groups?active=true")
+      .then((res) => (res.ok ? res.json() : []))
+      .then((grp) => setGroups(grp || []))
+      .catch((err) => console.error("Failed to load swim groups:", err));
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -102,34 +120,23 @@ export default function SwimCallsPage() {
       if (statusFilter !== "all") query.set("status", statusFilter);
       if (categoryFilter !== "all") query.set("category", categoryFilter);
       if (urgencyFilter !== "all") query.set("urgency", urgencyFilter);
-      if (searchTerm.trim()) query.set("q", searchTerm.trim());
+      if (debouncedSearchTerm.trim()) query.set("q", debouncedSearchTerm.trim());
 
-      const [callsRes, groupsRes] = await Promise.all([
-        fetch(`/api/admin/swim/calls?${query.toString()}`),
-        fetch("/api/admin/swim/groups?active=true"),
-      ]);
-
+      const callsRes = await fetch(`/api/admin/swim/calls?${query.toString()}`);
       if (callsRes.ok) {
         const data = await callsRes.json();
         setRecords(data.records || []);
         if (data.stats) setStats(data.stats);
-      }
-      if (groupsRes.ok) {
-        const grp = await groupsRes.json();
-        setGroups(grp || []);
       }
     } catch (err) {
       console.error("Failed to load swim calls data:", err);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, categoryFilter, urgencyFilter, searchTerm]);
+  }, [statusFilter, categoryFilter, urgencyFilter, debouncedSearchTerm]);
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      loadData();
-    }, 250);
-    return () => clearTimeout(handler);
+    loadData();
   }, [loadData]);
 
   function handleOpenLogModal(record: SwimCallRecord) {

@@ -186,7 +186,7 @@ export default function SwimOverviewPage() {
     setLoading(true);
     try {
       const [memsRes, leadsRes, grpsRes, cardsRes] = await Promise.all([
-        fetch("/api/admin/swim/members"),
+        fetch("/api/admin/swim/members?includePayments=true"),
         fetch("/api/admin/swim/leads?status=all"),
         fetch("/api/admin/swim/groups"),
         fetch("/api/admin/swim/cards?filter=all"),

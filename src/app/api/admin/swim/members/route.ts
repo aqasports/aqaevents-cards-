@@ -31,15 +31,37 @@ export async function GET(request: NextRequest) {
     if (paymentStatus && paymentStatus !== "all") where.paymentStatus = paymentStatus;
     if (category && category !== "all") where.category = category;
 
+    const includePayments = searchParams.get("includePayments") === "true";
+
     const members = await prisma.swimMember.findMany({
       where,
       orderBy: { createdAt: "desc" },
       include: {
-        group: true,
-        card: true,
-        payments: {
-          orderBy: { paidAt: "desc" },
+        group: {
+          select: {
+            id: true,
+            name: true,
+            coachName: true,
+            schedule: true,
+            category: true,
+            active: true,
+          },
         },
+        card: {
+          select: {
+            id: true,
+            cardCode: true,
+            publicToken: true,
+            status: true,
+          },
+        },
+        ...(includePayments
+          ? {
+              payments: {
+                orderBy: { paidAt: "desc" },
+              },
+            }
+          : {}),
       },
     });
 

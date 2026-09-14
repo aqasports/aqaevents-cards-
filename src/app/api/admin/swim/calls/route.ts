@@ -24,18 +24,36 @@ export async function GET(request: NextRequest) {
   const searchQuery = (searchParams.get("q") || "").toLowerCase().trim();
 
   try {
-    // 1. Fetch active members with their group details
-    const members = await prisma.swimMember.findMany({
-      include: {
-        group: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // 1. Fetch active members and stored call records concurrently with selective projection
+    const [members, storedRecords] = await Promise.all([
+      prisma.swimMember.findMany({
+        select: {
+          id: true,
+          swimId: true,
+          fullName: true,
+          phone: true,
+          email: true,
+          category: true,
+          level: true,
+          formula: true,
+          duration: true,
+          dateOfStart: true,
+          groupId: true,
+          createdAt: true,
+          updatedAt: true,
+          group: {
+            select: {
+              name: true,
+              coachName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      getStoredCallRecords(),
+    ]);
 
-    // 2. Fetch stored call records
-    const storedRecords = await getStoredCallRecords();
-
-    // 3. Build unified call targets list
+    // 2. Build unified call targets list
     const unifiedList: (SwimCallRecord & { urgency: string })[] = [];
 
     for (const m of members) {
@@ -79,9 +97,10 @@ export async function GET(request: NextRequest) {
       unifiedList.push(record);
     }
 
-    // Include any standalone leads stored in records that are not members
+    // Include any standalone leads stored in records that are not members (O(1) lookup)
+    const memberIdSet = new Set(members.map((m) => m.id));
     for (const [id, rec] of Object.entries(storedRecords)) {
-      if (rec.entityType === "lead" && !unifiedList.some((u) => u.id === id)) {
+      if (rec.entityType === "lead" && !memberIdSet.has(id)) {
         const urgency = getCallUrgency(rec.expirationDate, rec.callbackDate);
         unifiedList.push({ ...rec, urgency });
       }
