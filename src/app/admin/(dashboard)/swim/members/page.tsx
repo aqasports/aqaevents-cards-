@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { PageHeader, Badge, Button, Input, Card } from "@/components/admin/ui";
 import { getSwimLevelLabel } from "@/lib/swim-groups";
+import { HommeRosterImportModal } from "@/components/admin/swim/HommeRosterImportModal";
 
 interface SwimMember {
   id: string;
@@ -77,6 +78,7 @@ export default function SwimMembersPage() {
 
   // Add Member Modal
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -315,6 +317,9 @@ export default function SwimMembersPage() {
         description="Register and manage swimmer profiles with solid group allocation, personal coach advice, payment ledger, and unique Swimmer IDs."
         action={
           <div className="flex items-center gap-2">
+            <Button onClick={() => setShowImportModal(true)} variant="secondary">
+              Import Homme Roster
+            </Button>
             <Button onClick={() => setShowAddModal(true)} variant="primary">
               + Add Swimmer
             </Button>
@@ -853,6 +858,16 @@ export default function SwimMembersPage() {
           </div>
         </div>
       )}
+
+      {/* Homme Roster Import Modal */}
+      <HommeRosterImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          loadData();
+          setShowImportModal(false);
+        }}
+      />
     </div>
   );
 }

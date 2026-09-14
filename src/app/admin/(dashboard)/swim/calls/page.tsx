@@ -13,6 +13,7 @@ import {
   ReinscriptionIntent,
 } from "@/lib/swim-calls";
 import { getSwimLevelLabel } from "@/lib/swim-groups";
+import { HommeRosterImportModal } from "@/components/admin/swim/HommeRosterImportModal";
 
 interface SwimGroupOption {
   id: string;
@@ -92,6 +93,7 @@ export default function SwimCallsPage() {
 
   // History Drawer State
   const [historyTarget, setHistoryTarget] = useState<SwimCallRecord | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -353,6 +355,9 @@ export default function SwimCallsPage() {
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setShowImportModal(true)} variant="primary">
+              Import Homme Roster
+            </Button>
             <Button onClick={() => router.push("/admin/swim")} variant="secondary">
               Back to Overview
             </Button>
@@ -1143,6 +1148,16 @@ export default function SwimCallsPage() {
           </div>
         </div>
       )}
+
+      {/* Homme Roster Import Modal */}
+      <HommeRosterImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => {
+          loadData();
+          setShowImportModal(false);
+        }}
+      />
     </div>
   );
 }
