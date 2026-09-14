@@ -887,6 +887,45 @@ export default function AdminSwimmerProfilePage({
               )}
             </div>
           </Card>
+
+          {/* Reinscription & Call Observation Card */}
+          <Card>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Reinscription Calls & Observations
+                  </span>
+                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
+                    Renewal follow-ups, client feedback, and scheduled callbacks.
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => router.push(`/admin/swim/calls?q=${encodeURIComponent(member.fullName)}`)}
+                  >
+                    Open in Call Desk
+                  </Button>
+                </div>
+              </div>
+
+              {member.notes ? (
+                <div className="p-3 rounded-xl bg-slate-950 border border-[var(--border)] text-xs space-y-1.5 max-h-48 overflow-y-auto">
+                  {member.notes.split("\n").map((line, idx) => (
+                    <p key={idx} className="text-slate-300 font-mono text-[11px] leading-relaxed">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--muted)] italic">
+                  No call observations logged yet. Open the Call Desk to record interactions.
+                </p>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
     </div>

@@ -575,6 +575,14 @@ export default function SwimOverviewPage() {
       badgeTone: "info" as const,
       actionText: "Generate & Print",
     },
+    {
+      title: "5. Reinscription & Call Manager",
+      desc: "Lead swimmers into renewal, log client call observations, schedule follow-ups, and convert reinscriptions.",
+      href: "/admin/swim/calls",
+      badge: "Call Desk",
+      badgeTone: "info" as const,
+      actionText: "Manage Calls",
+    },
   ];
 
   // Eligible groups for Add Member modal (category-scoped + optional solid filter)
@@ -758,6 +766,16 @@ export default function SwimOverviewPage() {
           >
             Sectors Hub
           </button>
+
+          <Link
+            href="/admin/swim/calls"
+            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+          >
+            <span>Reinscription Calls</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900 text-sky-200">
+              Desk
+            </span>
+          </Link>
         </div>
 
         {/* Global Search */}
