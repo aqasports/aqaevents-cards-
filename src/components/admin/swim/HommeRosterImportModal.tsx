@@ -70,20 +70,59 @@ export function HommeRosterImportModal({
     setExecuting(true);
     setErrorMsg(null);
     try {
-      const res = await fetch("/api/admin/swim/members/import-roster", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Import failed");
+      if (dryRun) {
+        const res = await fetch("/api/admin/swim/members/import-roster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dryRun: true }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Import simulation failed");
+        }
+        const data = (await res.json()) as ImportResult;
+        setResult(data);
+        return;
       }
-      const data = (await res.json()) as ImportResult;
-      setResult(data);
-      if (!dryRun) {
-        onSuccess();
+
+      let allCreated: Array<{ swimId: string; fullName: string; dateOfStart: string }> = [];
+      let allSkipped: Array<{ fullName: string; reason: string }> = [];
+      let isDone = false;
+      let totalCreated = 0;
+
+      while (!isDone) {
+        const res = await fetch("/api/admin/swim/members/import-roster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dryRun: false, limit: 25 }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Import batch failed");
+        }
+        const batchData = await res.json();
+        totalCreated += batchData.createdCount;
+        allCreated = [...allCreated, ...(batchData.created || [])];
+        allSkipped = batchData.skipped || [];
+        isDone = Boolean(batchData.done) || batchData.createdCount === 0;
+
+        setResult({
+          success: true,
+          dryRun: false,
+          totalInRoster: batchData.totalInRoster,
+          createdCount: totalCreated,
+          skippedCount: batchData.skippedCount,
+          created: allCreated,
+          skipped: allSkipped,
+        });
+
+        if (!isDone) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
       }
+
+      await fetchStatus();
+      onSuccess();
     } catch (err: unknown) {
       setErrorMsg(err instanceof Error ? err.message : String(err));
     } finally {

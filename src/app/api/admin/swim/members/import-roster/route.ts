@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const dryRun = Boolean(body.dryRun);
+    const batchSize = body.limit ? Math.min(parseInt(body.limit, 10), 50) : 25;
 
     const existingHommeMembers = await prisma.swimMember.findMany({
       where: { category: "homme" },
@@ -80,6 +81,10 @@ export async function POST(request: NextRequest) {
           reason: "Already exists in database under category homme",
         });
         continue;
+      }
+
+      if (!dryRun && createdList.length >= batchSize) {
+        break;
       }
 
       if (dryRun) {
@@ -166,12 +171,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const remainingCount = HOMME_ROSTER_DATA.filter(
+      (item) => !existingNamesSet.has(item.fullName.trim().toLowerCase())
+    ).length;
+
     return NextResponse.json({
       success: true,
       dryRun,
       totalInRoster: HOMME_ROSTER_DATA.length,
       createdCount: createdList.length,
       skippedCount: skippedList.length,
+      remainingCount,
+      done: remainingCount === 0,
       created: createdList,
       skipped: skippedList,
     });
