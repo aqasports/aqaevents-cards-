@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import QRCode from "qrcode";
+import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 
 export const dynamic = "force-dynamic";
 
@@ -30,15 +32,26 @@ export default async function SwimCardScanPage({ params }: Props) {
   const isPaid = member?.paymentStatus === "paid";
   const isPartial = member?.paymentStatus === "partial";
 
+  // Generate QR code for the back of the card
+  const cardUrl = `https://aqasports.pro/swim/card/${card.publicToken}`;
+  const qrDataUrl = await QRCode.toDataURL(cardUrl, {
+    width: 280,
+    margin: 1,
+    color: {
+      dark: "#030712",
+      light: "#ffffff",
+    },
+  });
+
   return (
     <div className="min-h-screen bg-[#030712] text-slate-100 flex flex-col items-center justify-center p-4 selection:bg-cyan-500 selection:text-black">
       {/* Background glow orbs */}
       <div className="fixed top-[-10%] left-[-10%] w-[60vw] h-[60vh] bg-sky-500/10 blur-[120px] pointer-events-none rounded-full" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[60vw] h-[60vh] bg-cyan-400/10 blur-[120px] pointer-events-none rounded-full" />
 
-      <main className="w-full max-w-md relative z-10">
+      <main className="w-full max-w-md relative z-10 space-y-6">
         {/* Brand header */}
-        <div className="text-center mb-6">
+        <div className="text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-500/30 bg-cyan-950/40 text-cyan-400 text-xs font-semibold uppercase tracking-wider mb-2">
             <span>AQA Swim</span>
             <span className="text-slate-500">·</span>
@@ -52,7 +65,31 @@ export default async function SwimCardScanPage({ params }: Props) {
           </p>
         </div>
 
-        {/* Card Face */}
+        {/* Real 3D Flipping PVC Pass Card */}
+        {member && (
+          <div className="flex justify-center">
+            <SwimFlipCard
+              member={{
+                fullName: member.fullName,
+                swimId: member.swimId,
+                category: member.category,
+                level: member.level,
+                formula: member.formula,
+                duration: member.duration,
+                paymentStatus: member.paymentStatus,
+                group: member.group,
+                card: {
+                  cardCode: card.cardCode,
+                  publicToken: card.publicToken,
+                  status: card.status,
+                },
+              }}
+              qrDataUrl={qrDataUrl}
+            />
+          </div>
+        )}
+
+        {/* Card Face & Verification Details */}
         <div className="rounded-2xl border border-white/10 bg-slate-900/80 backdrop-blur-xl p-6 shadow-2xl space-y-6">
           {!member ? (
             <div className="text-center py-8">

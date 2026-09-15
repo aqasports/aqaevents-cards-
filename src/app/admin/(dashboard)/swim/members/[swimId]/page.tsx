@@ -4,6 +4,8 @@ import { useEffect, useState, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageHeader, Badge, Button, Input, Card } from "@/components/admin/ui";
+import { calculateSwimPrice } from "@/lib/swim-pricing";
+import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -124,8 +126,6 @@ export default function AdminSwimmerProfilePage({
   const [editPhotoUrl, setEditPhotoUrl] = useState("");
   const [editCategory, setEditCategory] = useState("");
   const [editLevel, setEditLevel] = useState("");
-  const [editFormula, setEditFormula] = useState("");
-  const [editDuration, setEditDuration] = useState("");
   const [editDateOfStart, setEditDateOfStart] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
@@ -152,6 +152,8 @@ export default function AdminSwimmerProfilePage({
   const [showChangeGroup, setShowChangeGroup] = useState(false);
   const [groupSolidFilter, setGroupSolidFilter] = useState(false);
   const [selectedNewGroupId, setSelectedNewGroupId] = useState("");
+  const [assignDuration, setAssignDuration] = useState("3m");
+  const [assignFrequency, setAssignFrequency] = useState<number>(1);
   const [savingGroup, setSavingGroup] = useState(false);
 
   const loadMember = useCallback(async () => {
@@ -172,12 +174,11 @@ export default function AdminSwimmerProfilePage({
       setEditPhotoUrl(data.photoUrl || "");
       setEditCategory(data.category);
       setEditLevel(data.level);
-      setEditFormula(data.formula);
-      setEditDuration(data.duration || "3m");
       setEditDateOfStart(data.dateOfStart.split("T")[0]);
       setEditNotes(data.notes || "");
       setCoachMsgText(data.coachMessage || "");
       setNewPriceInput(String(data.priceDA));
+      setAssignDuration(data.duration || "3m");
     } catch {
       setError("Failed to load profile.");
     } finally {
@@ -215,8 +216,6 @@ export default function AdminSwimmerProfilePage({
           photoUrl: editPhotoUrl,
           category: editCategory,
           level: editLevel,
-          formula: editFormula,
-          duration: editDuration,
           dateOfStart: editDateOfStart,
           notes: editNotes,
         }),
@@ -295,10 +294,31 @@ export default function AdminSwimmerProfilePage({
     if (!member || !selectedNewGroupId) return;
     setSavingGroup(true);
     try {
+      const selectedGroupObj = groups.find((g) => g.id === selectedNewGroupId);
+      const calculatedPrice = selectedGroupObj
+        ? calculateSwimPrice({
+            category: member.category,
+            groupType: selectedGroupObj.level,
+            duration: assignDuration,
+            frequency: assignFrequency,
+          })
+        : 0;
+
+      const formulaStr =
+        assignFrequency > 1
+          ? `${assignFrequency}x ${selectedGroupObj?.level || "G10"}`
+          : (selectedGroupObj?.level || "G10");
+
       const res = await fetch(`/api/admin/swim/members/${member.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupId: selectedNewGroupId, groupStatus: "proposed" }),
+        body: JSON.stringify({
+          groupId: selectedNewGroupId,
+          groupStatus: "proposed",
+          formula: formulaStr,
+          duration: assignDuration,
+          priceDA: calculatedPrice,
+        }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -331,7 +351,12 @@ export default function AdminSwimmerProfilePage({
   // ─── Derived values ─────────────────────────────────────────────────────────
 
   const totalPaid = member?.payments.reduce((s, p) => s + p.amount, 0) ?? 0;
-  const balance = (member?.priceDA ?? 0) - totalPaid;
+  const priceDA = member?.priceDA ?? 0;
+  const debt = Math.max(0, priceDA - totalPaid);
+  const isFullyPaid = priceDA > 0 && totalPaid >= priceDA;
+  const hasDebt = priceDA > 0 && debt > 0;
+  const balance = priceDA - totalPaid;
+  const paymentProgressPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : 0;
 
   const filteredGroups = groups.filter((g) => {
     if (member && g.category !== member.category) return false;
@@ -444,12 +469,16 @@ export default function AdminSwimmerProfilePage({
           <div className="text-sm font-bold text-white">{getLevelLabel(member.level)}</div>
         </div>
         <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
-          <div className="text-[10px] text-[var(--muted)] uppercase font-semibold mb-1">Type</div>
-          <div className="text-sm font-bold text-cyan-300">{member.formula}</div>
+          <div className="text-[10px] text-[var(--muted)] uppercase font-semibold mb-1">Formula & Period</div>
+          <div className="text-sm font-bold text-cyan-300 truncate">
+            {member.formula || "Pending Group"} ({member.duration || "3m"})
+          </div>
         </div>
         <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
-          <div className="text-[10px] text-[var(--muted)] uppercase font-semibold mb-1">Duration</div>
-          <div className="text-sm font-bold text-white">{member.duration || "3m"}</div>
+          <div className="text-[10px] text-[var(--muted)] uppercase font-semibold mb-1">Ledger Balance</div>
+          <div className={`text-sm font-bold ${hasDebt ? "text-rose-400" : isFullyPaid ? "text-emerald-400" : "text-slate-300"}`}>
+            {hasDebt ? `Debt: ${debt.toLocaleString("fr-DZ")} DA` : isFullyPaid ? "Paid in Full" : `${priceDA.toLocaleString("fr-DZ")} DA`}
+          </div>
         </div>
       </div>
 
@@ -524,6 +553,36 @@ export default function AdminSwimmerProfilePage({
                       Solid Groups Only
                     </label>
                   </div>
+
+                  {/* Frequency & Duration selection */}
+                  <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-900/80 border border-white/5">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Frequency</label>
+                      <select
+                        value={assignFrequency}
+                        onChange={(e) => setAssignFrequency(parseInt(e.target.value, 10))}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value={1}>1x / week</option>
+                        <option value={2}>2x / week</option>
+                        {member.category === "homme" && <option value={3}>3x / week</option>}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Duration</label>
+                      <select
+                        value={assignDuration}
+                        onChange={(e) => setAssignDuration(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value="1m">1 Month</option>
+                        <option value="3m">3 Months (Trimestre)</option>
+                        <option value="6m">6 Months (Semestre)</option>
+                        <option value="9m">9 Months (Annual)</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
                     {filteredGroups.length === 0 ? (
                       <p className="text-xs text-[var(--muted)] italic">No groups available for category &quot;{member.category}&quot;.</p>
@@ -550,7 +609,10 @@ export default function AdminSwimmerProfilePage({
                               className="accent-cyan-500"
                             />
                             <div className="flex-1 text-xs">
-                              <div className="font-bold text-white">{g.name}</div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-white">{g.name}</span>
+                                <span className="text-[10px] font-mono text-cyan-300 font-semibold">{g.level}</span>
+                              </div>
                               <div className="text-[var(--muted)]">
                                 {g.coachName ? `Coach: ${g.coachName} · ` : ""}{g.schedule}
                               </div>
@@ -562,13 +624,38 @@ export default function AdminSwimmerProfilePage({
                       })
                     )}
                   </div>
+
+                  {/* Real-time price calculation preview */}
+                  {selectedNewGroupId && (
+                    <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-[var(--muted)]">Calculated Tariff (AQA Official):</span>
+                        <div className="font-bold text-cyan-300 text-sm mt-0.5">
+                          {(() => {
+                            const sel = groups.find((g) => g.id === selectedNewGroupId);
+                            if (!sel) return 0;
+                            return calculateSwimPrice({
+                              category: member.category,
+                              groupType: sel.level,
+                              duration: assignDuration,
+                              frequency: assignFrequency,
+                            }).toLocaleString("fr-DZ");
+                          })()} DA
+                        </div>
+                      </div>
+                      <Badge tone="info">
+                        {assignFrequency}x {groups.find((g) => g.id === selectedNewGroupId)?.level || "G10"} · {assignDuration}
+                      </Badge>
+                    </div>
+                  )}
+
                   <Button
                     variant="primary"
                     size="sm"
                     disabled={!selectedNewGroupId || savingGroup}
                     onClick={handleChangeGroup}
                   >
-                    {savingGroup ? "Saving..." : "Confirm Assignment"}
+                    {savingGroup ? "Saving & Calculating..." : "Confirm Assignment & Set Tariff"}
                   </Button>
                 </div>
               )}
@@ -613,30 +700,37 @@ export default function AdminSwimmerProfilePage({
             </div>
           </Card>
 
-          {/* PVC Pass Card */}
+          {/* PVC Pass Card with 3D Flip */}
           <Card>
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-white uppercase tracking-wider">PVC Pass Card</span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">PVC Pass Card</span>
+                {member.card && (
+                  <Badge tone={member.card.status === "active" ? "success" : "danger"}>
+                    {member.card.status}
+                  </Badge>
+                )}
+              </div>
+
+              {/* Real Card with 3D Flip Motion */}
+              <SwimFlipCard member={member} />
+
               {member.card ? (
-                <div className="space-y-1.5 text-xs">
+                <div className="space-y-1.5 text-xs pt-2 border-t border-white/5">
                   <div className="flex justify-between">
                     <span className="text-[var(--muted)]">Card Code:</span>
                     <span className="font-mono font-bold text-cyan-300">{member.card.cardCode}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Status:</span>
-                    <Badge tone={member.card.status === "active" ? "success" : "danger"}>{member.card.status}</Badge>
-                  </div>
                   <Link
                     href={`/swim/card/${member.card.publicToken}`}
                     target="_blank"
-                    className="block text-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold mt-2"
+                    className="block text-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold mt-2 border border-white/10 transition-colors"
                   >
-                    Open Pass Portal
+                    Open Public Pass View
                   </Link>
                 </div>
               ) : (
-                <p className="text-xs italic text-[var(--muted)]">No PVC pass issued. Issue one from the Cards Manager.</p>
+                <p className="text-xs italic text-[var(--muted)]">No PVC pass linked to this swimmer yet.</p>
               )}
             </div>
           </Card>
@@ -651,18 +745,67 @@ export default function AdminSwimmerProfilePage({
                 <div>
                   <span className="text-xs font-bold text-white uppercase tracking-wider">Financial Ledger</span>
                   <div className="text-[11px] text-[var(--muted)] mt-0.5">
-                    Total: {member.priceDA.toLocaleString("fr-DZ")} DA · Paid: {totalPaid.toLocaleString("fr-DZ")} DA · Balance: {balance.toLocaleString("fr-DZ")} DA
+                    Tariff: {priceDA.toLocaleString("fr-DZ")} DA · Paid: {totalPaid.toLocaleString("fr-DZ")} DA · {hasDebt ? `Debt: ${debt.toLocaleString("fr-DZ")} DA` : `Balance: 0 DA`}
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" onClick={() => setShowSetPrice(!showSetPrice)}>
-                    Set Price
+                    Adjust Price
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => setShowAddPayment(!showAddPayment)}>
                     + Payment
                   </Button>
                 </div>
               </div>
+
+              {/* Debt / Payment Status Banner */}
+              {hasDebt ? (
+                <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                      <span className="text-xs font-black uppercase tracking-wide">
+                        Debt Outstanding / Reste a payer
+                      </span>
+                    </div>
+                    <span className="text-sm font-mono font-black text-rose-400">
+                      {debt.toLocaleString("fr-DZ")} DA
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-white/5">
+                    <div
+                      className="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${paymentProgressPct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>Paid: {totalPaid.toLocaleString("fr-DZ")} DA ({paymentProgressPct}%)</span>
+                    <span>Total Due: {priceDA.toLocaleString("fr-DZ")} DA</span>
+                  </div>
+                </div>
+              ) : isFullyPaid ? (
+                <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="text-xs font-black uppercase tracking-wide">
+                      Payment Complete / A Jour
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-sm font-mono font-black text-emerald-400">
+                      {totalPaid.toLocaleString("fr-DZ")} DA
+                    </span>
+                    <div className="text-[10px] text-emerald-400/80 font-mono">0 DA Debt</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-800/40 border border-white/10 text-xs text-slate-400 flex items-center justify-between">
+                  <span>No subscription tariff assigned yet.</span>
+                  <Button size="sm" variant="secondary" onClick={() => setShowChangeGroup(true)}>
+                    Assign Group to Set Tariff
+                  </Button>
+                </div>
+              )}
 
               {/* Set Price inline */}
               {showSetPrice && (
@@ -833,34 +976,6 @@ export default function AdminSwimmerProfilePage({
                         {!["new_aqa", "old_aqa"].includes(editLevel) && (
                           <option value={editLevel}>{getLevelLabel(editLevel)} (legacy)</option>
                         )}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Type</label>
-                      <select
-                        value={editFormula}
-                        onChange={(e) => setEditFormula(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                      >
-                        <option value="G10">G10</option>
-                        <option value="MAX5">MAX5</option>
-                        <option value="INDIVID">INDIVID</option>
-                        <option value="Decouverte">Decouverte (Kids)</option>
-                        <option value="Recommande">Recommande (Kids)</option>
-                        <option value="Economique">Economique (Kids)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Duration</label>
-                      <select
-                        value={editDuration}
-                        onChange={(e) => setEditDuration(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                      >
-                        <option value="1m">1 Month</option>
-                        <option value="3m">3 Months (Trimestre)</option>
-                        <option value="6m">6 Months (Semestre)</option>
-                        <option value="9m">9 Months (Annual)</option>
                       </select>
                     </div>
                     <div>
