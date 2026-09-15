@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, StatCard, Card, Badge, Button, Input } from "@/components/admin/ui";
 import { useTranslations, formatDate } from "@/lib/i18n";
 import {
@@ -37,8 +37,9 @@ interface StatsData {
   conversionRate: number;
 }
 
-export default function SwimCallsPage() {
+function SwimCallsPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t, locale } = useTranslations("swimCalls");
 
   const [records, setRecords] = useState<SwimCallRecord[]>([]);
@@ -56,11 +57,12 @@ export default function SwimCallsPage() {
   });
   const [loading, setLoading] = useState(true);
 
-  // Filters
+  // Filters — initialize searchTerm from the ?q= URL param so
+  // "Open in Call Desk" links from the swimmer profile pre-populate the search.
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") || "");
 
   // Log Call Modal State
   const [activeCallTarget, setActiveCallTarget] = useState<SwimCallRecord | null>(null);
@@ -1166,5 +1168,13 @@ export default function SwimCallsPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function SwimCallsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="text-sm text-[var(--muted)] animate-pulse">Loading...</div></div>}>
+      <SwimCallsPageInner />
+    </Suspense>
   );
 }

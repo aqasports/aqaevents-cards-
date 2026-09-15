@@ -128,6 +128,25 @@ export async function PATCH(
       updatedNotes = currentNotesVal;
     }
 
+    // When priceDA is being set, also auto-recalculate paymentStatus
+    // so the financial ledger stays in harmony without a separate action.
+    let autoPaymentStatus: string | undefined = undefined;
+    if (priceDA !== undefined && !paymentStatus) {
+      const newPrice = parseInt(priceDA, 10);
+      const currentPayments = await prisma.swimPayment.findMany({
+        where: { memberId: id },
+        select: { amount: true },
+      });
+      const totalAlreadyPaid = currentPayments.reduce((s, p) => s + p.amount, 0);
+      if (newPrice > 0 && totalAlreadyPaid >= newPrice) {
+        autoPaymentStatus = "paid";
+      } else if (totalAlreadyPaid > 0) {
+        autoPaymentStatus = "partial";
+      } else {
+        autoPaymentStatus = "unpaid";
+      }
+    }
+
     const updated = await prisma.swimMember.update({
       where: { id },
       data: {
@@ -143,7 +162,7 @@ export async function PATCH(
         ...(duration && { duration }),
         ...(priceDA !== undefined && { priceDA: parseInt(priceDA, 10) }),
         ...(coachMessage !== undefined && { coachMessage: coachMessage?.trim() || null }),
-        ...(paymentStatus && { paymentStatus }),
+        ...((paymentStatus || autoPaymentStatus) && { paymentStatus: paymentStatus || autoPaymentStatus }),
         ...(groupStatus && { groupStatus }),
         ...(rejectionReason !== undefined && { rejectionReason }),
         ...(updatedNotes !== undefined && { notes: updatedNotes }),

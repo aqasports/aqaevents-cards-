@@ -175,26 +175,26 @@ export function SwimFlipCard({
               <div
                 className="absolute flex items-center justify-center pointer-events-none"
                 style={{
-                  top: "23%",
-                  left: "35%",
-                  width: "30%",
-                  height: "45%",
+                  top: "18%",
+                  left: "18%",
+                  width: "37%",
+                  height: "58%",
                 }}
               >
                 <img
                   src={qrCode}
                   alt="Pass QR Code"
-                  className="w-full h-full object-contain p-1 rounded-xl"
+                  className="w-full h-full object-contain p-1.5 rounded-xl"
                 />
               </div>
             ) : (
               <div
                 className="absolute flex items-center justify-center pointer-events-none"
                 style={{
-                  top: "23%",
-                  left: "35%",
-                  width: "30%",
-                  height: "45%",
+                  top: "18%",
+                  left: "18%",
+                  width: "37%",
+                  height: "58%",
                 }}
               >
                 <div className="text-[10px] text-slate-800 font-mono font-bold text-center">

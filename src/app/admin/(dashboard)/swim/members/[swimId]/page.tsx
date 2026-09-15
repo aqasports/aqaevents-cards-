@@ -589,15 +589,21 @@ export default function AdminSwimmerProfilePage({
                     ) : (
                       filteredGroups.map((g) => {
                         const enrolled = g._count?.swimmers ?? 0;
-                        const isFull = enrolled >= g.capacity;
+                        // Subtract 1 if this is the member's current group —
+                        // they are already counted in that group's capacity.
+                        const isCurrentGroup = g.id === member.group?.id;
+                        const effectiveEnrolled = isCurrentGroup ? enrolled - 1 : enrolled;
+                        const isFull = effectiveEnrolled >= g.capacity;
                         return (
                           <label
                             key={g.id}
                             className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
                               selectedNewGroupId === g.id
                                 ? "border-cyan-500 bg-cyan-950/30"
+                                : isFull
+                                ? "border-rose-900/50 bg-slate-800/20 opacity-60"
                                 : "border-white/10 bg-slate-800/40 hover:border-white/20"
-                            } ${isFull ? "opacity-60" : ""}`}
+                            }`}
                           >
                             <input
                               type="radio"
@@ -605,7 +611,6 @@ export default function AdminSwimmerProfilePage({
                               value={g.id}
                               checked={selectedNewGroupId === g.id}
                               onChange={() => setSelectedNewGroupId(g.id)}
-                              disabled={isFull}
                               className="accent-cyan-500"
                             />
                             <div className="flex-1 text-xs">
@@ -616,7 +621,9 @@ export default function AdminSwimmerProfilePage({
                               <div className="text-[var(--muted)]">
                                 {g.coachName ? `Coach: ${g.coachName} · ` : ""}{g.schedule}
                               </div>
-                              <div className="text-[var(--muted)]">{enrolled}/{g.capacity} enrolled {isFull ? "- FULL" : ""}</div>
+                              <div className={isFull ? "text-rose-400" : "text-[var(--muted)]"}>
+                                {effectiveEnrolled}/{g.capacity} enrolled {isFull ? "- FULL" : ""}
+                              </div>
                             </div>
                             {g.isSolid && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 font-bold">Solid</span>}
                           </label>
