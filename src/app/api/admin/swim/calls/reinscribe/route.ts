@@ -4,10 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import {
   calculateSubscriptionExpiration,
-  getStoredCallRecords,
-  saveStoredCallRecords,
   SwimCallEntry,
 } from "@/lib/swim-calls";
+import {
+  getStoredCallRecords,
+  saveStoredCallRecords,
+} from "@/lib/swim-calls-server";
 import { logAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";

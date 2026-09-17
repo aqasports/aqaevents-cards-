@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
-import { getStoredCallRecords, saveStoredCallRecords, SwimCallStatus } from "@/lib/swim-calls";
+import { SwimCallStatus } from "@/lib/swim-calls";
+import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls-server";
 import { logAdminAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";

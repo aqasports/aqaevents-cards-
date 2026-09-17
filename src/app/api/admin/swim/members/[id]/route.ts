@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { logAdminAction } from "@/lib/audit";
-import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls";
+import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls-server";
 
 export const dynamic = "force-dynamic";
 

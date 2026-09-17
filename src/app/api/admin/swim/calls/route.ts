@@ -5,11 +5,13 @@ import { logger } from "@/lib/logger";
 import {
   calculateSubscriptionExpiration,
   getCallUrgency,
-  getStoredCallRecords,
-  logCallForEntity,
   SwimCallRecord,
   SwimCallStatus,
 } from "@/lib/swim-calls";
+import {
+  getStoredCallRecords,
+  logCallForEntity,
+} from "@/lib/swim-calls-server";
 
 export const dynamic = "force-dynamic";
 
