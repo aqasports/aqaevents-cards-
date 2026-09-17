@@ -5,14 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, Card, Badge, Button, Input } from "@/components/admin/ui";
 import dynamic from "next/dynamic";
+import { CallsErrorBoundary } from "@/components/admin/swim/calls/CallsErrorBoundary";
 import {
   FRENCH_DAYS,
   SWIM_TIME_SLOTS,
   getSwimLevelLabel,
 } from "@/lib/swim-groups";
 
-const SwimCallsTab = dynamic(
-  () => import("@/components/admin/swim/SwimCallsTab").then((mod) => mod.SwimCallsTab),
+const SwimCallsDesk = dynamic(
+  () => import("@/components/admin/swim/calls/SwimCallsDesk").then((mod) => mod.SwimCallsDesk),
   {
     ssr: false,
     loading: () => (
@@ -1609,9 +1610,11 @@ export default function SwimOverviewPage() {
 
       {/* TAB 7: REINSCRIPTION & CALLS DESK */}
       {activeTab === "calls" && (
-        <SwimCallsTab
-          onNavigateToSwimmer={(swimId) => router.push(`/admin/swim/members/${swimId}`)}
-        />
+        <CallsErrorBoundary>
+          <SwimCallsDesk
+            onNavigateToSwimmer={(swimId) => router.push(`/admin/swim/members/${swimId}`)}
+          />
+        </CallsErrorBoundary>
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}

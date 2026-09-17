@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, Button } from "@/components/admin/ui";
-import { SwimCallsTab } from "@/components/admin/swim/SwimCallsTab";
+import { CallsErrorBoundary } from "@/components/admin/swim/calls/CallsErrorBoundary";
+import { SwimCallsDesk } from "@/components/admin/swim/calls/SwimCallsDesk";
 
 function SwimCallsPageInner() {
   const router = useRouter();
@@ -29,7 +30,9 @@ function SwimCallsPageInner() {
         }
       />
 
-      <SwimCallsTab />
+      <CallsErrorBoundary>
+        <SwimCallsDesk />
+      </CallsErrorBoundary>
     </div>
   );
 }

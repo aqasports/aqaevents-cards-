@@ -137,7 +137,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (categoryFilter !== "all") {
-      filtered = filtered.filter((r) => r.category.toLowerCase() === categoryFilter.toLowerCase());
+      filtered = filtered.filter((r) => (r.category || "").toLowerCase() === categoryFilter.toLowerCase());
     }
 
     if (urgencyFilter !== "all") {
@@ -147,8 +147,8 @@ export async function GET(request: NextRequest) {
     if (searchQuery) {
       filtered = filtered.filter((r) => {
         return (
-          r.fullName.toLowerCase().includes(searchQuery) ||
-          r.phone.includes(searchQuery) ||
+          (r.fullName && r.fullName.toLowerCase().includes(searchQuery)) ||
+          (r.phone && r.phone.includes(searchQuery)) ||
           (r.swimId && r.swimId.toLowerCase().includes(searchQuery)) ||
           (r.lastObservation && r.lastObservation.toLowerCase().includes(searchQuery))
         );
