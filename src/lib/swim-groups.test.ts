@@ -6,6 +6,9 @@ import {
   SWIM_GROUP_DEFAULT_CAPACITIES,
   SWIM_TIME_SLOTS,
   getSwimLevelLabel,
+  isOldSwimMember,
+  encodeMemberGroupIds,
+  decodeMemberGroupIds,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -98,6 +101,34 @@ describe("Swim Groups Utilities", () => {
       expect(getSwimLevelLabel("beginner")).toBe("New AQA Member");
       expect(getSwimLevelLabel("intermediate")).toBe("Old AQA Member");
       expect(getSwimLevelLabel("advanced")).toBe("Old AQA Member");
+    });
+
+    it("correctly identifies old members who can view cohort roster", () => {
+      expect(isOldSwimMember("old_aqa")).toBe(true);
+      expect(isOldSwimMember("intermediate")).toBe(true);
+      expect(isOldSwimMember("advanced")).toBe(true);
+      expect(isOldSwimMember("OLD_AQA")).toBe(true);
+
+      expect(isOldSwimMember("new_aqa")).toBe(false);
+      expect(isOldSwimMember("beginner")).toBe(false);
+      expect(isOldSwimMember(null)).toBe(false);
+      expect(isOldSwimMember(undefined)).toBe(false);
+      expect(isOldSwimMember("")).toBe(false);
+    });
+  });
+
+  describe("Multi-group notes encoding and decoding", () => {
+    it("encodes and decodes multiple group IDs cleanly", () => {
+      const encoded = encodeMemberGroupIds("Existing note", ["grp-1", "grp-2", "grp-3"]);
+      expect(encoded).toBe("[GROUPS:grp-1,grp-2,grp-3] Existing note");
+
+      const decoded = decodeMemberGroupIds(encoded, "grp-1");
+      expect(decoded).toEqual(["grp-1", "grp-2", "grp-3"]);
+    });
+
+    it("handles single group with primary group ID fallback", () => {
+      const decoded = decodeMemberGroupIds(null, "grp-primary");
+      expect(decoded).toEqual(["grp-primary"]);
     });
   });
 });

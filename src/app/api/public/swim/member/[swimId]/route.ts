@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { decodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
+import { decodeSolidNotes, decodeMemberGroupIds, isOldSwimMember } from "@/lib/swim-groups";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +11,143 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+
+async function enrichMemberGroups(member: any) {
+  const isOldMember = isOldSwimMember(member.level);
+  const allGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
+  if (allGroupIds.length === 0 && member.groupId) {
+    allGroupIds.push(member.groupId);
+  }
+
+  let allGroups: any[] = [];
+  if (allGroupIds.length > 0) {
+    const dbGroups = await prisma.swimGroup.findMany({
+      where: { id: { in: allGroupIds } },
+      include: {
+        swimmers: {
+          select: {
+            id: true,
+            swimId: true,
+            fullName: true,
+            groupStatus: true,
+          },
+        },
+      },
+    });
+
+    // Find secondary swimmers assigned to any of these groups via notes
+    const secondarySwimmers = await prisma.swimMember.findMany({
+      where: {
+        groupId: { notIn: allGroupIds },
+        notes: { contains: "[GROUPS:" },
+      },
+      select: {
+        id: true,
+        swimId: true,
+        fullName: true,
+        groupStatus: true,
+        groupId: true,
+        notes: true,
+      },
+    });
+
+    for (const g of dbGroups) {
+      const primarySwimmers = g.swimmers || [];
+      const extraSwimmers = secondarySwimmers.filter((m) =>
+        decodeMemberGroupIds(m.notes, m.groupId).includes(g.id)
+      );
+
+      const seenIds = new Set<string>();
+      const combinedSwimmers: Array<{ id: string; swimId: string; fullName: string; groupStatus: string }> = [];
+      for (const s of [...primarySwimmers, ...extraSwimmers]) {
+        if (!seenIds.has(s.id)) {
+          seenIds.add(s.id);
+          combinedSwimmers.push({
+            id: s.id,
+            swimId: s.swimId,
+            fullName: s.fullName,
+            groupStatus: s.groupStatus,
+          });
+        }
+      }
+
+      // Rule: in all the platform only old members can see group table (names)
+      const groupMembers = isOldMember
+        ? combinedSwimmers.map((s, idx) => ({
+            num: idx + 1,
+            id: s.id,
+            swimId: s.swimId,
+            fullName: s.fullName,
+            groupStatus: s.groupStatus,
+            isCurrentMember: s.swimId === member.swimId,
+          }))
+        : [];
+
+      const teammates = isOldMember
+        ? combinedSwimmers
+            .filter((s) => s.swimId !== member.swimId)
+            .map((s) => (s.fullName || "").trim().split(/\s+/)[0] || "")
+            .filter(Boolean)
+        : [];
+
+      const { isSolid, cleanNotes: solidNotes } = decodeSolidNotes(g.notes);
+
+      allGroups.push({
+        ...g,
+        isSolid,
+        solidNotes,
+        groupMembers,
+        teammates,
+      });
+    }
+
+    allGroups.sort((a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id));
+  } else if (member.group) {
+    const primarySwimmers = member.group.swimmers || [];
+    const groupMembers = isOldMember
+      ? primarySwimmers.map((s: any, idx: number) => ({
+          num: idx + 1,
+          id: s.id,
+          swimId: s.swimId,
+          fullName: s.fullName,
+          groupStatus: s.groupStatus,
+          isCurrentMember: s.swimId === member.swimId,
+        }))
+      : [];
+    const teammates = isOldMember
+      ? primarySwimmers
+          .filter((s: any) => s.swimId !== member.swimId)
+          .map((s: any) => (s.fullName || "").trim().split(/\s+/)[0] || "")
+          .filter(Boolean)
+      : [];
+    const { isSolid, cleanNotes: solidNotes } = decodeSolidNotes(member.group.notes);
+
+    allGroups = [
+      {
+        ...member.group,
+        isSolid,
+        solidNotes,
+        groupMembers,
+        teammates,
+      },
+    ];
+  }
+
+  const primaryGroup = allGroups[0] || member.group || null;
+  const isSolid = primaryGroup?.isSolid ?? (primaryGroup ? decodeSolidNotes(primaryGroup.notes).isSolid : false);
+  const solidNotes = primaryGroup?.solidNotes ?? (primaryGroup ? decodeSolidNotes(primaryGroup.notes).cleanNotes : "");
+  const rootGroupMembers = primaryGroup?.groupMembers || [];
+  const rootTeammates = primaryGroup?.teammates || [];
+
+  return {
+    allGroups,
+    isOldMember,
+    isSolid,
+    solidNotes,
+    groupMembers: rootGroupMembers,
+    teammates: rootTeammates,
+  };
+}
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -128,62 +265,17 @@ export async function GET(
       }
     }
 
-    const isSolid = member.group ? decodeSolidNotes(member.group.notes).isSolid : false;
-    const solidNotes = member.group ? decodeSolidNotes(member.group.notes).cleanNotes : "";
-
-    const teammates = member.group?.swimmers
-      ? member.group.swimmers
-          .filter((s) => s.swimId !== member.swimId)
-          .map((s) => {
-            const parts = s.fullName.trim().split(/\s+/);
-            return parts[0] || "";
-          })
-          .filter(Boolean)
-      : [];
-
-    const groupMembers = member.group?.swimmers
-      ? member.group.swimmers.map((s, idx) => ({
-          num: idx + 1,
-          id: s.id,
-          swimId: s.swimId,
-          fullName: s.fullName,
-          groupStatus: s.groupStatus,
-          isCurrentMember: s.swimId === member.swimId,
-        }))
-      : [];
-
-    // Multi-group support: load all assigned training groups
-    const allGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
-    let allGroups: typeof member.group[] = [];
-    if (allGroupIds.length > 0) {
-      const dbGroups = await prisma.swimGroup.findMany({
-        where: { id: { in: allGroupIds } },
-        include: {
-          swimmers: {
-            select: {
-              id: true,
-              swimId: true,
-              fullName: true,
-              groupStatus: true,
-            },
-          },
-        },
-      });
-      allGroups = dbGroups.sort(
-        (a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id)
-      ) as unknown as typeof member.group[];
-    } else if (member.group) {
-      allGroups = [member.group];
-    }
+    const enriched = await enrichMemberGroups(member);
 
     return NextResponse.json(
       {
         ...member,
-        groups: allGroups,
-        isSolid,
-        solidNotes,
-        teammates,
-        groupMembers,
+        groups: enriched.allGroups,
+        isOldMember: enriched.isOldMember,
+        isSolid: enriched.isSolid,
+        solidNotes: enriched.solidNotes,
+        teammates: enriched.teammates,
+        groupMembers: enriched.groupMembers,
       },
       { headers: corsHeaders }
     );
@@ -270,38 +362,19 @@ export async function POST(
         },
       });
 
-      const isSolid = updated.group ? decodeSolidNotes(updated.group.notes).isSolid : false;
-      const solidNotes = updated.group ? decodeSolidNotes(updated.group.notes).cleanNotes : "";
-      const teammates = updated.group?.swimmers
-        ? updated.group.swimmers
-            .filter((s) => s.swimId !== updated.swimId)
-            .map((s) => {
-              const parts = s.fullName.trim().split(/\s+/);
-              return parts[0] || "";
-            })
-            .filter(Boolean)
-        : [];
-
-      const groupMembers = updated.group?.swimmers
-        ? updated.group.swimmers.map((s, idx) => ({
-            num: idx + 1,
-            id: s.id,
-            swimId: s.swimId,
-            fullName: s.fullName,
-            groupStatus: s.groupStatus,
-            isCurrentMember: s.swimId === updated.swimId,
-          }))
-        : [];
+      const enriched = await enrichMemberGroups(updated);
 
       return NextResponse.json(
         {
           success: true,
           member: {
             ...updated,
-            isSolid,
-            solidNotes,
-            teammates,
-            groupMembers,
+            groups: enriched.allGroups,
+            isOldMember: enriched.isOldMember,
+            isSolid: enriched.isSolid,
+            solidNotes: enriched.solidNotes,
+            teammates: enriched.teammates,
+            groupMembers: enriched.groupMembers,
           },
         },
         { headers: corsHeaders }

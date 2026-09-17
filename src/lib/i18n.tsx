@@ -611,6 +611,7 @@ const dictionaries = {
       memberStatusProposed: "Pending",
       memberCountSingle: "member",
       memberCountPlural: "members",
+      groupMembersRestrictedNotice: "Cohort roster is reserved for Old AQA Members.",
     },
   },
 
@@ -1220,6 +1221,7 @@ const dictionaries = {
       memberStatusProposed: "En attente",
       memberCountSingle: "membre",
       memberCountPlural: "membres",
+      groupMembersRestrictedNotice: "La liste des membres de la cohorte est réservée aux anciens membres AQA.",
     },
   },
 
@@ -1829,6 +1831,7 @@ const dictionaries = {
       memberStatusProposed: "قيد التأكيد",
       memberCountSingle: "عضو",
       memberCountPlural: "أعضاء",
+      groupMembersRestrictedNotice: "قائمة أعضاء الفوج مخصصة لأعضاء أكوا القدامى.",
     },
   },
 

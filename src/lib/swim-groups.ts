@@ -89,6 +89,17 @@ export function getSwimLevelLabel(level: string): string {
   return SWIM_LEVEL_LABELS[level] ?? level;
 }
 
+/**
+ * Determines whether a swimmer level belongs to an "old member".
+ * Platform rule: only old members ("old_aqa", "intermediate", "advanced")
+ * are authorized to view group tables and cohort member names.
+ */
+export function isOldSwimMember(level: string | null | undefined): boolean {
+  if (!level) return false;
+  const l = level.toLowerCase().trim();
+  return l === "old_aqa" || l === "intermediate" || l === "advanced";
+}
+
 // ─── Group Name Generation ────────────────────────────────────────────────────
 
 /**
