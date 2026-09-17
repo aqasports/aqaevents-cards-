@@ -4,12 +4,24 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PageHeader, StatCard, Card, Badge, Button, Input } from "@/components/admin/ui";
+import dynamic from "next/dynamic";
 import {
   FRENCH_DAYS,
   SWIM_TIME_SLOTS,
   getSwimLevelLabel,
 } from "@/lib/swim-groups";
-import { SwimCallsTab } from "@/components/admin/swim/SwimCallsTab";
+
+const SwimCallsTab = dynamic(
+  () => import("@/components/admin/swim/SwimCallsTab").then((mod) => mod.SwimCallsTab),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-sm text-slate-400 animate-pulse">Loading Reinscription Call Desk...</div>
+      </div>
+    ),
+  }
+);
 
 interface SwimPaymentItem {
   id: string;
@@ -255,13 +267,15 @@ export default function SwimOverviewPage() {
 
   // Filtered Members
   const filteredMembers = useMemo(() => {
+    if (!Array.isArray(members)) return [];
     return members.filter((m) => {
-      const q = searchTerm.toLowerCase();
+      if (!m) return false;
+      const q = (searchTerm || "").toLowerCase().trim();
       const matchSearch =
-        !searchTerm ||
-        m.fullName.toLowerCase().includes(q) ||
+        !q ||
+        (m.fullName && m.fullName.toLowerCase().includes(q)) ||
         (m.phone && m.phone.includes(q)) ||
-        m.swimId.toLowerCase().includes(q) ||
+        (m.swimId && m.swimId.toLowerCase().includes(q)) ||
         (m.card?.cardCode && m.card.cardCode.toLowerCase().includes(q)) ||
         (m.group?.name && m.group.name.toLowerCase().includes(q));
 
@@ -280,13 +294,15 @@ export default function SwimOverviewPage() {
 
   // Filtered Leads
   const filteredLeads = useMemo(() => {
+    if (!Array.isArray(leads)) return [];
     return leads.filter((l) => {
+      if (!l) return false;
       const matchStatus = leadStatusFilter === "all" || l.status === leadStatusFilter;
       if (!matchStatus) return false;
-      if (!searchTerm) return true;
-      const q = searchTerm.toLowerCase();
+      const q = (searchTerm || "").toLowerCase().trim();
+      if (!q) return true;
       return (
-        l.fullName.toLowerCase().includes(q) ||
+        (l.fullName && l.fullName.toLowerCase().includes(q)) ||
         (l.phone && l.phone.includes(q)) ||
         (l.email && l.email.toLowerCase().includes(q))
       );
@@ -294,12 +310,22 @@ export default function SwimOverviewPage() {
   }, [leads, leadStatusFilter, searchTerm]);
 
   // Financial calculations
-  const totalRevenueExpected = members.reduce((sum, m) => sum + (m.priceDA || 0), 0);
-  const totalRevenueCollected = members.reduce(
-    (sum, m) => sum + (m.payments ? m.payments.reduce((pSum, p) => pSum + p.amount, 0) : 0),
-    0
-  );
-  const pendingLeadsCount = leads.filter((l) => l.status === "pending").length;
+  const totalRevenueExpected = Array.isArray(members)
+    ? members.reduce((sum, m) => sum + (m?.priceDA || 0), 0)
+    : 0;
+  const totalRevenueCollected = Array.isArray(members)
+    ? members.reduce(
+        (sum, m) =>
+          sum +
+          (m?.payments && Array.isArray(m.payments)
+            ? m.payments.reduce((pSum, p) => pSum + (p?.amount || 0), 0)
+            : 0),
+        0
+      )
+    : 0;
+  const pendingLeadsCount = Array.isArray(leads)
+    ? leads.filter((l) => l?.status === "pending").length
+    : 0;
 
   // Active coaches for calendar
   const activeCoaches = useMemo(() => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { StatCard, Card, Badge, Button, Input } from "@/components/admin/ui";
 import { useTranslations, formatDate } from "@/lib/i18n";
 import {
@@ -45,7 +45,6 @@ export function SwimCallsTab({
   onNavigateToSwimmer?: (swimId: string) => void;
 }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { t, locale } = useTranslations("swimCalls");
 
   const [records, setRecords] = useState<SwimCallRecord[]>([]);
@@ -64,13 +63,22 @@ export function SwimCallsTab({
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Filters — safely read query param without throwing
-  const qParam = searchParams ? searchParams.get("q") || "" : "";
+  // Filters
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState(initialSearch || qParam);
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+
+  // Initialize search term from URL on client mount without triggering useSearchParams SSR bailout
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q && !initialSearch) {
+        setSearchTerm(q);
+      }
+    }
+  }, [initialSearch]);
 
   // Log Call Modal State
   const [activeCallTarget, setActiveCallTarget] = useState<SwimCallRecord | null>(null);

@@ -11,6 +11,7 @@ export default function AdminDashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
+    console.error("Admin Dashboard Error Boundary Caught:", error);
     Sentry.captureException(error);
   }, [error]);
 
