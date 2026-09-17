@@ -33,7 +33,7 @@ export default async function SwimCardScanPage({ params }: Props) {
   const isPartial = member?.paymentStatus === "partial";
 
   // Generate QR code for the back of the card
-  const cardUrl = `https://aqasports.pro/swim/card/${card.publicToken}`;
+  const cardUrl = `https://aqasports.com/swim/card/${card.publicToken}`;
   const qrDataUrl = await QRCode.toDataURL(cardUrl, {
     width: 280,
     margin: 1,

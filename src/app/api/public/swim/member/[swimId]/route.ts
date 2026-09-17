@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { decodeSolidNotes } from "@/lib/swim-groups";
+import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,16 @@ export async function GET(
           },
         },
         card: true,
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            notes: true,
+            paidAt: true,
+          },
+          orderBy: { paidAt: "desc" },
+        },
       },
     });
 
@@ -60,6 +71,16 @@ export async function GET(
             },
           },
           card: true,
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              method: true,
+              notes: true,
+              paidAt: true,
+            },
+            orderBy: { paidAt: "desc" },
+          },
         },
         take: 30,
       });
@@ -86,6 +107,25 @@ export async function GET(
         { error: "Swimmer profile not found" },
         { status: 404, headers: corsHeaders }
       );
+    }
+
+    // Auto-create active card if member has none so digital pass card works immediately
+    if (!member.card) {
+      try {
+        const publicToken = nanoid(16);
+        const cardCode = `SWM-${Math.floor(100000 + Math.random() * 900000)}`;
+        const createdCard = await prisma.swimCard.create({
+          data: {
+            memberId: member.id,
+            publicToken,
+            cardCode,
+            status: "active",
+          },
+        });
+        member = { ...member, card: createdCard };
+      } catch {
+        // Continue gracefully if concurrent creation
+      }
     }
 
     const isSolid = member.group ? decodeSolidNotes(member.group.notes).isSolid : false;
@@ -166,10 +206,55 @@ export async function POST(
       const updated = await prisma.swimMember.update({
         where: { id: member.id },
         data: { groupStatus: "accepted" },
-        include: { group: true },
+        include: {
+          group: {
+            include: {
+              swimmers: {
+                select: {
+                  id: true,
+                  swimId: true,
+                  fullName: true,
+                  groupStatus: true,
+                },
+              },
+            },
+          },
+          card: true,
+          payments: {
+            select: {
+              id: true,
+              amount: true,
+              method: true,
+              notes: true,
+              paidAt: true,
+            },
+            orderBy: { paidAt: "desc" },
+          },
+        },
       });
+
+      const isSolid = updated.group ? decodeSolidNotes(updated.group.notes).isSolid : false;
+      const solidNotes = updated.group ? decodeSolidNotes(updated.group.notes).cleanNotes : "";
+      const teammates = updated.group?.swimmers
+        ? updated.group.swimmers
+            .filter((s) => s.swimId !== updated.swimId)
+            .map((s) => {
+              const parts = s.fullName.trim().split(/\s+/);
+              return parts[0] || "";
+            })
+            .filter(Boolean)
+        : [];
+
       return NextResponse.json(
-        { success: true, member: updated },
+        {
+          success: true,
+          member: {
+            ...updated,
+            isSolid,
+            solidNotes,
+            teammates,
+          },
+        },
         { headers: corsHeaders }
       );
     } else if (action === "reject") {

@@ -173,8 +173,8 @@ export function getSwimWhatsAppUrl(
       ? `Coach: ${entity.group.coachName}\n`
       : "";
     const portalUrl = entity.swimId
-      ? `https://aqasports.pro/swim/profile/${entity.swimId}`
-      : "https://aqasports.pro/swim";
+      ? `https://aqasports.com/swim/profile/${entity.swimId}`
+      : "https://aqasports.com/swim";
 
     text = encodeURIComponent(
       `Salam ${entity.fullName},\n\n` +

@@ -160,6 +160,7 @@ export default function AdminSwimmerProfilePage({
   const [assignDuration, setAssignDuration] = useState("3m");
   const [assignFrequency, setAssignFrequency] = useState<number>(1);
   const [savingGroup, setSavingGroup] = useState(false);
+  const [confirmingGroup, setConfirmingGroup] = useState(false);
 
   const loadMember = useCallback(async () => {
     setLoading(true);
@@ -325,6 +326,21 @@ export default function AdminSwimmerProfilePage({
     }
   }
 
+  async function handleConfirmGroup(status: "accepted" | "proposed" = "accepted") {
+    if (!member) return;
+    setConfirmingGroup(true);
+    try {
+      await fetch(`/api/admin/swim/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groupStatus: status }),
+      });
+      await loadMember();
+    } finally {
+      setConfirmingGroup(false);
+    }
+  }
+
   async function handleAddPayment(e: React.FormEvent) {
     e.preventDefault();
     if (!member || !paymentAmount) return;
@@ -425,7 +441,7 @@ export default function AdminSwimmerProfilePage({
     return true;
   });
 
-  const portalUrl = `https://aqasports.pro/swim/profile/${swimId}`;
+  const portalUrl = `https://aqasports.com/swim/profile/${swimId}`;
 
   // ─── Loading / Error ────────────────────────────────────────────────────────
 
@@ -552,6 +568,16 @@ export default function AdminSwimmerProfilePage({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white uppercase tracking-wider">Assigned Group</span>
                 <div className="flex items-center gap-2">
+                  {activeGroup && member.groupStatus !== "accepted" && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => handleConfirmGroup("accepted")}
+                      disabled={confirmingGroup}
+                    >
+                      {confirmingGroup ? "Confirming..." : "Confirm Group"}
+                    </Button>
+                  )}
                   {activeGroup && (
                     <Button size="sm" variant="danger" onClick={handleRemoveGroup} disabled={savingGroup}>
                       Remove
@@ -589,10 +615,37 @@ export default function AdminSwimmerProfilePage({
                     <span className="text-[var(--muted)]">Type:</span>
                     <span className="text-slate-200">{activeGroup.level}</span>
                   </div>
-                  <div className="pt-1">
-                    {member.groupStatus === "accepted" && <Badge tone="success">Confirmed by client</Badge>}
-                    {member.groupStatus === "proposed" && <Badge tone="warning">Pending client confirmation</Badge>}
-                    {member.groupStatus === "rejected" && <Badge tone="danger">Rejected by client</Badge>}
+                  <div className="pt-2 flex items-center justify-between border-t border-white/5">
+                    <div className="flex items-center gap-2">
+                      {member.groupStatus === "accepted" && (
+                        <Badge tone="success">Group Confirmed (No client prompt)</Badge>
+                      )}
+                      {member.groupStatus === "proposed" && (
+                        <Badge tone="warning">Pending client confirmation</Badge>
+                      )}
+                      {member.groupStatus === "rejected" && (
+                        <Badge tone="danger">Rejected by client</Badge>
+                      )}
+                    </div>
+                    {member.groupStatus !== "accepted" ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => handleConfirmGroup("accepted")}
+                        disabled={confirmingGroup}
+                      >
+                        {confirmingGroup ? "Confirming..." : "Confirm Group"}
+                      </Button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmGroup("proposed")}
+                        disabled={confirmingGroup}
+                        className="text-[11px] text-slate-400 hover:text-amber-300 transition-colors"
+                      >
+                        Reset to Pending
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : !archivedGroupWarning ? (

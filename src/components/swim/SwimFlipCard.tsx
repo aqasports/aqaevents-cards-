@@ -52,7 +52,7 @@ export function SwimFlipCard({
     if (member.card?.publicToken) {
       const publicUrl = typeof window !== "undefined"
         ? `${window.location.origin}/swim/card/${member.card.publicToken}`
-        : `https://aqasports.pro/swim/card/${member.card.publicToken}`;
+        : `https://aqasports.com/swim/card/${member.card.publicToken}`;
 
       QRCode.toDataURL(publicUrl, {
         width: 260,

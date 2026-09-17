@@ -477,7 +477,7 @@ export default function SwimOverviewPage() {
     const effectiveGrp = member.effectiveGroup || (!member.effectivelyUnassigned && member.group?.active ? member.group : null);
     const groupText = effectiveGrp ? `${effectiveGrp.name} (${effectiveGrp.schedule})` : "En attente d'affectation";
     const coachText = effectiveGrp?.coachName ? `Coach: ${effectiveGrp.coachName}` : "";
-    const portalUrl = `https://aqasports.pro/swim/profile/${member.swimId}`;
+    const portalUrl = `https://aqasports.com/swim/profile/${member.swimId}`;
 
     const text = encodeURIComponent(
       `Salam ${member.fullName},\n\n` +

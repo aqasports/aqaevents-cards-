@@ -1,6 +1,6 @@
 // AQA Swim Official Pricing & Card Model (2026/2027 Season)
 // Strictly Western Arabic numerals (0-9). No emojis.
-// Direct port of official pricing matrices from aqasports.pro (tarifs.astro & pricing-data.ts)
+// Direct port of official pricing matrices from aqasports.com (tarifs.astro & pricing-data.ts)
 
 export type AdultCategory = "homme" | "femme";
 export type SwimCategory = AdultCategory | "enfants" | "apnea" | string;
