@@ -229,10 +229,8 @@ export default function SwimGroupsPage() {
           const all: SwimMemberSearch[] = await res.json();
           const eligible = all.filter((m) => {
             if (m.category !== selectedGroup.category) return false;
-            // Already in this group
+            // Already in this exact group
             if (m.groupId === selectedGroup.id) return false;
-            // In another active group
-            if (m.groupId && m.group && m.group.active && m.group.id !== selectedGroup.id) return false;
             return true;
           });
           setSearchAssignResults(eligible);
@@ -1078,7 +1076,7 @@ export default function SwimGroupsPage() {
                         Assign Swimmer to This Group
                       </div>
                       <p className="text-[11px] text-[var(--muted)]">
-                        Search {CATEGORY_LABELS[selectedGroup.category]} swimmers who are unassigned or in an archived group.
+                        Search {CATEGORY_LABELS[selectedGroup.category]} swimmers to assign or transfer to this group.
                       </p>
                       <Input
                         placeholder="Search by name, phone, or swimmer ID..."
@@ -1089,25 +1087,36 @@ export default function SwimGroupsPage() {
                         <div className="text-xs text-[var(--muted)] animate-pulse">Searching...</div>
                       )}
                       {searchAssignResults.length > 0 && (
-                        <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
-                          {searchAssignResults.map((m) => (
-                            <div key={m.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white/[0.02]">
-                              <div>
-                                <span className="font-bold text-white">{m.fullName}</span>
-                                <span className="ml-2 font-mono text-[10px] text-cyan-400">{m.swimId}</span>
-                                <span className="ml-2 text-[var(--muted)]">{getSwimLevelLabel(m.level)}</span>
-                                {m.phone && <span className="ml-2 text-[var(--muted)] font-mono">{m.phone}</span>}
+                        <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                          {searchAssignResults.map((m) => {
+                            const isTransfer = Boolean(m.groupId && m.group && m.group.active);
+                            return (
+                              <div key={m.id} className="p-2.5 flex items-center justify-between text-xs hover:bg-white/[0.02]">
+                                <div className="min-w-0 pr-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-white">{m.fullName}</span>
+                                    <span className="font-mono text-[10px] text-cyan-400">{m.swimId}</span>
+                                    {isTransfer && (
+                                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950/70 text-amber-300 border border-amber-800/40">
+                                        Current: {m.group?.name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-[var(--muted)] mt-0.5">
+                                    {getSwimLevelLabel(m.level)} {m.phone && `· ${m.phone}`}
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant={isTransfer ? "secondary" : "primary"}
+                                  disabled={assigningMemberId === m.id}
+                                  onClick={() => handleAssignSwimmer(m.id)}
+                                >
+                                  {assigningMemberId === m.id ? "..." : isTransfer ? "Reassign" : "Assign"}
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                disabled={assigningMemberId === m.id}
-                                onClick={() => handleAssignSwimmer(m.id)}
-                              >
-                                {assigningMemberId === m.id ? "..." : "Assign"}
-                              </Button>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                       {searchAssignQuery.trim().length >= 2 && !searchingAssign && searchAssignResults.length === 0 && (

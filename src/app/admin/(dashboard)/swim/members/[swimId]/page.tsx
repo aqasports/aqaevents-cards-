@@ -148,6 +148,11 @@ export default function AdminSwimmerProfilePage({
   const [paymentNotes, setPaymentNotes] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
+  // Tariff Configuration State (direct ledger calculation without reassigning)
+  const [showTariffConfig, setShowTariffConfig] = useState(false);
+  const [tariffDuration, setTariffDuration] = useState("3m");
+  const [tariffFrequency, setTariffFrequency] = useState<number>(1);
+
   // Group assignment state
   const [showChangeGroup, setShowChangeGroup] = useState(false);
   const [groupSolidFilter, setGroupSolidFilter] = useState(false);
@@ -165,7 +170,33 @@ export default function AdminSwimmerProfilePage({
         setError("Swimmer profile not found.");
         return;
       }
-      const data: SwimMemberDetail = await res.json();
+      const data = await res.json();
+      let effectivePrice = data.priceDA;
+      // If member already has a group but tariff is not set (0), automatically
+      // calculate the official AQA tariff and sync it to the ledger.
+      if (effectivePrice === 0 && (data.group || data.groupId)) {
+        const groupType = data.group?.level || "G10";
+        const dur = data.duration || "3m";
+        const freqMatch = (data.formula || "").match(/^([123])x/i);
+        const freq = freqMatch ? parseInt(freqMatch[1], 10) : 1;
+        const computed = calculateSwimPrice({
+          category: data.category,
+          groupType,
+          duration: dur,
+          frequency: freq,
+        });
+        if (computed > 0) {
+          effectivePrice = computed;
+          data.priceDA = computed;
+          // Silently persist auto-computed tariff
+          fetch(`/api/admin/swim/members/${data.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ priceDA: computed }),
+          }).catch(() => {});
+        }
+      }
+
       setMember(data);
       // Pre-fill edit fields
       setEditFullName(data.fullName);
@@ -177,7 +208,7 @@ export default function AdminSwimmerProfilePage({
       setEditDateOfStart(data.dateOfStart.split("T")[0]);
       setEditNotes(data.notes || "");
       setCoachMsgText(data.coachMessage || "");
-      setNewPriceInput(String(data.priceDA));
+      setNewPriceInput(String(effectivePrice));
       setAssignDuration(data.duration || "3m");
     } catch {
       setError("Failed to load profile.");
@@ -258,6 +289,36 @@ export default function AdminSwimmerProfilePage({
         body: JSON.stringify({ priceDA: parseInt(newPriceInput, 10) }),
       });
       setShowSetPrice(false);
+      await loadMember();
+    } finally {
+      setSavingPrice(false);
+    }
+  }
+
+  async function handleApplyTariff() {
+    if (!member) return;
+    setSavingPrice(true);
+    try {
+      const groupLevel = member.effectiveGroup?.level || member.group?.level || "G10";
+      const calculatedPrice = calculateSwimPrice({
+        category: member.category,
+        groupType: groupLevel,
+        duration: tariffDuration,
+        frequency: tariffFrequency,
+      });
+      const formulaStr =
+        tariffFrequency > 1 ? `${tariffFrequency}x ${groupLevel}` : groupLevel;
+
+      await fetch(`/api/admin/swim/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          formula: formulaStr,
+          duration: tariffDuration,
+          priceDA: calculatedPrice,
+        }),
+      });
+      setShowTariffConfig(false);
       await loadMember();
     } finally {
       setSavingPrice(false);
@@ -756,14 +817,70 @@ export default function AdminSwimmerProfilePage({
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => setShowSetPrice(!showSetPrice)}>
-                    Adjust Price
+                  <Button size="sm" variant="secondary" onClick={() => setShowTariffConfig(!showTariffConfig)}>
+                    {showTariffConfig ? "Cancel" : "Tariff Plan"}
                   </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setShowAddPayment(!showAddPayment)}>
+                  <Button size="sm" variant="secondary" onClick={() => setShowSetPrice(!showSetPrice)}>
+                    Manual Price
+                  </Button>
+                  <Button size="sm" variant="primary" onClick={() => setShowAddPayment(!showAddPayment)}>
                     + Payment
                   </Button>
                 </div>
               </div>
+
+              {/* Official Tariff Configurator inline */}
+              {showTariffConfig && (
+                <div className="p-3.5 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-300">Set Tariff from Official AQA Pricing</span>
+                    <span className="text-[10px] text-[var(--muted)]">Calculates automatically</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Frequency</label>
+                      <select
+                        value={tariffFrequency}
+                        onChange={(e) => setTariffFrequency(parseInt(e.target.value, 10))}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value={1}>1x / week</option>
+                        <option value={2}>2x / week</option>
+                        {member.category === "homme" && <option value={3}>3x / week</option>}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Duration</label>
+                      <select
+                        value={tariffDuration}
+                        onChange={(e) => setTariffDuration(e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value="1m">1 Month (Starter)</option>
+                        <option value="3m">3 Months (Silver)</option>
+                        <option value="6m">6 Months (Gold)</option>
+                        <option value="9m">9 Months (Diamond)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-1 border-t border-white/10">
+                    <div>
+                      <span className="text-[11px] text-slate-400">Tariff: </span>
+                      <span className="font-bold text-cyan-300 font-mono text-sm">
+                        {calculateSwimPrice({
+                          category: member.category,
+                          groupType: member.effectiveGroup?.level || member.group?.level || "G10",
+                          duration: tariffDuration,
+                          frequency: tariffFrequency,
+                        }).toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <Button variant="primary" size="sm" disabled={savingPrice} onClick={handleApplyTariff}>
+                      {savingPrice ? "Saving..." : "Apply Tariff"}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* Debt / Payment Status Banner */}
               {hasDebt ? (
@@ -806,11 +923,16 @@ export default function AdminSwimmerProfilePage({
                   </div>
                 </div>
               ) : (
-                <div className="p-3 rounded-xl bg-slate-800/40 border border-white/10 text-xs text-slate-400 flex items-center justify-between">
-                  <span>No subscription tariff assigned yet.</span>
-                  <Button size="sm" variant="secondary" onClick={() => setShowChangeGroup(true)}>
-                    Assign Group to Set Tariff
-                  </Button>
+                <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 text-xs text-slate-400 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-slate-300">No subscription tariff assigned yet.</span>
+                    <p className="text-[11px] text-[var(--muted)] mt-0.5">Select a duration & frequency to calculate price automatically.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="primary" onClick={() => setShowTariffConfig(true)}>
+                      Set Tariff Plan
+                    </Button>
+                  </div>
                 </div>
               )}
 

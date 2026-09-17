@@ -153,7 +153,7 @@ export function SwimFlipCard({
             </div>
           </div>
 
-          {/* ─── BACK FACE ─── */}
+          {/* ─── BACK FACE (VERSO) ─── */}
           <div
             className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-slate-900"
             style={{
@@ -162,61 +162,101 @@ export function SwimFlipCard({
               transform: "rotateY(180deg)",
             }}
           >
-            {/* Real Card Back Photo */}
+            {/* Real Card Back Photo (card_starter.png, card_silver.png, etc.) */}
             <img
               src={tier.backImage}
-              alt="Card Back"
+              alt={`${tier.title} Verso`}
               className="w-full h-full object-cover"
               loading="eager"
             />
 
-            {/* QR Code placed directly inside the white SCAN ME box */}
-            {qrCode ? (
-              <div
-                className="absolute flex items-center justify-center pointer-events-none"
-                style={{
-                  top: "18%",
-                  left: "18%",
-                  width: "37%",
-                  height: "58%",
-                }}
-              >
-                <img
-                  src={qrCode}
-                  alt="Pass QR Code"
-                  className="w-full h-full object-contain p-1.5 rounded-xl"
-                />
-              </div>
-            ) : (
-              <div
-                className="absolute flex items-center justify-center pointer-events-none"
-                style={{
-                  top: "18%",
-                  left: "18%",
-                  width: "37%",
-                  height: "58%",
-                }}
-              >
-                <div className="text-[10px] text-slate-800 font-mono font-bold text-center">
-                  {member.card?.cardCode || member.swimId}
-                </div>
-              </div>
-            )}
+            {/* Subtle gloss shine overlay */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/30 via-transparent to-white/10 pointer-events-none" />
 
-            {/* Card Code Overlay on top left of back */}
-            {member.card && (
+            {/* Left of vertical bar: QR Code */}
+            <div
+              className="absolute flex items-center justify-center pointer-events-none"
+              style={{
+                left: "7%",
+                top: "32%",
+                width: "22%",
+                height: "42%",
+              }}
+            >
+              {qrCode ? (
+                <div className="w-full h-full p-1 bg-white rounded-xl shadow-lg flex items-center justify-center">
+                  <img
+                    src={qrCode}
+                    alt="Pass QR Code"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-full p-1 bg-white/10 backdrop-blur-md rounded-xl border border-white/20 flex flex-col items-center justify-center text-center">
+                  <span className="text-[8px] font-mono font-bold text-slate-300">
+                    {member.card?.cardCode || member.swimId}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Right of vertical bar: Swimmer Information */}
+            <div
+              className="absolute pointer-events-none z-10"
+              style={{
+                left: "35%",
+                top: "30%",
+                right: "6%",
+              }}
+            >
+              {/* Member Full Name */}
+              <div className="text-[13px] sm:text-[15px] font-black uppercase text-white tracking-wide truncate drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                {member.fullName}
+              </div>
+
+              {/* Swimmer ID & Category */}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[11px] sm:text-[12px] font-mono font-bold text-cyan-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                  {member.swimId}
+                </span>
+                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-black/60 text-slate-200 border border-white/15">
+                  {member.category}
+                </span>
+              </div>
+
+              {/* Formula & Duration */}
+              <div className="text-[10px] sm:text-[11px] font-semibold text-slate-200 mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] truncate">
+                {member.formula || tier.badge} · {member.duration || "3m"}
+              </div>
+
+              {/* Group Name */}
+              {member.group && (
+                <div className="text-[9px] text-slate-300/90 mt-0.5 truncate">
+                  Group: {member.group.name}
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Right: Payment Status */}
+            <div className="absolute bottom-3 right-3 z-10">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-md ${
+                  isPaid
+                    ? "bg-emerald-950/90 text-emerald-300 border-emerald-500/60"
+                    : isPartial
+                    ? "bg-amber-950/90 text-amber-300 border-amber-500/60"
+                    : "bg-rose-950/90 text-rose-300 border-rose-500/60"
+                }`}
+              >
+                {isPaid ? "Paid" : isPartial ? "Partial" : "Debt"}
+              </span>
+            </div>
+
+            {/* Top Left: Card Code if present */}
+            {member.card?.cardCode && (
               <div className="absolute top-2.5 left-3 z-10">
                 <span className="text-[9px] font-mono font-bold text-cyan-300/90 bg-black/60 px-2 py-0.5 rounded border border-white/10">
                   {member.card.cardCode}
-                </span>
-              </div>
-            )}
-
-            {/* Group info at top right */}
-            {member.group && (
-              <div className="absolute top-2.5 right-3 z-10 text-right">
-                <span className="text-[9px] font-semibold text-slate-200 bg-black/60 px-2 py-0.5 rounded border border-white/10">
-                  {member.group.name}
                 </span>
               </div>
             )}

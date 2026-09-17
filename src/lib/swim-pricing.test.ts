@@ -50,31 +50,36 @@ describe("Swim Pricing Utilities (from tarifs.astro)", () => {
     it("resolves starter card for 1m duration", () => {
       const tier = getCardTier("G10", "1m");
       expect(tier.tierId).toBe("starter");
-      expect(tier.frontImage).toBe("/image/card_starter.png");
+      expect(tier.frontImage).toBe("/image/1.webp");
+      expect(tier.backImage).toBe("/image/card_starter.png");
     });
 
     it("resolves silver card for 3m duration", () => {
       const tier = getCardTier("G10", "3m");
       expect(tier.tierId).toBe("silver");
-      expect(tier.frontImage).toBe("/image/card_silver.png");
+      expect(tier.frontImage).toBe("/image/2.webp");
+      expect(tier.backImage).toBe("/image/card_silver.png");
     });
 
     it("resolves gold card for 6m duration", () => {
       const tier = getCardTier("MAX5", "6m");
       expect(tier.tierId).toBe("gold");
-      expect(tier.frontImage).toBe("/image/card_gold.png");
+      expect(tier.frontImage).toBe("/image/3.webp");
+      expect(tier.backImage).toBe("/image/card_gold.png");
     });
 
     it("resolves diamond card for 9m duration", () => {
       const tier = getCardTier("Economique", "9m");
       expect(tier.tierId).toBe("diamond");
-      expect(tier.frontImage).toBe("/image/card_diamond.png");
+      expect(tier.frontImage).toBe("/image/4.webp");
+      expect(tier.backImage).toBe("/image/card_diamond.png");
     });
 
     it("resolves emerald card for VIP formulas", () => {
       const tier = getCardTier("VIP Emerald", "3m");
       expect(tier.tierId).toBe("emerald");
-      expect(tier.frontImage).toBe("/image/card_emerald.png");
+      expect(tier.frontImage).toBe("/image/default.webp");
+      expect(tier.backImage).toBe("/image/card_emerald.png");
     });
   });
 });

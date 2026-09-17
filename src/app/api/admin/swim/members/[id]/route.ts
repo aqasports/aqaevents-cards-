@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { calculateSwimPrice } from "@/lib/swim-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -128,17 +129,45 @@ export async function PATCH(
       updatedNotes = currentNotesVal;
     }
 
-    // When priceDA is being set, also auto-recalculate paymentStatus
-    // so the financial ledger stays in harmony without a separate action.
+    // When priceDA is provided OR when formula/duration/groupId changes without explicit priceDA,
+    // auto-calculate the official AQA tariff and sync paymentStatus atomically.
+    let finalPriceDA = priceDA !== undefined ? parseInt(priceDA, 10) : undefined;
+    if (finalPriceDA === undefined && (groupId !== undefined || formula !== undefined || duration !== undefined)) {
+      const current = await prisma.swimMember.findUnique({
+        where: { id },
+        include: { group: true },
+      });
+      if (current) {
+        const targetGroupId = groupId !== undefined ? groupId : current.groupId;
+        let groupLevel = current.group?.level || "G10";
+        if (targetGroupId && targetGroupId !== current.groupId) {
+          const g = await prisma.swimGroup.findUnique({ where: { id: targetGroupId } });
+          if (g) groupLevel = g.level;
+        }
+        const effFormula = formula || current.formula || "G10";
+        const effDuration = duration || current.duration || "3m";
+        const freqMatch = effFormula.match(/^([123])x/i);
+        const freq = freqMatch ? parseInt(freqMatch[1], 10) : 1;
+        const autoPrice = calculateSwimPrice({
+          category: category || current.category,
+          groupType: groupLevel,
+          duration: effDuration,
+          frequency: freq,
+        });
+        if (autoPrice > 0) {
+          finalPriceDA = autoPrice;
+        }
+      }
+    }
+
     let autoPaymentStatus: string | undefined = undefined;
-    if (priceDA !== undefined && !paymentStatus) {
-      const newPrice = parseInt(priceDA, 10);
+    if (finalPriceDA !== undefined && !paymentStatus) {
       const currentPayments = await prisma.swimPayment.findMany({
         where: { memberId: id },
         select: { amount: true },
       });
       const totalAlreadyPaid = currentPayments.reduce((s, p) => s + p.amount, 0);
-      if (newPrice > 0 && totalAlreadyPaid >= newPrice) {
+      if (finalPriceDA > 0 && totalAlreadyPaid >= finalPriceDA) {
         autoPaymentStatus = "paid";
       } else if (totalAlreadyPaid > 0) {
         autoPaymentStatus = "partial";
@@ -160,7 +189,7 @@ export async function PATCH(
         ...(groupId !== undefined && { groupId: groupId || null }),
         ...(formula && { formula }),
         ...(duration && { duration }),
-        ...(priceDA !== undefined && { priceDA: parseInt(priceDA, 10) }),
+        ...(finalPriceDA !== undefined && { priceDA: finalPriceDA }),
         ...(coachMessage !== undefined && { coachMessage: coachMessage?.trim() || null }),
         ...((paymentStatus || autoPaymentStatus) && { paymentStatus: paymentStatus || autoPaymentStatus }),
         ...(groupStatus && { groupStatus }),

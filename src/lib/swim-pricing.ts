@@ -285,8 +285,8 @@ export function getCardTier(
       tierId: "emerald",
       title: "VIP Emerald Pass",
       badge: "VIP SPECIAL",
-      frontImage: "/image/card_emerald.png",
-      backImage: "/image/swim_back.jpg",
+      frontImage: "/image/default.webp",
+      backImage: "/image/card_emerald.png",
       accentColor: "#10b981",
     };
   }
@@ -297,8 +297,8 @@ export function getCardTier(
       tierId: "starter",
       title: "Starter Pass",
       badge: "STARTER",
-      frontImage: "/image/card_starter.png",
-      backImage: "/image/swim_back.jpg",
+      frontImage: "/image/1.webp",
+      backImage: "/image/card_starter.png",
       accentColor: "#0ea5e9",
     };
   }
@@ -309,8 +309,8 @@ export function getCardTier(
       tierId: "gold",
       title: "Gold Pass",
       badge: "GOLD",
-      frontImage: "/image/card_gold.png",
-      backImage: "/image/swim_back.jpg",
+      frontImage: "/image/3.webp",
+      backImage: "/image/card_gold.png",
       accentColor: "#f59e0b",
     };
   }
@@ -321,8 +321,8 @@ export function getCardTier(
       tierId: "diamond",
       title: "Diamond Pass",
       badge: "DIAMOND",
-      frontImage: "/image/card_diamond.png",
-      backImage: "/image/swim_back.jpg",
+      frontImage: "/image/4.webp",
+      backImage: "/image/card_diamond.png",
       accentColor: "#a855f7",
     };
   }
@@ -332,8 +332,8 @@ export function getCardTier(
     tierId: "silver",
     title: "Silver Pass",
     badge: "SILVER",
-    frontImage: "/image/card_silver.png",
-    backImage: "/image/back.png",
+    frontImage: "/image/2.webp",
+    backImage: "/image/card_silver.png",
     accentColor: "#94a3b8",
   };
 }
