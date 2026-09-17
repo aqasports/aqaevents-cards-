@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { decodeSolidNotes } from "@/lib/swim-groups";
+import { decodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -152,9 +152,34 @@ export async function GET(
         }))
       : [];
 
+    // Multi-group support: load all assigned training groups
+    const allGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
+    let allGroups: typeof member.group[] = [];
+    if (allGroupIds.length > 0) {
+      const dbGroups = await prisma.swimGroup.findMany({
+        where: { id: { in: allGroupIds } },
+        include: {
+          swimmers: {
+            select: {
+              id: true,
+              swimId: true,
+              fullName: true,
+              groupStatus: true,
+            },
+          },
+        },
+      });
+      allGroups = dbGroups.sort(
+        (a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id)
+      ) as unknown as typeof member.group[];
+    } else if (member.group) {
+      allGroups = [member.group];
+    }
+
     return NextResponse.json(
       {
         ...member,
+        groups: allGroups,
         isSolid,
         solidNotes,
         teammates,

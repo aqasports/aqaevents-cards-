@@ -148,6 +148,62 @@ export const APNEA_PRICES: Record<string, number> = {
   renouvellement: 7300,
 };
 
+// ─── Multi-Group Formula Resolver ──────────────────────────────────────────
+
+/**
+ * Resolves the canonical formula string and frequency number from an array of group levels or types.
+ * Example: ["G10", "MAX5"] -> { formula: "G10 + MAX5", frequency: 2 }
+ * Example: ["G10", "G10"] -> { formula: "2x G10", frequency: 2 }
+ * Example: ["G10", "G10", "MAX5"] -> { formula: "2x G10 + MAX5", frequency: 3 }
+ */
+export function resolveMultiGroupFormula(groupLevelsOrTypes: string[]): { formula: string; frequency: number } {
+  if (!groupLevelsOrTypes || groupLevelsOrTypes.length === 0) {
+    return { formula: "G10", frequency: 1 };
+  }
+
+  const normalized = groupLevelsOrTypes.map((lvl) => {
+    const s = (lvl || "").toLowerCase().trim();
+    if (s.includes("max") || s === "m") return "MAX5";
+    if (s.includes("indiv") || s === "i") return "INDIVID";
+    return "G10";
+  });
+
+  const countG10 = normalized.filter((x) => x === "G10").length;
+  const countMAX5 = normalized.filter((x) => x === "MAX5").length;
+  const countINDIVID = normalized.filter((x) => x === "INDIVID").length;
+  const total = countG10 + countMAX5 + countINDIVID;
+
+  if (total === 1) {
+    if (countMAX5 === 1) return { formula: "MAX5", frequency: 1 };
+    if (countINDIVID === 1) return { formula: "INDIVID", frequency: 1 };
+    return { formula: "G10", frequency: 1 };
+  }
+
+  if (total === 2) {
+    if (countG10 === 2) return { formula: "2x G10", frequency: 2 };
+    if (countMAX5 === 2) return { formula: "2x MAX5", frequency: 2 };
+    if (countINDIVID === 2) return { formula: "2x INDIVID", frequency: 2 };
+    if (countG10 === 1 && countMAX5 === 1) return { formula: "G10 + MAX5", frequency: 2 };
+    if (countG10 === 1 && countINDIVID === 1) return { formula: "G10 + INDIVID", frequency: 2 };
+    if (countMAX5 === 1 && countINDIVID === 1) return { formula: "MAX5 + INDIVID", frequency: 2 };
+    return { formula: "2x G10", frequency: 2 };
+  }
+
+  // total >= 3
+  if (countG10 === 3) return { formula: "3x G10", frequency: 3 };
+  if (countMAX5 === 3) return { formula: "3x MAX5", frequency: 3 };
+  if (countINDIVID === 3) return { formula: "3x INDIVID", frequency: 3 };
+  if (countG10 === 2 && countMAX5 === 1) return { formula: "2x G10 + MAX5", frequency: 3 };
+  if (countG10 === 1 && countMAX5 === 2) return { formula: "G10 + 2x MAX5", frequency: 3 };
+  if (countG10 === 2 && countINDIVID === 1) return { formula: "2x G10 + INDIVID", frequency: 3 };
+  if (countG10 === 1 && countMAX5 === 1 && countINDIVID === 1) return { formula: "G10 + MAX5 + INDIVID", frequency: 3 };
+  if (countMAX5 === 2 && countINDIVID === 1) return { formula: "2x MAX5 + INDIVID", frequency: 3 };
+  if (countINDIVID === 2 && countG10 === 1) return { formula: "2x INDIVID + G10", frequency: 3 };
+  if (countINDIVID === 2 && countMAX5 === 1) return { formula: "2x INDIVID + MAX5", frequency: 3 };
+
+  return { formula: `${total}x G10`, frequency: 3 };
+}
+
 // ─── Price Calculator ─────────────────────────────────────────────────────────
 
 export interface CalculatePriceParams {
@@ -155,6 +211,7 @@ export interface CalculatePriceParams {
   groupType?: string | null;
   duration?: string | null;
   frequency?: number | string | null;
+  groupTypes?: string[] | null;
 }
 
 export function calculateSwimPrice(params: CalculatePriceParams): number;
@@ -177,9 +234,16 @@ export function calculateSwimPrice(
 
   if (typeof paramOrCategory === "object" && paramOrCategory !== null) {
     category = paramOrCategory.category;
-    groupType = paramOrCategory.groupType;
     duration = paramOrCategory.duration;
     frequency = paramOrCategory.frequency;
+
+    if (Array.isArray(paramOrCategory.groupTypes) && paramOrCategory.groupTypes.length > 0) {
+      const resolved = resolveMultiGroupFormula(paramOrCategory.groupTypes);
+      groupType = resolved.formula;
+      frequency = resolved.frequency;
+    } else {
+      groupType = paramOrCategory.groupType;
+    }
   } else {
     category = paramOrCategory;
     groupType = groupTypeParam;
@@ -218,7 +282,20 @@ export function calculateSwimPrice(
     return APNEA_PRICES.initiale;
   }
 
-  // Adult categories (Homme / Femme)
+  // Direct check for exact compound formula in ADULT_PRICES table
+  const freqTable = ADULT_PRICES[normFreq];
+  if (freqTable) {
+    for (const [key, durMap] of Object.entries(freqTable)) {
+      if (key.toLowerCase() === normType.toLowerCase()) {
+        if (durMap[normDur] !== undefined) {
+          return durMap[normDur]!;
+        }
+        return durMap["3m"] ?? 21900;
+      }
+    }
+  }
+
+  // Adult categories (Homme / Femme) single-type fallback
   let typeKey = "G10";
   if (/max\s*5/i.test(normType) || normType === "M" || normType === "MAX5") {
     typeKey = "MAX5";

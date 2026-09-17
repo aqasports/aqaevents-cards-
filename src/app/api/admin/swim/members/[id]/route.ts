@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { calculateSwimPrice } from "@/lib/swim-pricing";
+import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
 import { logAdminAction } from "@/lib/audit";
 import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls-server";
+import { decodeMemberGroupIds, encodeMemberGroupIds } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +43,30 @@ export async function GET(
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
     }
 
-    // Archived group logic: if group is inactive, treat as unassigned
-    const effectivelyUnassigned = !!(member.groupId && member.group && !member.group.active);
-    const effectiveGroup = effectivelyUnassigned ? null : member.group;
+    // Decode all assigned groups for this member (multi-group support)
+    const allGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
+    let allGroups: any[] = [];
+    if (allGroupIds.length > 0) {
+      allGroups = await prisma.swimGroup.findMany({
+        where: { id: { in: allGroupIds } },
+        include: {
+          _count: { select: { swimmers: true } },
+        },
+      });
+      allGroups.sort((a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id));
+    } else if (member.group) {
+      allGroups = [member.group];
+    }
+
+    const effectiveGroups = allGroups.filter((g) => g.active);
+    const effectivelyUnassigned = effectiveGroups.length === 0;
+    const effectiveGroup = effectiveGroups[0] || null;
 
     return NextResponse.json({
       ...member,
+      groups: allGroups,
+      effectiveGroups,
+      groupIds: allGroupIds,
       effectiveGroup,
       effectivelyUnassigned,
     });
@@ -77,6 +96,7 @@ export async function PATCH(
       category,
       level,
       groupId,
+      groupIds,
       formula,
       duration,
       priceDA,
@@ -88,29 +108,51 @@ export async function PATCH(
       whatsapp,
     } = body;
 
-    // Validate groupId update: category must match and group must be active
-    if (groupId !== undefined && groupId !== null) {
-      const targetGroup = await prisma.swimGroup.findUnique({ where: { id: groupId } });
-      if (!targetGroup) {
-        return NextResponse.json({ error: "Target group not found" }, { status: 404 });
+    // Handle groupIds (multi-group array) or legacy groupId
+    let effectivePrimaryGroupId: string | null | undefined = undefined;
+    let targetMultiGroupIds: string[] | undefined = undefined;
+
+    if (groupIds !== undefined) {
+      targetMultiGroupIds = Array.isArray(groupIds)
+        ? Array.from(new Set(groupIds.filter(Boolean) as string[]))
+        : [];
+      effectivePrimaryGroupId = targetMultiGroupIds[0] || null;
+    } else if (groupId !== undefined) {
+      effectivePrimaryGroupId = groupId || null;
+      targetMultiGroupIds = groupId ? [groupId] : [];
+    }
+
+    // Validate target groups
+    let targetGroupsList: { id: string; name: string; level: string; active: boolean; category: string }[] = [];
+    if (targetMultiGroupIds && targetMultiGroupIds.length > 0) {
+      targetGroupsList = await prisma.swimGroup.findMany({
+        where: { id: { in: targetMultiGroupIds } },
+        select: { id: true, name: true, level: true, active: true, category: true },
+      });
+
+      if (targetGroupsList.length !== targetMultiGroupIds.length) {
+        return NextResponse.json({ error: "One or more target groups not found" }, { status: 404 });
       }
-      if (!targetGroup.active) {
-        return NextResponse.json({ error: "Cannot assign to an archived group" }, { status: 400 });
-      }
-      // Get current member category to validate
+
       const currentMember = await prisma.swimMember.findUnique({ where: { id }, select: { category: true } });
       const memberCategory = category || currentMember?.category;
-      if (targetGroup.category !== memberCategory) {
-        return NextResponse.json(
-          { error: "Group category does not match member category" },
-          { status: 400 }
-        );
+
+      for (const tg of targetGroupsList) {
+        if (!tg.active) {
+          return NextResponse.json({ error: `Group "${tg.name}" is archived` }, { status: 400 });
+        }
+        if (tg.category !== memberCategory) {
+          return NextResponse.json(
+            { error: `Group "${tg.name}" category does not match member category` },
+            { status: 400 }
+          );
+        }
       }
     }
 
-    // Build notes with optional whatsapp
+    // Build notes with optional whatsapp and multi-group tag
     let updatedNotes: string | null | undefined = undefined;
-    if (notes !== undefined || whatsapp !== undefined) {
+    if (notes !== undefined || whatsapp !== undefined || targetMultiGroupIds !== undefined) {
       const currentMember = await prisma.swimMember.findUnique({ where: { id }, select: { notes: true } });
       let currentNotesVal = notes !== undefined ? (notes?.trim() || null) : currentMember?.notes ?? null;
       if (whatsapp !== undefined) {
@@ -128,19 +170,38 @@ export async function PATCH(
           }
         }
       }
+      if (targetMultiGroupIds !== undefined) {
+        currentNotesVal = encodeMemberGroupIds(currentNotesVal, targetMultiGroupIds);
+      }
       updatedNotes = currentNotesVal;
     }
 
-    // When priceDA is provided OR when formula/duration/groupId changes without explicit priceDA,
-    // auto-calculate the official AQA tariff and sync paymentStatus atomically.
+    // Auto-calculate formula and official AQA tariff when groups/duration change without explicit priceDA
+    let finalFormula = formula;
     let finalPriceDA = priceDA !== undefined ? parseInt(priceDA, 10) : undefined;
-    if (finalPriceDA === undefined && (groupId !== undefined || formula !== undefined || duration !== undefined)) {
+
+    if (targetMultiGroupIds !== undefined && targetMultiGroupIds.length > 0) {
+      const groupLevels = targetGroupsList.map((g) => g.level);
+      const resolved = resolveMultiGroupFormula(groupLevels);
+      if (!finalFormula) {
+        finalFormula = resolved.formula;
+      }
+      if (finalPriceDA === undefined) {
+        const effCat = category || (await prisma.swimMember.findUnique({ where: { id }, select: { category: true } }))?.category || "homme";
+        const effDur = duration || (await prisma.swimMember.findUnique({ where: { id }, select: { duration: true } }))?.duration || "3m";
+        finalPriceDA = calculateSwimPrice({
+          category: effCat,
+          groupTypes: groupLevels,
+          duration: effDur,
+        });
+      }
+    } else if (finalPriceDA === undefined && (groupId !== undefined || formula !== undefined || duration !== undefined)) {
       const current = await prisma.swimMember.findUnique({
         where: { id },
         include: { group: true },
       });
       if (current) {
-        const targetGroupId = groupId !== undefined ? groupId : current.groupId;
+        const targetGroupId = effectivePrimaryGroupId !== undefined ? effectivePrimaryGroupId : current.groupId;
         let groupLevel = current.group?.level || "G10";
         if (targetGroupId && targetGroupId !== current.groupId) {
           const g = await prisma.swimGroup.findUnique({ where: { id: targetGroupId } });
@@ -188,8 +249,10 @@ export async function PATCH(
         ...(dateOfStart && { dateOfStart: new Date(dateOfStart) }),
         ...(category && { category }),
         ...(level && { level }),
-        ...(groupId !== undefined && { groupId: groupId || null }),
-        ...(formula && { formula }),
+        ...((effectivePrimaryGroupId !== undefined || groupId !== undefined) && {
+          groupId: effectivePrimaryGroupId !== undefined ? effectivePrimaryGroupId : (groupId || null),
+        }),
+        ...((finalFormula || formula) && { formula: finalFormula || formula }),
         ...(duration && { duration }),
         ...(finalPriceDA !== undefined && { priceDA: finalPriceDA }),
         ...(coachMessage !== undefined && { coachMessage: coachMessage?.trim() || null }),
@@ -205,10 +268,32 @@ export async function PATCH(
       },
     });
 
-    const effectivelyUnassigned = !!(updated.groupId && updated.group && !updated.group.active);
-    const effectiveGroup = effectivelyUnassigned ? null : updated.group;
+    const allGroupIds = decodeMemberGroupIds(updated.notes, updated.groupId);
+    let allGroups: any[] = [];
+    if (allGroupIds.length > 0) {
+      allGroups = await prisma.swimGroup.findMany({
+        where: { id: { in: allGroupIds } },
+        include: {
+          _count: { select: { swimmers: true } },
+        },
+      });
+      allGroups.sort((a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id));
+    } else if (updated.group) {
+      allGroups = [updated.group];
+    }
 
-    return NextResponse.json({ ...updated, effectiveGroup, effectivelyUnassigned });
+    const effectiveGroups = allGroups.filter((g) => g.active);
+    const effectivelyUnassigned = effectiveGroups.length === 0;
+    const effectiveGroup = effectiveGroups[0] || null;
+
+    return NextResponse.json({
+      ...updated,
+      groups: allGroups,
+      effectiveGroups,
+      groupIds: allGroupIds,
+      effectiveGroup,
+      effectivelyUnassigned,
+    });
   } catch (err: unknown) {
     logger.error("PATCH admin swim member error:", err);
     return NextResponse.json({ error: "Failed to update member" }, { status: 500 });

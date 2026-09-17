@@ -52,6 +52,13 @@ interface SwimMemberData {
     schedule: string;
     level: string;
   } | null;
+  groups?: Array<{
+    id: string;
+    name: string;
+    coachName: string | null;
+    schedule: string;
+    level: string;
+  }>;
   card: {
     id: string;
     cardCode: string;
@@ -323,6 +330,10 @@ export default function SwimmerProfilePage({
       })
     : "—";
 
+  const displayGroups = (member.groups && member.groups.length > 0)
+    ? member.groups
+    : (member.group ? [member.group] : []);
+
   return (
     <div
       className="min-h-screen bg-[#030712] text-slate-100 flex flex-col items-center py-6 px-4 selection:bg-cyan-500 selection:text-black relative overflow-x-hidden font-sans"
@@ -549,23 +560,26 @@ export default function SwimmerProfilePage({
                 {member.isSolid && <SolidLogoBadge t={t} compact />}
               </div>
 
-              {member.group && (
+              {displayGroups.length > 0 && (
                 <div className="space-y-3">
-                  {/* Group Summary Box */}
-                  <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("groupName")}</span>
-                      <span className="font-bold text-white font-display text-sm">{member.group.name}</span>
+                  {displayGroups.map((grp, idx) => (
+                    <div key={grp.id} className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                          {displayGroups.length > 1 ? `Slot ${idx + 1} · ${t("groupName")}` : t("groupName")}
+                        </span>
+                        <span className="font-bold text-white font-display text-sm">{grp.name}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("assignedCoach")}</span>
+                        <span className="font-semibold text-cyan-300">{grp.coachName || "Coach AQA Sports"}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("trainingSchedule")}</span>
+                        <span className="text-slate-200 font-medium text-right">{grp.schedule}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("assignedCoach")}</span>
-                      <span className="font-semibold text-cyan-300">{member.group.coachName || "Coach AQA Sports"}</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("trainingSchedule")}</span>
-                      <span className="text-slate-200 font-medium text-right">{member.group.schedule}</span>
-                    </div>
-                  </div>
+                  ))}
 
                   {/* GROUP NAMES TABLE (All cohort members) */}
                   <GroupNamesTable
@@ -652,23 +666,26 @@ export default function SwimmerProfilePage({
                 {member.isSolid && <SolidLogoBadge t={t} compact />}
               </div>
 
-              {member.group && (
+              {displayGroups.length > 0 && (
                 <div className="space-y-3">
-                  {/* Proposed Group Summary Box */}
-                  <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("groupName")}</span>
-                      <span className="font-bold text-white font-display text-sm">{member.group.name}</span>
+                  {displayGroups.map((grp, idx) => (
+                    <div key={grp.id} className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                          {displayGroups.length > 1 ? `Slot ${idx + 1} · ${t("groupName")}` : t("groupName")}
+                        </span>
+                        <span className="font-bold text-white font-display text-sm">{grp.name}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("assignedCoach")}</span>
+                        <span className="font-semibold text-cyan-300">{grp.coachName || "Coach AQA Sports"}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <span className="text-[10px] font-semibold text-amber-400 uppercase">{t("trainingSchedule")}</span>
+                        <span className="text-slate-200 font-medium text-right">{grp.schedule}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("assignedCoach")}</span>
-                      <span className="font-semibold text-cyan-300">{member.group.coachName || "Coach AQA Sports"}</span>
-                    </div>
-                    <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                      <span className="text-[10px] font-semibold text-amber-400 uppercase">{t("trainingSchedule")}</span>
-                      <span className="text-slate-200 font-medium text-right">{member.group.schedule}</span>
-                    </div>
-                  </div>
+                  ))}
 
                   {/* GROUP NAMES TABLE (All cohort members) */}
                   <GroupNamesTable

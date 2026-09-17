@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { decodeSolidNotes, encodeSolidNotes } from "@/lib/swim-groups";
+import { decodeSolidNotes, encodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -32,10 +32,29 @@ export async function GET(
       return NextResponse.json({ error: "Swim group not found" }, { status: 404 });
     }
 
+    // Find any secondary swimmers whose notes contain [GROUPS:...,id,...]
+    const secondarySwimmers = await prisma.swimMember.findMany({
+      where: {
+        groupId: { not: id },
+        notes: { contains: id },
+      },
+      include: {
+        card: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const matchingSecondary = secondarySwimmers.filter((m) =>
+      decodeMemberGroupIds(m.notes, m.groupId).includes(id)
+    );
+
+    const allSwimmers = [...group.swimmers, ...matchingSecondary];
+
     const { isSolid, cleanNotes } = decodeSolidNotes(group.notes);
 
     return NextResponse.json({
       ...group,
+      swimmers: allSwimmers,
       isSolid,
       cleanNotes,
     });

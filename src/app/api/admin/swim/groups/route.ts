@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { decodeSolidNotes, encodeSolidNotes } from "@/lib/swim-groups";
+import { decodeSolidNotes, encodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +38,32 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Account for secondary multi-group assignments stored in notes
+    const multiGroupMembers = await prisma.swimMember.findMany({
+      where: { notes: { contains: "[GROUPS:" } },
+      select: { id: true, groupId: true, notes: true },
+    });
+
+    const extraCounts: Record<string, number> = {};
+    for (const m of multiGroupMembers) {
+      const gids = decodeMemberGroupIds(m.notes, m.groupId);
+      for (const gid of gids) {
+        if (gid !== m.groupId) {
+          extraCounts[gid] = (extraCounts[gid] || 0) + 1;
+        }
+      }
+    }
+
     const enriched = groups.map((g) => {
       const { isSolid, cleanNotes } = decodeSolidNotes(g.notes);
+      const secondaryCount = extraCounts[g.id] || 0;
       return {
         ...g,
         isSolid,
         cleanNotes,
+        _count: {
+          swimmers: (g._count?.swimmers ?? 0) + secondaryCount,
+        },
       };
     });
 

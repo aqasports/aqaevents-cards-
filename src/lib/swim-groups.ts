@@ -138,3 +138,56 @@ export function decodeSolidNotes(notes: string | null | undefined): { isSolid: b
   const cleanNotes = notes.replace(SOLID_TAG, "").trim();
   return { isSolid, cleanNotes };
 }
+
+// ─── Multi-Group Member Encoding ──────────────────────────────────────────────
+
+const GROUPS_REGEX = /\[GROUPS:([^\]]+)\]/;
+
+/**
+ * Encodes an array of assigned group IDs into the member's notes field.
+ * Safely preserves any other tags (such as [SOLID] or text notes).
+ */
+export function encodeMemberGroupIds(notes: string | null | undefined, groupIds: string[]): string | null {
+  const raw = notes ?? "";
+  const cleaned = raw.replace(GROUPS_REGEX, "").trim();
+  const validIds = Array.from(new Set(groupIds.filter(Boolean)));
+
+  if (validIds.length === 0) {
+    return cleaned.length > 0 ? cleaned : null;
+  }
+
+  const tag = `[GROUPS:${validIds.join(",")}]`;
+  if (cleaned.length > 0) {
+    return `${tag} ${cleaned}`;
+  }
+  return tag;
+}
+
+/**
+ * Decodes all assigned group IDs for a member from their notes field and primary groupId.
+ * Returns a unique ordered list of group IDs.
+ */
+export function decodeMemberGroupIds(notes: string | null | undefined, primaryGroupId?: string | null): string[] {
+  const result: string[] = [];
+  if (primaryGroupId && primaryGroupId.trim()) {
+    result.push(primaryGroupId.trim());
+  }
+
+  if (notes) {
+    const match = notes.match(GROUPS_REGEX);
+    if (match && match[1]) {
+      const parsedIds = match[1]
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (const id of parsedIds) {
+        if (!result.includes(id)) {
+          result.push(id);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateSwimPrice, getCardTier } from "./swim-pricing";
+import { calculateSwimPrice, getCardTier, resolveMultiGroupFormula } from "./swim-pricing";
 
 describe("Swim Pricing Utilities (from tarifs.astro)", () => {
   describe("Adult pricing (Homme/Femme)", () => {
@@ -80,6 +80,69 @@ describe("Swim Pricing Utilities (from tarifs.astro)", () => {
       expect(tier.tierId).toBe("emerald");
       expect(tier.frontImage).toBe("/image/default.webp");
       expect(tier.backImage).toBe("/image/card_emerald.png");
+    });
+  });
+
+  describe("resolveMultiGroupFormula", () => {
+    it("resolves single group correctly", () => {
+      expect(resolveMultiGroupFormula(["G10"])).toEqual({ formula: "G10", frequency: 1 });
+      expect(resolveMultiGroupFormula(["MAX5"])).toEqual({ formula: "MAX5", frequency: 1 });
+    });
+
+    it("resolves 2 identical groups", () => {
+      expect(resolveMultiGroupFormula(["G10", "G10"])).toEqual({ formula: "2x G10", frequency: 2 });
+      expect(resolveMultiGroupFormula(["MAX5", "MAX5"])).toEqual({ formula: "2x MAX5", frequency: 2 });
+    });
+
+    it("resolves 2 mixed groups", () => {
+      expect(resolveMultiGroupFormula(["G10", "MAX5"])).toEqual({ formula: "G10 + MAX5", frequency: 2 });
+      expect(resolveMultiGroupFormula(["MAX5", "G10"])).toEqual({ formula: "G10 + MAX5", frequency: 2 });
+      expect(resolveMultiGroupFormula(["G10", "INDIVID"])).toEqual({ formula: "G10 + INDIVID", frequency: 2 });
+    });
+
+    it("resolves 3 groups with combinations", () => {
+      expect(resolveMultiGroupFormula(["G10", "G10", "G10"])).toEqual({ formula: "3x G10", frequency: 3 });
+      expect(resolveMultiGroupFormula(["G10", "G10", "MAX5"])).toEqual({ formula: "2x G10 + MAX5", frequency: 3 });
+      expect(resolveMultiGroupFormula(["G10", "MAX5", "MAX5"])).toEqual({ formula: "G10 + 2x MAX5", frequency: 3 });
+      expect(resolveMultiGroupFormula(["G10", "MAX5", "INDIVID"])).toEqual({ formula: "G10 + MAX5 + INDIVID", frequency: 3 });
+    });
+  });
+
+  describe("calculateSwimPrice with multi-groups", () => {
+    it("calculates compound formula G10 + MAX5 for 3m correctly", () => {
+      const price = calculateSwimPrice({
+        category: "homme",
+        groupTypes: ["G10", "MAX5"],
+        duration: "3m",
+      });
+      expect(price).toBe(46400);
+    });
+
+    it("calculates 2x G10 for 3m correctly", () => {
+      const price = calculateSwimPrice({
+        category: "homme",
+        groupTypes: ["G10", "G10"],
+        duration: "3m",
+      });
+      expect(price).toBe(41600);
+    });
+
+    it("calculates 3x G10 for 3m correctly", () => {
+      const price = calculateSwimPrice({
+        category: "homme",
+        groupTypes: ["G10", "G10", "G10"],
+        duration: "3m",
+      });
+      expect(price).toBe(57500);
+    });
+
+    it("calculates 2x G10 + MAX5 for 3m correctly", () => {
+      const price = calculateSwimPrice({
+        category: "homme",
+        groupTypes: ["G10", "G10", "MAX5"],
+        duration: "3m",
+      });
+      expect(price).toBe(61200);
     });
   });
 });

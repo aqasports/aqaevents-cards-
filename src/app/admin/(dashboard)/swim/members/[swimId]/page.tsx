@@ -4,7 +4,7 @@ import { useEffect, useState, use, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageHeader, Badge, Button, Input, Card } from "@/components/admin/ui";
-import { calculateSwimPrice } from "@/lib/swim-pricing";
+import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -50,8 +50,12 @@ interface SwimMemberDetail {
   notes: string | null;
   createdAt: string;
   group: SwimGroupRef | null;
+  groupId: string | null;
   effectiveGroup: SwimGroupRef | null;
   effectivelyUnassigned: boolean;
+  groups?: SwimGroupRef[];
+  effectiveGroups?: SwimGroupRef[];
+  groupIds?: string[];
   card: {
     id: string;
     cardCode: string;
@@ -156,7 +160,7 @@ export default function AdminSwimmerProfilePage({
   // Group assignment state
   const [showChangeGroup, setShowChangeGroup] = useState(false);
   const [groupSolidFilter, setGroupSolidFilter] = useState(false);
-  const [selectedNewGroupId, setSelectedNewGroupId] = useState("");
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [assignDuration, setAssignDuration] = useState("3m");
   const [assignFrequency, setAssignFrequency] = useState<number>(1);
   const [savingGroup, setSavingGroup] = useState(false);
@@ -197,18 +201,23 @@ export default function AdminSwimmerProfilePage({
       }
       const data = await res.json();
       let effectivePrice = data.priceDA;
+
+      const initialGroupIds: string[] = (data.groupIds && data.groupIds.length > 0)
+        ? data.groupIds
+        : (data.groupId ? [data.groupId] : []);
+      const allMemberGroups: SwimGroupRef[] = (data.groups && data.groups.length > 0)
+        ? data.groups
+        : (data.group ? [data.group] : []);
+
       // If member already has a group but tariff is not set (0), automatically
       // calculate the official AQA tariff and sync it to the ledger.
-      if (effectivePrice === 0 && (data.group || data.groupId)) {
-        const groupType = data.group?.level || "G10";
+      if (effectivePrice === 0 && allMemberGroups.length > 0) {
+        const groupLevels = allMemberGroups.map((g) => g.level);
         const dur = data.duration || "3m";
-        const freqMatch = (data.formula || "").match(/^([123])x/i);
-        const freq = freqMatch ? parseInt(freqMatch[1], 10) : 1;
         const computed = calculateSwimPrice({
           category: data.category,
-          groupType,
+          groupTypes: groupLevels,
           duration: dur,
-          frequency: freq,
         });
         if (computed > 0) {
           effectivePrice = computed;
@@ -223,6 +232,18 @@ export default function AdminSwimmerProfilePage({
       }
 
       setMember(data);
+      setSelectedGroupIds(initialGroupIds);
+
+      const freqMatch = (data.formula || "").match(/^([123])x/i);
+      const detectedFreq = initialGroupIds.length > 0
+        ? Math.min(3, Math.max(1, initialGroupIds.length))
+        : (freqMatch ? parseInt(freqMatch[1], 10) : 1);
+
+      setAssignFrequency(detectedFreq);
+      setTariffFrequency(detectedFreq);
+      setAssignDuration(data.duration || "3m");
+      setTariffDuration(data.duration || "3m");
+
       // Pre-fill edit fields
       setEditFullName(data.fullName);
       setEditPhone(data.phone || "");
@@ -234,7 +255,6 @@ export default function AdminSwimmerProfilePage({
       setEditNotes(data.notes || "");
       setCoachMsgText(data.coachMessage || "");
       setNewPriceInput(String(effectivePrice));
-      setAssignDuration(data.duration || "3m");
     } catch {
       setError("Failed to load profile.");
     } finally {
@@ -324,15 +344,38 @@ export default function AdminSwimmerProfilePage({
     if (!member) return;
     setSavingPrice(true);
     try {
-      const groupLevel = member.effectiveGroup?.level || member.group?.level || "G10";
-      const calculatedPrice = calculateSwimPrice({
-        category: member.category,
-        groupType: groupLevel,
-        duration: tariffDuration,
-        frequency: tariffFrequency,
-      });
-      const formulaStr =
-        tariffFrequency > 1 ? `${tariffFrequency}x ${groupLevel}` : groupLevel;
+      const assignedGroups = (member.effectiveGroups && member.effectiveGroups.length > 0)
+        ? member.effectiveGroups
+        : (member.groups && member.groups.length > 0)
+        ? member.groups
+        : member.effectiveGroup
+        ? [member.effectiveGroup]
+        : member.group
+        ? [member.group]
+        : [];
+      const assignedLevels = assignedGroups.map((g) => g.level);
+
+      let formulaStr = "";
+      let calculatedPrice = 0;
+
+      if (tariffFrequency === assignedLevels.length && assignedLevels.length > 1) {
+        const resolved = resolveMultiGroupFormula(assignedLevels);
+        formulaStr = resolved.formula;
+        calculatedPrice = calculateSwimPrice({
+          category: member.category,
+          groupTypes: assignedLevels,
+          duration: tariffDuration,
+        });
+      } else {
+        const primaryLevel = assignedLevels[0] || "G10";
+        formulaStr = tariffFrequency > 1 ? `${tariffFrequency}x ${primaryLevel}` : primaryLevel;
+        calculatedPrice = calculateSwimPrice({
+          category: member.category,
+          groupType: primaryLevel,
+          duration: tariffDuration,
+          frequency: tariffFrequency,
+        });
+      }
 
       await fetch(`/api/admin/swim/members/${member.id}`, {
         method: "PATCH",
@@ -392,31 +435,29 @@ export default function AdminSwimmerProfilePage({
   }
 
   async function handleChangeGroup() {
-    if (!member || !selectedNewGroupId) return;
+    if (!member || selectedGroupIds.length === 0) return;
     setSavingGroup(true);
     try {
-      const selectedGroupObj = groups.find((g) => g.id === selectedNewGroupId);
-      const calculatedPrice = selectedGroupObj
-        ? calculateSwimPrice({
-            category: member.category,
-            groupType: selectedGroupObj.level,
-            duration: assignDuration,
-            frequency: assignFrequency,
-          })
-        : 0;
+      const selectedGroupObjs = selectedGroupIds
+        .map((id) => groups.find((g) => g.id === id))
+        .filter(Boolean) as SwimGroupRef[];
 
-      const formulaStr =
-        assignFrequency > 1
-          ? `${assignFrequency}x ${selectedGroupObj?.level || "G10"}`
-          : (selectedGroupObj?.level || "G10");
+      const selectedLevels = selectedGroupObjs.map((g) => g.level);
+      const resolved = resolveMultiGroupFormula(selectedLevels);
+      const calculatedPrice = calculateSwimPrice({
+        category: member.category,
+        groupTypes: selectedLevels,
+        duration: assignDuration,
+        frequency: selectedGroupIds.length,
+      });
 
       const res = await fetch(`/api/admin/swim/members/${member.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          groupId: selectedNewGroupId,
+          groupIds: selectedGroupIds,
           groupStatus: "proposed",
-          formula: formulaStr,
+          formula: resolved.formula,
           duration: assignDuration,
           priceDA: calculatedPrice,
         }),
@@ -427,7 +468,6 @@ export default function AdminSwimmerProfilePage({
         return;
       }
       setShowChangeGroup(false);
-      setSelectedNewGroupId("");
       await loadMember();
     } finally {
       setSavingGroup(false);
@@ -441,12 +481,61 @@ export default function AdminSwimmerProfilePage({
       await fetch(`/api/admin/swim/members/${member.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupId: null }),
+        body: JSON.stringify({ groupIds: [] }),
       });
       await loadMember();
     } finally {
       setSavingGroup(false);
     }
+  }
+
+  async function handleRemoveSlot(slotGroupId: string) {
+    if (!member) return;
+    const currentIds = member.groupIds || (member.groupId ? [member.groupId] : []);
+    const remainingIds = currentIds.filter((id) => id !== slotGroupId);
+    setSavingGroup(true);
+    try {
+      const remainingGroupObjs = remainingIds
+        .map((id) => groups.find((g) => g.id === id))
+        .filter(Boolean) as SwimGroupRef[];
+      const remainingLevels = remainingGroupObjs.map((g) => g.level);
+      const resolved = resolveMultiGroupFormula(remainingLevels);
+      const newPrice = remainingLevels.length > 0
+        ? calculateSwimPrice({
+            category: member.category,
+            groupTypes: remainingLevels,
+            duration: member.duration || "3m",
+          })
+        : 0;
+
+      await fetch(`/api/admin/swim/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          groupIds: remainingIds,
+          formula: remainingLevels.length > 0 ? resolved.formula : "Pending Group",
+          priceDA: newPrice,
+        }),
+      });
+      await loadMember();
+    } finally {
+      setSavingGroup(false);
+    }
+  }
+
+  function toggleGroupSelection(groupId: string) {
+    setSelectedGroupIds((prev) => {
+      if (prev.includes(groupId)) {
+        return prev.filter((id) => id !== groupId);
+      }
+      if (prev.length >= assignFrequency) {
+        if (assignFrequency === 1) {
+          return [groupId];
+        }
+        return [...prev.slice(0, assignFrequency - 1), groupId];
+      }
+      return [...prev, groupId];
+    });
   }
 
   // ─── Derived values ─────────────────────────────────────────────────────────
@@ -491,8 +580,17 @@ export default function AdminSwimmerProfilePage({
   }
 
   const waUrl = getWhatsAppUrl(member.phone, member.fullName);
-  const activeGroup = member.effectiveGroup;
-  const archivedGroupWarning = member.effectivelyUnassigned && member.group;
+  const assignedGroupsList: SwimGroupRef[] = (member.effectiveGroups && member.effectiveGroups.length > 0)
+    ? member.effectiveGroups
+    : (member.groups && member.groups.length > 0)
+    ? member.groups
+    : member.effectiveGroup
+    ? [member.effectiveGroup]
+    : member.group
+    ? [member.group]
+    : [];
+  const hasAssignedGroups = assignedGroupsList.length > 0;
+  const archivedGroupWarning = member.effectivelyUnassigned && Boolean(member.group || (member.groups && member.groups.length > 0));
 
   return (
     <div className="space-y-6 pb-12">
@@ -600,59 +698,104 @@ export default function AdminSwimmerProfilePage({
           <Card>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-white uppercase tracking-wider">Assigned Group</span>
+                <div>
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Assigned Groups ({assignedGroupsList.length})
+                  </span>
+                  {assignedGroupsList.length > 0 && (
+                    <div className="text-[11px] text-cyan-300 font-medium mt-0.5">
+                      {member.formula || `${assignedGroupsList.length}x / week`}
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
-                  {activeGroup && member.groupStatus !== "accepted" && (
+                  {hasAssignedGroups && member.groupStatus !== "accepted" && (
                     <Button
                       size="sm"
                       variant="primary"
                       onClick={() => handleConfirmGroup("accepted")}
                       disabled={confirmingGroup}
                     >
-                      {confirmingGroup ? "Confirming..." : "Confirm Group"}
+                      {confirmingGroup ? "Confirming..." : "Confirm Groups"}
                     </Button>
                   )}
-                  {activeGroup && (
+                  {hasAssignedGroups && (
                     <Button size="sm" variant="danger" onClick={handleRemoveGroup} disabled={savingGroup}>
-                      Remove
+                      Remove All
                     </Button>
                   )}
                   <Button size="sm" variant="secondary" onClick={() => setShowChangeGroup(!showChangeGroup)}>
-                    {showChangeGroup ? "Cancel" : activeGroup ? "Change Group" : "Assign Group"}
+                    {showChangeGroup ? "Cancel" : hasAssignedGroups ? "Change / Assign Groups" : "Assign Group"}
                   </Button>
                 </div>
               </div>
 
               {archivedGroupWarning && (
                 <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-xs text-amber-300">
-                  Warning: The assigned group &quot;{member.group!.name}&quot; has been archived. This swimmer is currently considered unassigned.
+                  Warning: One or more assigned groups have been archived. This swimmer is currently considered unassigned.
                 </div>
               )}
 
-              {activeGroup ? (
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Group:</span>
-                    <span className="font-bold text-white">{activeGroup.name}</span>
-                  </div>
-                  {activeGroup.coachName && (
-                    <div className="flex justify-between">
-                      <span className="text-[var(--muted)]">Coach:</span>
-                      <span className="font-semibold text-cyan-300">{activeGroup.coachName}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Schedule:</span>
-                    <span className="text-slate-200">{activeGroup.schedule}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--muted)]">Type:</span>
-                    <span className="text-slate-200">{activeGroup.level}</span>
-                  </div>
+              {hasAssignedGroups ? (
+                <div className="space-y-2.5">
+                  {assignedGroupsList.map((grp, idx) => {
+                    const isArchived = !grp.active;
+                    return (
+                      <div
+                        key={grp.id}
+                        className={`p-3 rounded-xl border space-y-1.5 text-xs ${
+                          isArchived ? "bg-amber-950/30 border-amber-500/30" : "bg-slate-800/60 border-white/5"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
+                              Slot {idx + 1} ({assignedGroupsList.length}x / week)
+                            </span>
+                            <span className="font-bold text-white">{grp.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-cyan-300 font-semibold px-1.5 py-0.5 rounded bg-slate-900 border border-white/10">
+                              {grp.level}
+                            </span>
+                            {assignedGroupsList.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSlot(grp.id)}
+                                disabled={savingGroup}
+                                className="text-[11px] text-rose-400 hover:text-rose-300 underline font-medium transition-colors"
+                              >
+                                Remove Slot
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {grp.coachName && (
+                          <div className="flex justify-between">
+                            <span className="text-[var(--muted)]">Coach:</span>
+                            <span className="font-semibold text-cyan-300">{grp.coachName}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-[var(--muted)]">Schedule:</span>
+                          <span className="text-slate-200">{grp.schedule}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[var(--muted)]">Capacity:</span>
+                          <span className="text-slate-300">
+                            {grp._count?.swimmers ?? "-"}/{grp.capacity} enrolled
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Group Status & Controls */}
                   <div className="pt-2 flex items-center justify-between border-t border-white/5">
                     <div className="flex items-center gap-2">
+                      <Badge tone="info">{member.formula || "Standard"}</Badge>
                       {member.groupStatus === "accepted" && (
-                        <Badge tone="success">Group Confirmed (No client prompt)</Badge>
+                        <Badge tone="success">Confirmed (No prompt)</Badge>
                       )}
                       {member.groupStatus === "proposed" && (
                         <Badge tone="warning">Pending client confirmation</Badge>
@@ -668,7 +811,7 @@ export default function AdminSwimmerProfilePage({
                         onClick={() => handleConfirmGroup("accepted")}
                         disabled={confirmingGroup}
                       >
-                        {confirmingGroup ? "Confirming..." : "Confirm Group"}
+                        {confirmingGroup ? "Confirming..." : "Confirm All Groups"}
                       </Button>
                     ) : (
                       <button
@@ -683,14 +826,16 @@ export default function AdminSwimmerProfilePage({
                   </div>
                 </div>
               ) : !archivedGroupWarning ? (
-                <p className="text-xs italic text-[var(--muted)]">No active group assigned.</p>
+                <p className="text-xs italic text-[var(--muted)]">No active training groups assigned yet.</p>
               ) : null}
 
               {/* Change Group Panel */}
               {showChangeGroup && (
                 <div className="space-y-3 pt-3 border-t border-white/10">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-300">Select New Group</span>
+                    <span className="text-xs font-semibold text-slate-300">
+                      Select Training Groups ({selectedGroupIds.length}/{assignFrequency} Selected)
+                    </span>
                     <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
                       <input
                         type="checkbox"
@@ -705,15 +850,21 @@ export default function AdminSwimmerProfilePage({
                   {/* Frequency & Duration selection */}
                   <div className="grid grid-cols-2 gap-2 p-3 rounded-xl bg-slate-900/80 border border-white/5">
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Frequency</label>
+                      <label className="block text-[11px] text-slate-400 mb-1">Weekly Frequency</label>
                       <select
                         value={assignFrequency}
-                        onChange={(e) => setAssignFrequency(parseInt(e.target.value, 10))}
+                        onChange={(e) => {
+                          const freq = parseInt(e.target.value, 10);
+                          setAssignFrequency(freq);
+                          if (selectedGroupIds.length > freq) {
+                            setSelectedGroupIds((prev) => prev.slice(0, freq));
+                          }
+                        }}
                         className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                       >
-                        <option value={1}>1x / week</option>
-                        <option value={2}>2x / week</option>
-                        {member.category === "homme" && <option value={3}>3x / week</option>}
+                        <option value={1}>1x / week (1 group slot)</option>
+                        <option value={2}>2x / week (2 group slots)</option>
+                        {member.category === "homme" && <option value={3}>3x / week (3 group slots)</option>}
                       </select>
                     </div>
                     <div>
@@ -723,7 +874,7 @@ export default function AdminSwimmerProfilePage({
                         onChange={(e) => setAssignDuration(e.target.value)}
                         className="w-full px-2.5 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                       >
-                        <option value="1m">1 Month</option>
+                        <option value="1m">1 Month (Starter)</option>
                         <option value="3m">3 Months (Trimestre)</option>
                         <option value="6m">6 Months (Semestre)</option>
                         <option value="9m">9 Months (Annual)</option>
@@ -731,87 +882,174 @@ export default function AdminSwimmerProfilePage({
                     </div>
                   </div>
 
-                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                    {filteredGroups.length === 0 ? (
-                      <p className="text-xs text-[var(--muted)] italic">No groups available for category &quot;{member.category}&quot;.</p>
-                    ) : (
-                      filteredGroups.map((g) => {
-                        const enrolled = g._count?.swimmers ?? 0;
-                        // Subtract 1 if this is the member's current group —
-                        // they are already counted in that group's capacity.
-                        const isCurrentGroup = g.id === member.group?.id;
-                        const effectiveEnrolled = isCurrentGroup ? enrolled - 1 : enrolled;
-                        const isFull = effectiveEnrolled >= g.capacity;
+                  {/* Visual slot indicator */}
+                  <div className="p-2.5 rounded-xl bg-slate-950/60 border border-white/5 space-y-1.5">
+                    <div className="text-[11px] text-[var(--muted)] font-semibold uppercase tracking-wider">
+                      Assignment Slots ({selectedGroupIds.length}/{assignFrequency}):
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {Array.from({ length: assignFrequency }).map((_, slotIdx) => {
+                        const slotGroupId = selectedGroupIds[slotIdx];
+                        const slotGroup = slotGroupId ? groups.find((g) => g.id === slotGroupId) : null;
                         return (
-                          <label
-                            key={g.id}
-                            className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-colors ${
-                              selectedNewGroupId === g.id
-                                ? "border-cyan-500 bg-cyan-950/30"
-                                : isFull
-                                ? "border-rose-900/50 bg-slate-800/20 opacity-60"
-                                : "border-white/10 bg-slate-800/40 hover:border-white/20"
+                          <div
+                            key={slotIdx}
+                            className={`p-2 rounded-lg text-xs flex items-center justify-between border ${
+                              slotGroup
+                                ? "bg-cyan-950/40 border-cyan-500/40 text-cyan-200"
+                                : "bg-slate-900 border-white/5 text-slate-400 border-dashed"
                             }`}
                           >
-                            <input
-                              type="radio"
-                              name="newGroup"
-                              value={g.id}
-                              checked={selectedNewGroupId === g.id}
-                              onChange={() => setSelectedNewGroupId(g.id)}
-                              className="accent-cyan-500"
-                            />
+                            <div className="truncate pr-2">
+                              <span className="font-bold mr-1.5 text-white">Slot {slotIdx + 1}:</span>
+                              {slotGroup ? (
+                                <span>{slotGroup.name} ({slotGroup.level})</span>
+                              ) : (
+                                <span className="italic text-slate-500">Click a group below</span>
+                              )}
+                            </div>
+                            {slotGroup && (
+                              <button
+                                type="button"
+                                onClick={() => toggleGroupSelection(slotGroup.id)}
+                                className="text-slate-400 hover:text-rose-300 font-bold px-1 text-xs"
+                                title="Remove from selection"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                    {filteredGroups.length === 0 ? (
+                      <p className="text-xs text-[var(--muted)] italic">
+                        No groups available for category &quot;{member.category}&quot;.
+                      </p>
+                    ) : (
+                      filteredGroups.map((g) => {
+                        const isSelected = selectedGroupIds.includes(g.id);
+                        const slotIndex = selectedGroupIds.indexOf(g.id);
+                        const enrolled = g._count?.swimmers ?? 0;
+                        const isCurrentlyAssigned = (member.groupIds || []).includes(g.id) || member.groupId === g.id;
+                        const effectiveEnrolled = isCurrentlyAssigned ? Math.max(0, enrolled - 1) : enrolled;
+                        const isFull = effectiveEnrolled >= g.capacity && !isSelected;
+
+                        return (
+                          <div
+                            key={g.id}
+                            onClick={() => toggleGroupSelection(g.id)}
+                            className={`flex items-center gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-cyan-400 bg-cyan-950/50 shadow-[0_0_12px_rgba(0,242,255,0.15)]"
+                                : isFull
+                                ? "border-rose-900/50 bg-slate-800/20 opacity-60 hover:opacity-80"
+                                : "border-white/10 bg-slate-800/40 hover:border-white/20 hover:bg-slate-800/60"
+                            }`}
+                          >
+                            <div className="flex items-center justify-center w-6 h-6 rounded-md border border-white/20 text-xs font-bold shrink-0">
+                              {isSelected ? (
+                                <span className="text-cyan-300 font-mono text-xs">#{slotIndex + 1}</span>
+                              ) : (
+                                <span className="text-slate-500 font-mono text-xs">+</span>
+                              )}
+                            </div>
                             <div className="flex-1 text-xs">
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-white">{g.name}</span>
-                                <span className="text-[10px] font-mono text-cyan-300 font-semibold">{g.level}</span>
+                                <div className="flex items-center gap-1.5">
+                                  {isSelected && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-400/40">
+                                      Slot {slotIndex + 1} Selected
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-mono text-cyan-300 font-semibold">{g.level}</span>
+                                </div>
                               </div>
                               <div className="text-[var(--muted)]">
                                 {g.coachName ? `Coach: ${g.coachName} · ` : ""}{g.schedule}
                               </div>
-                              <div className={isFull ? "text-rose-400" : "text-[var(--muted)]"}>
+                              <div className={isFull ? "text-rose-400 font-semibold" : "text-[var(--muted)]"}>
                                 {effectiveEnrolled}/{g.capacity} enrolled {isFull ? "- FULL" : ""}
                               </div>
                             </div>
-                            {g.isSolid && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 font-bold">Solid</span>}
-                          </label>
+                            {g.isSolid && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/70 text-emerald-400 border border-emerald-800/50 font-bold">
+                                Solid
+                              </span>
+                            )}
+                          </div>
                         );
                       })
                     )}
                   </div>
 
-                  {/* Real-time price calculation preview */}
-                  {selectedNewGroupId && (
+                  {/* Real-time compound price calculation preview */}
+                  {selectedGroupIds.length > 0 && (
                     <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs">
                       <div>
                         <span className="text-[var(--muted)]">Calculated Tariff (AQA Official):</span>
                         <div className="font-bold text-cyan-300 text-sm mt-0.5">
                           {(() => {
-                            const sel = groups.find((g) => g.id === selectedNewGroupId);
-                            if (!sel) return 0;
+                            const selectedObjs = selectedGroupIds
+                              .map((id) => groups.find((g) => g.id === id))
+                              .filter(Boolean) as SwimGroupRef[];
+                            const levels = selectedObjs.map((g) => g.level);
                             return calculateSwimPrice({
                               category: member.category,
-                              groupType: sel.level,
+                              groupTypes: levels,
                               duration: assignDuration,
-                              frequency: assignFrequency,
+                              frequency: selectedGroupIds.length,
                             }).toLocaleString("fr-DZ");
                           })()} DA
                         </div>
                       </div>
-                      <Badge tone="info">
-                        {assignFrequency}x {groups.find((g) => g.id === selectedNewGroupId)?.level || "G10"} · {assignDuration}
-                      </Badge>
+                      <div className="text-right space-y-1">
+                        <Badge tone="info">
+                          {(() => {
+                            const selectedObjs = selectedGroupIds
+                              .map((id) => groups.find((g) => g.id === id))
+                              .filter(Boolean) as SwimGroupRef[];
+                            const levels = selectedObjs.map((g) => g.level);
+                            return resolveMultiGroupFormula(levels).formula;
+                          })()} · {assignDuration}
+                        </Badge>
+                        <div className="text-[10px] text-slate-400">
+                          {selectedGroupIds.length} of {assignFrequency} slot(s) filled
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    disabled={!selectedNewGroupId || savingGroup}
-                    onClick={handleChangeGroup}
-                  >
-                    {savingGroup ? "Saving & Calculating..." : "Confirm Assignment & Set Tariff"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={selectedGroupIds.length === 0 || savingGroup}
+                      onClick={handleChangeGroup}
+                    >
+                      {savingGroup
+                        ? "Saving & Calculating..."
+                        : `Confirm Assignment & Set Tariff (${(() => {
+                            const selectedObjs = selectedGroupIds
+                              .map((id) => groups.find((g) => g.id === id))
+                              .filter(Boolean) as SwimGroupRef[];
+                            const levels = selectedObjs.map((g) => g.level);
+                            return calculateSwimPrice({
+                              category: member.category,
+                              groupTypes: levels,
+                              duration: assignDuration,
+                              frequency: selectedGroupIds.length,
+                            }).toLocaleString("fr-DZ");
+                          })()} DA)`}
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setShowChangeGroup(false)}>
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -954,12 +1192,26 @@ export default function AdminSwimmerProfilePage({
                     <div>
                       <span className="text-[11px] text-slate-400">Tariff: </span>
                       <span className="font-bold text-cyan-300 font-mono text-sm">
-                        {calculateSwimPrice({
-                          category: member.category,
-                          groupType: member.effectiveGroup?.level || member.group?.level || "G10",
-                          duration: tariffDuration,
-                          frequency: tariffFrequency,
-                        }).toLocaleString("fr-DZ")} DA
+                        {(() => {
+                          const assignedLevels = (member.effectiveGroups && member.effectiveGroups.length > 0)
+                            ? member.effectiveGroups.map((g) => g.level)
+                            : (member.groups && member.groups.length > 0)
+                            ? member.groups.map((g) => g.level)
+                            : [member.effectiveGroup?.level || member.group?.level || "G10"];
+                          if (tariffFrequency === assignedLevels.length && assignedLevels.length > 1) {
+                            return calculateSwimPrice({
+                              category: member.category,
+                              groupTypes: assignedLevels,
+                              duration: tariffDuration,
+                            }).toLocaleString("fr-DZ");
+                          }
+                          return calculateSwimPrice({
+                            category: member.category,
+                            groupType: assignedLevels[0] || "G10",
+                            duration: tariffDuration,
+                            frequency: tariffFrequency,
+                          }).toLocaleString("fr-DZ");
+                        })()} DA
                       </span>
                     </div>
                     <Button variant="primary" size="sm" disabled={savingPrice} onClick={handleApplyTariff}>
