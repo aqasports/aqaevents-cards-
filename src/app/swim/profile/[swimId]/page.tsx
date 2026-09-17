@@ -15,6 +15,15 @@ interface SwimPaymentItem {
   paidAt: string;
 }
 
+interface GroupMemberItem {
+  num: number;
+  id: string;
+  swimId: string;
+  fullName: string;
+  groupStatus: string;
+  isCurrentMember: boolean;
+}
+
 interface SwimMemberData {
   id: string;
   swimId: string;
@@ -35,6 +44,7 @@ interface SwimMemberData {
   isSolid?: boolean;
   solidNotes?: string;
   teammates?: string[];
+  groupMembers?: GroupMemberItem[];
   group: {
     id: string;
     name: string;
@@ -61,9 +71,9 @@ function SolidLogoBadge({
   compact?: boolean;
 }) {
   return (
-    <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-950/80 via-slate-900 to-sky-950/80 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,196,212,0.25)] select-none">
+    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-950/80 via-slate-900 to-sky-950/80 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,196,212,0.25)] select-none">
       {/* Sleek SVG Isometric Shield/Cube Emblem */}
-      <div className="relative flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-400 to-teal-500 text-slate-950 shrink-0 shadow-[0_0_10px_rgba(0,242,255,0.4)]">
+      <div className="relative flex items-center justify-center w-6 h-6 rounded-lg bg-gradient-to-br from-cyan-400 to-teal-500 text-slate-950 shrink-0 shadow-[0_0_8px_rgba(0,242,255,0.4)]">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -71,7 +81,7 @@ function SolidLogoBadge({
           strokeWidth="2.4"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="w-4 h-4"
+          className="w-3.5 h-3.5"
         >
           <path d="M12 2L3 7v10l9 5 9-5V7l-9-5z" />
           <path d="M12 22V12" />
@@ -80,15 +90,15 @@ function SolidLogoBadge({
       </div>
       <div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-black tracking-wider uppercase text-cyan-300 font-display">
+          <span className="text-xs font-black tracking-wider uppercase text-cyan-300 font-display leading-none">
             {t("solidBadgeTitle")}
           </span>
-          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-cyan-400/20 text-cyan-200 border border-cyan-400/30">
+          <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-cyan-400/20 text-cyan-200 border border-cyan-400/30 leading-none">
             {t("solidBadgeSubtitle")}
           </span>
         </div>
         {!compact && (
-          <p className="text-[10px] text-slate-400 font-medium leading-none mt-0.5">
+          <p className="text-[9px] text-slate-400 font-medium leading-tight mt-0.5">
             {t("solidBadgeDesc")}
           </p>
         )}
@@ -97,7 +107,93 @@ function SolidLogoBadge({
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Group Names Table Component ──────────────────────────────────────────────
+
+function GroupNamesTable({
+  groupMembers = [],
+  t,
+}: {
+  groupMembers: GroupMemberItem[];
+  t: (key: string) => string;
+}) {
+  if (groupMembers.length === 0) {
+    return (
+      <p className="text-xs text-slate-400 italic py-2">{t("noTeammates")}</p>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/50">
+      <div className="px-3.5 py-2.5 bg-slate-900/80 border-b border-white/10 flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 font-display">
+          {t("groupMembersTableTitle")}
+        </span>
+        <span className="text-[10px] font-mono text-slate-400">
+          {groupMembers.length} {groupMembers.length === 1 ? t("memberCountSingle") : t("memberCountPlural")}
+        </span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-white/5 bg-slate-900/40 text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
+              <th className="py-2 px-3 w-10 text-center">{t("tableHeaderNum")}</th>
+              <th className="py-2 px-3">{t("tableHeaderName")}</th>
+              <th className="py-2 px-3">{t("tableHeaderId")}</th>
+              <th className="py-2 px-3 text-right">{t("tableHeaderStatus")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 font-sans">
+            {groupMembers.map((member) => (
+              <tr
+                key={member.id || member.swimId}
+                className={`transition-colors ${
+                  member.isCurrentMember
+                    ? "bg-cyan-950/30 font-semibold"
+                    : "hover:bg-white/[0.02]"
+                }`}
+              >
+                <td className="py-2.5 px-3 text-center text-slate-500 font-mono text-[11px]">
+                  {member.num}
+                </td>
+                <td className="py-2.5 px-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-white truncate max-w-[140px] sm:max-w-none">
+                      {member.fullName}
+                    </span>
+                    {member.isCurrentMember && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-cyan-400 text-slate-950">
+                        {t("youBadge")}
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="py-2.5 px-3 font-mono text-[11px] text-cyan-300">
+                  {member.swimId}
+                </td>
+                <td className="py-2.5 px-3 text-right">
+                  {member.groupStatus === "accepted" ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-950/80 text-emerald-300 border border-emerald-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      <span>{t("memberStatusAccepted")}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-amber-950/80 text-amber-300 border border-amber-500/30">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      <span>{t("memberStatusProposed")}</span>
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Swimmer Profile Page ────────────────────────────────────────────────
 
 export default function SwimmerProfilePage({
   params,
@@ -173,7 +269,7 @@ export default function SwimmerProfilePage({
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#050d1a] text-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#030712] text-slate-100 flex items-center justify-center p-4">
         <div className="text-center space-y-3">
           <div className="h-9 w-9 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto shadow-[0_0_15px_rgba(0,242,255,0.3)]" />
           <p className="text-xs text-slate-400 font-medium">{t("loading")}</p>
@@ -185,7 +281,7 @@ export default function SwimmerProfilePage({
   // Not found / error state
   if (error || !member) {
     return (
-      <div className="min-h-screen bg-[#050d1a] text-slate-100 flex items-center justify-center p-4" dir={dir}>
+      <div className="min-h-screen bg-[#030712] text-slate-100 flex items-center justify-center p-4" dir={dir}>
         <div className="max-w-md w-full p-6 rounded-2xl bg-slate-900/90 border border-white/10 text-center space-y-4 shadow-2xl backdrop-blur-xl">
           <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-6 h-6">
@@ -229,222 +325,88 @@ export default function SwimmerProfilePage({
 
   return (
     <div
-      className="min-h-screen bg-[#050d1a] text-slate-100 flex flex-col items-center py-6 px-4 selection:bg-cyan-500 selection:text-black relative overflow-x-hidden font-sans"
+      className="min-h-screen bg-[#030712] text-slate-100 flex flex-col items-center py-6 px-4 selection:bg-cyan-500 selection:text-black relative overflow-x-hidden font-sans"
       dir={dir}
     >
-      {/* Background glow effects */}
+      {/* Background glow effects matching AQA Events public part */}
       <div className="fixed top-[-10%] left-[-10%] w-[60vw] h-[60vh] bg-sky-500/10 blur-[130px] pointer-events-none rounded-full" />
       <div className="fixed bottom-[-10%] right-[-10%] w-[60vw] h-[60vh] bg-cyan-400/10 blur-[130px] pointer-events-none rounded-full" />
 
-      <main className="w-full max-w-2xl relative z-10 space-y-5">
-        {/* Top Bar: Brand, Portal Title, Language Switcher */}
-        <header className="flex items-center justify-between pb-2 border-b border-white/10">
-          <div className="flex items-center gap-2.5">
-            <a
-              href="https://aqasports.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 group"
+      {/* Header with Official AQA Logo & Language Selector */}
+      <header className="w-full max-w-md mx-auto pt-2 pb-2 flex items-center justify-between z-10 relative">
+        <div className="flex items-center gap-3">
+          <a
+            href="https://aqasports.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 group"
+          >
+            <img
+              src="/image/logo.webp"
+              alt="AQA Sports"
+              className="h-8 sm:h-9 w-auto object-contain drop-shadow"
+            />
+          </a>
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 backdrop-blur-sm border border-white/10">
+            <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-white/90">
+              AQA Swim
+            </span>
+          </div>
+        </div>
+
+        {/* Language Selector */}
+        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/10">
+          {(["fr", "ar", "en"] as const).map((lng) => (
+            <button
+              key={lng}
+              onClick={() => setLocale(lng)}
+              className={`px-2 py-0.5 rounded-lg text-[11px] font-bold uppercase transition-all ${
+                locale === lng
+                  ? "bg-cyan-500 text-slate-950 shadow-[0_0_8px_rgba(0,242,255,0.3)]"
+                  : "text-slate-400 hover:text-white"
+              }`}
             >
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-400 to-sky-500 flex items-center justify-center text-slate-950 font-black text-xs shadow-[0_0_10px_rgba(0,242,255,0.3)] group-hover:scale-105 transition-transform">
-                A
-              </div>
-              <span className="font-bold tracking-tight text-white text-sm font-display group-hover:text-cyan-300 transition-colors">
-                AQA SPORTS
-              </span>
-            </a>
-            <span className="text-slate-600 text-xs">/</span>
-            <span className="text-xs font-semibold text-slate-400">{t("clientArea")}</span>
+              {lng}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {/* Main Content Column (max-w-md matching eventscard/[token]) */}
+      <main className="w-full max-w-md mx-auto py-3 space-y-4 relative z-10">
+
+        {/* Flash message if action taken */}
+        {actionSuccess && (
+          <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 text-emerald-300 text-xs font-medium text-center shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+            {actionSuccess}
           </div>
-
-          {/* Language Switcher */}
-          <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/10">
-            {(["fr", "ar", "en"] as const).map((lng) => (
-              <button
-                key={lng}
-                onClick={() => setLocale(lng)}
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-bold uppercase transition-all ${
-                  locale === lng
-                    ? "bg-cyan-500 text-slate-950 shadow-[0_0_8px_rgba(0,242,255,0.3)]"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {lng}
-              </button>
-            ))}
-          </div>
-        </header>
-
-        {/* Swimmer Header & Basics Summary */}
-        <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-2xl">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              {member.photoUrl ? (
-                <img
-                  src={member.photoUrl}
-                  alt={member.fullName}
-                  className="h-14 w-14 rounded-2xl object-cover border border-cyan-400/40 shadow-[0_0_15px_rgba(0,242,255,0.2)]"
-                />
-              ) : (
-                <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-sky-500 to-cyan-400 text-slate-950 font-black text-lg flex items-center justify-center shadow-[0_0_15px_rgba(0,242,255,0.25)] shrink-0">
-                  {member.fullName
-                    .split(" ")
-                    .map((n) => n[0])
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase()}
-                </div>
-              )}
-              <div>
-                <h1 className="text-xl font-extrabold text-white font-display tracking-tight">
-                  {member.fullName}
-                </h1>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="font-mono text-xs text-cyan-300 font-semibold px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30">
-                    {member.swimId}
-                  </span>
-                  <span className="text-[11px] font-medium text-slate-400 capitalize">
-                    {member.category} · {member.formula} ({member.duration || "3m"})
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Confirmation status pill */}
-            <div>
-              {isConfirmed && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  <span>{t("statusConfirmed")}</span>
-                </span>
-              )}
-              {isProposed && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-950/60 border border-amber-500/40 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-3.5 h-3.5">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                  <span>{t("statusProposed")}</span>
-                </span>
-              )}
-              {isRejected && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-950/60 border border-rose-500/40 text-rose-300 shadow-[0_0_10px_rgba(239,68,68,0.2)]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-3.5 h-3.5">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                  <span>{t("statusRejected")}</span>
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Action Success Flash message */}
-          {actionSuccess && (
-            <div className="mt-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 text-xs font-medium text-center">
-              {actionSuccess}
-            </div>
-          )}
-        </section>
+        )}
 
         {/* ── CONDITION A: IF CONFIRMED ───────────────────────────────────────── */}
         {isConfirmed ? (
           <>
-            {/* 1. THE GROUP TABLE */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-white/10">
-                <div>
-                  <h2 className="text-sm font-bold text-white uppercase tracking-wider font-display">
-                    {t("groupTableTitle")}
-                  </h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{t("olympicPool")}</p>
-                </div>
-                {member.isSolid && <SolidLogoBadge t={t} />}
-              </div>
+            {/* 1. HERO SECTION: THE PVC PASS CARD (Large, top of page, full width) */}
+            <section className="w-full flex flex-col items-center">
+              <SwimFlipCard
+                member={{
+                  swimId: member.swimId,
+                  fullName: member.fullName,
+                  category: member.category,
+                  level: member.level,
+                  formula: member.formula,
+                  duration: member.duration,
+                  paymentStatus: member.paymentStatus,
+                  group: member.group,
+                  card: member.card,
+                }}
+              />
 
-              {member.group ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/5 space-y-1">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                        {t("groupName")}
-                      </span>
-                      <span className="text-base font-bold text-white font-display">
-                        {member.group.name}
-                      </span>
-                      <span className="text-[11px] text-cyan-300 block">
-                        {member.group.level} · {member.category}
-                      </span>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/5 space-y-1">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                        {t("assignedCoach")}
-                      </span>
-                      <span className="text-base font-bold text-cyan-300 font-display">
-                        {member.group.coachName || "Coach AQA Sports"}
-                      </span>
-                      <span className="text-[11px] text-slate-400 block">
-                        Entraîneur Certifié AQA Sports
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Schedule row */}
-                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/40 via-slate-800/60 to-slate-900 border border-sky-500/20 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-semibold text-sky-400 uppercase tracking-wider block">
-                        {t("trainingSchedule")}
-                      </span>
-                      <span className="text-sm font-semibold text-white mt-0.5 block">
-                        {member.group.schedule}
-                      </span>
-                    </div>
-                    <div className="px-2.5 py-1 rounded-lg bg-sky-500/10 border border-sky-400/30 text-sky-300 text-xs font-semibold">
-                      {member.formula}
-                    </div>
-                  </div>
-
-                  {/* Teammates */}
-                  {member.teammates && member.teammates.length > 0 && (
-                    <div className="pt-2 border-t border-white/5">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                        {t("teammates")} ({member.teammates.length})
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {member.teammates.map((name, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-white/10 text-xs font-medium text-slate-200"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                            <span>{name}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic py-2">{t("noTeammates")}</p>
-              )}
-            </section>
-
-            {/* 2. THE PVC PASS CARD */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <div>
-                  <h2 className="text-sm font-bold text-white uppercase tracking-wider font-display">
-                    {t("passCardTitle")}
-                  </h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{t("passCardSubtitle")}</p>
-                </div>
-                {member.card?.publicToken && (
+              {member.card?.publicToken && (
+                <div className="mt-2 text-center">
                   <Link
                     href={`/swim/card/${member.card.publicToken}`}
-                    className="text-xs font-semibold text-cyan-300 hover:text-cyan-200 underline inline-flex items-center gap-1"
+                    className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1 transition-colors"
                   >
                     <span>{t("openDigitalPass")}</span>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
@@ -453,70 +415,72 @@ export default function SwimmerProfilePage({
                       <line x1="10" y1="14" x2="21" y2="3" />
                     </svg>
                   </Link>
-                )}
-              </div>
+                </div>
+              )}
+            </section>
 
-              {/* Interactive Flip Card */}
-              <div className="flex justify-center py-2">
-                <SwimFlipCard
-                  member={{
-                    swimId: member.swimId,
-                    fullName: member.fullName,
-                    category: member.category,
-                    level: member.level,
-                    formula: member.formula,
-                    duration: member.duration,
-                    paymentStatus: member.paymentStatus,
-                    group: member.group,
-                    card: member.card,
-                  }}
-                />
+            {/* 2. CONFIRMED STATUS BANNER & SWIMMER SUMMARY */}
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                    {t("statusConfirmed")}
+                  </span>
+                </div>
+                <span className="font-mono text-xs text-cyan-300 font-bold px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30">
+                  {member.swimId}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
+                <span className="text-slate-400">{member.category} · {member.formula}</span>
+                <span className="text-slate-300 font-medium">{formattedDateOfStart}</span>
               </div>
             </section>
 
-            {/* 3. PAYMENTS & FINANCIAL LEDGER */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider font-display">
+            {/* 3. FINANCIAL LEDGER & PAYMENTS (matching eventscard balance style) */}
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display">
                   {t("paymentsTitle")}
                 </h2>
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                     isFullyPaid
-                      ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/30"
+                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
                       : totalPaid > 0
-                      ? "bg-amber-950/60 text-amber-300 border border-amber-500/30"
-                      : "bg-rose-950/60 text-rose-300 border border-rose-500/30"
+                      ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                      : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
                   }`}
                 >
                   {isFullyPaid ? t("statusPaid") : totalPaid > 0 ? t("statusPartial") : t("statusUnpaid")}
                 </span>
               </div>
 
-              {/* Stats breakdown */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+              {/* 3-stat breakdown */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
                     {t("totalPrice")}
                   </span>
-                  <span className="font-mono font-bold text-white text-sm sm:text-base">
+                  <span className="font-mono font-bold text-white text-xs sm:text-sm">
                     {priceDA.toLocaleString("fr-DZ")} DA
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
                     {t("totalPaid")}
                   </span>
-                  <span className="font-mono font-bold text-emerald-400 text-sm sm:text-base">
+                  <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
                     {totalPaid.toLocaleString("fr-DZ")} DA
                   </span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
                     {t("remainingBalance")}
                   </span>
                   <span
-                    className={`font-mono font-bold text-sm sm:text-base ${
+                    className={`font-mono font-bold text-xs sm:text-sm ${
                       debt > 0 ? "text-rose-400" : "text-emerald-400"
                     }`}
                   >
@@ -526,12 +490,12 @@ export default function SwimmerProfilePage({
               </div>
 
               {/* Progress bar */}
-              <div className="space-y-1.5 pt-1">
-                <div className="flex justify-between text-[11px] text-slate-400">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-slate-400">
                   <span>{t("paymentStatus")}</span>
                   <span className="font-mono font-semibold text-white">{paymentPct}%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       isFullyPaid
@@ -543,18 +507,18 @@ export default function SwimmerProfilePage({
                 </div>
               </div>
 
-              {/* Transaction list */}
-              <div className="pt-2">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                  {t("paymentHistory")}
-                </span>
-                {paymentsList.length > 0 ? (
+              {/* Transactions List */}
+              {paymentsList.length > 0 && (
+                <div className="pt-2 border-t border-white/5 space-y-1.5">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                    {t("paymentHistory")}
+                  </span>
                   <div className="divide-y divide-white/5 rounded-xl overflow-hidden border border-white/10 bg-slate-950/40">
                     {paymentsList.map((p) => (
-                      <div key={p.id} className="p-3 flex items-center justify-between text-xs">
+                      <div key={p.id} className="p-2.5 flex items-center justify-between text-xs">
                         <div className="space-y-0.5">
-                          <span className="font-semibold text-white capitalize">{p.method}</span>
-                          <span className="text-[11px] text-slate-400 block">
+                          <span className="font-semibold text-white capitalize text-[11px] block">{p.method}</span>
+                          <span className="text-[10px] text-slate-400 block">
                             {new Date(p.paidAt).toLocaleDateString(locale === "ar" ? "ar-DZ" : "fr-DZ", {
                               year: "numeric",
                               month: "short",
@@ -563,61 +527,96 @@ export default function SwimmerProfilePage({
                             {p.notes ? ` · ${p.notes}` : ""}
                           </span>
                         </div>
-                        <span className="font-mono font-bold text-emerald-400 text-sm">
+                        <span className="font-mono font-bold text-emerald-400 text-xs">
                           +{p.amount.toLocaleString("fr-DZ")} DA
                         </span>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-400 italic p-3 rounded-xl bg-slate-800/40 border border-white/5">
-                    {t("noPaymentsYet")}
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
             </section>
 
-            {/* 4. WORD FROM COACH */}
-            <section className="p-5 rounded-2xl bg-gradient-to-br from-sky-950/40 to-slate-900 border border-sky-500/30 shadow-[0_0_20px_rgba(14,165,233,0.1)] space-y-2">
+            {/* 4. THE GROUP TABLE & GROUP NAMES TABLE */}
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-white/10">
+                <div>
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display">
+                    {t("groupTableTitle")}
+                  </h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{t("olympicPool")}</p>
+                </div>
+                {member.isSolid && <SolidLogoBadge t={t} compact />}
+              </div>
+
+              {member.group && (
+                <div className="space-y-3">
+                  {/* Group Summary Box */}
+                  <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("groupName")}</span>
+                      <span className="font-bold text-white font-display text-sm">{member.group.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("assignedCoach")}</span>
+                      <span className="font-semibold text-cyan-300">{member.group.coachName || "Coach AQA Sports"}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("trainingSchedule")}</span>
+                      <span className="text-slate-200 font-medium text-right">{member.group.schedule}</span>
+                    </div>
+                  </div>
+
+                  {/* GROUP NAMES TABLE (All cohort members) */}
+                  <GroupNamesTable
+                    groupMembers={member.groupMembers || []}
+                    t={t}
+                  />
+                </div>
+              )}
+            </section>
+
+            {/* 5. WORD FROM COACH */}
+            <section className="p-4 rounded-2xl bg-gradient-to-br from-sky-950/40 to-slate-900 border border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.1)] space-y-1.5">
               <div className="flex items-center gap-2 text-sky-400">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-3.5 h-3.5">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
                 <span className="text-xs font-bold uppercase tracking-wider font-display">
                   {member.coachMessage ? t("wordFromCoach") : t("wordFromStaff")}
                 </span>
               </div>
-              <p className="text-xs italic text-slate-200 leading-relaxed pt-1">
+              <p className="text-xs italic text-slate-200 leading-relaxed pt-0.5">
                 &ldquo;{member.coachMessage || t("defaultCoachMessage")}&rdquo;
               </p>
               {member.group?.coachName && (
-                <span className="text-[11px] font-semibold text-cyan-300 block pt-1">
+                <span className="text-[10px] font-semibold text-cyan-300 block text-right">
                   — {member.group.coachName}
                 </span>
               )}
             </section>
 
-            {/* 5. BASICS */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
+            {/* 6. BASICS */}
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-2.5">
               <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display pb-2 border-b border-white/10">
                 {t("basicsTitle")}
               </h2>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("category")}</span>
-                  <span className="font-semibold text-white capitalize block">{member.category}</span>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("category")}</span>
+                  <span className="font-semibold text-white capitalize">{member.category}</span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("level")}</span>
-                  <span className="font-semibold text-white block">{member.level}</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("level")}</span>
+                  <span className="font-semibold text-white">{member.level}</span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("startDate")}</span>
-                  <span className="font-semibold text-white block">{formattedDateOfStart}</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("startDate")}</span>
+                  <span className="font-semibold text-white">{formattedDateOfStart}</span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("contactPhone")}</span>
-                  <span className="font-mono text-cyan-300 block">{member.phone || "—"}</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("contactPhone")}</span>
+                  <span className="font-mono text-cyan-300">{member.phone || "—"}</span>
                 </div>
               </div>
             </section>
@@ -625,93 +624,68 @@ export default function SwimmerProfilePage({
         ) : (
           /* ── CONDITION B: IF NOT CONFIRMED (PROPOSED OR REJECTED) ────────── */
           <>
-            {/* 1. THE GROUP TABLE */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-white/10">
+            {/* Status Alert Banner */}
+            <section className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 to-slate-900 border border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.15)] space-y-2">
+              <div className="flex items-center gap-2 text-amber-300">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span className="text-xs font-bold uppercase tracking-wider font-display">
+                  {t("statusProposed")}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                {t("statusProposedDesc")}
+              </p>
+            </section>
+
+            {/* 1. THE GROUP TABLE & GROUP NAMES TABLE */}
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-white/10">
                 <div>
-                  <h2 className="text-sm font-bold text-white uppercase tracking-wider font-display">
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display">
                     {t("groupTableProposedTitle")}
                   </h2>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{t("statusProposedDesc")}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{t("olympicPool")}</p>
                 </div>
-                {member.isSolid && <SolidLogoBadge t={t} />}
+                {member.isSolid && <SolidLogoBadge t={t} compact />}
               </div>
 
-              {member.group ? (
+              {member.group && (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/5 space-y-1">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                        {t("groupName")}
-                      </span>
-                      <span className="text-base font-bold text-white font-display">
-                        {member.group.name}
-                      </span>
-                      <span className="text-[11px] text-cyan-300 block">
-                        {member.group.level} · {member.category}
-                      </span>
+                  {/* Proposed Group Summary Box */}
+                  <div className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("groupName")}</span>
+                      <span className="font-bold text-white font-display text-sm">{member.group.name}</span>
                     </div>
-
-                    <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/5 space-y-1">
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
-                        {t("assignedCoach")}
-                      </span>
-                      <span className="text-base font-bold text-cyan-300 font-display">
-                        {member.group.coachName || "Coach AQA Sports"}
-                      </span>
-                      <span className="text-[11px] text-slate-400 block">
-                        Entraîneur Référent du Groupe
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("assignedCoach")}</span>
+                      <span className="font-semibold text-cyan-300">{member.group.coachName || "Coach AQA Sports"}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                      <span className="text-[10px] font-semibold text-amber-400 uppercase">{t("trainingSchedule")}</span>
+                      <span className="text-slate-200 font-medium text-right">{member.group.schedule}</span>
                     </div>
                   </div>
 
-                  {/* Schedule row */}
-                  <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-950/40 via-slate-800/60 to-slate-900 border border-amber-500/20 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider block">
-                        {t("trainingSchedule")}
-                      </span>
-                      <span className="text-sm font-semibold text-white mt-0.5 block">
-                        {member.group.schedule}
-                      </span>
-                    </div>
-                    <div className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-400/30 text-amber-300 text-xs font-semibold">
-                      {member.formula}
-                    </div>
-                  </div>
-
-                  {/* Teammates */}
-                  {member.teammates && member.teammates.length > 0 && (
-                    <div className="pt-2 border-t border-white/5">
-                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                        {t("teammates")} ({member.teammates.length})
-                      </span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {member.teammates.map((name, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 border border-white/10 text-xs font-medium text-slate-200"
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                            <span>{name}</span>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* GROUP NAMES TABLE (All cohort members) */}
+                  <GroupNamesTable
+                    groupMembers={member.groupMembers || []}
+                    t={t}
+                  />
                 </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic py-2">{t("noTeammates")}</p>
               )}
             </section>
 
             {/* 2. ACCEPTANCE BUTTONS */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
-              <div className="flex flex-col sm:flex-row gap-2.5">
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-2.5">
+              <div className="flex flex-col gap-2">
                 <button
                   onClick={() => handleDecision("accept")}
                   disabled={submitting}
-                  className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_0_20px_rgba(0,242,255,0.3)] active:scale-[0.99] flex items-center justify-center gap-2"
+                  className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 font-extrabold text-xs tracking-wider uppercase transition-all shadow-[0_0_20px_rgba(0,242,255,0.3)] active:scale-[0.99] flex items-center justify-center gap-2"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-4 h-4">
                     <polyline points="20 6 9 17 4 12" />
@@ -722,7 +696,7 @@ export default function SwimmerProfilePage({
                 <button
                   onClick={() => setShowRejectModal(true)}
                   disabled={submitting}
-                  className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-rose-500/30 font-semibold text-xs transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 hover:text-rose-200 border border-rose-500/30 font-semibold text-xs transition-all active:scale-[0.99] flex items-center justify-center gap-2"
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
                     <circle cx="12" cy="12" r="10" />
@@ -748,17 +722,17 @@ export default function SwimmerProfilePage({
             </section>
 
             {/* 3. TARIFS LINK */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xs font-bold text-white uppercase tracking-wider font-display">
                     {t("officialTarifsTitle")}
                   </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{t("officialTarifsDesc")}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{t("officialTarifsDesc")}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 uppercase block">{t("formulaTarif")}</span>
-                  <span className="font-mono font-bold text-cyan-300 text-sm">
+                  <span className="text-[9px] text-slate-400 uppercase block">{t("formulaTarif")}</span>
+                  <span className="font-mono font-bold text-cyan-300 text-xs sm:text-sm">
                     {priceDA.toLocaleString("fr-DZ")} DA
                   </span>
                 </div>
@@ -768,7 +742,7 @@ export default function SwimmerProfilePage({
                 href="https://aqasports.com/tarifs"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 font-semibold text-xs transition-all flex items-center justify-center gap-2 group"
+                className="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-cyan-300 hover:text-cyan-200 border border-cyan-500/30 font-semibold text-xs transition-all flex items-center justify-center gap-2 group"
               >
                 <span>{t("viewTarifsBtn")}</span>
                 <svg
@@ -786,48 +760,48 @@ export default function SwimmerProfilePage({
             </section>
 
             {/* 4. WORD FROM COACH */}
-            <section className="p-5 rounded-2xl bg-gradient-to-br from-sky-950/40 to-slate-900 border border-sky-500/30 shadow-[0_0_20px_rgba(14,165,233,0.1)] space-y-2">
+            <section className="p-4 rounded-2xl bg-gradient-to-br from-sky-950/40 to-slate-900 border border-sky-500/30 shadow-[0_0_15px_rgba(14,165,233,0.1)] space-y-1.5">
               <div className="flex items-center gap-2 text-sky-400">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-3.5 h-3.5">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                 </svg>
                 <span className="text-xs font-bold uppercase tracking-wider font-display">
                   {member.coachMessage ? t("wordFromCoach") : t("wordFromStaff")}
                 </span>
               </div>
-              <p className="text-xs italic text-slate-200 leading-relaxed pt-1">
+              <p className="text-xs italic text-slate-200 leading-relaxed pt-0.5">
                 &ldquo;{member.coachMessage || t("defaultCoachMessage")}&rdquo;
               </p>
               {member.group?.coachName && (
-                <span className="text-[11px] font-semibold text-cyan-300 block pt-1">
+                <span className="text-[10px] font-semibold text-cyan-300 block text-right">
                   — {member.group.coachName}
                 </span>
               )}
             </section>
 
             {/* 5. BASICS */}
-            <section className="p-5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-2.5">
               <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display pb-2 border-b border-white/10">
                 {t("basicsTitle")}
               </h2>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("category")}</span>
-                  <span className="font-semibold text-white capitalize block">{member.category}</span>
+              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("category")}</span>
+                  <span className="font-semibold text-white capitalize">{member.category}</span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("level")}</span>
-                  <span className="font-semibold text-white block">{member.level}</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("level")}</span>
+                  <span className="font-semibold text-white">{member.level}</span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("formula")}</span>
-                  <span className="font-semibold text-white block">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("formula")}</span>
+                  <span className="font-semibold text-white">
                     {member.formula} ({member.duration || "3m"})
                   </span>
                 </div>
-                <div className="space-y-0.5">
-                  <span className="text-[10px] text-slate-400 uppercase font-semibold">{t("contactPhone")}</span>
-                  <span className="font-mono text-cyan-300 block">{member.phone || "—"}</span>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("contactPhone")}</span>
+                  <span className="font-mono text-cyan-300">{member.phone || "—"}</span>
                 </div>
               </div>
             </section>
@@ -835,7 +809,7 @@ export default function SwimmerProfilePage({
         )}
 
         {/* Footer link to enter another ID */}
-        <div className="text-center pt-2">
+        <div className="text-center pt-2 pb-6">
           <Link
             href="/swim"
             className="text-xs text-slate-500 hover:text-cyan-300 transition-colors inline-flex items-center gap-1.5"
@@ -848,8 +822,8 @@ export default function SwimmerProfilePage({
       {/* Rejection / Availability Modal */}
       {showRejectModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" dir={dir}>
-          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-white font-display">
+          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-2xl space-y-3.5">
+            <h3 className="text-sm font-bold text-white font-display">
               {t("changeRequestModalTitle")}
             </h3>
             <p className="text-xs text-slate-400">{t("changeRequestModalDesc")}</p>
@@ -880,7 +854,7 @@ export default function SwimmerProfilePage({
               />
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setShowRejectModal(false)}

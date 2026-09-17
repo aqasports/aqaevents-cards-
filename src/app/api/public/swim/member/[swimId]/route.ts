@@ -141,12 +141,24 @@ export async function GET(
           .filter(Boolean)
       : [];
 
+    const groupMembers = member.group?.swimmers
+      ? member.group.swimmers.map((s, idx) => ({
+          num: idx + 1,
+          id: s.id,
+          swimId: s.swimId,
+          fullName: s.fullName,
+          groupStatus: s.groupStatus,
+          isCurrentMember: s.swimId === member.swimId,
+        }))
+      : [];
+
     return NextResponse.json(
       {
         ...member,
         isSolid,
         solidNotes,
         teammates,
+        groupMembers,
       },
       { headers: corsHeaders }
     );
@@ -245,6 +257,17 @@ export async function POST(
             .filter(Boolean)
         : [];
 
+      const groupMembers = updated.group?.swimmers
+        ? updated.group.swimmers.map((s, idx) => ({
+            num: idx + 1,
+            id: s.id,
+            swimId: s.swimId,
+            fullName: s.fullName,
+            groupStatus: s.groupStatus,
+            isCurrentMember: s.swimId === updated.swimId,
+          }))
+        : [];
+
       return NextResponse.json(
         {
           success: true,
@@ -253,6 +276,7 @@ export async function POST(
             isSolid,
             solidNotes,
             teammates,
+            groupMembers,
           },
         },
         { headers: corsHeaders }

@@ -71,10 +71,10 @@ export function SwimFlipCard({
   const isPartial = member.paymentStatus === "partial";
 
   return (
-    <div className={`flex flex-col items-center select-none ${className}`}>
+    <div className={`w-full flex flex-col items-center select-none ${className}`}>
       {/* 3D Card Container */}
       <div
-        className="w-full max-w-sm sm:max-w-md aspect-[1.586/1] cursor-pointer group"
+        className="w-full aspect-[1.58/1] cursor-pointer group"
         style={{ perspective: "1200px" }}
         onClick={() => setIsFlipped((prev) => !prev)}
         role="button"
@@ -88,7 +88,7 @@ export function SwimFlipCard({
         }}
       >
         <div
-          className="relative w-full h-full rounded-2xl transition-transform duration-700 shadow-2xl"
+          className="relative w-full h-full rounded-3xl transition-transform duration-700 shadow-2xl"
           style={{
             transformStyle: "preserve-3d",
             transform: isFlipped ? "rotateY(180deg)" : "rotateY(0deg)",
@@ -96,7 +96,7 @@ export function SwimFlipCard({
         >
           {/* ─── FRONT FACE ─── */}
           <div
-            className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-slate-900"
+            className="absolute inset-0 w-full h-full rounded-3xl overflow-hidden border border-white/20 shadow-2xl bg-slate-900"
             style={{
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
@@ -130,7 +130,7 @@ export function SwimFlipCard({
                   <span className="text-[10px] sm:text-[11px] font-mono font-bold text-cyan-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                     {member.swimId}
                   </span>
-                  <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-black/50 text-slate-200 border border-white/10">
+                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-black/50 text-slate-200 border border-white/10">
                     {member.category}
                   </span>
                 </div>
@@ -155,7 +155,7 @@ export function SwimFlipCard({
 
           {/* ─── BACK FACE (VERSO) ─── */}
           <div
-            className="absolute inset-0 w-full h-full rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-slate-900"
+            className="absolute inset-0 w-full h-full rounded-3xl overflow-hidden border border-white/20 shadow-2xl bg-slate-900"
             style={{
               backfaceVisibility: "hidden",
               WebkitBackfaceVisibility: "hidden",
