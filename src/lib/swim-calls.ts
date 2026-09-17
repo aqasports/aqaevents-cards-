@@ -68,7 +68,10 @@ export const SWIM_CALLS_SETTING_KEY = "swim_reinscription_calls";
 /**
  * Calculates the expiration date of a swim subscription based on dateOfStart and duration.
  */
-export function calculateSubscriptionExpiration(dateOfStart: Date | string, duration?: string | null): Date {
+export function calculateSubscriptionExpiration(dateOfStart?: Date | string | null, duration?: string | null): Date {
+  if (!dateOfStart) {
+    return new Date();
+  }
   const start = typeof dateOfStart === "string" ? new Date(dateOfStart) : new Date(dateOfStart.getTime());
   if (isNaN(start.getTime())) {
     return new Date();
@@ -99,9 +102,11 @@ export function calculateSubscriptionExpiration(dateOfStart: Date | string, dura
  * Determines the call urgency based on subscription expiration and scheduled callback date.
  */
 export function getCallUrgency(
-  expirationDate: Date | string,
+  expirationDate?: Date | string | null,
   callbackDate?: Date | string | null
 ): "due_today" | "overdue" | "expiring_soon" | "active" {
+  if (!expirationDate) return "active";
+
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
@@ -183,7 +188,7 @@ export async function getStoredCallRecords(): Promise<Record<string, SwimCallRec
     });
     if (setting?.value) {
       const parsed = JSON.parse(setting.value);
-      if (typeof parsed === "object" && parsed !== null) {
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
         cachedCallRecords = { data: parsed as Record<string, SwimCallRecord>, timestamp: now };
         return parsed as Record<string, SwimCallRecord>;
       }

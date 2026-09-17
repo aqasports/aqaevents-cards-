@@ -9,6 +9,7 @@ import {
   SWIM_TIME_SLOTS,
   getSwimLevelLabel,
 } from "@/lib/swim-groups";
+import { SwimCallsTab } from "@/components/admin/swim/SwimCallsTab";
 
 interface SwimPaymentItem {
   id: string;
@@ -113,8 +114,32 @@ interface SwimCardItem {
 
 export default function SwimOverviewPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls">("confirmed");
   const [loading, setLoading] = useState(true);
+
+  // Delete Swimmer Modal State (for cleaning duplicated profiles)
+  const [deleteSwimmerTarget, setDeleteSwimmerTarget] = useState<SwimMember | null>(null);
+  const [deletingSwimmer, setDeletingSwimmer] = useState(false);
+  const [deleteSwimmerError, setDeleteSwimmerError] = useState<string | null>(null);
+
+  // Sync tab from URL search param if present (e.g. ?tab=calls)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (
+        tabParam === "confirmed" ||
+        tabParam === "leads" ||
+        tabParam === "groups" ||
+        tabParam === "calendar" ||
+        tabParam === "cards" ||
+        tabParam === "sectors" ||
+        tabParam === "calls"
+      ) {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   // Data States
   const [members, setMembers] = useState<SwimMember[]>([]);
@@ -206,6 +231,27 @@ export default function SwimOverviewPage() {
   useEffect(() => {
     loadAllData();
   }, []);
+
+  async function handleDeleteSwimmer() {
+    if (!deleteSwimmerTarget) return;
+    setDeletingSwimmer(true);
+    setDeleteSwimmerError(null);
+    try {
+      const res = await fetch(`/api/admin/swim/members/${deleteSwimmerTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete swimmer");
+      }
+      setDeleteSwimmerTarget(null);
+      await loadAllData();
+    } catch (err: unknown) {
+      setDeleteSwimmerError(err instanceof Error ? err.message : "Failed to delete swimmer");
+    } finally {
+      setDeletingSwimmer(false);
+    }
+  }
 
   // Filtered Members
   const filteredMembers = useMemo(() => {
@@ -767,15 +813,19 @@ export default function SwimOverviewPage() {
             Sectors Hub
           </button>
 
-          <Link
-            href="/admin/swim/calls"
-            className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+          <button
+            onClick={() => setActiveTab("calls")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === "calls"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+            }`}
           >
             <span>Reinscription Calls</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900 text-sky-200">
               Desk
             </span>
-          </Link>
+          </button>
         </div>
 
         {/* Global Search */}
@@ -1001,6 +1051,18 @@ export default function SwimOverviewPage() {
                             >
                               Profile
                             </Link>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteSwimmerTarget(m);
+                                setDeleteSwimmerError(null);
+                              }}
+                              className="inline-flex items-center justify-center px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/80 text-rose-400 border border-rose-800/40 font-semibold text-xs transition-colors"
+                              title="Delete duplicated profile"
+                            >
+                              Delete
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1519,6 +1581,13 @@ export default function SwimOverviewPage() {
         </div>
       )}
 
+      {/* TAB 7: REINSCRIPTION & CALLS DESK */}
+      {activeTab === "calls" && (
+        <SwimCallsTab
+          onNavigateToSwimmer={(swimId) => router.push(`/admin/swim/members/${swimId}`)}
+        />
+      )}
+
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}
       {showAddMemberModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
@@ -2017,6 +2086,56 @@ export default function SwimOverviewPage() {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DELETE SWIMMER MODAL ─────────────────────────────────────── */}
+      {deleteSwimmerTarget && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Delete Swimmer Profile
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                Are you sure you want to delete profile <strong className="text-white">{deleteSwimmerTarget.fullName}</strong> ({deleteSwimmerTarget.swimId})?
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                This action will unassign the swimmer from their group and delete any duplicated entries. This operation is permanent and cannot be undone.
+              </p>
+            </div>
+
+            {deleteSwimmerError && (
+              <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">
+                {deleteSwimmerError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setDeleteSwimmerTarget(null)}
+                disabled={deletingSwimmer}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleDeleteSwimmer}
+                disabled={deletingSwimmer}
+              >
+                {deletingSwimmer ? "Deleting..." : "Yes, Delete Swimmer"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

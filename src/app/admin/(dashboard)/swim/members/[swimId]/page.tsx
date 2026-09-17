@@ -162,6 +162,30 @@ export default function AdminSwimmerProfilePage({
   const [savingGroup, setSavingGroup] = useState(false);
   const [confirmingGroup, setConfirmingGroup] = useState(false);
 
+  // Delete profile state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteProfile() {
+    if (!member) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/admin/swim/members/${member.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete swimmer profile");
+      }
+      router.push("/admin/swim");
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete swimmer profile");
+      setDeleting(false);
+    }
+  }
+
   const loadMember = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -531,6 +555,16 @@ export default function AdminSwimmerProfilePage({
             >
               Open Public Profile
             </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setShowDeleteModal(true);
+                setDeleteError(null);
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-semibold text-xs border border-rose-500/40 transition-colors"
+            >
+              Delete Profile
+            </button>
           </div>
         }
       />
@@ -1223,8 +1257,82 @@ export default function AdminSwimmerProfilePage({
               )}
             </div>
           </Card>
+
+          {/* Danger Zone */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-slate-900/60 border border-rose-500/20 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider font-display">
+                  Danger Zone
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Permanently delete this swimmer profile from the database. Unassigns from group and voids any issued pass card. Useful for eliminating duplicates.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(true);
+                  setDeleteError(null);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 font-semibold text-xs border border-rose-500/40 transition-colors"
+              >
+                Delete Profile
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white font-display">
+                Delete Swimmer Profile
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                Are you sure you want to permanently delete <strong className="text-white">{member.fullName}</strong> ({member.swimId})?
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                This action will delete the profile, unassign them from {member.group?.name || "their group"}, and remove any duplicate records. This operation cannot be reversed.
+              </p>
+            </div>
+
+            {deleteError && (
+              <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleDeleteProfile}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting..." : "Yes, Delete Swimmer Profile"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

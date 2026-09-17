@@ -57,44 +57,51 @@ export async function GET(request: NextRequest) {
     const unifiedList: (SwimCallRecord & { urgency: string })[] = [];
 
     for (const m of members) {
-      const stored = storedRecords[m.id];
-      const expirationDate = calculateSubscriptionExpiration(m.dateOfStart, m.duration).toISOString();
-      const status: SwimCallStatus = stored?.status || "to_call";
-      const urgency = getCallUrgency(stored?.expirationDate || expirationDate, stored?.callbackDate);
+      try {
+        const stored = storedRecords[m.id];
+        const expirationDate = calculateSubscriptionExpiration(m.dateOfStart, m.duration).toISOString();
+        const status: SwimCallStatus = stored?.status || "to_call";
+        const urgency = getCallUrgency(stored?.expirationDate || expirationDate, stored?.callbackDate);
+        const dateOfStartStr = m.dateOfStart ? m.dateOfStart.toISOString() : new Date().toISOString();
+        const createdAtStr = m.createdAt ? m.createdAt.toISOString() : new Date().toISOString();
+        const updatedAtStr = m.updatedAt ? m.updatedAt.toISOString() : new Date().toISOString();
 
-      const record: SwimCallRecord & { urgency: string } = {
-        id: m.id,
-        entityType: "member",
-        entityId: m.id,
-        swimId: m.swimId,
-        fullName: m.fullName,
-        phone: m.phone,
-        email: m.email,
-        category: m.category,
-        level: m.level,
-        formula: m.formula,
-        duration: m.duration || "3m",
-        dateOfStart: m.dateOfStart.toISOString(),
-        expirationDate: stored?.expirationDate || expirationDate,
-        groupId: m.groupId,
-        groupName: m.group?.name || null,
-        coachName: m.group?.coachName || null,
-        status,
-        reinscriptionIntent: stored?.reinscriptionIntent || "none",
-        lastOutcome: stored?.lastOutcome || null,
-        lastObservation: stored?.lastObservation || null,
-        lastCalledAt: stored?.lastCalledAt || null,
-        callbackDate: stored?.callbackDate || null,
-        callHistory: stored?.callHistory || [],
-        proposedFormula: stored?.proposedFormula || null,
-        proposedDuration: stored?.proposedDuration || null,
-        proposedGroupId: stored?.proposedGroupId || null,
-        createdAt: stored?.createdAt || m.createdAt.toISOString(),
-        updatedAt: stored?.updatedAt || m.updatedAt.toISOString(),
-        urgency,
-      };
+        const record: SwimCallRecord & { urgency: string } = {
+          id: m.id,
+          entityType: "member",
+          entityId: m.id,
+          swimId: m.swimId,
+          fullName: m.fullName,
+          phone: m.phone,
+          email: m.email,
+          category: m.category,
+          level: m.level,
+          formula: m.formula,
+          duration: m.duration || "3m",
+          dateOfStart: dateOfStartStr,
+          expirationDate: stored?.expirationDate || expirationDate,
+          groupId: m.groupId,
+          groupName: m.group?.name || null,
+          coachName: m.group?.coachName || null,
+          status,
+          reinscriptionIntent: stored?.reinscriptionIntent || "none",
+          lastOutcome: stored?.lastOutcome || null,
+          lastObservation: stored?.lastObservation || null,
+          lastCalledAt: stored?.lastCalledAt || null,
+          callbackDate: stored?.callbackDate || null,
+          callHistory: stored?.callHistory || [],
+          proposedFormula: stored?.proposedFormula || null,
+          proposedDuration: stored?.proposedDuration || null,
+          proposedGroupId: stored?.proposedGroupId || null,
+          createdAt: stored?.createdAt || createdAtStr,
+          updatedAt: stored?.updatedAt || updatedAtStr,
+          urgency,
+        };
 
-      unifiedList.push(record);
+        unifiedList.push(record);
+      } catch (rowErr) {
+        logger.warn("Skipping corrupted swimmer in calls pipeline:", rowErr);
+      }
     }
 
     // Include any standalone leads stored in records that are not members (O(1) lookup)

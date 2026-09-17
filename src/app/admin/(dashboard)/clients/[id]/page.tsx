@@ -1060,6 +1060,30 @@ export default function ClientDetailPage() {
     }
   }
 
+  async function handleDeleteClient() {
+    if (!client) return;
+    triggerConfirm(
+      "Delete Client Profile",
+      `Are you sure you want to delete profile for ${client.fullName}? This will remove or archive the client record and void any active cards.`,
+      async () => {
+        try {
+          const res = await fetch(`/api/admin/clients/${params.id}?force=true&deleteRelated=true`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            router.push("/admin/clients");
+          } else {
+            const data = await res.json();
+            setMessage({ text: data.error ?? "Failed to delete client.", tone: "danger" });
+          }
+        } catch {
+          setMessage({ text: "Network error deleting client.", tone: "danger" });
+        }
+      },
+      true // isDanger
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -1092,9 +1116,18 @@ export default function ClientDetailPage() {
         title={client.fullName}
         description="Client profile, balance history, invoices, notifications, and store purchases."
         action={
-          <Link href="/admin/clients" className="text-sm text-[var(--primary)] hover:underline">
-            ← Back to clients
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/admin/clients" className="text-sm text-[var(--primary)] hover:underline">
+              ← Back to clients
+            </Link>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteClient}
+            >
+              Delete Client
+            </Button>
+          </div>
         }
       />
 

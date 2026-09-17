@@ -3,6 +3,8 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
+import { logAdminAction } from "@/lib/audit";
+import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls";
 
 export const dynamic = "force-dynamic";
 
@@ -223,8 +225,59 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    await prisma.swimMember.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    const isSwimId = id.toUpperCase().startsWith("SWM-");
+    const member = isSwimId
+      ? await prisma.swimMember.findFirst({
+          where: { swimId: id.toUpperCase() },
+          select: { id: true, swimId: true, fullName: true },
+        })
+      : await prisma.swimMember.findUnique({
+          where: { id },
+          select: { id: true, swimId: true, fullName: true },
+        });
+
+    if (!member) {
+      return NextResponse.json({ error: "Swimmer profile not found" }, { status: 404 });
+    }
+
+    // Unlink any card associated with this member
+    await prisma.swimCard.updateMany({
+      where: { memberId: member.id },
+      data: { memberId: null, status: "voided" },
+    });
+
+    // Delete member (SwimPayment has onDelete: Cascade in schema)
+    await prisma.swimMember.delete({
+      where: { id: member.id },
+    });
+
+    // Clean up stored call records for this member if present
+    try {
+      const stored = await getStoredCallRecords();
+      let changed = false;
+      if (stored[member.id]) {
+        delete stored[member.id];
+        changed = true;
+      }
+      if (member.swimId && stored[member.swimId]) {
+        delete stored[member.swimId];
+        changed = true;
+      }
+      if (changed) {
+        await saveStoredCallRecords(stored);
+      }
+    } catch {
+      // Non-blocking cleanup
+    }
+
+    await logAdminAction(
+      session.user?.id || null,
+      "DELETE_SWIM_MEMBER",
+      `Swimmer ${member.fullName} (${member.swimId})`,
+      `Deleted swimmer profile by admin.`
+    );
+
+    return NextResponse.json({ success: true, deletedId: member.id, swimId: member.swimId });
   } catch (err: unknown) {
     logger.error("DELETE admin swim member error:", err);
     return NextResponse.json({ error: "Failed to delete member" }, { status: 500 });
