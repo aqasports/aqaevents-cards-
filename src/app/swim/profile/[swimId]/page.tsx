@@ -597,10 +597,7 @@ export default function SwimmerProfilePage({
                       {isOldMember ? (
                         <GroupNamesTable
                           groupMembers={
-                            (idx > 0 && displayGroups.length > 1
-                              ? (grp.groupMembers || []).filter((m) => !m.isCurrentMember)
-                              : grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])
-                            ).map((m, mIdx) => ({
+                            (grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])).map((m, mIdx) => ({
                               ...m,
                               num: mIdx + 1,
                               fullName: extractFirstName(m.fullName),
@@ -734,10 +731,7 @@ export default function SwimmerProfilePage({
                       {isOldMember ? (
                         <GroupNamesTable
                           groupMembers={
-                            (idx > 0 && displayGroups.length > 1
-                              ? (grp.groupMembers || []).filter((m) => !m.isCurrentMember)
-                              : grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])
-                            ).map((m, mIdx) => ({
+                            (grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])).map((m, mIdx) => ({
                               ...m,
                               num: mIdx + 1,
                               fullName: extractFirstName(m.fullName),

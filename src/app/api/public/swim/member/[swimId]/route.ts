@@ -47,7 +47,6 @@ async function enrichMemberGroups(member: any) {
     // Find secondary swimmers assigned to any of these groups via notes
     const secondarySwimmers = await prisma.swimMember.findMany({
       where: {
-        groupId: { notIn: allGroupIds },
         notes: { contains: "[GROUPS:" },
       },
       select: {
@@ -81,18 +80,22 @@ async function enrichMemberGroups(member: any) {
         }
       }
 
-      // Rule 1: in the multi assigned clients, their name is only shown in the first table; the other tables show only their friends' names.
-      const isMultiAssigned = allGroupIds.length > 1;
-      const isSecondaryTable = isMultiAssigned && groupIdx > 0;
+      // Guarantee the current member is present in every assigned group table
+      if (!seenIds.has(member.id)) {
+        seenIds.add(member.id);
+        combinedSwimmers.push({
+          id: member.id,
+          swimId: member.swimId,
+          fullName: member.fullName,
+          groupStatus: member.groupStatus || "proposed",
+        });
+      }
 
-      const visibleSwimmers = isSecondaryTable
-        ? combinedSwimmers.filter((s) => s.swimId !== member.swimId)
-        : combinedSwimmers;
-
-      // Rule 2: group tables should only show the first name (prénom) which is the first word before SPACE (for more privacy)
-      // Rule 3: in all the platform only old members can see group table (names), and do not show/leak swimmer IDs
+      // Rule: In all assigned group tables, show the client name with (YOU) badge
+      // Rule: Group tables should only show the first name (prénom) which is the first word before SPACE (for more privacy)
+      // Rule: In all the platform only old members can see group table (names), and do not show/leak swimmer IDs
       const groupMembers = isOldMember
-        ? visibleSwimmers.map((s, idx) => ({
+        ? combinedSwimmers.map((s, idx) => ({
             num: idx + 1,
             id: s.id,
             swimId: s.swimId === member.swimId ? s.swimId : undefined,
