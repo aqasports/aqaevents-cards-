@@ -19,7 +19,7 @@ interface SwimPaymentItem {
 interface GroupMemberItem {
   num: number;
   id: string;
-  swimId: string;
+  swimId?: string;
   fullName: string;
   groupStatus: string;
   isCurrentMember: boolean;
@@ -148,7 +148,6 @@ function GroupNamesTable({
             <tr className="border-b border-white/5 bg-slate-900/40 text-[10px] uppercase font-semibold text-slate-400 tracking-wider">
               <th className="py-2 px-3 w-10 text-center">{t("tableHeaderNum")}</th>
               <th className="py-2 px-3">{t("tableHeaderName")}</th>
-              <th className="py-2 px-3">{t("tableHeaderId")}</th>
               <th className="py-2 px-3 text-right">{t("tableHeaderStatus")}</th>
             </tr>
           </thead>
@@ -167,7 +166,7 @@ function GroupNamesTable({
                 </td>
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-white truncate max-w-[140px] sm:max-w-none">
+                    <span className="text-white truncate max-w-[180px] sm:max-w-none">
                       {member.fullName}
                     </span>
                     {member.isCurrentMember && (
@@ -176,9 +175,6 @@ function GroupNamesTable({
                       </span>
                     )}
                   </div>
-                </td>
-                <td className="py-2.5 px-3 font-mono text-[11px] text-cyan-300">
-                  {member.swimId}
                 </td>
                 <td className="py-2.5 px-3 text-right">
                   {member.groupStatus === "accepted" ? (

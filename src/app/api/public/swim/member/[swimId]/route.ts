@@ -71,12 +71,12 @@ async function enrichMemberGroups(member: any) {
         }
       }
 
-      // Rule: in all the platform only old members can see group table (names)
+      // Rule: in all the platform only old members can see group table (names), and do not show/leak swimmer IDs
       const groupMembers = isOldMember
         ? combinedSwimmers.map((s, idx) => ({
             num: idx + 1,
             id: s.id,
-            swimId: s.swimId,
+            swimId: s.swimId === member.swimId ? s.swimId : undefined,
             fullName: s.fullName,
             groupStatus: s.groupStatus,
             isCurrentMember: s.swimId === member.swimId,
@@ -108,7 +108,7 @@ async function enrichMemberGroups(member: any) {
       ? primarySwimmers.map((s: any, idx: number) => ({
           num: idx + 1,
           id: s.id,
-          swimId: s.swimId,
+          swimId: s.swimId === member.swimId ? s.swimId : undefined,
           fullName: s.fullName,
           groupStatus: s.groupStatus,
           isCurrentMember: s.swimId === member.swimId,
