@@ -10,6 +10,7 @@ import {
   FRENCH_DAYS,
   SWIM_TIME_SLOTS,
   getSwimLevelLabel,
+  parseScheduleSlots,
 } from "@/lib/swim-groups";
 
 const SwimCallsDesk = dynamic(
@@ -347,30 +348,18 @@ export default function SwimOverviewPage() {
     });
   }, [groups, calendarCoachFilter, calendarCategoryFilter]);
 
-  // Helper to parse day and time from group schedule string
+  // Total weekly scheduled sessions across calendar groups (kids groups count as 2 sessions)
+  const totalWeeklyCalendarSessions = useMemo(() => {
+    return calendarGroups.reduce((acc, g) => {
+      const slots = parseScheduleSlots(g.schedule);
+      return acc + (slots.length > 0 ? slots.length : 1);
+    }, 0);
+  }, [calendarGroups]);
+
+  // Helper to parse day and time from group schedule string (backward compatible wrapper)
   const parseSchedule = (schedule: string) => {
-    let day = "";
-    let time = "";
-    let location = "";
-
-    for (const d of FRENCH_DAYS) {
-      if (schedule.toLowerCase().includes(d.toLowerCase())) {
-        day = d;
-        break;
-      }
-    }
-
-    const timeMatch = schedule.match(/\b([0-2]?[0-9]:[0-5][0-9])\b/);
-    if (timeMatch) {
-      time = timeMatch[1].padStart(5, "0");
-    }
-
-    const parts = schedule.split("·");
-    if (parts.length > 1) {
-      location = parts[1].trim();
-    }
-
-    return { day, time, location };
+    const slots = parseScheduleSlots(schedule);
+    return slots[0] || { day: "", time: "", location: "" };
   };
 
   // Handle Add Member Submit (Formula and Frequency computed later; no auto-price)
@@ -1413,7 +1402,7 @@ export default function SwimOverviewPage() {
             </div>
 
             <div className="text-xs text-[var(--muted)] font-mono">
-              {calendarGroups.length} active sessions scheduled
+              {totalWeeklyCalendarSessions} sessions scheduled ({calendarGroups.length} groups)
             </div>
           </div>
 
@@ -1444,12 +1433,11 @@ export default function SwimOverviewPage() {
                           {timeSlot}
                         </td>
                         {FRENCH_DAYS.map((day) => {
-                          // Find groups matching this day and time
+                          // Find groups matching this day and time slot
                           const matchingGroups = calendarGroups.filter((g) => {
-                            const parsed = parseSchedule(g.schedule);
-                            return (
-                              parsed.day.toLowerCase() === day.toLowerCase() &&
-                              parsed.time === timeSlot
+                            const slots = parseScheduleSlots(g.schedule);
+                            return slots.some(
+                              (slot) => slot.day.toLowerCase() === day.toLowerCase() && slot.time === timeSlot
                             );
                           });
 
@@ -1461,7 +1449,11 @@ export default function SwimOverviewPage() {
                               {matchingGroups.length > 0 ? (
                                 <div className="space-y-1.5">
                                   {matchingGroups.map((grp) => {
-                                    const parsed = parseSchedule(grp.schedule);
+                                    const slots = parseScheduleSlots(grp.schedule);
+                                    const activeSlot = slots.find(
+                                      (s) => s.day.toLowerCase() === day.toLowerCase() && s.time === timeSlot
+                                    );
+                                    const isKids = grp.category === "enfants";
                                     const enrolled = members.filter((m) => {
                                       const eff = m.effectiveGroup || (!m.effectivelyUnassigned && m.group?.active ? m.group : null);
                                       return eff?.id === grp.id;
@@ -1469,7 +1461,7 @@ export default function SwimOverviewPage() {
 
                                     return (
                                       <div
-                                        key={grp.id}
+                                        key={`${grp.id}-${day}-${timeSlot}`}
                                         onClick={() => router.push("/admin/swim/groups")}
                                         className={`p-2 rounded-xl border cursor-pointer transition-all hover:scale-[1.02] shadow-sm ${
                                           grp.level === "G10"
@@ -1479,15 +1471,22 @@ export default function SwimOverviewPage() {
                                             : "bg-teal-950/60 border-teal-600/40 text-teal-200"
                                         }`}
                                       >
-                                        <div className="font-bold text-[11px] leading-tight text-white">
-                                          {grp.name}
+                                        <div className="flex items-start justify-between gap-1">
+                                          <div className="font-bold text-[11px] leading-tight text-white">
+                                            {grp.name}
+                                          </div>
+                                          {isKids && (
+                                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-mono font-bold shrink-0">
+                                              1h
+                                            </span>
+                                          )}
                                         </div>
                                         <div className="text-[10px] text-cyan-300 font-semibold mt-0.5">
                                           Coach: {grp.coachName || "Unassigned"}
                                         </div>
-                                        {parsed.location && (
+                                        {activeSlot?.location && (
                                           <div className="text-[9px] text-slate-300 truncate">
-                                            {parsed.location}
+                                            {activeSlot.location}
                                           </div>
                                         )}
                                         <div className="flex items-center justify-between gap-1 mt-1 pt-1 border-t border-white/10 text-[9px]">

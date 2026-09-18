@@ -128,6 +128,107 @@ export function generateSwimGroupName(
   return [dayPart, timePart, coachPart, locPart].filter(Boolean).join(" ");
 }
 
+/**
+ * Generates a dual-slot group name for kids (enfants) groups that meet on two
+ * different days per week.
+ *
+ * Format: "Sam 18:00+Mer 18:00 CoachNa Loca"
+ * Example: Samedi 18:00 + Mercredi 18:00 + Karim Benali + Bassin Olympique
+ *          -> "Sam 18:00+Mer 18:00 Karim B Bass"
+ */
+export function generateKidsGroupName(
+  day1?: string | null,
+  time1?: string | null,
+  day2?: string | null,
+  time2?: string | null,
+  coachName?: string | null,
+  locationName?: string | null
+): string {
+  const d1 = day1 ? day1.trim().slice(0, 3) : "";
+  const t1 = time1 ? time1.trim() : "";
+  const d2 = day2 ? day2.trim().slice(0, 3) : "";
+  const t2 = time2 ? time2.trim() : "";
+  const coachPart = coachName ? coachName.trim().slice(0, 7) : "";
+  const locPart = locationName ? locationName.trim().slice(0, 4) : "";
+
+  const slot1 = [d1, t1].filter(Boolean).join(" ");
+  const slot2 = [d2, t2].filter(Boolean).join(" ");
+  const slotPart = slot2 ? `${slot1}+${slot2}` : slot1;
+
+  return [slotPart, coachPart, locPart].filter(Boolean).join(" ");
+}
+
+/**
+ * Builds a schedule string for storage.
+ *
+ * Single slot: "Samedi 18:00 · Bassin Olympique"
+ * Dual slot:   "Samedi 18:00 + Mercredi 18:00 · Bassin Olympique"
+ */
+export function buildScheduleString(
+  day1: string,
+  time1: string,
+  locationName: string,
+  day2?: string | null,
+  time2?: string | null
+): string {
+  const slot1 = `${day1} ${time1}`;
+  if (day2 && time2) {
+    return `${slot1} + ${day2} ${time2} · ${locationName}`;
+  }
+  return `${slot1} · ${locationName}`;
+}
+
+/**
+ * Parses a schedule string into an array of day/time/location slot objects.
+ * Returns 1 slot for standard groups, 2 slots for dual-day kids groups.
+ *
+ * Supports formats:
+ *   "Samedi 18:00 · Bassin Olympique"                    -> 1 slot
+ *   "Samedi 18:00 + Mercredi 18:00 · Bassin Olympique"   -> 2 slots
+ *   Legacy plain text fallback for older records.
+ */
+export function parseScheduleSlots(
+  schedule: string
+): { day: string; time: string; location: string }[] {
+  if (!schedule) return [{ day: "", time: "", location: "" }];
+
+  // Extract location (everything after the last middle dot)
+  const dotIdx = schedule.lastIndexOf("\u00b7");
+  const location = dotIdx !== -1 ? schedule.slice(dotIdx + 1).trim() : "";
+  const slotsPart = dotIdx !== -1 ? schedule.slice(0, dotIdx).trim() : schedule;
+
+  function extractDayTime(part: string): { day: string; time: string } {
+    let day = "";
+    let time = "";
+    for (const d of FRENCH_DAYS) {
+      if (part.toLowerCase().includes(d.toLowerCase())) {
+        day = d;
+        break;
+      }
+    }
+    const timeMatch = part.match(/\b([0-2]?[0-9]:[0-5][0-9])\b/);
+    if (timeMatch) {
+      time = timeMatch[1].padStart(5, "0");
+    }
+    return { day, time };
+  }
+
+  // Check for dual-slot: " + " surrounded by spaces between the two slots
+  const plusMatch = slotsPart.match(/^(.+?)\s\+\s(.+)$/);
+  if (plusMatch) {
+    const slot1 = extractDayTime(plusMatch[1]);
+    const slot2 = extractDayTime(plusMatch[2]);
+    return [
+      { ...slot1, location },
+      { ...slot2, location },
+    ];
+  }
+
+  // Single slot
+  const single = extractDayTime(slotsPart);
+  return [{ ...single, location }];
+}
+
 // ─── Solid Group Encoding ─────────────────────────────────────────────────────
 
 const SOLID_TAG = "[SOLID]";

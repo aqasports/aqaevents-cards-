@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
-import { isOldSwimMember, extractFirstName } from "@/lib/swim-groups";
+import { isOldSwimMember, extractFirstName, parseScheduleSlots } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -113,6 +113,32 @@ function SolidLogoBadge({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Schedule Display Component ───────────────────────────────────────────────
+
+function ScheduleDisplay({ schedule }: { schedule: string }) {
+  const slots = parseScheduleSlots(schedule);
+  if (slots.length <= 1) {
+    return <span className="text-slate-200 font-medium text-right">{schedule}</span>;
+  }
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        {slots.map((s, sIdx) => (
+          <span
+            key={sIdx}
+            className="px-2 py-0.5 rounded-md bg-cyan-950/70 border border-cyan-700/40 text-[11px] font-semibold text-cyan-300 font-mono"
+          >
+            {s.day} {s.time}
+          </span>
+        ))}
+      </div>
+      {slots[0].location && (
+        <span className="text-[10px] text-slate-400 font-normal">{slots[0].location}</span>
+      )}
     </div>
   );
 }
@@ -589,7 +615,7 @@ export default function SwimmerProfilePage({
                         </div>
                         <div className="flex items-center justify-between pt-1 border-t border-white/5">
                           <span className="text-[10px] font-semibold text-slate-400 uppercase">{t("trainingSchedule")}</span>
-                          <span className="text-slate-200 font-medium text-right">{grp.schedule}</span>
+                          <ScheduleDisplay schedule={grp.schedule} />
                         </div>
                       </div>
 
@@ -723,7 +749,7 @@ export default function SwimmerProfilePage({
                         </div>
                         <div className="flex items-center justify-between pt-1 border-t border-white/5">
                           <span className="text-[10px] font-semibold text-amber-400 uppercase">{t("trainingSchedule")}</span>
-                          <span className="text-slate-200 font-medium text-right">{grp.schedule}</span>
+                          <ScheduleDisplay schedule={grp.schedule} />
                         </div>
                       </div>
 

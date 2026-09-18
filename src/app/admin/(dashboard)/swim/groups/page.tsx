@@ -11,6 +11,9 @@ import {
   DEFAULT_SWIM_LOCATIONS,
   SwimGroupType,
   generateSwimGroupName,
+  generateKidsGroupName,
+  buildScheduleString,
+  parseScheduleSlots,
   decodeSolidNotes,
   getSwimLevelLabel,
 } from "@/lib/swim-groups";
@@ -101,6 +104,8 @@ export default function SwimGroupsPage() {
   const [addCoach, setAddCoach] = useState("");
   const [addDay, setAddDay] = useState<string>("Lundi");
   const [addTime, setAddTime] = useState<string>("18:00");
+  const [addDay2, setAddDay2] = useState<string>("Mercredi");
+  const [addTime2, setAddTime2] = useState<string>("18:00");
   const [addLocation, setAddLocation] = useState<string>("Bassin Olympique");
   const [addIsSolid, setAddIsSolid] = useState(false);
   const [addCapacity, setAddCapacity] = useState("10");
@@ -116,6 +121,8 @@ export default function SwimGroupsPage() {
   const [editCoach, setEditCoach] = useState("");
   const [editDay, setEditDay] = useState<string>("Lundi");
   const [editTime, setEditTime] = useState<string>("18:00");
+  const [editDay2, setEditDay2] = useState<string>("Mercredi");
+  const [editTime2, setEditTime2] = useState<string>("18:00");
   const [editLocation, setEditLocation] = useState<string>("Bassin Olympique");
   const [editIsSolid, setEditIsSolid] = useState(false);
   const [editCapacity, setEditCapacity] = useState("10");
@@ -148,6 +155,8 @@ export default function SwimGroupsPage() {
   const addCoachId = useId();
   const addDayId = useId();
   const addTimeId = useId();
+  const addDay2Id = useId();
+  const addTime2Id = useId();
   const addLocationId = useId();
   const addNameId = useId();
   const addCapacityId = useId();
@@ -158,6 +167,8 @@ export default function SwimGroupsPage() {
   const editCoachId = useId();
   const editDayId = useId();
   const editTimeId = useId();
+  const editDay2Id = useId();
+  const editTime2Id = useId();
   const editLocationId = useId();
   const editNameId = useId();
   const editCapacityId = useId();
@@ -210,10 +221,13 @@ export default function SwimGroupsPage() {
   // Auto-generate group name when add modal fields change
   useEffect(() => {
     if (!nameManuallyEdited) {
-      const generated = generateSwimGroupName(addDay, addTime, addCoach, addLocation);
+      const generated =
+        addCategory === "enfants"
+          ? generateKidsGroupName(addDay, addTime, addDay2, addTime2, addCoach, addLocation)
+          : generateSwimGroupName(addDay, addTime, addCoach, addLocation);
       setAddName(generated);
     }
-  }, [addDay, addTime, addCoach, addLocation, nameManuallyEdited]);
+  }, [addDay, addTime, addDay2, addTime2, addCategory, addCoach, addLocation, nameManuallyEdited]);
 
   // Search assign swimmers (debounced)
   useEffect(() => {
@@ -255,13 +269,19 @@ export default function SwimGroupsPage() {
   }
 
   function regenerateAddName() {
-    const generated = generateSwimGroupName(addDay, addTime, addCoach, addLocation);
+    const generated =
+      addCategory === "enfants"
+        ? generateKidsGroupName(addDay, addTime, addDay2, addTime2, addCoach, addLocation)
+        : generateSwimGroupName(addDay, addTime, addCoach, addLocation);
     setAddName(generated);
     setNameManuallyEdited(false);
   }
 
   function regenerateEditName() {
-    const generated = generateSwimGroupName(editDay, editTime, editCoach, editLocation);
+    const generated =
+      editCategory === "enfants"
+        ? generateKidsGroupName(editDay, editTime, editDay2, editTime2, editCoach, editLocation)
+        : generateSwimGroupName(editDay, editTime, editCoach, editLocation);
     setEditName(generated);
   }
 
@@ -269,7 +289,10 @@ export default function SwimGroupsPage() {
     e.preventDefault();
     setSubmittingAdd(true);
     try {
-      const scheduleString = `${addDay} ${addTime} · ${addLocation}`;
+      const scheduleString =
+        addCategory === "enfants"
+          ? buildScheduleString(addDay, addTime, addLocation, addDay2, addTime2)
+          : buildScheduleString(addDay, addTime, addLocation);
       const res = await fetch("/api/admin/swim/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -312,21 +335,29 @@ export default function SwimGroupsPage() {
     const decoded = decodeSolidNotes(group.notes);
     setEditIsSolid(decoded.isSolid);
     setEditNotes(decoded.cleanNotes);
-    let foundDay = "Lundi";
-    let foundTime = "18:00";
+
+    // Parse schedule using the shared utility (handles both single and dual slot)
+    const slots = parseScheduleSlots(group.schedule || "");
+    const slot1 = slots[0] || { day: "Lundi", time: "18:00", location: "" };
+    const slot2 = slots[1] || null;
+
+    setEditDay(slot1.day || "Lundi");
+    setEditTime(slot1.time || "18:00");
+    setEditDay2(slot2 ? (slot2.day || "Mercredi") : "Mercredi");
+    setEditTime2(slot2 ? (slot2.time || "18:00") : "18:00");
+
+    // Resolve location from slot or fall back to matched location in schedule text
     let foundLoc = locations[0] || "Bassin Olympique";
-    if (group.schedule) {
-      for (const d of FRENCH_DAYS) {
-        if (group.schedule.toLowerCase().includes(d.toLowerCase())) { foundDay = d; break; }
-      }
-      const timeMatch = group.schedule.match(/\b([0-2]?[0-9]:[0-5][0-9])\b/);
-      if (timeMatch) foundTime = timeMatch[1];
+    if (slot1.location) {
+      foundLoc = slot1.location;
+    } else {
       for (const loc of locations) {
-        if (group.schedule.toLowerCase().includes(loc.toLowerCase())) { foundLoc = loc; break; }
+        if ((group.schedule || "").toLowerCase().includes(loc.toLowerCase())) {
+          foundLoc = loc;
+          break;
+        }
       }
     }
-    setEditDay(foundDay);
-    setEditTime(foundTime);
     setEditLocation(foundLoc);
   }
 
@@ -335,7 +366,10 @@ export default function SwimGroupsPage() {
     if (!editingGroup) return;
     setSubmittingEdit(true);
     try {
-      const scheduleString = `${editDay} ${editTime} · ${editLocation}`;
+      const scheduleString =
+        editCategory === "enfants"
+          ? buildScheduleString(editDay, editTime, editLocation, editDay2, editTime2)
+          : buildScheduleString(editDay, editTime, editLocation);
       const res = await fetch(`/api/admin/swim/groups/${editingGroup.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -796,34 +830,149 @@ export default function SwimGroupsPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label htmlFor={addDayId} className="block text-xs font-semibold text-slate-300 mb-1">Day *</label>
-                  <select id={addDayId} value={addDay} onChange={(e) => setAddDay(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
-                    {FRENCH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
+              {addCategory === "enfants" ? (
+                <div className="space-y-3 p-3 rounded-xl bg-slate-950/40 border border-white/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-cyan-300">
+                      Horaires Enfants (2 séances d'1h séparées / semaine)
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-950/70 text-cyan-400 border border-cyan-800/40 font-mono">
+                      1h + 1h
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor={addDayId} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 1 - Jour *
+                      </label>
+                      <select
+                        id={addDayId}
+                        value={addDay}
+                        onChange={(e) => setAddDay(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {FRENCH_DAYS.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor={addTimeId} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 1 - Heure *
+                      </label>
+                      <select
+                        id={addTimeId}
+                        value={addTime}
+                        onChange={(e) => setAddTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {SWIM_TIME_SLOTS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor={addDay2Id} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 2 - Jour *
+                      </label>
+                      <select
+                        id={addDay2Id}
+                        value={addDay2}
+                        onChange={(e) => setAddDay2(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {FRENCH_DAYS.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor={addTime2Id} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 2 - Heure *
+                      </label>
+                      <select
+                        id={addTime2Id}
+                        value={addTime2}
+                        onChange={(e) => setAddTime2(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {SWIM_TIME_SLOTS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor={addLocationId} className="block text-xs font-semibold text-slate-300 mb-1">
+                      Lieu / Bassin *
+                    </label>
+                    <select
+                      id={addLocationId}
+                      value={addLocation}
+                      onChange={(e) => setAddLocation(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                    >
+                      {locations.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor={addTimeId} className="block text-xs font-semibold text-slate-300 mb-1">Time *</label>
-                  <select id={addTimeId} value={addTime} onChange={(e) => setAddTime(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
-                    {SWIM_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label htmlFor={addDayId} className="block text-xs font-semibold text-slate-300 mb-1">Day *</label>
+                    <select id={addDayId} value={addDay} onChange={(e) => setAddDay(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                      {FRENCH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={addTimeId} className="block text-xs font-semibold text-slate-300 mb-1">Time *</label>
+                    <select id={addTimeId} value={addTime} onChange={(e) => setAddTime(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                      {SWIM_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={addLocationId} className="block text-xs font-semibold text-slate-300 mb-1">Location *</label>
+                    <select id={addLocationId} value={addLocation} onChange={(e) => setAddLocation(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                      {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor={addLocationId} className="block text-xs font-semibold text-slate-300 mb-1">Location *</label>
-                  <select id={addLocationId} value={addLocation} onChange={(e) => setAddLocation(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
-                    {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-                  </select>
-                </div>
-              </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor={addNameId} className="block text-xs font-semibold text-slate-300">Group Name (Auto-Generated) *</label>
                   <button type="button" onClick={regenerateAddName} className="text-[11px] text-cyan-400 hover:underline">Regenerate</button>
                 </div>
-                <Input id={addNameId} required value={addName} onChange={(e) => { setAddName(e.target.value); setNameManuallyEdited(true); }} placeholder="e.g. Lun 18:00 Karim B Bass" />
-                <p className="text-[10px] text-slate-500 mt-1">Format: (3 letters day) (time) (7 letters coach) (4 letters location)</p>
+                <Input
+                  id={addNameId}
+                  required
+                  value={addName}
+                  onChange={(e) => {
+                    setAddName(e.target.value);
+                    setNameManuallyEdited(true);
+                  }}
+                  placeholder={addCategory === "enfants" ? "e.g. Sam 18:00+Mer 18:00 Karim B Bass" : "e.g. Lun 18:00 Karim B Bass"}
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {addCategory === "enfants"
+                    ? "Format enfants: (jour 1) (heure 1)+(jour 2) (heure 2) (7 lettres coach) (4 lettres lieu)"
+                    : "Format: (3 letters day) (time) (7 letters coach) (4 letters location)"}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 items-center">
@@ -893,26 +1042,128 @@ export default function SwimGroupsPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label htmlFor={editDayId} className="block text-xs font-semibold text-slate-300 mb-1">Day</label>
-                  <select id={editDayId} value={editDay} onChange={(e) => setEditDay(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
-                    {FRENCH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
+              {editCategory === "enfants" ? (
+                <div className="space-y-3 p-3 rounded-xl bg-slate-950/40 border border-white/5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-cyan-300">
+                      Horaires Enfants (2 séances d'1h séparées / semaine)
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-950/70 text-cyan-400 border border-cyan-800/40 font-mono">
+                      1h + 1h
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor={editDayId} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 1 - Jour
+                      </label>
+                      <select
+                        id={editDayId}
+                        value={editDay}
+                        onChange={(e) => setEditDay(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {FRENCH_DAYS.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor={editTimeId} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 1 - Heure
+                      </label>
+                      <select
+                        id={editTimeId}
+                        value={editTime}
+                        onChange={(e) => setEditTime(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {SWIM_TIME_SLOTS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor={editDay2Id} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 2 - Jour
+                      </label>
+                      <select
+                        id={editDay2Id}
+                        value={editDay2}
+                        onChange={(e) => setEditDay2(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {FRENCH_DAYS.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor={editTime2Id} className="block text-xs font-semibold text-slate-300 mb-1">
+                        Séance 2 - Heure
+                      </label>
+                      <select
+                        id={editTime2Id}
+                        value={editTime2}
+                        onChange={(e) => setEditTime2(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        {SWIM_TIME_SLOTS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor={editLocationId} className="block text-xs font-semibold text-slate-300 mb-1">
+                      Lieu / Bassin
+                    </label>
+                    <select
+                      id={editLocationId}
+                      value={editLocation}
+                      onChange={(e) => setEditLocation(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                    >
+                      {locations.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor={editTimeId} className="block text-xs font-semibold text-slate-300 mb-1">Time</label>
-                  <select id={editTimeId} value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
-                    {SWIM_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
+              ) : (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label htmlFor={editDayId} className="block text-xs font-semibold text-slate-300 mb-1">Day</label>
+                    <select id={editDayId} value={editDay} onChange={(e) => setEditDay(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                      {FRENCH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={editTimeId} className="block text-xs font-semibold text-slate-300 mb-1">Time</label>
+                    <select id={editTimeId} value={editTime} onChange={(e) => setEditTime(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                      {SWIM_TIME_SLOTS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor={editLocationId} className="block text-xs font-semibold text-slate-300 mb-1">Location</label>
+                    <select id={editLocationId} value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
+                      {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+                    </select>
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor={editLocationId} className="block text-xs font-semibold text-slate-300 mb-1">Location</label>
-                  <select id={editLocationId} value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400">
-                    {locations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-                  </select>
-                </div>
-              </div>
+              )}
 
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -920,6 +1171,11 @@ export default function SwimGroupsPage() {
                   <button type="button" onClick={regenerateEditName} className="text-[11px] text-cyan-400 hover:underline">Regenerate</button>
                 </div>
                 <Input id={editNameId} required value={editName} onChange={(e) => setEditName(e.target.value)} />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {editCategory === "enfants"
+                    ? "Format enfants: (jour 1) (heure 1)+(jour 2) (heure 2) (7 lettres coach) (4 lettres lieu)"
+                    : "Format: (3 letters day) (time) (7 letters coach) (4 letters location)"}
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 items-center">
