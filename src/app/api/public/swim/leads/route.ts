@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
+import { formatSwimLeadNotes } from "@/lib/swim-lead-details";
+
 export const dynamic = "force-dynamic";
 
 const corsHeaders = {
@@ -43,7 +45,39 @@ export async function POST(request: NextRequest) {
     const formula = body.formula || body.formule || body.payload?.formule || "G10";
     const duration = body.duration || body.payload?.duration || "3m";
     const preferredDays = body.preferredDays || body.dayNight || body.payload?.timePref || null;
-    const notes = body.notes || (body.channel ? `Canal: ${body.channel}` : null);
+
+    // Structured metadata capture
+    const rawArticles =
+      body.articles ||
+      body.payload?.articles ||
+      (typeof body.equipmentPack === "string" && body.equipmentPack !== "Oui" ? body.equipmentPack.split(",") : []);
+    const hasEquipment = Boolean(
+      body.equipmentPack ||
+        body.payload?.equipement ||
+        (Array.isArray(rawArticles) && rawArticles.filter((a: string) => a !== "none").length > 0)
+    );
+
+    const formattedNotes = formatSwimLeadNotes({
+      equipment: {
+        hasPack: hasEquipment,
+        articles: Array.isArray(rawArticles) ? rawArticles : [],
+        rawText: typeof body.equipmentPack === "string" ? body.equipmentPack : null,
+      },
+      demographics: {
+        city: body.city || body.ville || body.payload?.ville || null,
+        age: body.age || body.payload?.age || null,
+        whatsapp: body.whatsapp || body.payload?.whatsapp || null,
+        channel: body.channel || body.payload?.channel || null,
+        channelOther: body.channelOther || body.payload?.channelOther || null,
+        goal: body.goal || body.payload?.goal || null,
+        timePref: preferredDays,
+        memberType: body.memberType || (body.personalId ? "old" : "new"),
+        personalId: body.personalId || body.payload?.personalId || null,
+        pool: body.pool || body.payload?.piscine || null,
+      },
+      userNotes: body.notes || body.payload?.notes || null,
+    });
+
     const marketingConsent = body.marketingConsent;
     const utmSource = body.utmSource;
     const utmMedium = body.utmMedium;
@@ -79,7 +113,7 @@ export async function POST(request: NextRequest) {
             ? preferredDays
             : JSON.stringify(preferredDays)
           : null,
-        notes: notes?.trim() || null,
+        notes: formattedNotes,
         marketingConsent: Boolean(marketingConsent),
         utmSource: utmSource ? String(utmSource).trim() : null,
         utmMedium: utmMedium ? String(utmMedium).trim() : null,

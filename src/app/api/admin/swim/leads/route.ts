@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { parseSwimLeadNotes, formatSwimLeadNotes } from "@/lib/swim-lead-details";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,13 @@ export async function GET(request: NextRequest) {
       where,
       orderBy: { createdAt: "desc" },
     });
-    return NextResponse.json(leads);
+
+    const augmented = leads.map((lead) => ({
+      ...lead,
+      details: parseSwimLeadNotes(lead.notes),
+    }));
+
+    return NextResponse.json(augmented);
   } catch (err: unknown) {
     logger.error("GET admin swim leads error:", err);
     return NextResponse.json({ error: "Failed to fetch swim leads" }, { status: 500 });
@@ -44,21 +51,36 @@ export async function POST(request: NextRequest) {
       preferredDays,
       notes,
       whatsapp,
+      city,
+      age,
+      goal,
+      channel,
+      articles,
+      hasEquipmentPack,
+      equipmentNotes,
     } = body;
 
     if (!fullName || !phone) {
       return NextResponse.json({ error: "Full name and phone are required" }, { status: 400 });
     }
 
-    let finalNotes = notes?.trim() || null;
-    if (whatsapp && typeof whatsapp === "string" && whatsapp.trim()) {
-      const waTrimmed = whatsapp.trim();
-      if (!finalNotes) {
-        finalNotes = `WhatsApp: ${waTrimmed}`;
-      } else if (!finalNotes.toLowerCase().includes("whatsapp")) {
-        finalNotes = `${finalNotes} | WhatsApp: ${waTrimmed}`;
-      }
-    }
+    const finalNotes = formatSwimLeadNotes({
+      equipment: {
+        hasPack: Boolean(hasEquipmentPack || (Array.isArray(articles) && articles.length > 0)),
+        articles: Array.isArray(articles) ? articles : [],
+        notes: equipmentNotes || null,
+      },
+      demographics: {
+        city: city || null,
+        age: age || null,
+        whatsapp: whatsapp || null,
+        channel: channel || "Admin Direct",
+        goal: goal || null,
+        timePref: preferredDays || null,
+        memberType: "new",
+      },
+      userNotes: notes || null,
+    });
 
     const lead = await prisma.swimLead.create({
       data: {
@@ -77,7 +99,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(lead, { status: 201 });
+    return NextResponse.json(
+      {
+        ...lead,
+        details: parseSwimLeadNotes(lead.notes),
+      },
+      { status: 201 }
+    );
   } catch (err: unknown) {
     logger.error("POST admin swim lead error:", err);
     return NextResponse.json({ error: "Failed to create swim lead" }, { status: 500 });

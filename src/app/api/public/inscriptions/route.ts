@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
+import { formatSwimLeadNotes } from "@/lib/swim-lead-details";
+
 export const dynamic = "force-dynamic";
 
 const corsHeaders = {
@@ -64,36 +66,39 @@ export async function POST(request: NextRequest) {
     const duration = (body.duration || body.payload?.duration || "3m").toLowerCase();
     const level = body.level || body.goal || body.payload?.goal || "beginner";
 
-    // Notes compilation
-    const noteParts: string[] = [];
-    if (body.channel || body.payload?.channel) {
-      noteParts.push(`Canal: ${body.channel || body.payload?.channel}`);
-    }
-    if (body.whatsapp || body.payload?.whatsapp) {
-      noteParts.push(`WhatsApp: ${body.whatsapp || body.payload?.whatsapp}`);
-    }
-    if (body.city || body.payload?.ville) {
-      noteParts.push(`Ville: ${body.city || body.payload?.ville}`);
-    }
-    if (body.age || body.payload?.age) {
-      noteParts.push(`Age: ${body.age || body.payload?.age}`);
-    }
-    if (body.dayNight || body.payload?.timePref) {
-      noteParts.push(`Creneau: ${body.dayNight || body.payload?.timePref}`);
-    }
-    if (body.goal || body.payload?.goal) {
-      noteParts.push(`Objectif: ${body.goal || body.payload?.goal}`);
-    }
-    if (body.equipmentPack || body.payload?.equipement) {
-      noteParts.push("Pack Equipement: Oui");
-    }
+    // Structured metadata capture
+    const rawArticles =
+      body.articles ||
+      body.payload?.articles ||
+      (typeof body.equipmentPack === "string" && body.equipmentPack !== "Oui" ? body.equipmentPack.split(",") : []);
+    const hasEquipment = Boolean(
+      body.equipmentPack ||
+        body.payload?.equipement ||
+        (Array.isArray(rawArticles) && rawArticles.filter((a: string) => a !== "none").length > 0)
+    );
+
+    const formattedNotes = formatSwimLeadNotes({
+      equipment: {
+        hasPack: hasEquipment,
+        articles: Array.isArray(rawArticles) ? rawArticles : [],
+        rawText: typeof body.equipmentPack === "string" ? body.equipmentPack : null,
+      },
+      demographics: {
+        city: body.city || body.payload?.ville || null,
+        age: body.age || body.payload?.age || null,
+        whatsapp: body.whatsapp || body.payload?.whatsapp || null,
+        channel: body.channel || body.payload?.channel || null,
+        channelOther: body.channelOther || body.payload?.channelOther || null,
+        goal: body.goal || body.payload?.goal || null,
+        timePref: body.dayNight || body.payload?.timePref || null,
+        memberType: !isNew ? "old" : "new",
+        personalId: body.personalId || body.payload?.personalId || null,
+        pool: body.pool || body.payload?.piscine || null,
+      },
+      userNotes: body.notes || body.payload?.notes || null,
+    });
 
     if (!isNew && body.personalId) {
-      noteParts.unshift(`Renouvellement Ancien Membre (ID: ${body.personalId})`);
-      if (body.pool || body.payload?.piscine) {
-        noteParts.push(`Piscine: ${body.pool || body.payload?.piscine}`);
-      }
-
       // If fullName or phone are missing for old member, try to look up SwimMember
       if (!fullName || !phone) {
         const existingMember = await prisma.swimMember.findUnique({
@@ -125,7 +130,7 @@ export async function POST(request: NextRequest) {
         formula,
         duration,
         preferredDays: body.dayNight || body.payload?.timePref || null,
-        notes: noteParts.length > 0 ? noteParts.join(" | ") : null,
+        notes: formattedNotes,
         marketingConsent: Boolean(body.marketingConsent),
         utmSource: body.utmSource ? String(body.utmSource).trim() : null,
         utmMedium: body.utmMedium ? String(body.utmMedium).trim() : null,
