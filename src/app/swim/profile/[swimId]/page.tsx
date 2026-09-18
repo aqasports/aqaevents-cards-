@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
-import { isOldSwimMember } from "@/lib/swim-groups";
+import { isOldSwimMember, extractFirstName } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ function GroupNamesTable({
                 <td className="py-2.5 px-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-white truncate max-w-[180px] sm:max-w-none">
-                      {member.fullName}
+                      {extractFirstName(member.fullName)}
                     </span>
                     {member.isCurrentMember && (
                       <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-cyan-400 text-slate-950">
@@ -596,7 +596,16 @@ export default function SwimmerProfilePage({
                       {/* Per-group cohort names table (old members only) */}
                       {isOldMember ? (
                         <GroupNamesTable
-                          groupMembers={grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])}
+                          groupMembers={
+                            (idx > 0 && displayGroups.length > 1
+                              ? (grp.groupMembers || []).filter((m) => !m.isCurrentMember)
+                              : grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])
+                            ).map((m, mIdx) => ({
+                              ...m,
+                              num: mIdx + 1,
+                              fullName: extractFirstName(m.fullName),
+                            }))
+                          }
                           t={t}
                         />
                       ) : (
@@ -724,7 +733,16 @@ export default function SwimmerProfilePage({
                       {/* Per-group cohort names table (old members only) */}
                       {isOldMember ? (
                         <GroupNamesTable
-                          groupMembers={grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])}
+                          groupMembers={
+                            (idx > 0 && displayGroups.length > 1
+                              ? (grp.groupMembers || []).filter((m) => !m.isCurrentMember)
+                              : grp.groupMembers || (idx === 0 ? member.groupMembers || [] : [])
+                            ).map((m, mIdx) => ({
+                              ...m,
+                              num: mIdx + 1,
+                              fullName: extractFirstName(m.fullName),
+                            }))
+                          }
                           t={t}
                         />
                       ) : (

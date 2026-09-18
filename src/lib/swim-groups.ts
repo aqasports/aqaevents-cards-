@@ -202,3 +202,14 @@ export function decodeMemberGroupIds(notes: string | null | undefined, primaryGr
   return result;
 }
 
+/**
+ * Extracts only the first name (prénom) which is the first word before SPACE for privacy.
+ */
+export function extractFirstName(fullName?: string | null): string {
+  if (!fullName) return "";
+  const trimmed = fullName.trim();
+  const spaceIdx = trimmed.indexOf(" ");
+  if (spaceIdx === -1) return trimmed;
+  return trimmed.substring(0, spaceIdx).trim();
+}
+

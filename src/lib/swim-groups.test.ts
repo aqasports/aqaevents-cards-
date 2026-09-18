@@ -9,6 +9,7 @@ import {
   isOldSwimMember,
   encodeMemberGroupIds,
   decodeMemberGroupIds,
+  extractFirstName,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -129,6 +130,30 @@ describe("Swim Groups Utilities", () => {
     it("handles single group with primary group ID fallback", () => {
       const decoded = decodeMemberGroupIds(null, "grp-primary");
       expect(decoded).toEqual(["grp-primary"]);
+    });
+  });
+
+  describe("extractFirstName (First name before space)", () => {
+    it("extracts first name before space correctly", () => {
+      expect(extractFirstName("Salim Benali")).toBe("Salim");
+      expect(extractFirstName("Mohamed Amine Bouzid")).toBe("Mohamed");
+      expect(extractFirstName("  Amina   Zitouni ")).toBe("Amina");
+    });
+
+    it("returns whole name when there is no space", () => {
+      expect(extractFirstName("Karim")).toBe("Karim");
+      expect(extractFirstName("  Yacine  ")).toBe("Yacine");
+    });
+
+    it("works with Arabic text", () => {
+      expect(extractFirstName("محمد علي")).toBe("محمد");
+      expect(extractFirstName("كريم")).toBe("كريم");
+    });
+
+    it("handles empty or null values gracefully", () => {
+      expect(extractFirstName("")).toBe("");
+      expect(extractFirstName(null)).toBe("");
+      expect(extractFirstName(undefined)).toBe("");
     });
   });
 });

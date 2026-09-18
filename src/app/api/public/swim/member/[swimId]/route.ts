@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { decodeSolidNotes, decodeMemberGroupIds, isOldSwimMember } from "@/lib/swim-groups";
+import {
+  decodeSolidNotes,
+  decodeMemberGroupIds,
+  isOldSwimMember,
+  extractFirstName,
+} from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { nanoid } from "nanoid";
 
@@ -36,6 +41,9 @@ async function enrichMemberGroups(member: any) {
       },
     });
 
+    // Sort dbGroups strictly according to allGroupIds order
+    dbGroups.sort((a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id));
+
     // Find secondary swimmers assigned to any of these groups via notes
     const secondarySwimmers = await prisma.swimMember.findMany({
       where: {
@@ -52,7 +60,8 @@ async function enrichMemberGroups(member: any) {
       },
     });
 
-    for (const g of dbGroups) {
+    for (let groupIdx = 0; groupIdx < dbGroups.length; groupIdx++) {
+      const g = dbGroups[groupIdx];
       const primarySwimmers = g.swimmers || [];
       const extraSwimmers = secondarySwimmers.filter((m) =>
         decodeMemberGroupIds(m.notes, m.groupId).includes(g.id)
@@ -72,13 +81,22 @@ async function enrichMemberGroups(member: any) {
         }
       }
 
-      // Rule: in all the platform only old members can see group table (names), and do not show/leak swimmer IDs
+      // Rule 1: in the multi assigned clients, their name is only shown in the first table; the other tables show only their friends' names.
+      const isMultiAssigned = allGroupIds.length > 1;
+      const isSecondaryTable = isMultiAssigned && groupIdx > 0;
+
+      const visibleSwimmers = isSecondaryTable
+        ? combinedSwimmers.filter((s) => s.swimId !== member.swimId)
+        : combinedSwimmers;
+
+      // Rule 2: group tables should only show the first name (prénom) which is the first word before SPACE (for more privacy)
+      // Rule 3: in all the platform only old members can see group table (names), and do not show/leak swimmer IDs
       const groupMembers = isOldMember
-        ? combinedSwimmers.map((s, idx) => ({
+        ? visibleSwimmers.map((s, idx) => ({
             num: idx + 1,
             id: s.id,
             swimId: s.swimId === member.swimId ? s.swimId : undefined,
-            fullName: s.fullName,
+            fullName: extractFirstName(s.fullName),
             groupStatus: s.groupStatus,
             isCurrentMember: s.swimId === member.swimId,
           }))
@@ -87,7 +105,7 @@ async function enrichMemberGroups(member: any) {
       const teammates = isOldMember
         ? combinedSwimmers
             .filter((s) => s.swimId !== member.swimId)
-            .map((s) => (s.fullName || "").trim().split(/\s+/)[0] || "")
+            .map((s) => extractFirstName(s.fullName))
             .filter(Boolean)
         : [];
 
@@ -101,8 +119,6 @@ async function enrichMemberGroups(member: any) {
         teammates,
       });
     }
-
-    allGroups.sort((a, b) => allGroupIds.indexOf(a.id) - allGroupIds.indexOf(b.id));
   } else if (member.group) {
     const primarySwimmers = member.group.swimmers || [];
     const groupMembers = isOldMember
@@ -110,7 +126,7 @@ async function enrichMemberGroups(member: any) {
           num: idx + 1,
           id: s.id,
           swimId: s.swimId === member.swimId ? s.swimId : undefined,
-          fullName: s.fullName,
+          fullName: extractFirstName(s.fullName),
           groupStatus: s.groupStatus,
           isCurrentMember: s.swimId === member.swimId,
         }))
@@ -118,7 +134,7 @@ async function enrichMemberGroups(member: any) {
     const teammates = isOldMember
       ? primarySwimmers
           .filter((s: any) => s.swimId !== member.swimId)
-          .map((s: any) => (s.fullName || "").trim().split(/\s+/)[0] || "")
+          .map((s: any) => extractFirstName(s.fullName))
           .filter(Boolean)
       : [];
     const { isSolid, cleanNotes: solidNotes } = decodeSolidNotes(member.group.notes);
