@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { isOldSwimMember } from "@/lib/swim-groups";
+import { calculateSwimPrice } from "@/lib/swim-pricing";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -312,10 +313,23 @@ export default function SwimmerProfilePage({
   const isRejected = member.groupStatus === "rejected";
   const isProposed = !isConfirmed && !isRejected;
 
+  const displayGroups: SwimGroupData[] = (member.groups && member.groups.length > 0)
+    ? member.groups
+    : (member.group ? [member.group] : []);
+
+  // Compute official tariff dynamically if not set in database
+  const rawPriceDA = member.priceDA || 0;
+  const groupLevels = displayGroups.map((g) => g.level);
+  const computedPriceDA = calculateSwimPrice({
+    category: member.category,
+    groupTypes: groupLevels.length > 0 ? groupLevels : [member.group?.level || member.formula || "G10"],
+    duration: member.duration || "3m",
+  });
+  const priceDA = rawPriceDA > 0 ? rawPriceDA : (computedPriceDA > 0 ? computedPriceDA : 0);
+
   // Payments calculation
   const paymentsList = member.payments || [];
   const totalPaid = paymentsList.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const priceDA = member.priceDA || 0;
   const debt = Math.max(0, priceDA - totalPaid);
   const paymentPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : 0;
   const isFullyPaid = member.paymentStatus === "paid" || (priceDA > 0 && totalPaid >= priceDA);
@@ -327,10 +341,6 @@ export default function SwimmerProfilePage({
         day: "numeric",
       })
     : "—";
-
-  const displayGroups: SwimGroupData[] = (member.groups && member.groups.length > 0)
-    ? member.groups
-    : (member.group ? [member.group] : []);
 
   // Only old members (old_aqa, intermediate, advanced) may see cohort names
   const isOldMember = Boolean(member.isOldMember ?? isOldSwimMember(member.level));
@@ -649,19 +659,32 @@ export default function SwimmerProfilePage({
           /* ── CONDITION B: IF NOT CONFIRMED (PROPOSED OR REJECTED) ────────── */
           <>
             {/* Status Alert Banner */}
-            <section className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 to-slate-900 border border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.15)] space-y-2">
-              <div className="flex items-center gap-2 text-amber-300">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
-                  <circle cx="12" cy="12" r="10" />
-                  <polyline points="12 6 12 12 16 14" />
-                </svg>
-                <span className="text-xs font-bold uppercase tracking-wider font-display">
-                  {t("statusProposed")}
+            <section className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/60 to-slate-900 border border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.15)] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-amber-300">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  <span className="text-xs font-bold uppercase tracking-wider font-display">
+                    {t("statusProposed")}
+                  </span>
+                </div>
+                <span className="font-mono text-xs text-cyan-300 font-bold px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30">
+                  {member.swimId}
                 </span>
               </div>
               <p className="text-xs text-slate-300 leading-relaxed">
                 {t("statusProposedDesc")}
               </p>
+              <div className="flex items-center justify-between text-xs pt-2 border-t border-white/10">
+                <span className="text-slate-300 font-medium">
+                  {member.category} · {member.formula || "G10"} ({member.duration || "3m"})
+                </span>
+                <span className="font-mono font-bold text-cyan-300 text-sm">
+                  {priceDA.toLocaleString("fr-DZ")} DA
+                </span>
+              </div>
             </section>
 
             {/* 1. THE GROUP TABLE & GROUP NAMES TABLE */}
@@ -715,7 +738,88 @@ export default function SwimmerProfilePage({
               )}
             </section>
 
-            {/* 2. ACCEPTANCE BUTTONS */}
+            {/* 2. SUBSCRIPTION TARIFF & FINANCIAL SUMMARY */}
+            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div>
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display">
+                    {t("paymentsTitle")}
+                  </h2>
+                  <p className="text-[10px] text-cyan-300 font-semibold mt-0.5">
+                    {member.formula || "G10"} · {member.duration || "3m"}
+                  </p>
+                </div>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    isFullyPaid
+                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                      : totalPaid > 0
+                      ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                      : "bg-cyan-950/80 text-cyan-300 border border-cyan-500/30"
+                  }`}
+                >
+                  {isFullyPaid
+                    ? t("statusPaid")
+                    : totalPaid > 0
+                    ? t("statusPartial")
+                    : t("statusUnpaid")}
+                </span>
+              </div>
+
+              {/* 3-stat breakdown */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                    {t("totalPrice")}
+                  </span>
+                  <span className="font-mono font-bold text-cyan-300 text-xs sm:text-sm">
+                    {priceDA.toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                    {t("totalPaid")}
+                  </span>
+                  <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                    {totalPaid.toLocaleString("fr-DZ")} DA
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                    {t("remainingBalance")}
+                  </span>
+                  <span
+                    className={`font-mono font-bold text-xs sm:text-sm ${
+                      debt > 0 ? "text-rose-400" : "text-emerald-400"
+                    }`}
+                  >
+                    {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar if partial/paid */}
+              {totalPaid > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>{t("paymentStatus")}</span>
+                    <span className="font-mono font-semibold text-white">{paymentPct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isFullyPaid
+                          ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                          : "bg-gradient-to-r from-cyan-500 to-sky-400"
+                      }`}
+                      style={{ width: `${paymentPct}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* 3. ACCEPTANCE BUTTONS */}
             <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-2.5">
               <div className="flex flex-col gap-2">
                 <button
@@ -832,7 +936,7 @@ export default function SwimmerProfilePage({
                 <div>
                   <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("formula")}</span>
                   <span className="font-semibold text-white">
-                    {member.formula} ({member.duration || "3m"})
+                    {member.formula} ({member.duration || "3m"}) · {priceDA.toLocaleString("fr-DZ")} DA
                   </span>
                 </div>
                 <div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { decodeSolidNotes, decodeMemberGroupIds, isOldSwimMember } from "@/lib/swim-groups";
+import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -139,6 +140,19 @@ async function enrichMemberGroups(member: any) {
   const rootGroupMembers = primaryGroup?.groupMembers || [];
   const rootTeammates = primaryGroup?.teammates || [];
 
+  let effectivePriceDA = member.priceDA || 0;
+  if (effectivePriceDA <= 0) {
+    const groupLevels = allGroups.map((g: any) => g.level);
+    const computed = calculateSwimPrice({
+      category: member.category,
+      groupTypes: groupLevels.length > 0 ? groupLevels : [member.formula || "G10"],
+      duration: member.duration || "3m",
+    });
+    if (computed > 0) {
+      effectivePriceDA = computed;
+    }
+  }
+
   return {
     allGroups,
     isOldMember,
@@ -146,6 +160,7 @@ async function enrichMemberGroups(member: any) {
     solidNotes,
     groupMembers: rootGroupMembers,
     teammates: rootTeammates,
+    effectivePriceDA,
   };
 }
 
@@ -270,6 +285,7 @@ export async function GET(
     return NextResponse.json(
       {
         ...member,
+        priceDA: enriched.effectivePriceDA,
         groups: enriched.allGroups,
         isOldMember: enriched.isOldMember,
         isSolid: enriched.isSolid,
@@ -369,6 +385,7 @@ export async function POST(
           success: true,
           member: {
             ...updated,
+            priceDA: enriched.effectivePriceDA,
             groups: enriched.allGroups,
             isOldMember: enriched.isOldMember,
             isSolid: enriched.isSolid,
