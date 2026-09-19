@@ -118,6 +118,33 @@ describe("swim-lead-details", () => {
     });
   });
 
+  describe("cleanLeadNotesDisplay and UI safety", () => {
+    it("strips all meta tags and summary blocks leaving clean empty string when no user note exists", () => {
+      const raw = `[AQA_META_START]{"equipment":{"hasPack":false,"articles":[],"rawText":null,"size":null,"notes":null},"demographics":{"city":"Reghaïa","age":29,"whatsapp":"0667697924","channel":"facebook","channelOther":null,"goal":"sport","timePref":"day","memberType":"new","personalId":null,"pool":null}}[AQA_META_END] [DETAILS_SUMMARY: Ville: Reghaïa | Age: 29 | WhatsApp: 0667697924 | Canal: facebook | Objectif: sport | Creneau: day]`;
+      const parsed = parseSwimLeadNotes(raw);
+
+      expect(parsed.demographics.city).toBe("Reghaïa");
+      expect(parsed.demographics.age).toBe(29);
+      expect(parsed.demographics.whatsapp).toBe("0667697924");
+      expect(parsed.demographics.channel).toBe("facebook");
+      expect(parsed.demographics.goal).toBe("sport");
+      expect(parsed.demographics.timePref).toBe("day");
+      expect(parsed.demographics.memberType).toBe("new");
+      expect(parsed.equipment.hasPack).toBe(false);
+      expect(parsed.userNotes).toBe("");
+    });
+
+    it("preserves genuine human user notes while stripping IT codes", () => {
+      const raw = `[AQA_META_START]{"equipment":{"hasPack":true,"articles":["goggles"],"rawText":null,"size":"M","notes":null},"demographics":{"city":"Cheraga","age":24,"whatsapp":"0555001122","channel":"direct","channelOther":null,"goal":"health","timePref":"evening","memberType":"new","personalId":null,"pool":null}}[AQA_META_END] [DETAILS_SUMMARY: Ville: Cheraga | Age: 24 | WhatsApp: 0555001122 | Canal: direct | Objectif: health | Creneau: evening] Priere de me contacter apres 17h merci.`;
+      const parsed = parseSwimLeadNotes(raw);
+
+      expect(parsed.demographics.city).toBe("Cheraga");
+      expect(parsed.equipment.hasPack).toBe(true);
+      expect(parsed.equipment.articles).toEqual(["goggles"]);
+      expect(parsed.userNotes).toBe("Priere de me contacter apres 17h merci.");
+    });
+  });
+
   describe("Labels", () => {
     it("returns correct labels", () => {
       expect(getArticleLabel("goggles")).toBe("Lunettes de Natation Pro");

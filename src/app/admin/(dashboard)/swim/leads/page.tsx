@@ -8,6 +8,7 @@ import {
   SwimLeadDetails,
   getArticleLabel,
   getArticleShortLabel,
+  cleanLeadNotesDisplay,
 } from "@/lib/swim-lead-details";
 import { calculateSwimPrice, SwimCategory, SwimDuration, SwimFrequency } from "@/lib/swim-pricing";
 
@@ -106,7 +107,7 @@ export default function SwimLeadsPage() {
           const fresh = data.find((l) => l.id === selectedLeadForInspection.id);
           if (fresh) {
             setSelectedLeadForInspection(fresh);
-            setEditingNotes(fresh.details?.userNotes || fresh.notes || "");
+            setEditingNotes(fresh.details?.userNotes ?? cleanLeadNotesDisplay(fresh.notes));
             setEditingEquipmentArticles(fresh.details?.equipment.articles || []);
             setEditingEquipmentSize(fresh.details?.equipment.size || "");
             setEditingEquipmentNotes(fresh.details?.equipment.notes || "");
@@ -130,7 +131,7 @@ export default function SwimLeadsPage() {
 
   function openInspector(lead: SwimLead) {
     setSelectedLeadForInspection(lead);
-    setEditingNotes(lead.details?.userNotes || lead.notes || "");
+    setEditingNotes(lead.details?.userNotes ?? cleanLeadNotesDisplay(lead.notes));
     setEditingEquipmentArticles(lead.details?.equipment.articles || []);
     setEditingEquipmentSize(lead.details?.equipment.size || "");
     setEditingEquipmentNotes(lead.details?.equipment.notes || "");

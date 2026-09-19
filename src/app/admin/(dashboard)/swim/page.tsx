@@ -12,6 +12,26 @@ import {
   getSwimLevelLabel,
   parseScheduleSlots,
 } from "@/lib/swim-groups";
+import {
+  parseSwimLeadNotes,
+  cleanLeadNotesDisplay,
+  formatSwimLeadNotes,
+  SwimLeadDetails,
+  EQUIPMENT_ARTICLES,
+  EquipmentArticleId,
+  getArticleLabel,
+  getArticleShortLabel,
+} from "@/lib/swim-lead-details";
+import {
+  calculateSwimPrice,
+  SwimCategory,
+  SwimDuration,
+  SwimFrequency,
+} from "@/lib/swim-pricing";
+
+function formatDA(amount: number): string {
+  return `${amount.toLocaleString("fr-DZ")} DA`;
+}
 
 const SwimCallsDesk = dynamic(
   () => import("@/components/admin/swim/calls/SwimCallsDesk").then((mod) => mod.SwimCallsDesk),
@@ -95,6 +115,7 @@ interface SwimLead {
   notes: string | null;
   status: "pending" | "called" | "confirmed" | "rejected";
   createdAt: string;
+  details?: SwimLeadDetails;
 }
 
 interface SwimGroup {
@@ -221,6 +242,53 @@ export default function SwimOverviewPage() {
   const [newLeadNotes, setNewLeadNotes] = useState("");
   const [submittingAddLead, setSubmittingAddLead] = useState(false);
 
+  // Lead Inspection Drawer
+  const [selectedLeadForInspection, setSelectedLeadForInspection] = useState<SwimLead | null>(null);
+  const [editingLeadNotes, setEditingLeadNotes] = useState("");
+  const [savingLeadNotes, setSavingLeadNotes] = useState(false);
+  const [saveLeadSuccessMsg, setSaveLeadSuccessMsg] = useState<string | null>(null);
+
+  function openLeadInspector(lead: SwimLead) {
+    const freshDetails = lead.details || parseSwimLeadNotes(lead.notes);
+    setSelectedLeadForInspection({ ...lead, details: freshDetails });
+    setEditingLeadNotes(freshDetails.userNotes ?? cleanLeadNotesDisplay(lead.notes));
+    setSaveLeadSuccessMsg(null);
+  }
+
+  function closeLeadInspector() {
+    setSelectedLeadForInspection(null);
+    setSaveLeadSuccessMsg(null);
+  }
+
+  async function handleSaveLeadNotes() {
+    if (!selectedLeadForInspection) return;
+    setSavingLeadNotes(true);
+    try {
+      const currentDetails = selectedLeadForInspection.details || parseSwimLeadNotes(selectedLeadForInspection.notes);
+      const updatedNotes = formatSwimLeadNotes({
+        equipment: currentDetails.equipment,
+        demographics: currentDetails.demographics,
+        userNotes: editingLeadNotes.trim(),
+      });
+
+      const res = await fetch(`/api/admin/swim/leads/${selectedLeadForInspection.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: updatedNotes }),
+      });
+
+      if (res.ok) {
+        setSaveLeadSuccessMsg("Notes enregistrees avec succes.");
+        await loadAllData();
+        setTimeout(() => setSaveLeadSuccessMsg(null), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to save lead notes:", err);
+    } finally {
+      setSavingLeadNotes(false);
+    }
+  }
+
   async function loadAllData() {
     setLoading(true);
     try {
@@ -232,7 +300,24 @@ export default function SwimOverviewPage() {
       ]);
 
       if (memsRes.ok) setMembers(await memsRes.json());
-      if (leadsRes.ok) setLeads(await leadsRes.json());
+      if (leadsRes.ok) {
+        const rawLeads: SwimLead[] = await leadsRes.json();
+        const augmented: SwimLead[] = Array.isArray(rawLeads)
+          ? rawLeads.map((l) => ({
+              ...l,
+              details: l.details || parseSwimLeadNotes(l.notes),
+            }))
+          : [];
+        setLeads(augmented);
+
+        if (selectedLeadForInspection) {
+          const fresh = augmented.find((l) => l.id === selectedLeadForInspection.id);
+          if (fresh) {
+            setSelectedLeadForInspection(fresh);
+            setEditingLeadNotes(fresh.details?.userNotes ?? cleanLeadNotesDisplay(fresh.notes));
+          }
+        }
+      }
       if (grpsRes.ok) setGroups(await grpsRes.json());
       if (cardsRes.ok) setCards(await cardsRes.json());
     } catch (err) {
@@ -1152,24 +1237,68 @@ export default function SwimOverviewPage() {
                             `Salam ${lead.fullName}, nous vous contactons concernant votre demande d'inscription AQA Swim (${lead.formula}). Êtes-vous disponible pour finaliser votre groupe ?`
                           )}`
                         : null;
+                      const demo = lead.details?.demographics;
+                      const hasPack = Boolean(lead.details?.equipment.hasPack);
+                      const cleanNotes = lead.details?.userNotes;
 
                       return (
-                        <tr key={lead.id} className="hover:bg-white/[0.02] transition-colors">
+                        <tr
+                          key={lead.id}
+                          onClick={() => openLeadInspector(lead)}
+                          className="hover:bg-cyan-500/[0.04] transition-colors cursor-pointer group"
+                        >
                           <td className="py-3 px-4">
-                            <div className="font-bold text-white">{lead.fullName}</div>
-                            <div className="text-[11px] text-[var(--muted)] flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white group-hover:text-cyan-300 transition-colors">
+                                {lead.fullName}
+                              </span>
+                              {demo?.memberType === "old" && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-950/80 text-purple-300 border border-purple-500/30">
+                                  Ancien {demo.personalId ? `#${demo.personalId}` : ""}
+                                </span>
+                              )}
+                              {hasPack && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-cyan-950/80 text-cyan-300 border border-cyan-500/30 font-mono">
+                                  Pack
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-[11px] text-[var(--muted)] flex flex-wrap items-center gap-2 mt-1">
                               {lead.phone ? (
-                                <a href={`tel:${lead.phone}`} className="text-cyan-400 hover:underline font-mono">
+                                <a
+                                  href={`tel:${lead.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-cyan-400 hover:underline font-mono"
+                                  title="Appeler"
+                                >
                                   {lead.phone}
                                 </a>
                               ) : (
                                 <span className="italic text-slate-500">No phone</span>
                               )}
                               {lead.email && <span>· {lead.email}</span>}
+                              {demo?.city && (
+                                <span className="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-[10px]">
+                                  {demo.city}
+                                </span>
+                              )}
+                              {demo?.age && (
+                                <span className="text-slate-400 text-[10px]">
+                                  {demo.age} ans
+                                </span>
+                              )}
+                              {demo?.channel && (
+                                <span className="text-[10px] text-slate-500">
+                                  via {demo.channel}
+                                </span>
+                              )}
                             </div>
-                            {lead.notes && (
-                              <div className="text-[10px] text-amber-300/80 mt-1 italic">
-                                &ldquo;{lead.notes}&rdquo;
+
+                            {/* Display ONLY genuine user notes — NEVER raw metadata or orange IT codes! */}
+                            {cleanNotes && (
+                              <div className="text-[10px] text-slate-300 mt-1 italic line-clamp-1">
+                                &ldquo;{cleanNotes}&rdquo;
                               </div>
                             )}
                           </td>
@@ -1177,6 +1306,11 @@ export default function SwimOverviewPage() {
                           <td className="py-3 px-4">
                             <div className="capitalize font-semibold text-slate-200">{lead.category}</div>
                             <div className="text-[11px] text-[var(--muted)]">{getSwimLevelLabel(lead.level)}</div>
+                            {demo?.goal && (
+                              <div className="text-[10px] text-cyan-400/90 truncate max-w-[140px] mt-0.5">
+                                {demo.goal}
+                              </div>
+                            )}
                           </td>
 
                           <td className="py-3 px-4">
@@ -1186,7 +1320,14 @@ export default function SwimOverviewPage() {
                             </div>
                           </td>
 
-                          <td className="py-3 px-4 text-[var(--muted)]">{lead.preferredDays || "—"}</td>
+                          <td className="py-3 px-4">
+                            <div className="text-slate-200">{lead.preferredDays || "—"}</div>
+                            {demo?.timePref && (
+                              <div className="text-[10px] text-slate-400 mt-0.5">
+                                Creneau: {demo.timePref}
+                              </div>
+                            )}
+                          </td>
 
                           <td className="py-3 px-4">
                             {lead.status === "pending" && <Badge tone="warning">Pending</Badge>}
@@ -1199,7 +1340,15 @@ export default function SwimOverviewPage() {
                             {new Date(lead.createdAt).toLocaleDateString("fr-DZ")}
                           </td>
 
-                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => openLeadInspector(lead)}
+                            >
+                              Details
+                            </Button>
+
                             {waLeadUrl && (
                               <a
                                 href={waLeadUrl}
@@ -2163,6 +2312,403 @@ export default function SwimOverviewPage() {
               >
                 {deletingSwimmer ? "Deleting..." : "Yes, Delete Swimmer"}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── LEAD INSPECTION SLIDE-OVER DRAWER ─────────────────────── */}
+      {selectedLeadForInspection && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex justify-end">
+          <div className="w-full max-w-2xl bg-slate-950 border-l border-white/10 shadow-2xl h-full flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="p-5 border-b border-white/10 flex items-start justify-between bg-slate-900/60 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-sky-600 flex items-center justify-center text-slate-950 font-black text-lg shadow-[0_0_15px_rgba(0,242,255,0.3)] shrink-0">
+                  {selectedLeadForInspection.fullName.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-black text-white tracking-tight">
+                      {selectedLeadForInspection.fullName}
+                    </h2>
+                    {selectedLeadForInspection.details?.demographics.memberType === "old" && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-950/80 text-purple-300 border border-purple-500/40">
+                        Ancien {selectedLeadForInspection.details.demographics.personalId ? `#${selectedLeadForInspection.details.demographics.personalId}` : ""}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                    <span>Demande recue le {new Date(selectedLeadForInspection.createdAt).toLocaleDateString("fr-DZ")}</span>
+                    <span>·</span>
+                    <span className="capitalize font-medium text-slate-300">
+                      Statut: {selectedLeadForInspection.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeLeadInspector}
+                className="w-8 h-8 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Action Bar */}
+            <div className="p-4 bg-slate-900/90 border-b border-white/10 flex flex-wrap items-center gap-2 shrink-0">
+              <a
+                href={`tel:${selectedLeadForInspection.phone}`}
+                className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-semibold text-xs transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+                <span>Appeler Direct</span>
+              </a>
+
+              {selectedLeadForInspection.phone && (
+                <a
+                  href={`https://wa.me/${
+                    selectedLeadForInspection.phone.replace(/[^0-9]/g, "").startsWith("0")
+                      ? "213" + selectedLeadForInspection.phone.replace(/[^0-9]/g, "").slice(1)
+                      : selectedLeadForInspection.phone.replace(/[^0-9]/g, "")
+                  }?text=${encodeURIComponent(
+                    `Salam ${selectedLeadForInspection.fullName}, nous vous contactons concernant votre demande d'inscription AQA Swim (${selectedLeadForInspection.formula}, ${selectedLeadForInspection.frequency}). Avez-vous des questions pour finaliser votre groupe ?`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 min-w-[130px] inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 font-semibold text-xs transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                  </svg>
+                  <span>WhatsApp Prospect</span>
+                </a>
+              )}
+
+              {selectedLeadForInspection.status === "pending" && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    handleUpdateLeadStatus(selectedLeadForInspection.id, "called");
+                    setSelectedLeadForInspection({ ...selectedLeadForInspection, status: "called" });
+                  }}
+                >
+                  Marquer Appele
+                </Button>
+              )}
+
+              {selectedLeadForInspection.status !== "confirmed" && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => {
+                    setPromotingLead(selectedLeadForInspection);
+                    setPromoteGroupId("");
+                    setPromoteCoachMessage("");
+                    closeLeadInspector();
+                  }}
+                >
+                  Confirmer & Inscrire
+                </Button>
+              )}
+            </div>
+
+            {/* Drawer Body (scrollable) */}
+            <div className="p-5 space-y-6 flex-1 overflow-y-auto">
+              {saveLeadSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 text-xs">
+                  {saveLeadSuccessMsg}
+                </div>
+              )}
+
+              {/* ── SECTION 1: PACK EQUIPEMENT & ARTICLES ── */}
+              <div className="p-4 rounded-2xl bg-slate-900 border border-cyan-500/30 shadow-[0_0_20px_rgba(0,242,255,0.06)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-cyan-950 flex items-center justify-center text-cyan-400 border border-cyan-500/40">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="7" cy="12" r="5" />
+                        <circle cx="17" cy="12" r="5" />
+                        <line x1="12" y1="12" x2="12" y2="12" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white tracking-tight">
+                        Pack Equipement & Articles AQA
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        {selectedLeadForInspection.details?.equipment.hasPack
+                          ? "Pack d'equipement demande avec l'inscription"
+                          : "Aucun pack d'equipement demande"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold font-mono border ${
+                      selectedLeadForInspection.details?.equipment.hasPack
+                        ? "bg-cyan-950/80 text-cyan-300 border-cyan-500/40"
+                        : "bg-slate-800 text-slate-400 border-white/5"
+                    }`}
+                  >
+                    {selectedLeadForInspection.details?.equipment.hasPack ? "Pack Demande" : "Sans Pack"}
+                  </span>
+                </div>
+
+                {/* Article Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                  {EQUIPMENT_ARTICLES.map((article) => {
+                    const isSelected = selectedLeadForInspection.details?.equipment.articles?.includes(article.id) || false;
+                    return (
+                      <div
+                        key={article.id}
+                        className={`p-3 rounded-xl border ${
+                          isSelected
+                            ? "bg-cyan-950/40 border-cyan-500/50 shadow-[0_0_12px_rgba(0,242,255,0.12)]"
+                            : "bg-slate-800/30 border-white/5 opacity-60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className={`text-[10px] font-bold font-mono px-1.5 py-0.2 rounded ${
+                            isSelected ? "bg-cyan-900/60 text-cyan-300" : "bg-slate-800 text-slate-500"
+                          }`}>
+                            {isSelected ? "INCLUS" : "NON REQUIS"}
+                          </span>
+                        </div>
+                        <div className="font-bold text-xs text-white">{article.label}</div>
+                        <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{article.description}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {selectedLeadForInspection.details?.equipment.size && (
+                  <div className="text-xs text-slate-300 pt-2 border-t border-white/5">
+                    Taille specifiee: <span className="font-bold text-white">{selectedLeadForInspection.details.equipment.size}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* ── SECTION 2: PROFIL ADHERENT & DEMOGRAPHIE ── */}
+              <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-3">
+                <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                  Profil Adherent & Demographie
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Telephone</span>
+                    <a
+                      href={`tel:${selectedLeadForInspection.phone}`}
+                      className="font-mono font-bold text-cyan-400 hover:underline"
+                    >
+                      {selectedLeadForInspection.phone}
+                    </a>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">WhatsApp</span>
+                    <span className="font-mono font-semibold text-white">
+                      {selectedLeadForInspection.details?.demographics.whatsapp || selectedLeadForInspection.phone}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Ville / Wilaya</span>
+                    <span className="font-semibold text-white">
+                      {selectedLeadForInspection.details?.demographics.city || "Non specifiee"}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Age</span>
+                    <span className="font-semibold text-white">
+                      {selectedLeadForInspection.details?.demographics.age
+                        ? `${selectedLeadForInspection.details.demographics.age} ans`
+                        : "Non specifie"}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Canal Acquisition</span>
+                    <span className="font-semibold text-white">
+                      {selectedLeadForInspection.details?.demographics.channel || "Direct"}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Type Adhesion</span>
+                    <span className="font-semibold text-white">
+                      {selectedLeadForInspection.details?.demographics.memberType === "old"
+                        ? `Renouvellement (${selectedLeadForInspection.details.demographics.personalId || "Old"})`
+                        : "Nouveau Membre"}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedLeadForInspection.email && (
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-xs flex items-center justify-between">
+                    <span className="text-slate-400">Email:</span>
+                    <a
+                      href={`mailto:${selectedLeadForInspection.email}`}
+                      className="font-mono text-cyan-400 hover:underline"
+                    >
+                      {selectedLeadForInspection.email}
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* ── SECTION 3: PROGRAMME SPORTIF & TARIF ── */}
+              <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Programme & Objectifs Sportifs
+                  </h3>
+                  <span className="text-xs font-mono font-bold text-cyan-400">
+                    Tarif Estime:{" "}
+                    {formatDA(
+                      calculateSwimPrice(
+                        selectedLeadForInspection.category as SwimCategory,
+                        selectedLeadForInspection.formula,
+                        selectedLeadForInspection.duration as SwimDuration,
+                        selectedLeadForInspection.frequency as SwimFrequency
+                      )
+                    )}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Categorie</span>
+                    <span className="font-bold text-white capitalize">
+                      {selectedLeadForInspection.category}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Niveau</span>
+                    <span className="font-bold text-white capitalize">
+                      {selectedLeadForInspection.level}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Formule</span>
+                    <span className="font-bold text-white">
+                      {selectedLeadForInspection.formula} ({selectedLeadForInspection.frequency})
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">
+                    <span className="text-[10px] text-slate-400 block mb-0.5">Duree</span>
+                    <span className="font-bold text-white">
+                      {selectedLeadForInspection.duration}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-slate-800/40 border border-white/5 space-y-1.5 text-xs">
+                  <div className="text-[11px] text-slate-400">
+                    Objectif Sportif:{" "}
+                    <span className="text-white font-medium">
+                      {selectedLeadForInspection.details?.demographics.goal || selectedLeadForInspection.level || "Non renseigne"}
+                    </span>
+                  </div>
+                  {selectedLeadForInspection.details?.demographics.timePref && (
+                    <div className="text-[11px] text-slate-400">
+                      Creneau horaire souhaite:{" "}
+                      <span className="text-cyan-300 font-medium capitalize">
+                        {selectedLeadForInspection.details.demographics.timePref}
+                      </span>
+                    </div>
+                  )}
+                  {selectedLeadForInspection.preferredDays && (
+                    <div className="text-[11px] text-slate-400 pt-1 border-t border-white/5">
+                      Jours preferes:{" "}
+                      <span className="text-white font-medium">
+                        {selectedLeadForInspection.preferredDays}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── SECTION 4: SUIVI & REMARQUES ── */}
+              <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                    Suivi Appel & Remarques Internes
+                  </h3>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={savingLeadNotes}
+                    onClick={handleSaveLeadNotes}
+                  >
+                    {savingLeadNotes ? "Enregistrement..." : "Sauvegarder"}
+                  </Button>
+                </div>
+
+                {selectedLeadForInspection.details?.userNotes && (
+                  <div className="p-3 rounded-xl bg-slate-800/50 border border-white/5 text-xs text-slate-300">
+                    <span className="text-[10px] text-cyan-400 font-semibold block mb-1">Note transmise par le client:</span>
+                    &ldquo;{selectedLeadForInspection.details.userNotes}&rdquo;
+                  </div>
+                )}
+
+                <textarea
+                  value={editingLeadNotes}
+                  onChange={(e) => setEditingLeadNotes(e.target.value)}
+                  placeholder="Notes de l'appel telephonique, disponibilites particulieres..."
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+            </div>
+
+            {/* Drawer Footer */}
+            <div className="p-4 border-t border-white/10 bg-slate-900/80 flex items-center justify-between gap-3 shrink-0">
+              <Button
+                variant="secondary"
+                onClick={closeLeadInspector}
+              >
+                Fermer
+              </Button>
+
+              <div className="flex items-center gap-2">
+                {selectedLeadForInspection.status !== "rejected" && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => {
+                      handleUpdateLeadStatus(selectedLeadForInspection.id, "rejected");
+                      closeLeadInspector();
+                    }}
+                  >
+                    Rejeter
+                  </Button>
+                )}
+
+                {selectedLeadForInspection.status !== "confirmed" && (
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      setPromotingLead(selectedLeadForInspection);
+                      setPromoteGroupId("");
+                      setPromoteCoachMessage("");
+                      closeLeadInspector();
+                    }}
+                  >
+                    Confirmer & Assigner Groupe
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
