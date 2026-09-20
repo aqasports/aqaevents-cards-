@@ -6,6 +6,9 @@ import Link from "next/link";
 import { PageHeader, Badge, Button, Input, Card } from "@/components/admin/ui";
 import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
+import { useLocale } from "@/lib/i18n";
+import QRCode from "qrcode";
+import { SwimPvcPrintDialog } from "@/components/swim/SwimPvcPrintDialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,12 +118,36 @@ export default function AdminSwimmerProfilePage({
 }) {
   const { swimId } = use(params);
   const router = useRouter();
+  const { t } = useLocale();
 
   const [member, setMember] = useState<SwimMemberDetail | null>(null);
   const [groups, setGroups] = useState<SwimGroupRef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // PVC Card Print Modal state
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [cardQrDataUrl, setCardQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!member) {
+      setCardQrDataUrl(null);
+      return;
+    }
+    const token = member.card?.publicToken;
+    const publicUrl = token
+      ? `${typeof window !== "undefined" ? window.location.origin : "https://aqasports.com"}/swim/card/${token}`
+      : `${typeof window !== "undefined" ? window.location.origin : "https://aqasports.com"}/swim/profile/${member.swimId}`;
+
+    QRCode.toDataURL(publicUrl, {
+      width: 320,
+      margin: 1,
+      color: { dark: "#030712", light: "#ffffff" },
+    })
+      .then(setCardQrDataUrl)
+      .catch(() => setCardQrDataUrl(null));
+  }, [member]);
 
   // Edit profile state
   const [showEditPanel, setShowEditPanel] = useState(false);
@@ -1106,25 +1133,47 @@ export default function AdminSwimmerProfilePage({
               </div>
 
               {/* Real Card with 3D Flip Motion */}
-              <SwimFlipCard member={member} />
+              <SwimFlipCard member={member} qrDataUrl={cardQrDataUrl} />
 
-              {member.card ? (
-                <div className="space-y-1.5 text-xs pt-2 border-t border-white/5">
+              {/* Card Actions & Print */}
+              <div className="space-y-2 pt-2 border-t border-white/5 text-xs">
+                {member.card && (
                   <div className="flex justify-between">
                     <span className="text-[var(--muted)]">Card Code:</span>
                     <span className="font-mono font-bold text-cyan-300">{member.card.cardCode}</span>
                   </div>
-                  <Link
-                    href={`/swim/card/${member.card.publicToken}`}
-                    target="_blank"
-                    className="block text-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold mt-2 border border-white/10 transition-colors"
+                )}
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowPrintModal(true)}
+                    className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 text-xs font-semibold border border-cyan-500/40 transition-colors shadow-[0_0_12px_rgba(0,242,255,0.12)] active:scale-[0.98]"
                   >
-                    Open Public Pass View
-                  </Link>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span>{t("swimPvcPrint.btnLabel")}</span>
+                  </button>
+
+                  {member.card ? (
+                    <Link
+                      href={`/swim/card/${member.card.publicToken}`}
+                      target="_blank"
+                      className="inline-flex items-center justify-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold border border-white/10 transition-colors text-center truncate"
+                    >
+                      Open Public Pass
+                    </Link>
+                  ) : (
+                    <Link
+                      href={portalUrl}
+                      target="_blank"
+                      className="inline-flex items-center justify-center py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-white/10 transition-colors text-center truncate"
+                    >
+                      Open Profile
+                    </Link>
+                  )}
                 </div>
-              ) : (
-                <p className="text-xs italic text-[var(--muted)]">No PVC pass linked to this swimmer yet.</p>
-              )}
+              </div>
             </div>
           </Card>
         </div>
@@ -1584,6 +1633,16 @@ export default function AdminSwimmerProfilePage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* PVC Pass Card Print Dialog */}
+      {showPrintModal && member && (
+        <SwimPvcPrintDialog
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          member={member}
+          qrDataUrl={cardQrDataUrl}
+        />
       )}
     </div>
   );
