@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { generateSwimId, generateSwimToken, generateSwimCardCode } from "@/lib/swim-id";
+import { computeMemberSubscriptionDates } from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -168,6 +169,10 @@ export async function POST(request: NextRequest) {
         paymentStatus: paymentStatus || "unpaid",
         groupStatus: "proposed",
         notes: finalNotes,
+        ...computeMemberSubscriptionDates(
+          dateOfStart ? new Date(dateOfStart) : new Date(),
+          duration || "3m"
+        ),
       },
     });
 

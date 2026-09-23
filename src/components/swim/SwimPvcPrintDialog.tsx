@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import QRCode from "qrcode";
 import { useLocale } from "@/lib/i18n";
-import { getCardTier, CardTierInfo } from "@/lib/swim-pricing";
 
 export interface SwimPrintMemberInfo {
   fullName: string;
@@ -31,6 +30,12 @@ export interface SwimPrintMemberInfo {
     schedule?: string | null;
     level?: string;
   }>;
+  effectiveGroups?: Array<{
+    name: string;
+    coachName?: string | null;
+    schedule?: string | null;
+    level?: string;
+  }>;
   card?: {
     cardCode: string;
     publicToken: string;
@@ -45,7 +50,6 @@ interface SwimPvcPrintDialogProps {
   qrDataUrl?: string | null;
 }
 
-type OrientationMode = "landscape" | "portrait";
 type A4PlacementMode = "top-left" | "top-center" | "top-right" | "center" | "grid-2x4";
 
 export function SwimPvcPrintDialog({
@@ -56,8 +60,7 @@ export function SwimPvcPrintDialog({
 }: SwimPvcPrintDialogProps) {
   const { t } = useLocale();
 
-  // Print configuration state
-  const [orientation, setOrientation] = useState<OrientationMode>("landscape");
+  // Card dimensions
   const [cardWidthMm, setCardWidthMm] = useState<number>(85.6);
   const [cardHeightMm, setCardHeightMm] = useState<number>(54);
 
@@ -75,14 +78,11 @@ export function SwimPvcPrintDialog({
   const [a4Placement, setA4Placement] = useState<A4PlacementMode>("top-left");
   const [cuttingLines, setCuttingLines] = useState<boolean>(true);
 
-  // Visionator state
-  const [activeFace, setActiveFace] = useState<"back" | "front">("back");
-  const [generatedQr, setGeneratedQr] = useState<string | null>(precomputedQr || null);
+  // Sticker background options
+  const [bgMode, setBgMode] = useState<"white" | "dark">("white");
 
-  // Tier info for background images
-  const tier: CardTierInfo = useMemo(() => {
-    return getCardTier(member.formula, member.duration);
-  }, [member.formula, member.duration]);
+  // QR state
+  const [generatedQr, setGeneratedQr] = useState<string | null>(precomputedQr || null);
 
   // Generate QR if not precomputed
   useEffect(() => {
@@ -99,302 +99,330 @@ export function SwimPvcPrintDialog({
         width: 320,
         margin: 1,
         color: {
-          dark: "#030712",
-          light: "#ffffff",
+          dark: bgMode === "dark" ? "#00f2ff" : "#030712",
+          light: bgMode === "dark" ? "#0f172a" : "#ffffff",
         },
       })
         .then(setGeneratedQr)
         .catch(() => setGeneratedQr(null));
     }
-  }, [member.card?.publicToken, precomputedQr]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member.card?.publicToken, precomputedQr, bgMode]);
 
-  // Derived member labels
-  const coachName = useMemo(() => {
-    return (
-      member.effectiveGroup?.coachName ||
-      member.group?.coachName ||
-      member.groups?.find((g) => g.coachName)?.coachName ||
-      "AQA Coach"
-    );
-  }, [member]);
+  // Resolved multi-group data — show ALL assigned groups
+  const allGroups = useMemo(() => {
+    const arr =
+      (member.effectiveGroups && member.effectiveGroups.length > 0
+        ? member.effectiveGroups
+        : member.groups && member.groups.length > 0
+        ? member.groups
+        : member.effectiveGroup
+        ? [member.effectiveGroup]
+        : member.group
+        ? [member.group]
+        : []);
+    return arr;
+  }, [member.effectiveGroups, member.groups, member.effectiveGroup, member.group]);
 
-  const groupTypeFormula = useMemo(() => {
-    const groupType =
-      member.effectiveGroup?.level ||
-      member.group?.level ||
-      member.groups?.[0]?.level ||
-      member.level ||
-      "Standard";
-    const formulaText = member.formula || tier.badge;
+  // Unique coaches across all groups
+  const allCoaches = useMemo(() => {
+    const coaches = allGroups
+      .map((g) => g.coachName)
+      .filter((c): c is string => Boolean(c));
+    return [...new Set(coaches)];
+  }, [allGroups]);
+
+  // All schedules across all groups
+  const allSchedules = useMemo(() => {
+    return allGroups
+      .map((g) => g.schedule)
+      .filter((s): s is string => Boolean(s));
+  }, [allGroups]);
+
+  // Formula / group type display
+  const formulaDisplay = useMemo(() => {
+    const formulaText = member.formula || "Standard";
     const durText = member.duration ? ` · ${member.duration}` : "";
-    return `${groupType} - ${formulaText}${durText}`;
-  }, [member, tier.badge]);
+    return `${formulaText}${durText}`;
+  }, [member.formula, member.duration]);
 
-  const groupSchedule = useMemo(() => {
-    const schedule =
-      member.effectiveGroup?.schedule ||
-      member.group?.schedule ||
-      member.groups?.map((g) => g.schedule).filter(Boolean).join(" | ");
-    return schedule || "Weekly Sessions";
-  }, [member]);
+  // Group type display (from first group level)
+  const groupTypeDisplay = useMemo(() => {
+    const lvl = allGroups[0]?.level || member.level || "";
+    const formulaText = member.formula || "Standard";
+    const durText = member.duration ? ` · ${member.duration}` : "";
+    return lvl ? `${lvl} - ${formulaText}${durText}` : `${formulaText}${durText}`;
+  }, [allGroups, member.formula, member.duration, member.level]);
 
-  const categoryLevel = useMemo(() => {
+  // Category display
+  const categoryDisplay = useMemo(() => {
     const cat = member.category ? member.category.toUpperCase() : "SWIM";
     const lvl = member.level ? ` (${member.level})` : "";
     return `${cat}${lvl}`;
-  }, [member]);
+  }, [member.category, member.level]);
 
-  // Orientation switch handler
-  const handleOrientationChange = (newOrientation: OrientationMode) => {
-    setOrientation(newOrientation);
-    if (newOrientation === "landscape") {
-      setCardWidthMm(85.6);
-      setCardHeightMm(54);
-    } else {
-      // Square portrait
-      setCardWidthMm(54);
-      setCardHeightMm(54);
+  // Sticker color scheme
+  const scheme = useMemo(() => {
+    if (bgMode === "dark") {
+      return {
+        bg: "#0f172a",
+        border: "#1e293b",
+        text: "#f8fafc",
+        textMuted: "#94a3b8",
+        accent: "#00f2ff",
+        mono: "#38bdf8",
+        qrBg: "#0f172a",
+        qrFg: "#00f2ff",
+        divider: "rgba(255,255,255,0.10)",
+        nameShadow: "none",
+      };
     }
-  };
+    return {
+      bg: "#ffffff",
+      border: "#e2e8f0",
+      text: "#0f172a",
+      textMuted: "#475569",
+      accent: "#0ea5e9",
+      mono: "#0284c7",
+      qrBg: "#ffffff",
+      qrFg: "#030712",
+      divider: "#e2e8f0",
+      nameShadow: "none",
+    };
+  }, [bgMode]);
 
-  // Print execution
-  const handlePrint = () => {
-    const printWindow = window.open("", "_blank", "width=960,height=800");
-    if (!printWindow) {
-      alert("Please allow popups to print the card.");
-      return;
-    }
+  // Print sticker HTML for a single card — NO background images, sticker only
+  const renderSingleStickerHtml = () => {
+    const qrSizeMm = Math.min(cardHeightMm * 0.60, 38);
+    const paddingMm = 2.5;
 
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const bgImageSrc = activeFace === "front"
-      ? `${origin}${tier.frontImage}`
-      : `${origin}${tier.backImage}`;
+    const groupRowsHtml = allGroups.map((g) => `
+      <div style="
+        display: flex;
+        align-items: flex-start;
+        gap: 1.5mm;
+        margin-top: 0.8mm;
+        font-size: ${fontSize * 0.75}px;
+        color: ${scheme.textMuted};
+        line-height: 1.2;
+      ">
+        <span style="
+          display: inline-block;
+          width: 3.5mm;
+          height: 3.5mm;
+          background: ${scheme.accent};
+          border-radius: 0.5mm;
+          flex-shrink: 0;
+          margin-top: 0.3mm;
+        "></span>
+        <div>
+          ${g.schedule ? `<div style="font-weight:600; color:${scheme.text};">${g.schedule}</div>` : ""}
+          ${g.coachName ? `<div style="color:${scheme.textMuted};">Coach: ${g.coachName}</div>` : ""}
+        </div>
+      </div>
+    `).join("");
 
-    // Aspect ratio styling
-    const qrSizeMm = Math.min(cardHeightMm * 0.52, 34);
+    const coachLineHtml = allCoaches.length > 0
+      ? `<div style="
+          font-size: ${fontSize * 0.78}px;
+          font-weight: 700;
+          color: ${scheme.accent};
+          margin-top: 0.5mm;
+          line-height: 1.2;
+        ">Coach: ${allCoaches.join(" / ")}</div>`
+      : "";
 
-    // Build Single Card HTML
-    const renderSingleCardHtml = () => `
-      <div class="pvc-card" style="
+    const scheduleLinesHtml = showGroupDayHour
+      ? allSchedules.map((s) => `<div style="
+          font-size: ${fontSize * 0.75}px;
+          color: ${scheme.textMuted};
+          line-height: 1.2;
+          margin-top: 0.3mm;
+        ">${s}</div>`).join("")
+      : "";
+
+    return `
+      <div class="pvc-sticker" style="
         width: ${cardWidthMm}mm;
         height: ${cardHeightMm}mm;
         position: relative;
-        overflow: hidden;
+        display: flex;
+        align-items: stretch;
         border-radius: 2.5mm;
         box-sizing: border-box;
-        background-color: #0f172a;
-        ${cuttingLines ? "outline: 0.35mm dashed #64748b; outline-offset: -0.35mm;" : ""}
+        background: ${scheme.bg};
+        border: 0.3mm solid ${scheme.border};
+        overflow: hidden;
+        font-family: Inter, system-ui, sans-serif;
+        ${cuttingLines ? "outline: 0.5mm dashed #94a3b8; outline-offset: -0.5mm;" : ""}
       ">
-        <img
-          src="${bgImageSrc}"
-          alt="Card Background"
-          style="
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 1;
-            display: block;
-          "
-        />
+        <!-- QR Section -->
+        <div style="
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: ${paddingMm}mm;
+          border-right: 0.3mm solid ${scheme.divider};
+          flex-shrink: 0;
+        ">
+          <div style="
+            background: ${scheme.qrBg};
+            padding: 1mm;
+            border-radius: 1.5mm;
+            border: 0.3mm solid ${scheme.border};
+          ">
+            ${generatedQr ? `
+              <img
+                src="${generatedQr}"
+                alt="QR"
+                style="
+                  width: ${qrSizeMm}mm;
+                  height: ${qrSizeMm}mm;
+                  display: block;
+                  object-fit: contain;
+                "
+              />
+            ` : `
+              <div style="
+                width: ${qrSizeMm}mm;
+                height: ${qrSizeMm}mm;
+                background: #e2e8f0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 8px;
+                color: #475569;
+                font-weight: bold;
+              ">QR</div>
+            `}
+          </div>
+          ${showId && member.card?.cardCode ? `
+            <div style="
+              font-family: monospace;
+              font-size: 6.5px;
+              font-weight: 800;
+              color: ${scheme.mono};
+              margin-top: 1mm;
+              letter-spacing: 0.5px;
+              text-align: center;
+            ">${member.card.cardCode}</div>
+          ` : ""}
+        </div>
 
+        <!-- Spacing between QR and Information -->
+        <div style="width: ${qrInfoSpacingMm}mm; flex-shrink: 0;"></div>
+
+        <!-- Information Section -->
+        <div style="
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          padding: ${paddingMm}mm ${paddingMm}mm ${paddingMm}mm 0;
+          overflow: hidden;
+        ">
+          ${showName ? `
+            <div style="
+              font-weight: 900;
+              font-size: ${fontSize * 1.1}px;
+              text-transform: uppercase;
+              color: ${scheme.text};
+              line-height: 1.15;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              letter-spacing: 0.5px;
+            ">${member.fullName}</div>
+          ` : ""}
+
+          ${showId ? `
+            <div style="
+              font-family: monospace;
+              font-weight: 800;
+              font-size: ${fontSize * 0.9}px;
+              color: ${scheme.mono};
+              margin-top: 0.5mm;
+              line-height: 1;
+            ">${member.swimId}</div>
+          ` : ""}
+
+          ${showCategory ? `
+            <div style="
+              font-size: ${fontSize * 0.8}px;
+              font-weight: 700;
+              color: ${scheme.textMuted};
+              margin-top: 0.5mm;
+              line-height: 1.1;
+            ">${categoryDisplay}</div>
+          ` : ""}
+
+          ${showGroupTypeFormula ? `
+            <div style="
+              font-size: ${fontSize * 0.82}px;
+              font-weight: 600;
+              color: ${scheme.accent};
+              margin-top: 0.8mm;
+              line-height: 1.1;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              white-space: nowrap;
+            ">${groupTypeDisplay}</div>
+          ` : ""}
+
+          ${showGroupDayHour || showCoach ? `
+            <div style="margin-top: 0.5mm;">
+              ${allGroups.map((g) => `
+                <div style="
+                  font-size: ${fontSize * 0.72}px;
+                  color: ${scheme.textMuted};
+                  line-height: 1.3;
+                  display: flex;
+                  align-items: flex-start;
+                  gap: 1mm;
+                  margin-top: 0.4mm;
+                ">
+                  <span style="
+                    display:inline-block;
+                    width:1.5mm;
+                    height:1.5mm;
+                    background:${scheme.accent};
+                    border-radius:50%;
+                    flex-shrink:0;
+                    margin-top:1mm;
+                  "></span>
+                  <span>
+                    ${showGroupDayHour && g.schedule ? `<strong style="color:${scheme.text};">${g.schedule}</strong>` : ""}
+                    ${showCoach && g.coachName ? `${showGroupDayHour && g.schedule ? " · " : ""}Coach: ${g.coachName}` : ""}
+                  </span>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        </div>
+
+        <!-- AQA Logo Watermark top-right -->
         <div style="
           position: absolute;
-          inset: 0;
-          background: linear-gradient(135deg, rgba(3, 7, 18, 0.45) 0%, rgba(3, 7, 18, 0.25) 50%, rgba(3, 7, 18, 0.65) 100%);
-          z-index: 2;
-        "></div>
-
-        ${activeFace === "front" ? `
-          <div style="
-            position: relative;
-            z-index: 3;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 4mm;
-            box-sizing: border-box;
-            color: #ffffff;
-            font-family: Inter, system-ui, sans-serif;
-          ">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-              <span style="
-                background: #0284c7;
-                color: #ffffff;
-                font-weight: 900;
-                font-size: 8px;
-                letter-spacing: 1px;
-                padding: 1.5px 5px;
-                border-radius: 3px;
-                text-transform: uppercase;
-              ">AQA SPORTS</span>
-              <span style="
-                background: rgba(0,0,0,0.6);
-                border: 0.3mm solid rgba(255,255,255,0.2);
-                color: #f8fafc;
-                font-weight: 800;
-                font-size: 7.5px;
-                padding: 1px 5px;
-                border-radius: 10px;
-                text-transform: uppercase;
-              ">${member.formula || tier.badge}</span>
-            </div>
-
-            <div>
-              ${showName ? `<div style="font-weight: 900; font-size: ${fontSize * 1.2}px; text-transform: uppercase; line-height: 1.2; text-shadow: 0 1px 3px rgba(0,0,0,0.9);">${member.fullName}</div>` : ""}
-              <div style="display: flex; gap: 4px; align-items: center; margin-top: 2px;">
-                ${showId ? `<span style="font-family: monospace; font-weight: 800; font-size: ${fontSize * 0.9}px; color: #38bdf8; text-shadow: 0 1px 2px rgba(0,0,0,0.9);">${member.swimId}</span>` : ""}
-                ${showCategory ? `<span style="font-size: 7.5px; background: rgba(0,0,0,0.5); padding: 1px 4px; border-radius: 3px; border: 0.2mm solid rgba(255,255,255,0.15);">${categoryLevel}</span>` : ""}
-              </div>
-            </div>
-          </div>
-        ` : `
-          <div style="
-            position: relative;
-            z-index: 3;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            padding: 3.5mm;
-            box-sizing: border-box;
-            color: #ffffff;
-            font-family: Inter, system-ui, sans-serif;
-          ">
-            <!-- QR Section -->
-            <div style="
-              display: flex;
-              flex-direction: column;
-              align-items: center;
-              justify-content: center;
-              background: #ffffff;
-              padding: 1.2mm;
-              border-radius: 2mm;
-              box-shadow: 0 1mm 2.5mm rgba(0,0,0,0.3);
-              flex-shrink: 0;
-            ">
-              ${generatedQr ? `
-                <img
-                  src="${generatedQr}"
-                  alt="Pass QR Code"
-                  style="width: ${qrSizeMm}mm; height: ${qrSizeMm}mm; object-fit: contain; display: block;"
-                />
-              ` : `
-                <div style="width: ${qrSizeMm}mm; height: ${qrSizeMm}mm; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #475569;">QR</div>
-              `}
-              ${showId && member.card?.cardCode ? `
-                <div style="font-family: monospace; font-weight: 900; font-size: 7px; color: #0f172a; margin-top: 1px; letter-spacing: 0.5px;">
-                  ${member.card.cardCode}
-                </div>
-              ` : ""}
-            </div>
-
-            <!-- Spacing between QR and Information -->
-            <div style="width: ${qrInfoSpacingMm}mm; flex-shrink: 0;"></div>
-
-            <!-- Swimmer Information -->
-            <div style="
-              flex: 1;
-              min-width: 0;
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              gap: 1mm;
-              overflow: hidden;
-            ">
-              ${showName ? `
-                <div style="
-                  font-weight: 900;
-                  font-size: ${fontSize * 1.15}px;
-                  text-transform: uppercase;
-                  color: #ffffff;
-                  line-height: 1.15;
-                  overflow: hidden;
-                  text-overflow: ellipsis;
-                  white-space: nowrap;
-                  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-                ">
-                  ${member.fullName}
-                </div>
-              ` : ""}
-
-              ${showId ? `
-                <div style="
-                  font-family: monospace;
-                  font-weight: 800;
-                  font-size: ${fontSize * 0.95}px;
-                  color: #38bdf8;
-                  line-height: 1;
-                  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-                ">
-                  ${member.swimId}
-                </div>
-              ` : ""}
-
-              ${showCategory ? `
-                <div style="
-                  font-size: ${fontSize * 0.85}px;
-                  font-weight: 700;
-                  color: #cbd5e1;
-                  line-height: 1.1;
-                  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-                ">
-                  ${categoryLevel}
-                </div>
-              ` : ""}
-
-              ${showGroupTypeFormula ? `
-                <div style="
-                  font-size: ${fontSize * 0.85}px;
-                  font-weight: 600;
-                  color: #93c5fd;
-                  line-height: 1.1;
-                  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-                ">
-                  ${groupTypeFormula}
-                </div>
-              ` : ""}
-
-              ${showGroupDayHour ? `
-                <div style="
-                  font-size: ${fontSize * 0.8}px;
-                  font-weight: 500;
-                  color: #e2e8f0;
-                  line-height: 1.1;
-                  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-                ">
-                  ${groupSchedule}
-                </div>
-              ` : ""}
-
-              ${showCoach ? `
-                <div style="
-                  font-size: ${fontSize * 0.8}px;
-                  font-weight: 700;
-                  color: #00f2ff;
-                  line-height: 1.1;
-                  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
-                ">
-                  Coach: ${coachName}
-                </div>
-              ` : ""}
-            </div>
-          </div>
-        `}
+          top: 2mm;
+          right: 2mm;
+          font-size: 6px;
+          font-weight: 900;
+          letter-spacing: 1px;
+          color: ${scheme.accent};
+          text-transform: uppercase;
+          opacity: 0.6;
+        ">AQA SWIM</div>
       </div>
     `;
+  };
 
-    // Position container logic for A4
-    let layoutHtml = "";
+  // Build full A4 page HTML
+  const renderA4Html = () => {
     if (a4Placement === "grid-2x4") {
-      const cardsArray = Array.from({ length: 8 })
-        .map(() => renderSingleCardHtml())
-        .join("");
-
-      layoutHtml = `
+      const cardsHtml = Array.from({ length: 8 }).map(() => renderSingleStickerHtml()).join("");
+      return `
         <div class="a4-sheet" style="
           width: 210mm;
           height: 297mm;
@@ -402,90 +430,78 @@ export function SwimPvcPrintDialog({
           align-items: center;
           justify-content: center;
           box-sizing: border-box;
+          background: white;
           page-break-after: always;
         ">
           <div style="
             display: grid;
             grid-template-columns: repeat(2, ${cardWidthMm}mm);
-            grid-gap: 3mm;
+            gap: 3mm;
             justify-content: center;
             align-content: center;
           ">
-            ${cardsArray}
-          </div>
-        </div>
-      `;
-    } else {
-      let positionStyle = "top: 15mm; left: 15mm;";
-      if (a4Placement === "top-center") {
-        positionStyle = "top: 15mm; left: 50%; transform: translateX(-50%);";
-      } else if (a4Placement === "top-right") {
-        positionStyle = "top: 15mm; right: 15mm;";
-      } else if (a4Placement === "center") {
-        positionStyle = "top: 50%; left: 50%; transform: translate(-50%, -50%);";
-      }
-
-      layoutHtml = `
-        <div class="a4-sheet" style="
-          width: 210mm;
-          height: 297mm;
-          position: relative;
-          box-sizing: border-box;
-          page-break-after: always;
-        ">
-          <div style="position: absolute; ${positionStyle}">
-            ${renderSingleCardHtml()}
+            ${cardsHtml}
           </div>
         </div>
       `;
     }
 
-    const printDocument = `
+    let posStyle = "top: 15mm; left: 15mm;";
+    if (a4Placement === "top-center") posStyle = "top: 15mm; left: 50%; transform: translateX(-50%);";
+    else if (a4Placement === "top-right") posStyle = "top: 15mm; right: 15mm;";
+    else if (a4Placement === "center") posStyle = "top: 50%; left: 50%; transform: translate(-50%, -50%);";
+
+    return `
+      <div class="a4-sheet" style="
+        width: 210mm;
+        height: 297mm;
+        position: relative;
+        box-sizing: border-box;
+        background: white;
+        page-break-after: always;
+      ">
+        <div style="position: absolute; ${posStyle}">
+          ${renderSingleStickerHtml()}
+        </div>
+      </div>
+    `;
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open("", "_blank", "width=960,height=800");
+    if (!printWindow) {
+      alert("Please allow popups to print.");
+      return;
+    }
+
+    const doc = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8" />
-          <title>AQA Swim - PVC Pass Card - ${member.fullName}</title>
+          <title>AQA Swim - PVC Sticker - ${member.fullName}</title>
           <style>
-            @page {
-              size: A4 portrait;
-              margin: 0;
-            }
+            @page { size: A4 portrait; margin: 0; }
             html, body {
               margin: 0;
               padding: 0;
-              background-color: #ffffff;
+              background: #ffffff;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
               font-family: Inter, system-ui, -apple-system, sans-serif;
             }
-            * {
-              box-sizing: border-box;
-            }
+            * { box-sizing: border-box; }
             @media screen {
-              body {
-                background-color: #0f172a;
-                padding: 20px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-              }
-              .a4-sheet {
-                background-color: #ffffff;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-                margin-bottom: 20px;
-              }
+              body { background: #0f172a; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+              .a4-sheet { background: #ffffff; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; }
             }
           </style>
         </head>
         <body>
-          ${layoutHtml}
+          ${renderA4Html()}
           <script>
             window.onload = function() {
-              setTimeout(function() {
-                window.focus();
-                window.print();
-              }, 400);
+              setTimeout(function() { window.focus(); window.print(); }, 400);
             };
           </script>
         </body>
@@ -493,17 +509,20 @@ export function SwimPvcPrintDialog({
     `;
 
     printWindow.document.open();
-    printWindow.document.write(printDocument);
+    printWindow.document.write(doc);
     printWindow.document.close();
   };
 
   if (!isOpen) return null;
 
+  // ─── Visionator — Live sticker preview ────────────────────────────────────
+  const previewQrSize = Math.min(cardHeightMm * 3.6, 96);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-6 overflow-y-auto">
-      <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl bg-slate-900 border border-white/15 shadow-2xl overflow-hidden animate-fade-in">
+      <div className="relative w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl bg-slate-900 border border-white/15 shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-slate-950/60">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 bg-slate-950/60 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -511,13 +530,16 @@ export function SwimPvcPrintDialog({
               </svg>
             </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-wide">
-                {t("swimPvcPrint.dialogTitle")}
-              </h2>
+              <h2 className="text-base font-bold text-white tracking-wide">{t("swimPvcPrint.dialogTitle")}</h2>
               <div className="flex items-center gap-2 text-xs text-slate-400">
                 <span>{member.fullName}</span>
                 <span>·</span>
                 <span className="font-mono text-cyan-300">{member.swimId}</span>
+                {allGroups.length > 1 && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-700/50">
+                    {allGroups.length} groups
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -526,7 +548,6 @@ export function SwimPvcPrintDialog({
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            title="Close"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -534,48 +555,45 @@ export function SwimPvcPrintDialog({
           </button>
         </div>
 
-        {/* Dialog Content Grid */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-y-auto divide-y lg:divide-y-0 lg:divide-x divide-white/10">
-          {/* Left Column: Configuration Controls (5 cols) */}
-          <div className="lg:col-span-5 p-5 space-y-5 bg-slate-900/90 overflow-y-auto max-h-[calc(92vh-140px)]">
-            {/* 1. Orientation */}
+        {/* Content */}
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-y-auto min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-white/10">
+          {/* Left: Controls */}
+          <div className="lg:col-span-5 p-5 space-y-5 bg-slate-900/90 overflow-y-auto">
+
+            {/* 1. Background Mode (Sticker Style) */}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                {t("swimPvcPrint.orientation")}
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 block">Sticker Style</label>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleOrientationChange("landscape")}
+                  onClick={() => setBgMode("white")}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
-                    orientation === "landscape"
-                      ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(0,242,255,0.15)]"
+                    bgMode === "white"
+                      ? "bg-white border-cyan-400 text-slate-900 shadow-[0_0_12px_rgba(0,242,255,0.20)]"
                       : "bg-slate-800/60 border-white/10 text-slate-400 hover:bg-slate-800 hover:text-white"
                   }`}
                 >
-                  <svg className="w-4 h-3.5 border border-current rounded-sm" fill="none" viewBox="0 0 16 11" />
-                  <span>{t("swimPvcPrint.landscape")}</span>
+                  <span className="w-3 h-3 rounded-sm bg-white border border-slate-300 shrink-0" />
+                  White
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleOrientationChange("portrait")}
+                  onClick={() => setBgMode("dark")}
                   className={`px-3 py-2 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-1.5 ${
-                    orientation === "portrait"
+                    bgMode === "dark"
                       ? "bg-cyan-500/20 border-cyan-400 text-cyan-300 shadow-[0_0_12px_rgba(0,242,255,0.15)]"
                       : "bg-slate-800/60 border-white/10 text-slate-400 hover:bg-slate-800 hover:text-white"
                   }`}
                 >
-                  <svg className="w-3.5 h-3.5 border border-current rounded-sm" fill="none" viewBox="0 0 12 12" />
-                  <span>{t("swimPvcPrint.portrait")}</span>
+                  <span className="w-3 h-3 rounded-sm bg-slate-900 border border-slate-700 shrink-0" />
+                  Dark
                 </button>
               </div>
             </div>
 
-            {/* 2. Card Dimensions (mm) */}
+            {/* 2. Card Dimensions */}
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                {t("swimPvcPrint.sizeMm")}
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">{t("swimPvcPrint.sizeMm")}</label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="block text-[11px] text-slate-400 mb-1">{t("swimPvcPrint.width")}</span>
@@ -602,73 +620,31 @@ export function SwimPvcPrintDialog({
                   />
                 </div>
               </div>
+              <div className="text-[10px] text-slate-500 italic">Standard PVC card: 85.6 × 54 mm</div>
             </div>
 
-            {/* 3. Checkboxes: Printable Fields */}
+            {/* 3. Printable Fields */}
             <div className="space-y-2.5 p-3.5 rounded-xl bg-slate-950/60 border border-white/5">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                {t("swimPvcPrint.fieldsTitle")}
-              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300 block">{t("swimPvcPrint.fieldsTitle")}</span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={showName}
-                    onChange={(e) => setShowName(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span>{t("swimPvcPrint.fieldName")}</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={showId}
-                    onChange={(e) => setShowId(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span>{t("swimPvcPrint.fieldId")}</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={showCoach}
-                    onChange={(e) => setShowCoach(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span>{t("swimPvcPrint.fieldCoach")}</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={showGroupTypeFormula}
-                    onChange={(e) => setShowGroupTypeFormula(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span>{t("swimPvcPrint.fieldGroupTypeFormula")}</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={showGroupDayHour}
-                    onChange={(e) => setShowGroupDayHour(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span>{t("swimPvcPrint.fieldGroupDayHour")}</span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
-                  <input
-                    type="checkbox"
-                    checked={showCategory}
-                    onChange={(e) => setShowCategory(e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
-                  />
-                  <span>{t("swimPvcPrint.fieldCategory")}</span>
-                </label>
+                {[
+                  { label: t("swimPvcPrint.fieldName"), checked: showName, onChange: setShowName },
+                  { label: t("swimPvcPrint.fieldId"), checked: showId, onChange: setShowId },
+                  { label: t("swimPvcPrint.fieldCoach"), checked: showCoach, onChange: setShowCoach },
+                  { label: t("swimPvcPrint.fieldGroupTypeFormula"), checked: showGroupTypeFormula, onChange: setShowGroupTypeFormula },
+                  { label: t("swimPvcPrint.fieldGroupDayHour"), checked: showGroupDayHour, onChange: setShowGroupDayHour },
+                  { label: t("swimPvcPrint.fieldCategory"), checked: showCategory, onChange: setShowCategory },
+                ].map(({ label, checked, onChange }) => (
+                  <label key={label} className="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => onChange(e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-800 text-cyan-500 focus:ring-cyan-500"
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
               </div>
             </div>
 
@@ -679,38 +655,28 @@ export function SwimPvcPrintDialog({
                 <span className="font-mono text-cyan-300 font-bold">{fontSize} px</span>
               </div>
               <input
-                type="range"
-                min="8"
-                max="16"
-                step="0.5"
-                value={fontSize}
+                type="range" min="7" max="15" step="0.5" value={fontSize}
                 onChange={(e) => setFontSize(parseFloat(e.target.value))}
-                className="w-full accent-cyan-400 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
+                className="w-full accent-cyan-400 h-1.5 rounded-lg cursor-pointer"
               />
             </div>
 
-            {/* 5. Space between QR code and infos (mm) */}
+            {/* 5. QR to Info Spacing */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center text-xs">
                 <span className="font-bold text-slate-300">{t("swimPvcPrint.qrInfoSpacing")}</span>
                 <span className="font-mono text-cyan-300 font-bold">{qrInfoSpacingMm} mm</span>
               </div>
               <input
-                type="range"
-                min="1"
-                max="16"
-                step="0.5"
-                value={qrInfoSpacingMm}
+                type="range" min="1" max="12" step="0.5" value={qrInfoSpacingMm}
                 onChange={(e) => setQrInfoSpacingMm(parseFloat(e.target.value))}
-                className="w-full accent-cyan-400 bg-slate-800 h-1.5 rounded-lg cursor-pointer"
+                className="w-full accent-cyan-400 h-1.5 rounded-lg cursor-pointer"
               />
             </div>
 
-            {/* 6. Placement in A4 Page */}
+            {/* 6. A4 Placement */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
-                {t("swimPvcPrint.a4Placement")}
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300 block">{t("swimPvcPrint.a4Placement")}</label>
               <select
                 value={a4Placement}
                 onChange={(e) => setA4Placement(e.target.value as A4PlacementMode)}
@@ -724,7 +690,7 @@ export function SwimPvcPrintDialog({
               </select>
             </div>
 
-            {/* 7. Cutting Lines Toggle */}
+            {/* 7. Cutting Lines */}
             <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-white/5">
               <div>
                 <span className="text-xs font-bold text-slate-300 block">{t("swimPvcPrint.cuttingLines")}</span>
@@ -735,238 +701,162 @@ export function SwimPvcPrintDialog({
               <button
                 type="button"
                 onClick={() => setCuttingLines(!cuttingLines)}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${
-                  cuttingLines ? "bg-cyan-500 justify-end" : "bg-slate-700 justify-start"
-                }`}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors ${cuttingLines ? "bg-cyan-500 justify-end" : "bg-slate-700 justify-start"}`}
               >
-                <div className="w-4 h-4 rounded-full bg-white shadow-md transition-transform" />
+                <div className="w-4 h-4 rounded-full bg-white shadow-md" />
               </button>
             </div>
           </div>
 
-          {/* Right Column: Dynamic Visionators (7 cols) */}
-          <div className="lg:col-span-7 p-5 space-y-6 bg-slate-950 flex flex-col justify-between overflow-y-auto max-h-[calc(92vh-140px)]">
-            {/* Top Visionator: Real PVC Card Preview */}
+          {/* Right: Visionators */}
+          <div className="lg:col-span-7 p-5 space-y-5 bg-slate-950 overflow-y-auto flex flex-col">
+            {/* Live Sticker Preview */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-white">
-                    {t("swimPvcPrint.livePreview")}
-                  </span>
-                  <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/40">
-                    {cardWidthMm} × {cardHeightMm} mm
-                  </span>
-                </div>
-
-                {/* Face Toggle */}
-                <div className="flex rounded-lg bg-slate-900 p-0.5 border border-white/10 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setActiveFace("back")}
-                    className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                      activeFace === "back"
-                        ? "bg-cyan-500 text-slate-950 shadow"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {t("swimPvcPrint.backFace")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveFace("front")}
-                    className={`px-3 py-1 rounded-md font-semibold transition-all ${
-                      activeFace === "front"
-                        ? "bg-cyan-500 text-slate-950 shadow"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {t("swimPvcPrint.frontFace")}
-                  </button>
-                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-white">{t("swimPvcPrint.livePreview")}</span>
+                <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/40">
+                  {cardWidthMm} × {cardHeightMm} mm
+                </span>
               </div>
 
-              {/* Dynamic PVC Card Canvas Container */}
-              <div className="flex items-center justify-center p-4 rounded-2xl bg-slate-900/60 border border-white/5 min-h-[220px]">
+              <div
+                className={`flex items-center justify-center p-4 rounded-2xl border border-white/5 min-h-[180px] ${bgMode === "dark" ? "bg-slate-800/60" : "bg-slate-700/40"}`}
+              >
+                {/* Sticker preview — white bg, QR + text only */}
                 <div
                   style={{
                     width: "100%",
                     maxWidth: "380px",
                     aspectRatio: `${cardWidthMm} / ${cardHeightMm}`,
+                    background: bgMode === "white" ? "#ffffff" : "#0f172a",
+                    border: `1px solid ${bgMode === "white" ? "#e2e8f0" : "#1e293b"}`,
+                    borderRadius: "10px",
+                    display: "flex",
+                    alignItems: "stretch",
+                    overflow: "hidden",
+                    position: "relative",
+                    ...(cuttingLines ? { outline: "2px dashed rgba(0,242,255,0.6)", outlineOffset: "2px" } : {}),
                   }}
-                  className={`relative rounded-2xl overflow-hidden shadow-2xl transition-all ${
-                    cuttingLines ? "ring-2 ring-dashed ring-cyan-400/80 ring-offset-2 ring-offset-slate-950" : ""
-                  }`}
                 >
-                  {/* Real Card Background Photo */}
-                  <img
-                    src={activeFace === "front" ? tier.frontImage : tier.backImage}
-                    alt="Card Face"
-                    className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
-                  />
-
-                  {/* Dark gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-black/50 via-black/20 to-black/60 pointer-events-none" />
-
-                  {activeFace === "front" ? (
-                    <div className="relative z-10 w-full h-full flex flex-col justify-between p-3.5 text-white select-none">
-                      <div className="flex justify-between items-start">
-                        <span className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-sky-600 text-white shadow">
-                          AQA SPORTS
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider bg-black/60 border border-white/20 text-white shadow">
-                          {member.formula || tier.badge}
-                        </span>
-                      </div>
-
-                      <div className="space-y-0.5">
-                        {showName && (
-                          <div
-                            style={{ fontSize: `${fontSize * 1.15}px` }}
-                            className="font-black uppercase text-white truncate drop-shadow-md"
-                          >
-                            {member.fullName}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2">
-                          {showId && (
-                            <span
-                              style={{ fontSize: `${fontSize * 0.9}px` }}
-                              className="font-mono font-bold text-cyan-300 drop-shadow"
-                            >
-                              {member.swimId}
-                            </span>
-                          )}
-                          {showCategory && (
-                            <span className="text-[8px] uppercase px-1.5 py-0.5 rounded bg-black/60 text-slate-200 border border-white/10">
-                              {categoryLevel}
-                            </span>
-                          )}
+                  {/* QR Left */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "8px",
+                      borderRight: `1px solid ${bgMode === "white" ? "#e2e8f0" : "rgba(255,255,255,0.1)"}`,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: bgMode === "white" ? "#fff" : "#0f172a",
+                        padding: "4px",
+                        borderRadius: "6px",
+                        border: `1px solid ${bgMode === "white" ? "#e2e8f0" : "rgba(255,255,255,0.1)"}`,
+                      }}
+                    >
+                      {generatedQr ? (
+                        <img
+                          src={generatedQr}
+                          alt="QR"
+                          style={{ width: `${previewQrSize}px`, height: `${previewQrSize}px`, display: "block", objectFit: "contain" }}
+                        />
+                      ) : (
+                        <div style={{ width: `${previewQrSize}px`, height: `${previewQrSize}px`, background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <span style={{ fontSize: "10px", color: "#94a3b8" }}>QR</span>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="relative z-10 w-full h-full flex items-center p-3 text-white select-none">
-                      {/* Left: Dynamic QR */}
-                      <div className="flex flex-col items-center justify-center p-1.5 bg-white rounded-xl shadow-lg shrink-0">
-                        {generatedQr ? (
-                          <img
-                            src={generatedQr}
-                            alt="QR"
-                            style={{
-                              width: `${Math.min(cardHeightMm * 1.3, 76)}px`,
-                              height: `${Math.min(cardHeightMm * 1.3, 76)}px`,
-                            }}
-                            className="object-contain"
-                          />
-                        ) : (
-                          <div className="w-16 h-16 bg-slate-100 flex items-center justify-center text-[9px] font-mono text-slate-800 font-bold">
-                            QR
-                          </div>
-                        )}
-                        {showId && member.card?.cardCode && (
-                          <span className="font-mono text-[7.5px] font-black text-slate-900 tracking-wider mt-0.5">
-                            {member.card.cardCode}
-                          </span>
-                        )}
+                    {showId && member.card?.cardCode && (
+                      <span style={{ fontFamily: "monospace", fontSize: "8px", fontWeight: 800, color: bgMode === "white" ? "#0284c7" : "#38bdf8", marginTop: "4px", letterSpacing: "0.5px" }}>
+                        {member.card.cardCode}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Spacer */}
+                  <div style={{ width: `${Math.max(4, qrInfoSpacingMm * 2.8)}px`, flexShrink: 0 }} />
+
+                  {/* Info Right */}
+                  <div
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      padding: "8px 8px 8px 0",
+                      gap: "2px",
+                    }}
+                  >
+                    {showName && (
+                      <div style={{ fontWeight: 900, fontSize: `${fontSize}px`, textTransform: "uppercase", color: bgMode === "white" ? "#0f172a" : "#f8fafc", lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {member.fullName}
                       </div>
+                    )}
 
-                      {/* Spacer between QR and Information */}
-                      <div style={{ width: `${Math.max(4, qrInfoSpacingMm * 2.8)}px` }} className="shrink-0" />
-
-                      {/* Right: Dynamic Swimmer Information */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5 text-left">
-                        {showName && (
-                          <div
-                            style={{ fontSize: `${fontSize}px` }}
-                            className="font-black uppercase text-white tracking-wide truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]"
-                          >
-                            {member.fullName}
-                          </div>
-                        )}
-
-                        {showId && (
-                          <div
-                            style={{ fontSize: `${fontSize * 0.9}px` }}
-                            className="font-mono font-bold text-cyan-300 drop-shadow"
-                          >
-                            {member.swimId}
-                          </div>
-                        )}
-
-                        {showCategory && (
-                          <div
-                            style={{ fontSize: `${fontSize * 0.8}px` }}
-                            className="font-bold text-slate-200 truncate drop-shadow"
-                          >
-                            {categoryLevel}
-                          </div>
-                        )}
-
-                        {showGroupTypeFormula && (
-                          <div
-                            style={{ fontSize: `${fontSize * 0.8}px` }}
-                            className="font-semibold text-blue-200 truncate drop-shadow"
-                          >
-                            {groupTypeFormula}
-                          </div>
-                        )}
-
-                        {showGroupDayHour && (
-                          <div
-                            style={{ fontSize: `${fontSize * 0.75}px` }}
-                            className="text-slate-300 truncate drop-shadow"
-                          >
-                            {groupSchedule}
-                          </div>
-                        )}
-
-                        {showCoach && (
-                          <div
-                            style={{ fontSize: `${fontSize * 0.75}px` }}
-                            className="font-bold text-cyan-400 truncate drop-shadow"
-                          >
-                            Coach: {coachName}
-                          </div>
-                        )}
+                    {showId && (
+                      <div style={{ fontFamily: "monospace", fontWeight: 800, fontSize: `${fontSize * 0.88}px`, color: bgMode === "white" ? "#0284c7" : "#38bdf8" }}>
+                        {member.swimId}
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                    {showCategory && (
+                      <div style={{ fontSize: `${fontSize * 0.78}px`, fontWeight: 700, color: bgMode === "white" ? "#475569" : "#94a3b8" }}>
+                        {categoryDisplay}
+                      </div>
+                    )}
+
+                    {showGroupTypeFormula && (
+                      <div style={{ fontSize: `${fontSize * 0.78}px`, fontWeight: 600, color: bgMode === "white" ? "#0ea5e9" : "#00f2ff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {groupTypeDisplay}
+                      </div>
+                    )}
+
+                    {/* All groups with schedules and coaches */}
+                    {(showGroupDayHour || showCoach) && allGroups.map((g, i) => (
+                      <div key={i} style={{ fontSize: `${fontSize * 0.72}px`, color: bgMode === "white" ? "#64748b" : "#94a3b8", lineHeight: 1.3, display: "flex", alignItems: "flex-start", gap: "3px" }}>
+                        <span style={{ display: "inline-block", width: "5px", height: "5px", background: bgMode === "white" ? "#0ea5e9" : "#00f2ff", borderRadius: "50%", flexShrink: 0, marginTop: "3px" }} />
+                        <span>
+                          {showGroupDayHour && g.schedule && <strong style={{ color: bgMode === "white" ? "#334155" : "#e2e8f0" }}>{g.schedule}</strong>}
+                          {showCoach && g.coachName && <span style={{ color: bgMode === "white" ? "#64748b" : "#94a3b8" }}>{showGroupDayHour && g.schedule ? " · " : ""}Coach: {g.coachName}</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* AQA watermark */}
+                  <div style={{ position: "absolute", top: "3px", right: "4px", fontSize: "6px", fontWeight: 900, letterSpacing: "1px", color: bgMode === "white" ? "#0ea5e9" : "#00f2ff", opacity: 0.5, textTransform: "uppercase" }}>
+                    AQA SWIM
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Visionator: A4 Sheet Preview Before Print */}
+            {/* A4 Sheet Preview */}
             <div className="space-y-2 pt-2 border-t border-white/10">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                  {t("swimPvcPrint.pagePreview")}
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {t("swimPvcPrint.pageSummary")}
-                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-300">{t("swimPvcPrint.pagePreview")}</span>
+                <span className="text-[10px] text-slate-400 font-mono">{t("swimPvcPrint.pageSummary")}</span>
               </div>
-
-              {/* Miniature A4 Sheet Mockup */}
               <div className="flex items-center justify-center p-3 rounded-2xl bg-slate-900/60 border border-white/5">
                 <div
                   style={{ width: "160px", height: "226px" }}
-                  className="relative bg-white rounded shadow-lg border border-slate-300 p-2 overflow-hidden flex flex-col justify-between"
+                  className="relative bg-white rounded shadow-lg border border-slate-200 overflow-hidden flex flex-col justify-between p-1.5"
                 >
-                  {/* Faint sheet margins outline */}
-                  <div className="absolute inset-2 border border-slate-200 pointer-events-none" />
+                  <div className="absolute inset-2 border border-slate-100 pointer-events-none" />
 
                   {a4Placement === "grid-2x4" ? (
                     <div className="w-full h-full flex items-center justify-center">
-                      <div className="grid grid-cols-2 gap-1 w-full max-w-[134px]">
+                      <div className="grid grid-cols-2 gap-1">
                         {Array.from({ length: 8 }).map((_, i) => (
                           <div
                             key={i}
-                            style={{
-                              aspectRatio: `${cardWidthMm} / ${cardHeightMm}`,
-                            }}
-                            className={`rounded-sm bg-slate-800 flex items-center justify-center text-[6px] font-mono text-cyan-300 font-bold ${
-                              cuttingLines ? "border border-dashed border-cyan-500" : ""
-                            }`}
+                            style={{ width: "55px", aspectRatio: `${cardWidthMm} / ${cardHeightMm}` }}
+                            className={`rounded-sm flex items-center justify-center text-[6px] font-mono font-bold ${bgMode === "dark" ? "bg-slate-800 text-cyan-300" : "bg-slate-100 text-slate-500"} ${cuttingLines ? "border border-dashed border-cyan-500" : "border border-slate-200"}`}
                           >
                             {i + 1}
                           </div>
@@ -984,17 +874,14 @@ export function SwimPvcPrintDialog({
                           ...(a4Placement === "top-right" && { top: "4px", right: "4px", position: "absolute" }),
                           ...(a4Placement === "center" && { top: "50%", left: "50%", transform: "translate(-50%, -50%)", position: "absolute" }),
                         }}
-                        className={`rounded-sm bg-slate-800 p-1 flex items-center justify-center text-[7px] font-mono text-cyan-300 font-bold shadow ${
-                          cuttingLines ? "border border-dashed border-cyan-500" : ""
-                        }`}
+                        className={`rounded-sm flex items-center justify-center text-[7px] font-mono font-bold shadow ${bgMode === "dark" ? "bg-slate-800 text-cyan-300" : "bg-slate-100 text-slate-500"} ${cuttingLines ? "border border-dashed border-cyan-400" : "border border-slate-300"}`}
                       >
                         PVC
                       </div>
                     </div>
                   )}
 
-                  {/* A4 Sheet Footer Label */}
-                  <div className="relative z-10 flex justify-between text-[7px] font-mono text-slate-400">
+                  <div className="relative z-10 flex justify-between text-[6.5px] font-mono text-slate-400">
                     <span>A4</span>
                     <span>{a4Placement}</span>
                   </div>
@@ -1004,8 +891,8 @@ export function SwimPvcPrintDialog({
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-t border-white/10 bg-slate-950/80">
+        {/* Footer */}
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-white/10 bg-slate-950/80 shrink-0">
           <button
             type="button"
             onClick={onClose}

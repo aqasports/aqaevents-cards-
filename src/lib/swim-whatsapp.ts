@@ -194,3 +194,52 @@ export function getSwimWhatsAppUrl(
 
   return `https://wa.me/${formattedNumber}?text=${text}`;
 }
+
+// ─── Renewal Notification ─────────────────────────────────────────────────────
+
+export interface SwimRenewalPayload {
+  fullName: string;
+  phone?: string | null;
+  notes?: string | null;
+  whatsapp?: string | null;
+  swimId?: string | null;
+  formula?: string | null;
+  duration?: string | null;
+  subscriptionEnd?: Date | string | null;
+}
+
+/**
+ * Generates a WhatsApp click-to-chat URL with a pre-filled subscription
+ * renewal reminder message in French (matches the operational language of AQA Swim).
+ */
+export function getSwimRenewalWhatsAppUrl(entity: SwimRenewalPayload): string | null {
+  const { formattedNumber } = resolveSwimWhatsApp(entity);
+  if (!formattedNumber) return null;
+
+  const formulaText = entity.formula ? ` (${entity.formula})` : "";
+  const durationText = entity.duration ? ` ${entity.duration}` : "";
+
+  let endDateText = "";
+  if (entity.subscriptionEnd) {
+    const d = typeof entity.subscriptionEnd === "string"
+      ? new Date(entity.subscriptionEnd)
+      : entity.subscriptionEnd;
+    if (!isNaN(d.getTime())) {
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const year = d.getUTCFullYear();
+      endDateText = ` le ${day}/${month}/${year}`;
+    }
+  }
+
+  const text = encodeURIComponent(
+    `Salam ${entity.fullName},\n\n` +
+    `Votre abonnement AQA Swim${formulaText}${durationText} arrive a echeance${endDateText}.\n\n` +
+    `Pour renouveler votre abonnement et continuer a nager, contactez-nous ou visitez :\n` +
+    `https://aqasports.com/swim\n\n` +
+    `Equipe AQA Sports`
+  );
+
+  return `https://wa.me/${formattedNumber}?text=${text}`;
+}
+

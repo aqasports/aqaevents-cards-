@@ -28,6 +28,16 @@ import {
   SwimDuration,
   SwimFrequency,
 } from "@/lib/swim-pricing";
+import {
+  getEffectiveSubscriptionStart,
+  computeSubscriptionEnd,
+  subscriptionDaysLeft,
+  getSubscriptionStatus,
+  isSubscriptionExpiringSoon,
+  DEFAULT_EXCLUDED_PERIODS,
+  type ExcludedPeriod,
+} from "@/lib/swim-subscription";
+import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -149,7 +159,7 @@ interface SwimCardItem {
 
 export default function SwimOverviewPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -169,7 +179,8 @@ export default function SwimOverviewPage() {
         tabParam === "calendar" ||
         tabParam === "cards" ||
         tabParam === "sectors" ||
-        tabParam === "calls"
+        tabParam === "calls" ||
+        tabParam === "payments"
       ) {
         setActiveTab(tabParam);
       }
@@ -221,6 +232,14 @@ export default function SwimOverviewPage() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  // Payments Tab State
+  const [paymentsFilter, setPaymentsFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "expiring">("all");
+  const [paymentsSearch, setPaymentsSearch] = useState("");
+  const [savingSubStart, setSavingSubStart] = useState<string | null>(null); // memberId being saved
+  const [editingSubStart, setEditingSubStart] = useState<Record<string, string>>({}); // memberId -> date string
+  const [excludedPeriods, setExcludedPeriods] = useState<ExcludedPeriod[]>(DEFAULT_EXCLUDED_PERIODS);
+  const [showExclusionEditor, setShowExclusionEditor] = useState(false);
 
   // Promote Lead Modal
   const [promotingLead, setPromotingLead] = useState<SwimLead | null>(null);
@@ -413,6 +432,68 @@ export default function SwimOverviewPage() {
   const pendingLeadsCount = Array.isArray(leads)
     ? leads.filter((l) => l?.status === "pending").length
     : 0;
+
+  // Payments tab: enrich each member with subscription dates and totals
+  const enrichedPaymentsMembers = useMemo(() => {
+    if (!Array.isArray(members)) return [];
+    return members.map((m) => {
+      const totalPaid = Array.isArray(m.payments)
+        ? m.payments.reduce((s, p) => s + (p?.amount || 0), 0)
+        : 0;
+      const debt = Math.max(0, m.priceDA - totalPaid);
+      const subStart = getEffectiveSubscriptionStart(m.dateOfStart);
+      const subEnd = computeSubscriptionEnd(subStart, m.duration, excludedPeriods);
+      const daysLeft = subscriptionDaysLeft(subEnd);
+      const subStatus = getSubscriptionStatus(subEnd);
+      const expiringSoon = isSubscriptionExpiringSoon(subEnd, 14);
+      return { ...m, totalPaid, debt, subStart, subEnd, daysLeft, subStatus, expiringSoon };
+    });
+  }, [members, excludedPeriods]);
+
+  const filteredPaymentsMembers = useMemo(() => {
+    return enrichedPaymentsMembers.filter((m) => {
+      const q = paymentsSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        m.fullName.toLowerCase().includes(q) ||
+        m.phone.includes(q) ||
+        m.swimId.toLowerCase().includes(q);
+      const matchFilter =
+        paymentsFilter === "all" ||
+        (paymentsFilter === "expiring" && m.expiringSoon) ||
+        m.paymentStatus === paymentsFilter;
+      return matchSearch && matchFilter;
+    });
+  }, [enrichedPaymentsMembers, paymentsSearch, paymentsFilter]);
+
+  const totalOutstanding = enrichedPaymentsMembers.reduce((s, m) => s + m.debt, 0);
+  const expiringCount = enrichedPaymentsMembers.filter((m) => m.expiringSoon).length;
+
+  // Save a manually overridden subscription start for a member
+  async function handleSaveSubStart(memberId: string) {
+    const rawDate = editingSubStart[memberId];
+    if (!rawDate) return;
+    setSavingSubStart(memberId);
+    try {
+      const res = await fetch("/api/admin/swim/subscriptions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId, subscriptionStart: rawDate }),
+      });
+      if (res.ok) {
+        await loadAllData();
+        setEditingSubStart((prev) => {
+          const next = { ...prev };
+          delete next[memberId];
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save subscription start:", err);
+    } finally {
+      setSavingSubStart(null);
+    }
+  }
 
   // Active coaches for calendar
   const activeCoaches = useMemo(() => {
@@ -926,6 +1007,22 @@ export default function SwimOverviewPage() {
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900 text-sky-200">
               Desk
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("payments")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === "payments"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+            }`}
+          >
+            <span>Payments</span>
+            {expiringCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-900 text-amber-200 font-bold">
+                {expiringCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -1763,6 +1860,332 @@ export default function SwimOverviewPage() {
             onNavigateToSwimmer={(swimId) => router.push(`/admin/swim/members/${swimId}`)}
           />
         </CallsErrorBoundary>
+      )}
+
+      {/* ─── TAB: PAYMENTS & SUBSCRIPTIONS ───────────────────────────── */}
+      {activeTab === "payments" && (
+        <div className="space-y-4">
+
+          {/* Summary Stats Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-0.5">
+              <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Total Expected</p>
+              <p className="text-base font-bold font-mono text-white">{totalRevenueExpected.toLocaleString("fr-DZ")} DA</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-0.5">
+              <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Total Collected</p>
+              <p className="text-base font-bold font-mono text-emerald-400">{totalRevenueCollected.toLocaleString("fr-DZ")} DA</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-0.5">
+              <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Outstanding</p>
+              <p className="text-base font-bold font-mono text-rose-400">{totalOutstanding.toLocaleString("fr-DZ")} DA</p>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-0.5">
+              <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Expiring in 14 days</p>
+              <p className={`text-base font-bold font-mono ${expiringCount > 0 ? "text-amber-400" : "text-slate-400"}`}>
+                {expiringCount} member{expiringCount !== 1 ? "s" : ""}
+              </p>
+            </div>
+          </div>
+
+          {/* Exclusion Period Editor Toggle */}
+          <div className="rounded-2xl bg-slate-900/80 border border-white/8 overflow-hidden">
+            <button
+              onClick={() => setShowExclusionEditor((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
+            >
+              <span>Exclusion Periods (Ramadan + Eid) — click to edit</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`w-4 h-4 transition-transform ${showExclusionEditor ? "rotate-180" : ""}`}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {showExclusionEditor && (
+              <div className="px-4 pb-4 space-y-3 border-t border-white/8">
+                <p className="text-[11px] text-slate-400 pt-3">
+                  These periods are excluded from all subscription end-date calculations. Changes apply immediately to the view below (not persisted to DB — contact dev to make permanent).
+                </p>
+                {excludedPeriods.map((period, idx) => (
+                  <div key={idx} className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center">
+                    <input
+                      className="w-full px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs font-medium focus:outline-none focus:border-cyan-400"
+                      value={period.label}
+                      onChange={(e) => {
+                        const updated = [...excludedPeriods];
+                        updated[idx] = { ...updated[idx], label: e.target.value };
+                        setExcludedPeriods(updated);
+                      }}
+                    />
+                    <input
+                      type="date"
+                      className="px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      value={period.start.toISOString().slice(0, 10)}
+                      onChange={(e) => {
+                        const updated = [...excludedPeriods];
+                        updated[idx] = { ...updated[idx], start: new Date(e.target.value + "T00:00:00.000Z") };
+                        setExcludedPeriods(updated);
+                      }}
+                    />
+                    <input
+                      type="date"
+                      className="px-2 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      value={period.end.toISOString().slice(0, 10)}
+                      onChange={(e) => {
+                        const updated = [...excludedPeriods];
+                        updated[idx] = { ...updated[idx], end: new Date(e.target.value + "T00:00:00.000Z") };
+                        setExcludedPeriods(updated);
+                      }}
+                    />
+                    <button
+                      onClick={() => setExcludedPeriods((prev) => prev.filter((_, i) => i !== idx))}
+                      className="px-2 py-1.5 rounded-lg bg-rose-950/60 border border-rose-500/30 text-rose-400 hover:bg-rose-900/60 text-xs font-semibold"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() =>
+                    setExcludedPeriods((prev) => [
+                      ...prev,
+                      { label: "New Period", start: new Date(), end: new Date() },
+                    ])
+                  }
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-slate-300 hover:text-white text-xs font-semibold"
+                >
+                  + Add Period
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Search + Filter Bar */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <Input
+              placeholder="Search name, phone, Swimmer ID..."
+              value={paymentsSearch}
+              onChange={(e) => setPaymentsSearch(e.target.value)}
+              className="w-full sm:w-64"
+            />
+            <div className="flex gap-1.5 flex-wrap">
+              {(["all", "paid", "partial", "unpaid", "expiring"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setPaymentsFilter(f)}
+                  className={`px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+                    paymentsFilter === f
+                      ? f === "paid"
+                        ? "bg-emerald-700 text-white"
+                        : f === "partial"
+                        ? "bg-amber-700 text-white"
+                        : f === "unpaid"
+                        ? "bg-rose-800 text-white"
+                        : f === "expiring"
+                        ? "bg-amber-900 text-amber-200"
+                        : "bg-[var(--primary)] text-white"
+                      : "bg-slate-800 text-slate-400 hover:text-white border border-white/8"
+                  }`}
+                >
+                  {f === "expiring" ? `Expiring (${expiringCount})` : f}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-slate-500 ml-auto">
+              {filteredPaymentsMembers.length} member{filteredPaymentsMembers.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+
+          {/* Payments Table */}
+          <div className="rounded-2xl bg-slate-900/80 border border-white/8 overflow-x-auto">
+            <table className="w-full text-xs text-left min-w-[900px]">
+              <thead>
+                <tr className="border-b border-white/8 text-[10px] text-slate-400 uppercase tracking-wider">
+                  <th className="px-3 py-2.5 font-semibold">Swimmer</th>
+                  <th className="px-3 py-2.5 font-semibold">Formula / Duration</th>
+                  <th className="px-3 py-2.5 font-semibold">Sub Start</th>
+                  <th className="px-3 py-2.5 font-semibold">Sub End</th>
+                  <th className="px-3 py-2.5 font-semibold">Days Left</th>
+                  <th className="px-3 py-2.5 font-semibold">Price</th>
+                  <th className="px-3 py-2.5 font-semibold">Paid</th>
+                  <th className="px-3 py-2.5 font-semibold">Balance</th>
+                  <th className="px-3 py-2.5 font-semibold">Status</th>
+                  <th className="px-3 py-2.5 font-semibold">Notify</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filteredPaymentsMembers.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-8 text-center text-slate-500 text-xs">
+                      No members match the current filter.
+                    </td>
+                  </tr>
+                )}
+                {filteredPaymentsMembers.map((m) => {
+                  const subStartStr = m.subStart.toISOString().slice(0, 10);
+                  const subEndDisplay = `${String(m.subEnd.getUTCDate()).padStart(2, "0")}/${String(m.subEnd.getUTCMonth() + 1).padStart(2, "0")}/${m.subEnd.getUTCFullYear()}`;
+                  const subStartDisplay = `${String(m.subStart.getUTCDate()).padStart(2, "0")}/${String(m.subStart.getUTCMonth() + 1).padStart(2, "0")}/${m.subStart.getUTCFullYear()}`;
+                  const isEditingStart = editingSubStart[m.id] !== undefined;
+                  const renewalUrl = getSwimRenewalWhatsAppUrl({
+                    fullName: m.fullName,
+                    phone: m.phone,
+                    notes: m.notes,
+                    swimId: m.swimId,
+                    formula: m.formula,
+                    duration: m.duration,
+                    subscriptionEnd: m.subEnd,
+                  });
+                  const rowBg =
+                    m.expiringSoon && m.paymentStatus === "paid"
+                      ? "bg-amber-950/20"
+                      : m.paymentStatus === "unpaid"
+                      ? "bg-rose-950/15"
+                      : m.paymentStatus === "partial"
+                      ? "bg-amber-950/15"
+                      : "";
+                  return (
+                    <tr key={m.id} className={`hover:bg-slate-800/40 transition-colors ${rowBg}`}>
+                      {/* Swimmer */}
+                      <td className="px-3 py-2.5">
+                        <div className="font-semibold text-white leading-tight">{m.fullName}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{m.swimId}</div>
+                        <div className="text-[10px] text-slate-500">{m.phone}</div>
+                      </td>
+                      {/* Formula / Duration */}
+                      <td className="px-3 py-2.5">
+                        <span className="font-semibold text-slate-200">{m.formula}</span>
+                        <span className="ml-1 text-slate-400">{m.duration}</span>
+                      </td>
+                      {/* Sub Start — editable */}
+                      <td className="px-3 py-2.5">
+                        {isEditingStart ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="date"
+                              value={editingSubStart[m.id]}
+                              onChange={(e) =>
+                                setEditingSubStart((prev) => ({ ...prev, [m.id]: e.target.value }))
+                              }
+                              className="px-1.5 py-1 rounded-md bg-slate-800 border border-cyan-500/50 text-white text-[11px] focus:outline-none w-28"
+                            />
+                            <button
+                              onClick={() => handleSaveSubStart(m.id)}
+                              disabled={savingSubStart === m.id}
+                              className="px-2 py-1 rounded-md bg-cyan-700 text-white text-[10px] font-bold hover:bg-cyan-600 disabled:opacity-50"
+                            >
+                              {savingSubStart === m.id ? "..." : "Save"}
+                            </button>
+                            <button
+                              onClick={() =>
+                                setEditingSubStart((prev) => {
+                                  const next = { ...prev };
+                                  delete next[m.id];
+                                  return next;
+                                })
+                              }
+                              className="px-1.5 py-1 rounded-md text-slate-400 hover:text-white text-[10px]"
+                            >
+                              X
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setEditingSubStart((prev) => ({ ...prev, [m.id]: subStartStr }))
+                            }
+                            className="font-mono text-slate-300 hover:text-cyan-300 text-[11px] underline decoration-dashed decoration-slate-600 hover:decoration-cyan-400"
+                            title="Click to edit subscription start"
+                          >
+                            {subStartDisplay}
+                          </button>
+                        )}
+                      </td>
+                      {/* Sub End */}
+                      <td className="px-3 py-2.5 font-mono text-[11px]">
+                        <span className={
+                          m.subStatus === "expired"
+                            ? "text-rose-400"
+                            : m.subStatus === "expiring_soon"
+                            ? "text-amber-300"
+                            : "text-cyan-300"
+                        }>
+                          {subEndDisplay}
+                        </span>
+                      </td>
+                      {/* Days Left */}
+                      <td className="px-3 py-2.5 text-center">
+                        {m.subStatus === "expired" ? (
+                          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-bold">Expired</span>
+                        ) : (
+                          <span className={`font-mono font-bold text-sm ${m.subStatus === "expiring_soon" ? "text-amber-300" : "text-white"}`}>
+                            {m.daysLeft}
+                          </span>
+                        )}
+                      </td>
+                      {/* Price */}
+                      <td className="px-3 py-2.5 font-mono text-slate-200 font-semibold">
+                        {m.priceDA.toLocaleString("fr-DZ")} DA
+                      </td>
+                      {/* Paid */}
+                      <td className="px-3 py-2.5 font-mono text-emerald-400 font-semibold">
+                        {m.totalPaid.toLocaleString("fr-DZ")} DA
+                      </td>
+                      {/* Balance */}
+                      <td className="px-3 py-2.5 font-mono font-semibold">
+                        {m.debt > 0 ? (
+                          <span className="text-rose-400">{m.debt.toLocaleString("fr-DZ")} DA</span>
+                        ) : (
+                          <span className="text-emerald-400">Settled</span>
+                        )}
+                      </td>
+                      {/* Payment Status */}
+                      <td className="px-3 py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          m.paymentStatus === "paid"
+                            ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                            : m.paymentStatus === "partial"
+                            ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                            : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
+                        }`}>
+                          {m.paymentStatus}
+                        </span>
+                        {m.expiringSoon && m.paymentStatus === "paid" && (
+                          <span className="ml-1 px-1.5 py-0.5 rounded-full text-[9px] bg-amber-900/60 text-amber-300 border border-amber-500/20 font-semibold">
+                            Renew
+                          </span>
+                        )}
+                      </td>
+                      {/* Notify / Quick Pay */}
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          {renewalUrl && (
+                            <a
+                              href={renewalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/60 text-[10px] font-bold transition-colors flex items-center gap-1"
+                              title="Send renewal reminder via WhatsApp"
+                            >
+                              <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.554 4.107 1.527 5.832L0 24l6.335-1.509A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.98 0-3.831-.545-5.415-1.49l-.388-.233-3.763.897.934-3.676-.253-.398A9.786 9.786 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+                              </svg>
+                              Notify
+                            </a>
+                          )}
+                          <button
+                            onClick={() => setPayingMember(m)}
+                            className="px-2 py-1 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-300 hover:bg-sky-900/60 text-[10px] font-bold transition-colors"
+                          >
+                            + Pay
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}

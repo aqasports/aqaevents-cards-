@@ -69,6 +69,10 @@ interface SwimMemberData {
     status?: string;
   } | null;
   payments: SwimPaymentItem[];
+  subscriptionStart?: string | null;
+  subscriptionEnd?: string | null;
+  subscriptionDaysLeft?: number | null;
+  subscriptionStatus?: "active" | "expiring_soon" | "expired" | null;
 }
 
 // ─── Solid Logo Badge Component ───────────────────────────────────────────────
@@ -585,7 +589,88 @@ export default function SwimmerProfilePage({
               )}
             </section>
 
-            {/* 4. THE GROUP TABLE & GROUP NAMES TABLE */}
+            {/* 4. SUBSCRIPTION PERIOD */}
+            {member.subscriptionEnd && (() => {
+              const subStatus = member.subscriptionStatus ?? "active";
+              const daysLeft = member.subscriptionDaysLeft ?? 0;
+              const formattedSubStart = member.subscriptionStart
+                ? new Date(member.subscriptionStart).toLocaleDateString(
+                    locale === "ar" ? "ar-DZ" : "fr-DZ",
+                    { year: "numeric", month: "short", day: "numeric" }
+                  )
+                : "—";
+              const formattedSubEnd = new Date(member.subscriptionEnd).toLocaleDateString(
+                locale === "ar" ? "ar-DZ" : "fr-DZ",
+                { year: "numeric", month: "short", day: "numeric" }
+              );
+              return (
+                <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display">
+                      {t("subscriptionPeriodTitle")}
+                    </h2>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                        subStatus === "active"
+                          ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                          : subStatus === "expiring_soon"
+                          ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                          : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
+                      }`}
+                    >
+                      {subStatus === "active"
+                        ? t("subscriptionActive")
+                        : subStatus === "expiring_soon"
+                        ? t("subscriptionExpiringSoon")
+                        : t("subscriptionExpired")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("subscriptionStartLabel")}
+                      </span>
+                      <span className="font-mono font-bold text-white text-xs">
+                        {formattedSubStart}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("subscriptionEndLabel")}
+                      </span>
+                      <span className={`font-mono font-bold text-xs ${
+                        subStatus === "expired" ? "text-rose-400" : subStatus === "expiring_soon" ? "text-amber-300" : "text-cyan-300"
+                      }`}>
+                        {formattedSubEnd}
+                      </span>
+                    </div>
+                  </div>
+
+                  {subStatus !== "expired" && (
+                    <div className="flex items-center justify-between text-[11px] px-1">
+                      <span className="text-slate-400">{t("subscriptionDaysLeft").replace("{n}", String(Math.max(0, daysLeft)))}</span>
+                      <div className="h-1.5 w-40 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            subStatus === "expiring_soon"
+                              ? "bg-gradient-to-r from-amber-500 to-orange-400"
+                              : "bg-gradient-to-r from-cyan-500 to-sky-400"
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(2, (daysLeft / 270) * 100))}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate-500 italic pt-1 border-t border-white/5">
+                    {t("subscriptionExclusionNote")}
+                  </p>
+                </section>
+              );
+            })()}
+
+            {/* 5. THE GROUP TABLE & GROUP NAMES TABLE */}
             <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
               <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-white/10">
                 <div>

@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider  = "sqlite"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
@@ -28,6 +28,8 @@ model Client {
   email     String?
   phone     String?
   notes     String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   archived   Boolean  @default(false)
   archivedAt DateTime?
   createdAt DateTime @default(now())
@@ -125,6 +127,8 @@ model ActivityExpense {
   name       String
   amount     Int
   notes      String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   createdAt  DateTime @default(now())
 
   activity        Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
@@ -207,6 +211,8 @@ model Redemption {
   staffId     String?
   redeemedAt  DateTime @default(now())
   notes       String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
 
   client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
   activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
@@ -229,6 +235,8 @@ model Invoice {
   category       String            @default("package")
   items          String
   notes          String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   paidAt         DateTime?
   poNumber       String?
   dueDate        DateTime?
@@ -369,6 +377,8 @@ model EquipmentAsset {
   maintenanceCost  Int              @default(0)
   status           String           @default("available")
   notes            String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   usageLogs        EquipmentUsage[]
@@ -380,6 +390,8 @@ model EquipmentUsage {
   sessionId        String?
   loggedAt         DateTime         @default(now())
   notes            String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
 
   equipmentAsset EquipmentAsset   @relation(fields: [equipmentAssetId], references: [id], onDelete: Cascade)
   session        ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
@@ -611,6 +623,8 @@ model SwimLead {
   duration         String?   // "1m" | "3m" | "6m" | "9m"
   preferredDays    String?   // JSON or text
   notes            String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   status           String    @default("pending") // "pending" | "called" | "confirmed" | "rejected"
   marketingConsent Boolean   @default(false)
   utmSource        String?
@@ -633,6 +647,8 @@ model SwimGroup {
   capacity    Int          @default(20)
   active      Boolean      @default(true)
   notes       String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -661,6 +677,8 @@ model SwimMember {
   groupStatus     String        @default("proposed") // "proposed" | "accepted" | "rejected"
   rejectionReason String?
   notes           String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -693,6 +711,8 @@ model SwimPayment {
   amount    Int
   method    String     @default("cash")
   notes     String?
+  subscriptionStart DateTime?     // Admin-set effective start (clamped to 1 Oct 2026 minimum)
+  subscriptionEnd   DateTime?     // Computed end after Ramadan/Eid exclusions are applied
   paidAt    DateTime   @default(now())
   createdAt DateTime   @default(now())
 

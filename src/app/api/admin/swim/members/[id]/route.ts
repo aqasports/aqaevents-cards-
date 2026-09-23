@@ -6,6 +6,10 @@ import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing
 import { logAdminAction } from "@/lib/audit";
 import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls-server";
 import { decodeMemberGroupIds, encodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  getEffectiveSubscriptionStart,
+  computeSubscriptionEnd,
+} from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -106,6 +110,7 @@ export async function PATCH(
       rejectionReason,
       notes,
       whatsapp,
+      subscriptionStart: rawSubscriptionStart,
     } = body;
 
     // Handle groupIds (multi-group array) or legacy groupId
@@ -239,6 +244,22 @@ export async function PATCH(
       }
     }
 
+    // Recompute subscription dates if subscriptionStart or duration changed
+    let computedSubStart: Date | undefined = undefined;
+    let computedSubEnd: Date | undefined = undefined;
+    if (rawSubscriptionStart !== undefined || duration !== undefined) {
+      const currentMemberForSub = await prisma.swimMember.findUnique({
+        where: { id },
+        select: { dateOfStart: true, duration: true, subscriptionStart: true },
+      });
+      const baseStart = rawSubscriptionStart
+        ? new Date(rawSubscriptionStart)
+        : (currentMemberForSub?.subscriptionStart ?? currentMemberForSub?.dateOfStart ?? new Date());
+      const baseDuration = duration || currentMemberForSub?.duration || "3m";
+      computedSubStart = getEffectiveSubscriptionStart(baseStart);
+      computedSubEnd = computeSubscriptionEnd(computedSubStart, baseDuration);
+    }
+
     const updated = await prisma.swimMember.update({
       where: { id },
       data: {
@@ -260,6 +281,8 @@ export async function PATCH(
         ...(groupStatus && { groupStatus }),
         ...(rejectionReason !== undefined && { rejectionReason }),
         ...(updatedNotes !== undefined && { notes: updatedNotes }),
+        ...(computedSubStart !== undefined && { subscriptionStart: computedSubStart }),
+        ...(computedSubEnd !== undefined && { subscriptionEnd: computedSubEnd }),
       },
       include: {
         group: true,

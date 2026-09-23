@@ -147,7 +147,8 @@ export default function AdminSwimmerProfilePage({
     })
       .then(setCardQrDataUrl)
       .catch(() => setCardQrDataUrl(null));
-  }, [member]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member?.card?.publicToken, member?.swimId]);
 
   // Edit profile state
   const [showEditPanel, setShowEditPanel] = useState(false);

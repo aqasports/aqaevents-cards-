@@ -9,6 +9,12 @@ import {
 } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { nanoid } from "nanoid";
+import {
+  getEffectiveSubscriptionStart,
+  computeSubscriptionEnd,
+  subscriptionDaysLeft,
+  getSubscriptionStatus,
+} from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -301,6 +307,15 @@ export async function GET(
 
     const enriched = await enrichMemberGroups(member);
 
+    const subStart = member.subscriptionStart
+      ? member.subscriptionStart
+      : getEffectiveSubscriptionStart(member.dateOfStart);
+    const subEnd = member.subscriptionEnd
+      ? member.subscriptionEnd
+      : computeSubscriptionEnd(subStart, member.duration);
+    const daysLeft = subscriptionDaysLeft(subEnd);
+    const subStatus = getSubscriptionStatus(subEnd);
+
     return NextResponse.json(
       {
         ...member,
@@ -311,6 +326,10 @@ export async function GET(
         solidNotes: enriched.solidNotes,
         teammates: enriched.teammates,
         groupMembers: enriched.groupMembers,
+        subscriptionStart: subStart,
+        subscriptionEnd: subEnd,
+        subscriptionDaysLeft: daysLeft,
+        subscriptionStatus: subStatus,
       },
       { headers: corsHeaders }
     );
