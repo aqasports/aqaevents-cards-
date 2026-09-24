@@ -47,6 +47,11 @@ export async function POST(request: NextRequest) {
     const products = await prisma.product.findMany();
     const demands = await prisma.cardDemand.findMany();
     const proposals = await prisma.activityProposal.findMany();
+    const swimMembers = await prisma.swimMember.findMany();
+    const swimGroups = await prisma.swimGroup.findMany();
+    const swimLeads = await prisma.swimLead.findMany();
+    const swimPayments = await prisma.swimPayment.findMany();
+    const swimCards = await prisma.swimCard.findMany();
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const adminUsers = adminUsersRaw.map(({ passwordHash, ...rest }) => rest);
@@ -71,7 +76,12 @@ export async function POST(request: NextRequest) {
           notificationLogs: notificationLogs.length,
           products: products.length,
           demands: demands.length,
-          proposals: proposals.length
+          proposals: proposals.length,
+          swimMembers: swimMembers.length,
+          swimGroups: swimGroups.length,
+          swimLeads: swimLeads.length,
+          swimPayments: swimPayments.length,
+          swimCards: swimCards.length,
         }
       },
       data: {
@@ -89,7 +99,12 @@ export async function POST(request: NextRequest) {
         notificationLogs,
         products,
         demands,
-        proposals
+        proposals,
+        swimMembers,
+        swimGroups,
+        swimLeads,
+        swimPayments,
+        swimCards,
       }
     };
 

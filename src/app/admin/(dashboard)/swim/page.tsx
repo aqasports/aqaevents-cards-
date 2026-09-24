@@ -38,6 +38,7 @@ import {
   type ExcludedPeriod,
 } from "@/lib/swim-subscription";
 import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
+import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -159,7 +160,7 @@ interface SwimCardItem {
 
 export default function SwimOverviewPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -180,7 +181,8 @@ export default function SwimOverviewPage() {
         tabParam === "cards" ||
         tabParam === "sectors" ||
         tabParam === "calls" ||
-        tabParam === "payments"
+        tabParam === "payments" ||
+        tabParam === "backups"
       ) {
         setActiveTab(tabParam);
       }
@@ -1023,6 +1025,22 @@ export default function SwimOverviewPage() {
                 {expiringCount}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("backups")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === "backups"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            <span>Backups</span>
           </button>
         </div>
 
@@ -2186,6 +2204,11 @@ export default function SwimOverviewPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* ─── TAB: BACKUPS & DISASTER RECOVERY ───────────────────────── */}
+      {activeTab === "backups" && (
+        <SwimBackupDesk />
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}
