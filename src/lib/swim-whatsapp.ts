@@ -243,3 +243,59 @@ export function getSwimRenewalWhatsAppUrl(entity: SwimRenewalPayload): string | 
   return `https://wa.me/${formattedNumber}?text=${text}`;
 }
 
+// ─── Public Portal Payment Link Generation ───────────────────────────────────
+
+export interface SwimPaymentWhatsAppPayload {
+  fullName: string;
+  swimId: string;
+  method: "baridimob" | "cash_pool";
+  amount?: number | null;
+  formula?: string | null;
+  locale?: "fr" | "ar" | "en";
+  adminPhone?: string;
+}
+
+/**
+ * Generates WhatsApp click-to-chat URL for public portal member payments.
+ * Supports:
+ * 1. BaridiMob: asking for official RIP
+ * 2. Cash at Pool: requesting reception appointment
+ * Complies with strict rule of no emojis and Western Arabic numerals (0-9).
+ */
+export function getSwimPaymentWhatsAppUrl(payload: SwimPaymentWhatsAppPayload): string {
+  const phone = payload.adminPhone ? formatWhatsAppNumber(payload.adminPhone) : "213540454907";
+  const targetPhone = phone || "213540454907";
+  const locale = payload.locale || "fr";
+  const { fullName, swimId, method, amount, formula } = payload;
+
+  const formulaText = formula ? ` (${formula})` : "";
+  const validAmount = typeof amount === "number" && !isNaN(amount) && amount > 0 ? Math.round(amount) : null;
+
+  let text = "";
+  if (method === "baridimob") {
+    if (locale === "ar") {
+      const amtText = validAmount ? ` (المبلغ: ${validAmount} دج)` : "";
+      text = `مرحبا AQA Sports، أنا ${fullName} (${swimId}). أود دفع اشتراك AQA Swim${formulaText}${amtText} عبر بريدي موب (BaridiMob). يرجى تزويدي برقم الحساب البريدي الجاري (RIP) الرسمي.`;
+    } else if (locale === "en") {
+      const amtText = validAmount ? ` (Amount: ${validAmount} DA)` : "";
+      text = `Hello AQA Sports, I am ${fullName} (${swimId}). I would like to settle my AQA Swim subscription${formulaText}${amtText} via BaridiMob. Please provide your official RIP.`;
+    } else {
+      const amtText = validAmount ? ` (Montant: ${validAmount} DA)` : "";
+      text = `Bonjour AQA Sports, je suis ${fullName} (${swimId}). Je souhaite régler mon abonnement AQA Swim${formulaText}${amtText} par BaridiMob. Merci de me transmettre votre RIP officiel.`;
+    }
+  } else {
+    // cash_pool
+    if (locale === "ar") {
+      const amtText = validAmount ? ` (المبلغ: ${validAmount} دج)` : "";
+      text = `مرحبا AQA Sports، أنا ${fullName} (${swimId}). أود دفع اشتراك AQA Swim${formulaText}${amtText} نقداً في المسبح. ما هي المواعيد المتاحة لحجز موعد في مكتب الاستقبال؟`;
+    } else if (locale === "en") {
+      const amtText = validAmount ? ` (Amount: ${validAmount} DA)` : "";
+      text = `Hello AQA Sports, I am ${fullName} (${swimId}). I would like to settle my AQA Swim subscription${formulaText}${amtText} in cash at the pool. When can I book an appointment at the reception desk?`;
+    } else {
+      const amtText = validAmount ? ` (Montant: ${validAmount} DA)` : "";
+      text = `Bonjour AQA Sports, je suis ${fullName} (${swimId}). Je souhaite régler mon abonnement AQA Swim${formulaText}${amtText} en espèces à la piscine. Quand puis-je passer pour prendre rendez-vous au desk d'accueil ?`;
+    }
+  }
+
+  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`;
+}

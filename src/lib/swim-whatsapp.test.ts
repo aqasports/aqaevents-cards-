@@ -4,6 +4,7 @@ import {
   formatWhatsAppNumber,
   resolveSwimWhatsApp,
   getSwimWhatsAppUrl,
+  getSwimPaymentWhatsAppUrl,
 } from "./swim-whatsapp";
 
 describe("AQA Swim WhatsApp Utilities", () => {
@@ -171,4 +172,79 @@ describe("AQA Swim WhatsApp Utilities", () => {
       expect(url).toBeNull();
     });
   });
+
+  describe("getSwimPaymentWhatsAppUrl", () => {
+    it("generates BaridiMob payment link requesting RIP in French", () => {
+      const url = getSwimPaymentWhatsAppUrl({
+        fullName: "Yacine Belkacem",
+        swimId: "SWM-4001",
+        method: "baridimob",
+        amount: 24000,
+        formula: "G10",
+        locale: "fr",
+      });
+
+      expect(url).toContain("https://wa.me/213540454907?text=");
+      expect(url).toContain(encodeURIComponent("Yacine Belkacem"));
+      expect(url).toContain(encodeURIComponent("SWM-4001"));
+      expect(url).toContain(encodeURIComponent("24000 DA"));
+      expect(url).toContain(encodeURIComponent("BaridiMob"));
+      expect(url).toContain(encodeURIComponent("RIP"));
+    });
+
+    it("generates BaridiMob payment link in Arabic with Western Arabic numerals", () => {
+      const url = getSwimPaymentWhatsAppUrl({
+        fullName: "ياسين بلقاسم",
+        swimId: "SWM-4001",
+        method: "baridimob",
+        amount: 24000,
+        locale: "ar",
+      });
+
+      expect(url).toContain("https://wa.me/213540454907?text=");
+      expect(url).toContain(encodeURIComponent("ياسين بلقاسم"));
+      expect(url).toContain(encodeURIComponent("SWM-4001"));
+      expect(url).toContain(encodeURIComponent("24000 دج"));
+      expect(url).toContain(encodeURIComponent("بريدي موب"));
+      expect(url).toContain(encodeURIComponent("RIP"));
+      // Ensure no Eastern Arabic numerals
+      expect(url).not.toContain(encodeURIComponent("٢٤٠٠٠"));
+    });
+
+    it("generates Cash at Pool appointment link in French", () => {
+      const url = getSwimPaymentWhatsAppUrl({
+        fullName: "Sofiane Mansouri",
+        swimId: "SWM-4002",
+        method: "cash_pool",
+        amount: 16000,
+        formula: "MAX5",
+        locale: "fr",
+      });
+
+      expect(url).toContain("https://wa.me/213540454907?text=");
+      expect(url).toContain(encodeURIComponent("Sofiane Mansouri"));
+      expect(url).toContain(encodeURIComponent("SWM-4002"));
+      expect(url).toContain(encodeURIComponent("16000 DA"));
+      expect(url).toContain(encodeURIComponent("espèces à la piscine"));
+      expect(url).toContain(encodeURIComponent("rendez-vous"));
+    });
+
+    it("generates Cash at Pool appointment link in English", () => {
+      const url = getSwimPaymentWhatsAppUrl({
+        fullName: "John Doe",
+        swimId: "SWM-4003",
+        method: "cash_pool",
+        amount: 30000,
+        locale: "en",
+      });
+
+      expect(url).toContain("https://wa.me/213540454907?text=");
+      expect(url).toContain(encodeURIComponent("John Doe"));
+      expect(url).toContain(encodeURIComponent("SWM-4003"));
+      expect(url).toContain(encodeURIComponent("30000 DA"));
+      expect(url).toContain(encodeURIComponent("cash at the pool"));
+      expect(url).toContain(encodeURIComponent("appointment"));
+    });
+  });
 });
+

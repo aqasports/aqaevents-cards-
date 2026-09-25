@@ -6,6 +6,7 @@ import { useTranslations, useLocale } from "@/lib/i18n";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { isOldSwimMember, extractFirstName, parseScheduleSlots } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
+import { getSwimPaymentWhatsAppUrl } from "@/lib/swim-whatsapp";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -250,6 +251,7 @@ export default function SwimmerProfilePage({
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [preferredDays, setPreferredDays] = useState("");
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     async function loadProfile() {
@@ -341,7 +343,6 @@ export default function SwimmerProfilePage({
 
   const isConfirmed = member.groupStatus === "accepted";
   const isRejected = member.groupStatus === "rejected";
-  const isProposed = !isConfirmed && !isRejected;
 
   const displayGroups: SwimGroupData[] = (member.groups && member.groups.length > 0)
     ? member.groups
@@ -557,6 +558,35 @@ export default function SwimmerProfilePage({
                     style={{ width: `${paymentPct}%` }}
                   />
                 </div>
+              </div>
+
+              {/* Payment Action Button */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between group active:scale-[0.99] ${
+                    debt > 0
+                      ? "bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)]"
+                      : "bg-slate-800/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                    <span>{t("paySubscriptionBtn")}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
+                    <span className="hidden sm:inline font-mono font-medium text-[10px]">
+                      {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                    </span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </button>
               </div>
 
               {/* Transactions List */}
@@ -940,6 +970,35 @@ export default function SwimmerProfilePage({
                   </div>
                 </div>
               )}
+
+              {/* Payment Action Button */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(true)}
+                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between group active:scale-[0.99] ${
+                    debt > 0
+                      ? "bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)]"
+                      : "bg-slate-800/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <line x1="2" y1="10" x2="22" y2="10" />
+                    </svg>
+                    <span>{t("paySubscriptionBtn")}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
+                    <span className="hidden sm:inline font-mono font-medium text-[10px]">
+                      {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                    </span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </div>
+                </button>
+              </div>
             </section>
 
             {/* 3. ACCEPTANCE BUTTONS */}
@@ -1132,6 +1191,171 @@ export default function SwimmerProfilePage({
                 className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs text-white font-bold transition-all shadow-[0_0_15px_rgba(239,68,68,0.3)] disabled:opacity-50"
               >
                 {t("submitChangeRequest")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Options Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" dir={dir}>
+          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-5 shadow-2xl space-y-4">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3 pb-3 border-b border-white/10">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(0,242,255,0.6)]" />
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider font-display">
+                    {t("paymentModalTitle")}
+                  </h3>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  {t("paymentModalDesc")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                aria-label={t("cancel")}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Member & Amount Summary Strip */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between text-xs">
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                  {t("memberIdLabel")}
+                </span>
+                <span className="font-mono font-bold text-cyan-300">
+                  {member.swimId} · {member.fullName}
+                </span>
+              </div>
+              <div className="text-right space-y-0.5">
+                <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                  {t("amountDueLabel")}
+                </span>
+                <span className="font-mono font-bold text-emerald-400 text-sm">
+                  {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : `${priceDA.toLocaleString("fr-DZ")} DA`}
+                </span>
+              </div>
+            </div>
+
+            {/* Two Payment Options */}
+            <div className="space-y-3 pt-1">
+              {/* Option 1: BaridiMob */}
+              <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/10 hover:border-cyan-500/40 transition-all space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-cyan-950/80 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_10px_rgba(0,242,255,0.15)]">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                        <rect x="2" y="5" width="20" height="14" rx="2" />
+                        <line x1="2" y1="10" x2="22" y2="10" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white font-display">
+                        {t("payOptionBaridiTitle")}
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        {t("payOptionBaridiDesc")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 shrink-0">
+                    {t("payOptionBaridiBadge")}
+                  </span>
+                </div>
+
+                <a
+                  href={getSwimPaymentWhatsAppUrl({
+                    fullName: member.fullName,
+                    swimId: member.swimId,
+                    method: "baridimob",
+                    amount: debt > 0 ? debt : priceDA,
+                    formula: member.formula,
+                    locale,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs transition-all flex items-center justify-between group shadow-[0_0_12px_rgba(16,185,129,0.25)] active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                    </svg>
+                    <span>{t("payOptionBaridiAction")}</span>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </a>
+              </div>
+
+              {/* Option 2: Cash at Pool */}
+              <div className="p-3.5 rounded-xl bg-slate-800/60 border border-white/10 hover:border-sky-500/40 transition-all space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-sky-950/80 border border-sky-500/30 flex items-center justify-center text-sky-400 shadow-[0_0_10px_rgba(14,165,233,0.15)]">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                        <circle cx="12" cy="12" r="9" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white font-display">
+                        {t("payOptionCashTitle")}
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        {t("payOptionCashDesc")}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-sky-950/70 text-sky-300 border border-sky-500/30 shrink-0">
+                    {t("payOptionCashBadge")}
+                  </span>
+                </div>
+
+                <a
+                  href={getSwimPaymentWhatsAppUrl({
+                    fullName: member.fullName,
+                    swimId: member.swimId,
+                    method: "cash_pool",
+                    amount: debt > 0 ? debt : priceDA,
+                    formula: member.formula,
+                    locale,
+                  })}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-white font-bold text-xs border border-white/15 hover:border-cyan-400/40 transition-all flex items-center justify-between group shadow-sm active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-3.5 h-3.5 fill-current text-emerald-400" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                    </svg>
+                    <span>{t("payOptionCashAction")}</span>
+                  </div>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Modal Close Button */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => setShowPaymentModal(false)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-xs text-slate-300 hover:text-white font-semibold transition-all border border-white/5"
+              >
+                {t("cancel")}
               </button>
             </div>
           </div>
