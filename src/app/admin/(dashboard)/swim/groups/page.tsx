@@ -992,7 +992,8 @@ export default function SwimGroupsPage() {
 
   function renderGroupCard(g: SwimGroup) {
     const count = g._count?.swimmers ?? 0;
-    const isFull = count >= g.capacity;
+    const safeCapacity = g.capacity || 10;
+    const isFull = count >= safeCapacity;
     const isSolid = g.isSolid ?? decodeSolidNotes(g.notes).isSolid;
     const cleanNotes = g.cleanNotes ?? decodeSolidNotes(g.notes).cleanNotes;
     const isSelected = selectedGroupId === g.id;
@@ -1058,14 +1059,14 @@ export default function SwimGroupsPage() {
           <div className="space-y-1 mb-4">
             <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Remplissage</span>
-              <span className="font-mono font-bold text-white">{count} / {g.capacity}</span>
+              <span className="font-mono font-bold text-white">{count} / {safeCapacity}</span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${
-                  isFull ? "bg-rose-500" : count > g.capacity * 0.7 ? "bg-amber-400" : "bg-cyan-400"
+                className={`h-full rounded-full transition-all duration-300 ${
+                  isFull ? "bg-rose-500" : count > safeCapacity * 0.7 ? "bg-amber-400" : "bg-cyan-400"
                 }`}
-                style={{ width: `${Math.min((count / g.capacity) * 100, 100)}%` }}
+                style={{ width: `${Math.min(100, Math.round((count / safeCapacity) * 100))}%` }}
               />
             </div>
           </div>

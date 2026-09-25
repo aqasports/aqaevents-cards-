@@ -1551,11 +1551,9 @@ export default function SwimOverviewPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredGroupsList.map((g) => {
-              const enrolledCount = members.filter((m) => {
-                const eff = m.effectiveGroup || (!m.effectivelyUnassigned && m.group?.active ? m.group : null);
-                return eff?.id === g.id;
-              }).length;
-              const capPercent = Math.min(100, Math.round((enrolledCount / (g.capacity || 10)) * 100));
+              const enrolledCount = g._count?.swimmers ?? 0;
+              const safeCapacity = g.capacity || 10;
+              const capPercent = Math.min(100, Math.round((enrolledCount / safeCapacity) * 100));
 
               return (
                 <div
@@ -1583,8 +1581,8 @@ export default function SwimOverviewPage() {
                           {!g.active && <Badge tone="danger">Archived</Badge>}
                         </div>
                       </div>
-                      <Badge tone={enrolledCount >= g.capacity ? "danger" : "info"}>
-                        {enrolledCount} / {g.capacity || 10}
+                      <Badge tone={enrolledCount >= safeCapacity ? "danger" : "info"}>
+                        {enrolledCount} / {safeCapacity}
                       </Badge>
                     </div>
 
@@ -1599,7 +1597,7 @@ export default function SwimOverviewPage() {
                     <div className="mt-3 space-y-1">
                       <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                         <div
-                          className={`h-full transition-all duration-300 ${
+                          className={`h-full rounded-full transition-all duration-300 ${
                             capPercent > 90 ? "bg-rose-500" : capPercent > 60 ? "bg-amber-500" : "bg-cyan-400"
                           }`}
                           style={{ width: `${capPercent}%` }}
