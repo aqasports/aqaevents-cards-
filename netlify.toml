@@ -1,6 +1,9 @@
 [build]
-  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && NODE_OPTIONS=--max-old-space-size=4096 npm run build"
+  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && npm run build"
   publish = ".next"
+
+[build.environment]
+  NODE_OPTIONS = "--max-old-space-size=4096"
 
 
 [[plugins]]
@@ -19,7 +22,7 @@
 # NEVER point staging DATABASE_URL at the production connection string.
 # ---------------------------------------------------------------------------
 [context.staging]
-  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && NODE_OPTIONS=--max-old-space-size=4096 npm run build"
+  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && npm run build"
 
 [context.staging.environment]
   NODE_VERSION = "20"
