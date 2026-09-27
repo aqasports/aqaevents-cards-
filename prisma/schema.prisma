@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider  = "sqlite"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
@@ -718,4 +718,16 @@ model SwimEquipmentSale {
 
   @@index([article])
   @@index([soldAt])
+}
+
+model SwimEquipmentArticle {
+  id               String   @id @default(cuid())
+  name             String   // display name, e.g. "Lunettes Pro UV"
+  code             String   @unique // short slug, e.g. "goggles-pro"
+  description      String?
+  defaultSellPrice Int      @default(0)
+  defaultCostPrice Int      @default(0)
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
