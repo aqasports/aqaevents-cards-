@@ -39,6 +39,7 @@ import {
 } from "@/lib/swim-subscription";
 import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
+import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -160,7 +161,7 @@ interface SwimCardItem {
 
 export default function SwimOverviewPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -182,7 +183,8 @@ export default function SwimOverviewPage() {
         tabParam === "sectors" ||
         tabParam === "calls" ||
         tabParam === "payments" ||
-        tabParam === "backups"
+        tabParam === "backups" ||
+        tabParam === "equipment"
       ) {
         setActiveTab(tabParam);
       }
@@ -433,6 +435,14 @@ export default function SwimOverviewPage() {
     : 0;
   const pendingLeadsCount = Array.isArray(leads)
     ? leads.filter((l) => l?.status === "pending").length
+    : 0;
+  const equipmentDemandsCount = Array.isArray(leads)
+    ? leads.filter(
+        (l) =>
+          Boolean(l?.details?.equipment?.hasPack) ||
+          (Array.isArray(l?.details?.equipment?.articles) &&
+            l.details.equipment.articles.length > 0)
+      ).length
     : 0;
 
   // Payments tab: enrich each member with subscription dates and totals
@@ -813,6 +823,14 @@ export default function SwimOverviewPage() {
       badgeTone: "info" as const,
       actionText: "Manage Calls",
     },
+    {
+      title: "6. Equipment Demands & Sales",
+      desc: "Process swim equipment pack demands, record article sales, and monitor net profit margins.",
+      href: "/admin/swim?tab=equipment",
+      badge: `${equipmentDemandsCount} Demands`,
+      badgeTone: equipmentDemandsCount > 0 ? ("warning" as const) : ("info" as const),
+      actionText: "Manage Equipment",
+    },
   ];
 
   // Eligible groups for Add Member modal (category-scoped + optional solid filter)
@@ -1041,6 +1059,25 @@ export default function SwimOverviewPage() {
               <polyline points="7 3 7 8 15 8" />
             </svg>
             <span>Backups</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("equipment")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === "equipment"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+            <span>Equipment Shop</span>
+            {equipmentDemandsCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
+                {equipmentDemandsCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -2207,6 +2244,11 @@ export default function SwimOverviewPage() {
       {/* ─── TAB: BACKUPS & DISASTER RECOVERY ───────────────────────── */}
       {activeTab === "backups" && (
         <SwimBackupDesk />
+      )}
+
+      {/* ─── TAB: EQUIPMENT DEMANDS, SALES & PROFITS ───────────────── */}
+      {activeTab === "equipment" && (
+        <SwimEquipmentDesk leads={leads} onRefreshLeads={loadAllData} />
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}

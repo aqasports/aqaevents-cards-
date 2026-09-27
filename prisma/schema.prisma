@@ -702,3 +702,20 @@ model SwimPayment {
 
   @@index([memberId])
 }
+
+model SwimEquipmentSale {
+  id          String   @id @default(cuid())
+  article     String   // "goggles" | "cap" | "swimsuit"
+  clientName  String
+  clientPhone String
+  leadId      String?  // optional link to SwimLead
+  sellPrice   Int      // sell price in DA (per unit)
+  costPrice   Int      // purchase cost in DA per unit (for profit calculation)
+  quantity    Int      @default(1)
+  notes       String?
+  soldAt      DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([article])
+  @@index([soldAt])
+}
