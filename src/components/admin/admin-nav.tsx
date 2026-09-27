@@ -243,82 +243,55 @@ export function AdminNav() {
   }, []);
 
   useEffect(() => {
-    async function fetchPendingCount() {
-      try {
-        const res = await fetch("/api/admin/invoices/pending-count");
-        if (res.ok) {
-          const data = await res.json();
-          setPendingCount(data.count);
-        }
-      } catch (err) {
-        console.error("Failed to fetch pending count:", err);
+    let lastFetchTime = 0;
+
+    async function fetchNavCounts() {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
       }
-    }
-    async function fetchPendingDemandsCount() {
+      lastFetchTime = Date.now();
       try {
-        const res = await fetch("/api/admin/demands/pending-count");
-        if (res.ok) {
-          const data = await res.json();
-          setPendingDemandsCount(data.count);
-        }
-      } catch (err) {
-        console.error("Failed to fetch pending demands count:", err);
-      }
-    }
-    async function fetchPendingProposalsCount() {
-      try {
-        const res = await fetch("/api/admin/proposals/pending-count");
-        if (res.ok) {
-          const data = await res.json();
-          setPendingProposalsCount(data.count);
-        }
-      } catch (err) {
-        console.error("Failed to fetch pending proposals count:", err);
-      }
-    }
-    async function fetchNewCheckInsCount() {
-      try {
-        const since = localStorage.getItem("aqa_last_viewed_clubs_time");
+        let since = localStorage.getItem("aqa_last_viewed_clubs_time");
         if (!since) {
-          const nowStr = new Date().toISOString();
-          localStorage.setItem("aqa_last_viewed_clubs_time", nowStr);
-          setNewCheckInsCount(0);
-          return;
+          since = new Date().toISOString();
+          localStorage.setItem("aqa_last_viewed_clubs_time", since);
         }
-        const res = await fetch(`/api/admin/clubs/new-checkins-count?since=${encodeURIComponent(since)}`);
+        const res = await fetch(
+          `/api/admin/nav-counts?since=${encodeURIComponent(since)}`
+        );
         if (res.ok) {
           const data = await res.json();
-          setNewCheckInsCount(data.count);
+          setPendingCount(data.invoices ?? 0);
+          setPendingDemandsCount(data.demands ?? 0);
+          setPendingProposalsCount(data.proposals ?? 0);
+          setNewCheckInsCount(data.checkIns ?? 0);
+          setPendingSwimCount(data.swim ?? 0);
         }
       } catch (err) {
-        console.error("Failed to fetch new check-ins count:", err);
+        console.error("Failed to fetch navigation badge counts:", err);
       }
     }
-    async function fetchPendingSwimCount() {
-      try {
-        const res = await fetch("/api/admin/swim/leads/pending-count");
-        if (res.ok) {
-          const data = await res.json();
-          setPendingSwimCount(data.count);
-        }
-      } catch (err) {
-        console.error("Failed to fetch pending swim count:", err);
-      }
-    }
-    fetchPendingCount();
-    fetchPendingDemandsCount();
-    fetchPendingProposalsCount();
-    fetchNewCheckInsCount();
-    fetchPendingSwimCount();
+
+    fetchNavCounts();
 
     const interval = setInterval(() => {
-      fetchPendingCount();
-      fetchPendingDemandsCount();
-      fetchPendingProposalsCount();
-      fetchNewCheckInsCount();
-      fetchPendingSwimCount();
-    }, 15000);
-    return () => clearInterval(interval);
+      fetchNavCounts();
+    }, 120000);
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        Date.now() - lastFetchTime >= 30000
+      ) {
+        fetchNavCounts();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   // --- Swipe-to-close gesture state ---
