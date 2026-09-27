@@ -35,3 +35,9 @@ This repository is the **AQA Events Card System**, an independent, live producti
 ### RULE 5: CODE & TEXT STANDARDS
 - **NO emojis anywhere** (no emojis in code, comments, commit messages, or responses).
 - **Western Arabic numerals only (0-9)** across all languages and translations.
+
+---
+
+### RULE 6: COST & QUOTA PROTECTION (NO UNAPPROVED POLLING LOOPS)
+- **NEVER** add `setInterval`, recursive `setTimeout`, `refetchInterval`, or background polling loops that call API routes, serverless functions, or databases without explicit user approval.
+- **NEVER** fire multiple separate API requests on page or nav mount for badge counts or notifications; always consolidate into a single batched endpoint and gate behind `document.visibilityState === "visible"` (>= 120s).

@@ -11,6 +11,7 @@ This is a **real production business application**. Treat it with production-gra
 5. **No emojis anywhere** - not in code, comments, UI strings, translations, git commits, or assistant responses.
 6. **Standard Western Arabic numerals only** (0-9) - even in Arabic text and translations. Never use Eastern Arabic-Indic or Indian numerals (e.g. ٠١٢٣٤٥٦٧٨٩, ۰۱۲۳۴۵۶۷۸۹).
 7. **All AQA projects are production businesses** (AQA Sports, AQA Events Card System, aqasports.com). Never treat them as demos, prototypes, or playgrounds.
+8. **No unapproved polling loops or free-tier quota waste.** NEVER add `setInterval`, recursive `setTimeout`, `refetchInterval`, or background polling loops that call serverless functions, API routes, or databases without explicit human approval. Consolidate related reads into a single batched endpoint and always gate periodic refreshes behind `document.visibilityState === "visible"` (>= 120s interval).
 
 ## AQA Design Style
 

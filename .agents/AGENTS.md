@@ -60,5 +60,11 @@
 - All delete operations must be scoped to specific IDs -- never use `deleteMany({})` without a where clause.
 - Test all changes against the local Docker database, not production.
 
+### Cost & Quota Protection (Free-Tier / Serverless Economy)
+- NEVER add `setInterval`, recursive `setTimeout`, `refetchInterval`, or background polling loops that invoke serverless functions, Edge functions, or database queries without explicit user approval.
+- NEVER fire multiple parallel API requests on layout or nav mount for badge counts or status checks; always consolidate related reads into a single batched endpoint.
+- Any approved periodic refresh MUST check `document.visibilityState === "visible"`, use an interval of at least 120 seconds, and pause immediately when the tab is backgrounded.
+- Before proposing any recurring network call, cron job, or realtime listener, calculate and present the worst-case monthly invocation count and wait for explicit user approval.
+
 ## Automatic Deployment Policy
 - Whenever you finish implementing, fixing, or polishing a task, you must automatically stage all changed files, commit them with a descriptive commit message, push to the remote GitHub repository (git push origin main), and trigger a production deployment to Netlify (npx netlify deploy --build --prod). Always verify that the deployment completes successfully.
