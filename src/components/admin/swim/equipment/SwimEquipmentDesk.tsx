@@ -350,10 +350,6 @@ function AddSaleModal({
     }
   }
 
-  const unitProfit = sellPrice - costPrice;
-  const totalProfit = unitProfit * quantity;
-  const marginPct =
-    sellPrice > 0 ? Math.round((unitProfit / sellPrice) * 100) : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -505,8 +501,8 @@ function AddSaleModal({
                 </select>
               </div>
 
-              {/* Qty + Sell/Cost prices */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* Quantity + Unit Selling Price (Client-Facing: No Cost or Profit Shown) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
                     {t("inputQuantity")}
@@ -524,7 +520,7 @@ function AddSaleModal({
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Prix Vente (DA/u)
+                    {t("inputSellPrice")}
                   </label>
                   <input
                     type="number"
@@ -537,39 +533,21 @@ function AddSaleModal({
                     className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400 font-mono text-right"
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Cout Achat (DA/u)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={costPrice}
-                    onChange={(e) =>
-                      setCostPrice(Math.max(0, parseInt(e.target.value) || 0))
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400 font-mono text-right"
-                  />
-                </div>
               </div>
 
-              {/* Live profit preview */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-950/60 to-cyan-950/60 border border-emerald-500/30 flex items-center justify-between">
+              {/* Total Due Banner (Client-Facing, no internal margins or costs shown) */}
+              <div className="p-3.5 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950/40 border border-cyan-500/30 flex items-center justify-between">
                 <div>
                   <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    Benefice Net
+                    {t("totalDue")}
                   </div>
                   <div className="text-xs text-slate-300 mt-0.5">
-                    ({sellPrice} - {costPrice}) x {quantity}
+                    {quantity} x {formatDA(sellPrice)}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-base font-bold font-mono text-emerald-400">
-                    +{formatDA(totalProfit)}
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-mono">
-                    Marge: {marginPct}%
+                  <div className="text-xl font-bold font-mono text-cyan-400">
+                    {formatDA(sellPrice * quantity)}
                   </div>
                 </div>
               </div>
