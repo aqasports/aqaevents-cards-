@@ -4,6 +4,7 @@ import { checkAndIncrement } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 import { formatSwimLeadNotes } from "@/lib/swim-lead-details";
+import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,15 @@ function normalizeFrequency(freq?: string | number | null): string {
   return `${str}x`;
 }
 
+function normalizeDuration(dur?: string | null, tierOrFormule?: string | null): string {
+  const raw = (dur || tierOrFormule || "3m").toLowerCase().trim();
+  if (raw === "1m" || raw.includes("starter")) return "1m";
+  if (raw === "3m" || raw.includes("silver") || raw.includes("decouverte")) return "3m";
+  if (raw === "6m" || raw.includes("gold") || raw.includes("recommand")) return "6m";
+  if (raw === "9m" || raw.includes("diamond") || raw.includes("econom")) return "9m";
+  return "3m";
+}
+
 export async function POST(request: NextRequest) {
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -60,21 +70,133 @@ export async function POST(request: NextRequest) {
     let phone = (body.phone || body.telephone || body.payload?.telephone || "").trim();
     const email = (body.email || body.payload?.email || "").trim() || null;
     const rawCategory = body.category || body.payload?.category;
-    const category = normalizeCategory(rawCategory);
-    const frequency = normalizeFrequency(body.frequency || body.payload?.frequency);
-    const formula = (body.formule || body.formula || body.payload?.formule || "G10").toUpperCase();
-    const duration = (body.duration || body.payload?.duration || "3m").toLowerCase();
-    const level = body.level || body.goal || body.payload?.goal || "beginner";
+    let category = normalizeCategory(rawCategory);
+    let frequency = normalizeFrequency(body.frequency || body.payload?.frequency);
+    const rawFormule = body.formule || body.formula || body.payload?.formule || "G10";
+    let formula = String(rawFormule).trim();
+    const duration = normalizeDuration(body.duration || body.payload?.duration, rawFormule);
+    const level = !isNew
+      ? "old_aqa"
+      : body.level || body.goal || body.payload?.goal || "new_aqa";
+
+    const rawPersonalId = String(
+      body.personalId || body.payload?.personalId || ""
+    ).trim();
+    let resolvedPersonalId = rawPersonalId || null;
+    let resolvedMemberId: string | null = body.memberId
+      ? String(body.memberId).trim()
+      : null;
+
+    if (!isNew && (resolvedMemberId || rawPersonalId)) {
+      const cleanUpper = rawPersonalId.toUpperCase();
+      const existingMember = resolvedMemberId
+        ? await prisma.swimMember.findUnique({ where: { id: resolvedMemberId } })
+        : await prisma.swimMember.findFirst({
+            where: {
+              OR: [
+                { swimId: { equals: cleanUpper, mode: "insensitive" } },
+                ...(cleanUpper.length >= 4
+                  ? [{ swimId: { endsWith: cleanUpper, mode: "insensitive" as const } }]
+                  : []),
+              ],
+            },
+          });
+
+      if (existingMember) {
+        resolvedMemberId = existingMember.id;
+        resolvedPersonalId = existingMember.swimId;
+        if (!fullName) fullName = existingMember.fullName;
+        if (!phone) phone = existingMember.phone;
+        if (!rawCategory && existingMember.category) {
+          category = normalizeCategory(existingMember.category);
+        }
+      }
+    }
+
+    // Resolve selected groups if provided (Old Member group selection flow)
+    const rawGroupIds =
+      body.selectedGroupIds ||
+      body.groupIds ||
+      body.payload?.selectedGroupIds ||
+      body.payload?.groupIds ||
+      [];
+    const selectedGroupIds: string[] = Array.isArray(rawGroupIds)
+      ? Array.from(
+          new Set(rawGroupIds.map((id: unknown) => String(id).trim()).filter(Boolean))
+        )
+      : [];
+
+    let selectedGroupNames: string[] = Array.isArray(body.selectedGroupNames)
+      ? body.selectedGroupNames.map((n: unknown) => String(n).trim()).filter(Boolean)
+      : [];
+    let resolvedPriceDA: number | null =
+      typeof body.priceDA === "number"
+        ? body.priceDA
+        : body.priceDA
+        ? parseInt(String(body.priceDA), 10) || null
+        : null;
+
+    if (selectedGroupIds.length > 0) {
+      const dbGroups = await prisma.swimGroup.findMany({
+        where: { id: { in: selectedGroupIds } },
+      });
+
+      // Preserve the client's selection order
+      const orderedGroups = selectedGroupIds
+        .map((id) => dbGroups.find((g) => g.id === id))
+        .filter((g): g is NonNullable<typeof g> => Boolean(g));
+
+      if (orderedGroups.length > 0) {
+        selectedGroupNames = orderedGroups.map(
+          (g) => `${g.name} (${g.level.toUpperCase()})`
+        );
+        const groupTypes = orderedGroups.map((g) => g.level);
+        const multiResolved = resolveMultiGroupFormula(groupTypes);
+        formula = multiResolved.formula;
+        frequency = `${multiResolved.frequency}x`;
+        resolvedPriceDA = calculateSwimPrice({
+          category,
+          groupTypes,
+          duration,
+        });
+      }
+    } else if (!isNew) {
+      // Standardize formula if it was passed as a card tier name ("starter", "silver", etc.)
+      const lowerForm = formula.toLowerCase();
+      if (
+        lowerForm === "starter" ||
+        lowerForm === "silver" ||
+        lowerForm === "gold" ||
+        lowerForm === "diamond"
+      ) {
+        formula = "G10";
+      } else {
+        formula = formula.toUpperCase();
+      }
+      if (resolvedPriceDA === null) {
+        resolvedPriceDA = calculateSwimPrice({
+          category,
+          groupType: formula,
+          duration,
+          frequency,
+        });
+      }
+    } else {
+      formula = formula.toUpperCase();
+    }
 
     // Structured metadata capture
     const rawArticles =
       body.articles ||
       body.payload?.articles ||
-      (typeof body.equipmentPack === "string" && body.equipmentPack !== "Oui" ? body.equipmentPack.split(",") : []);
+      (typeof body.equipmentPack === "string" && body.equipmentPack !== "Oui"
+        ? body.equipmentPack.split(",")
+        : []);
     const hasEquipment = Boolean(
       body.equipmentPack ||
         body.payload?.equipement ||
-        (Array.isArray(rawArticles) && rawArticles.filter((a: string) => a !== "none").length > 0)
+        (Array.isArray(rawArticles) &&
+          rawArticles.filter((a: string) => a !== "none").length > 0)
     );
 
     const formattedNotes = formatSwimLeadNotes({
@@ -90,34 +212,35 @@ export async function POST(request: NextRequest) {
         channel: body.channel || body.payload?.channel || null,
         channelOther: body.channelOther || body.payload?.channelOther || null,
         goal: body.goal || body.payload?.goal || null,
-        timePref: body.dayNight || body.payload?.timePref || null,
+        timePref:
+          selectedGroupNames.length > 0
+            ? selectedGroupNames.join(" + ")
+            : body.dayNight || body.payload?.timePref || null,
         memberType: !isNew ? "old" : "new",
-        personalId: body.personalId || body.payload?.personalId || null,
+        personalId: resolvedPersonalId,
+        memberId: resolvedMemberId,
         pool: body.pool || body.payload?.piscine || null,
+        selectedGroupIds,
+        selectedGroupNames,
+        priceDA: resolvedPriceDA,
       },
       userNotes: body.notes || body.payload?.notes || null,
     });
 
-    if (!isNew && body.personalId) {
-      // If fullName or phone are missing for old member, try to look up SwimMember
-      if (!fullName || !phone) {
-        const existingMember = await prisma.swimMember.findUnique({
-          where: { swimId: String(body.personalId).trim().toUpperCase() },
-        });
-        if (existingMember) {
-          if (!fullName) fullName = existingMember.fullName;
-          if (!phone) phone = existingMember.phone;
-        }
-      }
-    }
-
     if (!fullName) {
-      fullName = isNew ? "Nouveau Client Inscription" : `Ancien Adherent ${body.personalId || ""}`.trim();
+      fullName = isNew
+        ? "Nouveau Client Inscription"
+        : `Ancien Adherent ${resolvedPersonalId || ""}`.trim();
     }
 
     if (!phone) {
       phone = "0000000000";
     }
+
+    const preferredDaysValue =
+      selectedGroupNames.length > 0
+        ? selectedGroupNames.join(" + ")
+        : body.dayNight || body.payload?.timePref || null;
 
     const lead = await prisma.swimLead.create({
       data: {
@@ -129,7 +252,7 @@ export async function POST(request: NextRequest) {
         frequency,
         formula,
         duration,
-        preferredDays: body.dayNight || body.payload?.timePref || null,
+        preferredDays: preferredDaysValue,
         notes: formattedNotes,
         marketingConsent: Boolean(body.marketingConsent),
         utmSource: body.utmSource ? String(body.utmSource).trim() : null,

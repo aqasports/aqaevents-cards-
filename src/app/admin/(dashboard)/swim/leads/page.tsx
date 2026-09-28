@@ -69,6 +69,7 @@ export default function SwimLeadsPage() {
   const [customCardCode, setCustomCardCode] = useState("");
   const [submittingPromote, setSubmittingPromote] = useState(false);
   const [promoteSuccess, setPromoteSuccess] = useState<string | null>(null);
+  const [acceptingLeadId, setAcceptingLeadId] = useState<string | null>(null);
 
   // Add Manual Lead Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -158,6 +159,35 @@ export default function SwimLeadsPage() {
     }
   }
 
+  async function handleQuickAcceptLead(lead: SwimLead) {
+    if (acceptingLeadId) return;
+    setAcceptingLeadId(lead.id);
+    try {
+      const groupIds = lead.details?.demographics.selectedGroupIds || [];
+      const priceDA = lead.details?.demographics.priceDA ?? undefined;
+      const res = await fetch("/api/admin/swim/leads/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: lead.id,
+          groupIds,
+          priceDA,
+          issueCard: true,
+        }),
+      });
+      if (res.ok) {
+        if (selectedLeadForInspection?.id === lead.id) {
+          setSelectedLeadForInspection(null);
+        }
+        await loadData();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAcceptingLeadId(null);
+    }
+  }
+
   async function handleSaveLeadDetails() {
     if (!selectedLeadForInspection) return;
     setSavingDetails(true);
@@ -223,12 +253,14 @@ export default function SwimLeadsPage() {
     setSubmittingPromote(true);
 
     try {
+      const selectedGroupIds = promotingLead.details?.demographics.selectedGroupIds || [];
       const res = await fetch("/api/admin/swim/leads/promote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           leadId: promotingLead.id,
           groupId: selectedGroupId || null,
+          groupIds: !selectedGroupId && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
           coachMessage: coachMessage || null,
           issueCard,
           cardCode: customCardCode || null,
@@ -237,7 +269,11 @@ export default function SwimLeadsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        setPromoteSuccess(`Swimmer registered successfully with ID: ${data.swimId}`);
+        setPromoteSuccess(
+          data.updatedExisting
+            ? `Member ${data.swimId} assigned to chosen groups!`
+            : `Swimmer registered successfully with ID: ${data.swimId}`
+        );
         setTimeout(() => {
           setPromoteSuccess(null);
           setPromotingLead(null);
@@ -584,17 +620,35 @@ export default function SwimLeadsPage() {
 
                       {/* Program & Schedule */}
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-200">
-                          {lead.formula} · {lead.frequency}
+                        <div className="font-semibold text-slate-200 flex items-center gap-1.5 flex-wrap">
+                          <span>
+                            {lead.formula} · {lead.frequency}
+                          </span>
+                          {demo?.priceDA ? (
+                            <span className="px-1.5 py-0.2 rounded bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 font-mono text-[10px]">
+                              {formatDA(demo.priceDA)}
+                            </span>
+                          ) : null}
                         </div>
                         <div className="text-[11px] text-[var(--muted)]">
                           {lead.duration}
                         </div>
-                        {lead.preferredDays && (
+                        {demo?.selectedGroupNames && demo.selectedGroupNames.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 mt-1 max-w-[240px]">
+                            {demo.selectedGroupNames.map((gName, idx) => (
+                              <span
+                                key={idx}
+                                className="px-1.5 py-0.5 rounded bg-sky-950/80 border border-sky-500/30 text-sky-300 text-[10px] font-medium"
+                              >
+                                {gName}
+                              </span>
+                            ))}
+                          </div>
+                        ) : lead.preferredDays ? (
                           <div className="text-[10px] text-slate-400 truncate max-w-[150px] mt-0.5">
                             {lead.preferredDays}
                           </div>
-                        )}
+                        ) : null}
                       </td>
 
                       {/* Equipment Pack */}
@@ -698,13 +752,28 @@ export default function SwimLeadsPage() {
                           </Button>
                         )}
 
+                        {lead.status !== "confirmed" &&
+                          (demo?.selectedGroupIds?.length ?? 0) > 0 && (
+                            <button
+                              type="button"
+                              disabled={acceptingLeadId === lead.id}
+                              onClick={() => handleQuickAcceptLead(lead)}
+                              className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-[0_0_12px_rgba(16,185,129,0.3)] disabled:opacity-50"
+                              title="Accept and automatically assign chosen groups"
+                            >
+                              {acceptingLeadId === lead.id ? "Assigning..." : "Accept"}
+                            </button>
+                          )}
+
                         {lead.status !== "confirmed" && (
                           <Button
                             size="sm"
                             variant="primary"
                             onClick={() => {
                               setPromotingLead(lead);
-                              setSelectedGroupId("");
+                              setSelectedGroupId(
+                                demo?.selectedGroupIds?.[0] || ""
+                              );
                               setCoachMessage("");
                             }}
                           >
@@ -1042,15 +1111,55 @@ export default function SwimLeadsPage() {
                   <span className="text-xs font-mono font-bold text-cyan-400">
                     Tarif Estime:{" "}
                     {formatDA(
-                      calculateSwimPrice(
-                        selectedLeadForInspection.category as SwimCategory,
-                        selectedLeadForInspection.formula,
-                        selectedLeadForInspection.duration as SwimDuration,
-                        selectedLeadForInspection.frequency as SwimFrequency
-                      )
+                      selectedLeadForInspection.details?.demographics.priceDA ??
+                        calculateSwimPrice(
+                          selectedLeadForInspection.category as SwimCategory,
+                          selectedLeadForInspection.formula,
+                          selectedLeadForInspection.duration as SwimDuration,
+                          selectedLeadForInspection.frequency as SwimFrequency
+                        )
                     )}
                   </span>
                 </div>
+
+                {(selectedLeadForInspection.details?.demographics.selectedGroupNames?.length ?? 0) > 0 && (
+                  <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <div className="text-xs font-bold text-emerald-300">
+                          Groupes Choisis par l&apos;Ancien Membre
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          En cliquant sur Accept, ce membre sera automatiquement assigne a ces groupes.
+                        </div>
+                      </div>
+                      {selectedLeadForInspection.status !== "confirmed" && (
+                        <button
+                          type="button"
+                          disabled={acceptingLeadId === selectedLeadForInspection.id}
+                          onClick={() => handleQuickAcceptLead(selectedLeadForInspection)}
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-[0_0_15px_rgba(16,185,129,0.3)] disabled:opacity-50"
+                        >
+                          {acceptingLeadId === selectedLeadForInspection.id
+                            ? "Assigning..."
+                            : "Accept & Assign Groups"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedLeadForInspection.details?.demographics.selectedGroupNames?.map(
+                        (gName, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2.5 py-1 rounded-lg bg-slate-900 border border-emerald-500/40 text-emerald-200 text-xs font-semibold"
+                          >
+                            {gName}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5">

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
+import {
+  decodeMemberGroupIds,
+  decodeSolidNotes,
+  parseScheduleSlots,
+  FRENCH_DAYS,
+} from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -45,29 +51,55 @@ export async function POST(request: NextRequest) {
     const cleanUpper = rawId.toUpperCase();
     const cleanDigits = rawId.replace(/\D/g, "");
 
-    // Search SwimMember by swimId (exact or endsWith), phone, or fullName
-    const members = await prisma.swimMember.findMany({
-      include: {
-        group: true,
-      },
-      take: 20,
+    // 1. Try exact swimId match first
+    let member = await prisma.swimMember.findUnique({
+      where: { swimId: cleanUpper },
+      include: { group: true },
     });
 
-    const member = members.find((m) => {
-      const sId = m.swimId.toUpperCase();
-      const mPhone = m.phone.replace(/\D/g, "");
-      if (sId === cleanUpper || (cleanUpper.length >= 4 && sId.endsWith(cleanUpper))) {
-        return true;
+    // 2. Fallback search across SwimMember by swimId suffix or phone digits
+    if (!member) {
+      const orConditions: Record<string, unknown>[] = [
+        { swimId: { equals: cleanUpper, mode: "insensitive" } },
+      ];
+      if (cleanUpper.length >= 4) {
+        orConditions.push({
+          swimId: { endsWith: cleanUpper, mode: "insensitive" },
+        });
       }
-      if (
-        cleanDigits.length >= 8 &&
-        mPhone.length >= 8 &&
-        (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
-      ) {
-        return true;
+      if (cleanDigits.length >= 8) {
+        const last8 = cleanDigits.slice(-8);
+        orConditions.push({
+          phone: { contains: last8 },
+        });
       }
-      return false;
-    });
+
+      const candidates = await prisma.swimMember.findMany({
+        where: { OR: orConditions },
+        include: { group: true },
+        take: 25,
+      });
+
+      member =
+        candidates.find((m) => {
+          const sId = m.swimId.toUpperCase();
+          const mPhone = m.phone.replace(/\D/g, "");
+          if (
+            sId === cleanUpper ||
+            (cleanUpper.length >= 4 && sId.endsWith(cleanUpper))
+          ) {
+            return true;
+          }
+          if (
+            cleanDigits.length >= 8 &&
+            mPhone.length >= 8 &&
+            (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
+          ) {
+            return true;
+          }
+          return false;
+        }) ?? null;
+    }
 
     if (!member) {
       return NextResponse.json(
@@ -77,44 +109,141 @@ export async function POST(request: NextRequest) {
     }
 
     const firstName = member.fullName.split(" ")[0];
-    const freqNum = 1;
 
-    const matchedGroups = member.group
-      ? [
-          {
-            id: member.group.id,
-            name: member.group.name,
-            code: member.group.name,
-            slotKey: member.group.schedule || "",
+    // Check all assigned groups (primary + multi-group notes)
+    const assignedIds = decodeMemberGroupIds(member.notes, member.groupId);
+    const assignedGroups =
+      assignedIds.length > 0
+        ? await prisma.swimGroup.findMany({
+            where: { id: { in: assignedIds } },
+          })
+        : [];
+
+    const hasAssignedGroup = assignedGroups.length > 0;
+    const freqNum = assignedGroups.length > 0 ? assignedGroups.length : 1;
+
+    const matchedGroups = assignedGroups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      code: g.name,
+      slotKey: g.schedule || "",
+      level: g.level,
+      coachName: g.coachName || null,
+    }));
+
+    // If the old member has no assigned group yet, fetch remaining available groups
+    // for their category WITHOUT any assigned swimmers' names.
+    let availableGroups: Array<{
+      id: string;
+      name: string;
+      category: string;
+      level: string;
+      coachName: string | null;
+      schedule: string;
+      capacity: number;
+      remaining: number;
+      isSolid: boolean;
+    }> = [];
+
+    if (!hasAssignedGroup) {
+      const categoryGroups = await prisma.swimGroup.findMany({
+        where: {
+          active: true,
+          category: member.category,
+        },
+        include: {
+          _count: {
+            select: { swimmers: true },
           },
-        ]
-      : [];
+        },
+      });
+
+      // Account for secondary multi-group assignments stored in SwimMember.notes
+      const multiGroupMembers = await prisma.swimMember.findMany({
+        where: { notes: { contains: "[GROUPS:" } },
+        select: { id: true, groupId: true, notes: true },
+      });
+
+      const extraCounts: Record<string, number> = {};
+      for (const m of multiGroupMembers) {
+        const gids = decodeMemberGroupIds(m.notes, m.groupId);
+        for (const gid of gids) {
+          if (gid !== m.groupId) {
+            extraCounts[gid] = (extraCounts[gid] || 0) + 1;
+          }
+        }
+      }
+
+      availableGroups = categoryGroups
+        .map((g) => {
+          const { isSolid } = decodeSolidNotes(g.notes);
+          const totalSwimmers =
+            (g._count?.swimmers ?? 0) + (extraCounts[g.id] || 0);
+          const remaining = Math.max(0, g.capacity - totalSwimmers);
+          return {
+            id: g.id,
+            name: g.name,
+            category: g.category,
+            level: g.level,
+            coachName: g.coachName || null,
+            schedule: g.schedule,
+            capacity: g.capacity,
+            remaining,
+            isSolid,
+          };
+        })
+        .filter((g) => g.remaining > 0)
+        .sort((a, b) => {
+          const slotA = parseScheduleSlots(a.schedule)[0];
+          const slotB = parseScheduleSlots(b.schedule)[0];
+          const dayIdxA = FRENCH_DAYS.findIndex(
+            (d) => d.toLowerCase() === (slotA?.day || "").toLowerCase()
+          );
+          const dayIdxB = FRENCH_DAYS.findIndex(
+            (d) => d.toLowerCase() === (slotB?.day || "").toLowerCase()
+          );
+          const normDayA = dayIdxA === -1 ? 99 : dayIdxA;
+          const normDayB = dayIdxB === -1 ? 99 : dayIdxB;
+          if (normDayA !== normDayB) return normDayA - normDayB;
+          return (slotA?.time || "").localeCompare(slotB?.time || "");
+        });
+    }
 
     return NextResponse.json(
       {
         verified: true,
+        hasAssignedGroup,
         member: {
           id: member.swimId,
+          dbId: member.id,
           fullName: member.fullName,
           firstName,
           phone: member.phone,
           category: member.category,
+          level: member.level,
           pool: "reghaia",
           membershipTier: member.formula || "G10",
+          duration: member.duration || "1m",
+          hasAssignedGroup,
           proposed_formule: {
             tier: member.formula || "G10",
             frequency: freqNum,
           },
           coach_recommendation: member.coachMessage || null,
-          recommended_slots: member.group?.schedule ? [member.group.schedule] : [],
+          recommended_slots: assignedGroups
+            .map((g) => g.schedule)
+            .filter(Boolean),
         },
         proposed_formule: {
           tier: member.formula || "G10",
           frequency: freqNum,
         },
         coach_recommendation: member.coachMessage || null,
-        recommended_slots: member.group?.schedule ? [member.group.schedule] : [],
+        recommended_slots: assignedGroups
+          .map((g) => g.schedule)
+          .filter(Boolean),
         groups: matchedGroups,
+        availableGroups,
       },
       { status: 200, headers: corsHeaders }
     );

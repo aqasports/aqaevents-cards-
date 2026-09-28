@@ -56,7 +56,11 @@ export interface SwimLeadDemographics {
   timePref?: string | null;
   memberType?: "new" | "old" | null;
   personalId?: string | null;
+  memberId?: string | null;
   pool?: string | null;
+  selectedGroupIds?: string[] | null;
+  selectedGroupNames?: string[] | null;
+  priceDA?: number | null;
 }
 
 export interface SwimLeadDetails {
@@ -143,7 +147,11 @@ export function parseSwimLeadNotes(notes: string | null | undefined): SwimLeadDe
       timePref: null,
       memberType: null,
       personalId: null,
+      memberId: null,
       pool: null,
+      selectedGroupIds: [],
+      selectedGroupNames: [],
+      priceDA: null,
     },
     userNotes: "",
   };
@@ -188,7 +196,15 @@ export function parseSwimLeadNotes(notes: string | null | undefined): SwimLeadDe
           timePref: demo.timePref || null,
           memberType: demo.memberType || null,
           personalId: demo.personalId || null,
+          memberId: demo.memberId || null,
           pool: demo.pool || null,
+          selectedGroupIds: Array.isArray(demo.selectedGroupIds)
+            ? demo.selectedGroupIds.map((g: unknown) => String(g).trim()).filter(Boolean)
+            : [],
+          selectedGroupNames: Array.isArray(demo.selectedGroupNames)
+            ? demo.selectedGroupNames.map((g: unknown) => String(g).trim()).filter(Boolean)
+            : [],
+          priceDA: typeof demo.priceDA === "number" ? demo.priceDA : demo.priceDA ? Number(demo.priceDA) : null,
         },
         userNotes: remainingText,
       };
@@ -282,7 +298,11 @@ export function formatSwimLeadNotes(params: {
     timePref?: string | null;
     memberType?: "new" | "old" | null;
     personalId?: string | null;
+    memberId?: string | null;
     pool?: string | null;
+    selectedGroupIds?: string[] | null;
+    selectedGroupNames?: string[] | null;
+    priceDA?: number | string | null;
   };
   userNotes?: string | null;
 }): string {
@@ -291,6 +311,19 @@ export function formatSwimLeadNotes(params: {
     .filter(Boolean) as EquipmentArticleId[];
 
   const hasPack = Boolean(params.equipment?.hasPack || normArticles.length > 0);
+
+  const cleanSelectedIds = Array.isArray(params.demographics?.selectedGroupIds)
+    ? params.demographics.selectedGroupIds.map((g) => String(g).trim()).filter(Boolean)
+    : [];
+  const cleanSelectedNames = Array.isArray(params.demographics?.selectedGroupNames)
+    ? params.demographics.selectedGroupNames.map((g) => String(g).trim()).filter(Boolean)
+    : [];
+  const parsedPriceDA =
+    typeof params.demographics?.priceDA === "number"
+      ? params.demographics.priceDA
+      : params.demographics?.priceDA
+      ? parseInt(String(params.demographics.priceDA), 10) || null
+      : null;
 
   const cleanDemo: SwimLeadDemographics = {
     city: params.demographics?.city?.trim() || null,
@@ -307,7 +340,11 @@ export function formatSwimLeadNotes(params: {
     timePref: params.demographics?.timePref?.trim() || null,
     memberType: params.demographics?.memberType || null,
     personalId: params.demographics?.personalId?.trim() || null,
+    memberId: params.demographics?.memberId?.trim() || null,
     pool: params.demographics?.pool?.trim() || null,
+    selectedGroupIds: cleanSelectedIds,
+    selectedGroupNames: cleanSelectedNames,
+    priceDA: parsedPriceDA,
   };
 
   const metaPayload = {
@@ -326,6 +363,12 @@ export function formatSwimLeadNotes(params: {
 
   if (cleanDemo.memberType === "old") {
     humanParts.push(`Renouvellement Ancien Membre${cleanDemo.personalId ? ` (ID: ${cleanDemo.personalId})` : ""}`);
+  }
+  if (cleanSelectedNames.length > 0) {
+    humanParts.push(`Groupes: ${cleanSelectedNames.join(" + ")}`);
+  }
+  if (parsedPriceDA !== null) {
+    humanParts.push(`Tarif: ${parsedPriceDA} DA`);
   }
   if (cleanDemo.pool) {
     humanParts.push(`Piscine: ${cleanDemo.pool}`);

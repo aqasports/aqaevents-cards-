@@ -71,6 +71,30 @@ describe("swim-lead-details", () => {
 
       expect(parsed.userNotes).toBe("Prendre contact en soiree uniquement.");
     });
+
+    it("parses old member selected groups, memberId, and priceDA", () => {
+      const formatted = formatSwimLeadNotes({
+        demographics: {
+          memberType: "old",
+          personalId: "SWM-123456",
+          memberId: "mem-abc-123",
+          selectedGroupIds: ["grp-1", "grp-2"],
+          selectedGroupNames: ["Lun 19h (G10)", "Jeu 19h (MAX5)"],
+          priceDA: 24500,
+        },
+        userNotes: "Selection de groupes par ancien membre",
+      });
+
+      const parsed = parseSwimLeadNotes(formatted);
+
+      expect(parsed.demographics.memberType).toBe("old");
+      expect(parsed.demographics.personalId).toBe("SWM-123456");
+      expect(parsed.demographics.memberId).toBe("mem-abc-123");
+      expect(parsed.demographics.selectedGroupIds).toEqual(["grp-1", "grp-2"]);
+      expect(parsed.demographics.selectedGroupNames).toEqual(["Lun 19h (G10)", "Jeu 19h (MAX5)"]);
+      expect(parsed.demographics.priceDA).toBe(24500);
+      expect(parsed.userNotes).toBe("Selection de groupes par ancien membre");
+    });
   });
 
   describe("parseSwimLeadNotes - Legacy pipe format", () => {
