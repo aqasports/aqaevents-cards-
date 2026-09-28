@@ -58,12 +58,25 @@ const CATEGORY_LABELS: Record<string, string> = {
   apnea: "Apnee",
 };
 
-const CATEGORY_ACCENT: Record<string, { pill: string; bar: string }> = {
-  homme: { pill: "text-sky-400 border-sky-700/50 bg-sky-950/50", bar: "bg-sky-500" },
-  femme: { pill: "text-pink-400 border-pink-700/50 bg-pink-950/50", bar: "bg-pink-500" },
-  enfants: { pill: "text-violet-400 border-violet-700/50 bg-violet-950/50", bar: "bg-violet-500" },
-  apnea: { pill: "text-teal-400 border-teal-700/50 bg-teal-950/50", bar: "bg-teal-500" },
+// Category pill stays semantic; group index drives the card theme to avoid saturation
+const CATEGORY_ACCENT: Record<string, string> = {
+  homme:   "text-sky-400 border-sky-700/50 bg-sky-950/50",
+  femme:   "text-pink-400 border-pink-700/50 bg-pink-950/50",
+  enfants: "text-violet-400 border-violet-700/50 bg-violet-950/50",
+  apnea:   "text-teal-400 border-teal-700/50 bg-teal-950/50",
 };
+
+// 8 distinct card themes — assigned by group index, cycling if needed
+const GROUP_THEMES = [
+  { border: "border-sky-600/25",     glow: "shadow-[0_0_20px_rgba(14,165,233,0.07)]",  bar: "bg-sky-500",     header: "from-sky-950/30",     dot: "bg-sky-400"     },
+  { border: "border-violet-600/25",  glow: "shadow-[0_0_20px_rgba(139,92,246,0.07)]",  bar: "bg-violet-500",  header: "from-violet-950/30",  dot: "bg-violet-400"  },
+  { border: "border-amber-600/25",   glow: "shadow-[0_0_20px_rgba(245,158,11,0.07)]",  bar: "bg-amber-500",   header: "from-amber-950/30",   dot: "bg-amber-400"   },
+  { border: "border-emerald-600/25", glow: "shadow-[0_0_20px_rgba(16,185,129,0.07)]",  bar: "bg-emerald-500", header: "from-emerald-950/30", dot: "bg-emerald-400" },
+  { border: "border-pink-600/25",    glow: "shadow-[0_0_20px_rgba(236,72,153,0.07)]",  bar: "bg-pink-500",    header: "from-pink-950/30",    dot: "bg-pink-400"    },
+  { border: "border-cyan-600/25",    glow: "shadow-[0_0_20px_rgba(6,182,212,0.07)]",   bar: "bg-cyan-500",    header: "from-cyan-950/30",    dot: "bg-cyan-400"    },
+  { border: "border-orange-600/25",  glow: "shadow-[0_0_20px_rgba(249,115,22,0.07)]",  bar: "bg-orange-500",  header: "from-orange-950/30",  dot: "bg-orange-400"  },
+  { border: "border-indigo-600/25",  glow: "shadow-[0_0_20px_rgba(99,102,241,0.07)]",  bar: "bg-indigo-500",  header: "from-indigo-950/30",  dot: "bg-indigo-400"  },
+];
 
 function formatDA(n: number) {
   return n.toLocaleString("fr-DZ") + " DA";
@@ -293,18 +306,19 @@ type PaymentFilter = "all" | "paid" | "partial" | "unpaid";
 function GroupPanel({
   group,
   index,
+  isOpen,
+  onToggle,
 }: {
   group: GroupView;
   index: number;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
-  const [open, setOpen] = useState(true);
   const [filter, setFilter] = useState<PaymentFilter>("all");
   const [search, setSearch] = useState("");
 
-  const accent = CATEGORY_ACCENT[group.category] ?? {
-    pill: "text-slate-400 border-slate-700 bg-slate-900",
-    bar: "bg-slate-500",
-  };
+  const theme = GROUP_THEMES[index % GROUP_THEMES.length];
+  const catPill = CATEGORY_ACCENT[group.category] ?? "text-slate-400 border-slate-700 bg-slate-900";
 
   const swimmers = useMemo(() => {
     let list = [...group.swimmers];
@@ -323,21 +337,27 @@ function GroupPanel({
   const { summary } = group;
 
   return (
-    <section className={`rounded-2xl border transition-all ${
-      open
-        ? "border-cyan-600/20 shadow-[0_0_24px_rgba(0,242,255,0.05)]"
-        : "border-white/8"
-    } bg-slate-900/50 backdrop-blur-sm overflow-hidden`}>
+    <section
+      className={`rounded-2xl border transition-all duration-200 overflow-hidden ${
+        isOpen
+          ? `${theme.border} ${theme.glow} bg-slate-900/60`
+          : "border-white/8 bg-slate-900/40 hover:border-white/15"
+      } backdrop-blur-sm`}
+    >
 
       {/* ── Group header ── */}
       <button
         type="button"
-        onClick={() => setOpen((p) => !p)}
-        className="w-full text-left p-4 flex items-start gap-3"
-        aria-expanded={open}
+        onClick={onToggle}
+        className={`w-full text-left p-4 flex items-start gap-3 transition-colors ${
+          isOpen ? `bg-gradient-to-r ${theme.header} to-transparent` : ""
+        }`}
+        aria-expanded={isOpen}
       >
-        {/* Index bubble */}
-        <span className="mt-0.5 h-6 w-6 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center text-[10px] font-bold text-slate-400 shrink-0">
+        {/* Colored dot / index */}
+        <span
+          className={`mt-1 h-5 w-5 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 ${theme.dot}`}
+        >
           {index + 1}
         </span>
 
@@ -347,7 +367,7 @@ function GroupPanel({
             <h3 className="text-[15px] font-black text-white leading-tight">
               {group.name}
             </h3>
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${accent.pill}`}>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${catPill}`}>
               {CATEGORY_LABELS[group.category] ?? group.category}
             </span>
             {group.isSolid && (
@@ -387,7 +407,7 @@ function GroupPanel({
 
         {/* Chevron */}
         <svg
-          className={`h-5 w-5 text-slate-500 shrink-0 mt-1 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-5 w-5 text-slate-500 shrink-0 mt-1 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
           viewBox="0 0 20 20"
           fill="currentColor"
         >
@@ -400,7 +420,7 @@ function GroupPanel({
       </button>
 
       {/* ── Swimmer list ── */}
-      {open && (
+      {isOpen && (
         <div className="border-t border-white/6">
 
           {/* Filter bar */}
@@ -429,17 +449,19 @@ function GroupPanel({
             <div className="flex gap-1">
               {(
                 [
-                  { k: "all", label: "Tous", cls: "bg-cyan-700 text-white", inact: "bg-slate-800 text-slate-400" },
-                  { k: "paid", label: "Payes", cls: "bg-emerald-700 text-white", inact: "bg-slate-800 text-slate-400" },
-                  { k: "partial", label: "Part.", cls: "bg-amber-700 text-white", inact: "bg-slate-800 text-slate-400" },
-                  { k: "unpaid", label: "Non p.", cls: "bg-red-700 text-white", inact: "bg-slate-800 text-slate-400" },
-                ] as { k: PaymentFilter; label: string; cls: string; inact: string }[]
-              ).map(({ k, label, cls, inact }) => (
+                  { k: "all",     label: "Tous",   cls: "bg-slate-600 text-white"   },
+                  { k: "paid",    label: "Payes",  cls: "bg-emerald-700 text-white" },
+                  { k: "partial", label: "Part.",  cls: "bg-amber-700 text-white"   },
+                  { k: "unpaid",  label: "Non p.", cls: "bg-red-700 text-white"     },
+                ] as { k: PaymentFilter; label: string; cls: string }[]
+              ).map(({ k, label, cls }) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => setFilter(k)}
-                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${filter === k ? cls : inact}`}
+                  className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                    filter === k ? cls : "bg-slate-800 text-slate-400"
+                  }`}
                 >
                   {label}
                 </button>
@@ -459,7 +481,7 @@ function GroupPanel({
           ) : (
             <div className="px-3 pb-3 pt-2 space-y-2">
               {swimmers.map((s, idx) => (
-                <SwimmerCard key={s.id} swimmer={s} index={idx} barColor={accent.bar} />
+                <SwimmerCard key={s.id} swimmer={s} index={idx} barColor={theme.bar} />
               ))}
             </div>
           )}
@@ -469,7 +491,9 @@ function GroupPanel({
   );
 }
 
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
+
 
 export default function CoachTerminalPage({
   params,
@@ -483,6 +507,11 @@ export default function CoachTerminalPage({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalFilter, setGlobalFilter] = useState<PaymentFilter>("all");
+  // Accordion: null = all closed, string = that group's id is open
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+
+  const toggleGroup = (id: string) =>
+    setOpenGroupId((prev) => (prev === id ? null : id));
 
   useEffect(() => {
     async function load() {
@@ -678,7 +707,13 @@ export default function CoachTerminalPage({
         ) : (
           <div className="space-y-4">
             {displayedGroups.map((g, i) => (
-              <GroupPanel key={g.id} group={g} index={i} />
+              <GroupPanel
+                key={g.id}
+                group={g}
+                index={i}
+                isOpen={openGroupId === g.id}
+                onToggle={() => toggleGroup(g.id)}
+              />
             ))}
           </div>
         )}
