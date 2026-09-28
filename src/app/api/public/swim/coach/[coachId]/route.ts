@@ -69,7 +69,7 @@ export async function GET(
     // (members assigned via [GROUPS:...] tag in notes)
     const allGroupIds = groups.map((g) => g.id);
 
-    let secondarySwimmersByGroup: Record<string, typeof groups[0]["swimmers"]> = {};
+    const secondarySwimmersByGroup: Record<string, typeof groups[0]["swimmers"]> = {};
 
     if (allGroupIds.length > 0) {
       const secondaryMembers = await prisma.swimMember.findMany({
