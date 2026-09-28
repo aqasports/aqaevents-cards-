@@ -134,6 +134,20 @@ describe("Swim Groups Utilities", () => {
       const decoded = decodeMemberGroupIds(null, "grp-primary");
       expect(decoded).toEqual(["grp-primary"]);
     });
+
+    it("returns empty array when member is disassigned (primaryGroupId is null) even if stale [GROUPS:...] tag exists in notes", () => {
+      expect(decodeMemberGroupIds("[GROUPS:grp-1] Existing note", null)).toEqual([]);
+      expect(decodeMemberGroupIds("[GROUPS:grp-1,grp-2]", "")).toEqual([]);
+    });
+
+    it("ignores stale [GROUPS:...] tag if primaryGroupId was transferred to a new group not in the tag", () => {
+      expect(decodeMemberGroupIds("[GROUPS:grp-old]", "grp-new")).toEqual(["grp-new"]);
+    });
+
+    it("strips [GROUPS:...] tag completely when encoding an empty group list", () => {
+      expect(encodeMemberGroupIds("[GROUPS:grp-1] Existing note", [])).toBe("Existing note");
+      expect(encodeMemberGroupIds("[GROUPS:grp-1]", [])).toBeNull();
+    });
   });
 
   describe("extractFirstName (First name before space)", () => {

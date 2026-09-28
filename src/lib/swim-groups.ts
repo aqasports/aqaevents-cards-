@@ -254,6 +254,7 @@ export function decodeSolidNotes(notes: string | null | undefined): { isSolid: b
 // ─── Multi-Group Member Encoding ──────────────────────────────────────────────
 
 const GROUPS_REGEX = /\[GROUPS:([^\]]+)\]/;
+const GROUPS_REGEX_GLOBAL = /\[GROUPS:[^\]]+\]/g;
 
 /**
  * Encodes an array of assigned group IDs into the member's notes field.
@@ -261,8 +262,8 @@ const GROUPS_REGEX = /\[GROUPS:([^\]]+)\]/;
  */
 export function encodeMemberGroupIds(notes: string | null | undefined, groupIds: string[]): string | null {
   const raw = notes ?? "";
-  const cleaned = raw.replace(GROUPS_REGEX, "").trim();
-  const validIds = Array.from(new Set(groupIds.filter(Boolean)));
+  const cleaned = raw.replace(GROUPS_REGEX_GLOBAL, "").trim();
+  const validIds = Array.from(new Set(groupIds.map((id) => id?.trim()).filter(Boolean) as string[]));
 
   if (validIds.length === 0) {
     return cleaned.length > 0 ? cleaned : null;
@@ -278,13 +279,40 @@ export function encodeMemberGroupIds(notes: string | null | undefined, groupIds:
 /**
  * Decodes all assigned group IDs for a member from their notes field and primary groupId.
  * Returns a unique ordered list of group IDs.
+ *
+ * When primaryGroupId is explicitly null or empty string, the member is unassigned/disassigned
+ * and any leftover [GROUPS:...] tag in notes is treated as stale and ignored.
+ * When primaryGroupId is non-empty, additional IDs from [GROUPS:...] are included only if
+ * [GROUPS:...] also contains primaryGroupId (preventing stale tags after single-group transfers).
  */
 export function decodeMemberGroupIds(notes: string | null | undefined, primaryGroupId?: string | null): string[] {
-  const result: string[] = [];
-  if (primaryGroupId && primaryGroupId.trim()) {
-    result.push(primaryGroupId.trim());
+  if (primaryGroupId !== undefined) {
+    const cleanPrimary = primaryGroupId ? primaryGroupId.trim() : "";
+    if (!cleanPrimary) {
+      return [];
+    }
+
+    const result: string[] = [cleanPrimary];
+    if (notes) {
+      const match = notes.match(GROUPS_REGEX);
+      if (match && match[1]) {
+        const parsedIds = match[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (parsedIds.includes(cleanPrimary)) {
+          for (const id of parsedIds) {
+            if (!result.includes(id)) {
+              result.push(id);
+            }
+          }
+        }
+      }
+    }
+    return result;
   }
 
+  const result: string[] = [];
   if (notes) {
     const match = notes.match(GROUPS_REGEX);
     if (match && match[1]) {

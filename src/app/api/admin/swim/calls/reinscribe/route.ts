@@ -11,6 +11,7 @@ import {
   saveStoredCallRecords,
 } from "@/lib/swim-calls-server";
 import { logAdminAction } from "@/lib/audit";
+import { encodeMemberGroupIds, decodeMemberGroupIds } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,14 @@ export async function POST(request: NextRequest) {
 
     const dateFormatted = newStart.toLocaleDateString("en-GB");
     const reinscriptionNote = `[Reinscription Confirmed on ${dateFormatted} by ${callerName}]: Formula ${newFormula}, Duration ${newDuration}${notes ? ` | Note: ${notes}` : ""}`;
-    const updatedNotes = member.notes ? `${member.notes}\n${reinscriptionNote}` : reinscriptionNote;
+    const rawNotes = member.notes ? `${member.notes}\n${reinscriptionNote}` : reinscriptionNote;
+    const targetGroupIds =
+      groupId !== undefined
+        ? groupId
+          ? [groupId]
+          : []
+        : decodeMemberGroupIds(member.notes, member.groupId);
+    const updatedNotes = encodeMemberGroupIds(rawNotes, targetGroupIds);
 
     // Update SwimMember
     const updatedMember = await prisma.swimMember.update({

@@ -314,9 +314,10 @@ export default function SwimGroupsPage() {
         const res = await fetch(`/api/admin/swim/members?q=${encodeURIComponent(searchAssignQuery)}`);
         if (res.ok) {
           const all: SwimMemberSearch[] = await res.json();
+          const enrolledIds = new Set(selectedGroup.swimmers.map((s) => s.id));
           const eligible = all.filter((m) => {
             if (m.category !== selectedGroup.category) return false;
-            if (m.groupId === selectedGroup.id) return false;
+            if (m.groupId === selectedGroup.id || enrolledIds.has(m.id)) return false;
             return true;
           });
           setSearchAssignResults(eligible);
@@ -621,6 +622,9 @@ export default function SwimGroupsPage() {
       if (res.ok) {
         await fetchGroupDetail(selectedGroup.id);
         await loadData();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "Failed to remove swimmer from group.");
       }
     } finally {
       setRemovingMemberId(null);

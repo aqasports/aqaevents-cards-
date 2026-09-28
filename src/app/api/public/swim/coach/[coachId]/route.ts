@@ -131,6 +131,7 @@ export async function GET(
     if (allGroupIds.size > 0) {
       const multiGroupMembers = await prisma.swimMember.findMany({
         where: {
+          groupId: { not: null },
           notes: { contains: "[GROUPS:" },
         },
         include: {

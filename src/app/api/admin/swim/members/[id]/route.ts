@@ -158,7 +158,10 @@ export async function PATCH(
     // Build notes with optional whatsapp and multi-group tag
     let updatedNotes: string | null | undefined = undefined;
     if (notes !== undefined || whatsapp !== undefined || targetMultiGroupIds !== undefined) {
-      const currentMember = await prisma.swimMember.findUnique({ where: { id }, select: { notes: true } });
+      const currentMember = await prisma.swimMember.findUnique({
+        where: { id },
+        select: { notes: true, groupId: true },
+      });
       let currentNotesVal = notes !== undefined ? (notes?.trim() || null) : currentMember?.notes ?? null;
       if (whatsapp !== undefined) {
         const wa = whatsapp?.trim();
@@ -177,6 +180,9 @@ export async function PATCH(
       }
       if (targetMultiGroupIds !== undefined) {
         currentNotesVal = encodeMemberGroupIds(currentNotesVal, targetMultiGroupIds);
+      } else {
+        const activeIds = decodeMemberGroupIds(currentMember?.notes, currentMember?.groupId);
+        currentNotesVal = encodeMemberGroupIds(currentNotesVal, activeIds);
       }
       updatedNotes = currentNotesVal;
     }

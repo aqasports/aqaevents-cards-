@@ -35,6 +35,7 @@ export async function GET(
     // Find any secondary swimmers whose notes contain [GROUPS:...,id,...]
     const secondarySwimmers = await prisma.swimMember.findMany({
       where: {
+        groupId: { not: null },
         notes: { contains: "[GROUPS:" },
       },
       include: {

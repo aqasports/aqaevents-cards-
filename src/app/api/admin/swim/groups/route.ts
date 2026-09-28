@@ -38,9 +38,12 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Account for secondary multi-group assignments stored in notes
+    // Account for secondary multi-group assignments stored in notes (only for members who are actively assigned)
     const multiGroupMembers = await prisma.swimMember.findMany({
-      where: { notes: { contains: "[GROUPS:" } },
+      where: {
+        groupId: { not: null },
+        notes: { contains: "[GROUPS:" },
+      },
       select: { id: true, groupId: true, notes: true },
     });
 
