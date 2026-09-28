@@ -187,6 +187,7 @@ export default function SwimGroupsPage() {
   const [savingCoach, setSavingCoach] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [savingLocation, setSavingLocation] = useState(false);
+  const [copiedCoachId, setCopiedCoachId] = useState<string | null>(null);
 
   // Assign swimmer search
   const [searchAssignQuery, setSearchAssignQuery] = useState("");
@@ -516,6 +517,15 @@ export default function SwimGroupsPage() {
     } catch (err) {
       console.error("Failed to delete coach:", err);
     }
+  }
+
+  function copyCoachTerminalLink(coachId: string) {
+    const base = window.location.origin;
+    const url = `${base}/swim/coach/${coachId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedCoachId(coachId);
+      setTimeout(() => setCopiedCoachId(null), 2500);
+    });
   }
 
   async function handleAddLocation(e: React.FormEvent) {
@@ -2065,7 +2075,7 @@ export default function SwimGroupsPage() {
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div>
                 <h3 className="text-base font-bold text-white">Préférences du Manager de Groupes</h3>
-                <p className="text-xs text-slate-400">Configurez les entraîneurs et les bassins disponibles.</p>
+                <p className="text-xs text-slate-400">Configurez les entraîneurs et les bassins disponibles. Utilisez le bouton &quot;Lien&quot; pour copier le terminal de vue coach.</p>
               </div>
               <Button size="sm" variant="secondary" onClick={() => setShowPreferencesModal(false)}>
                 Fermer
@@ -2103,13 +2113,13 @@ export default function SwimGroupsPage() {
                   {savingCoach ? "Enregistrement..." : "+ Ajouter Entraîneur"}
                 </Button>
               </form>
-              <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+              <div className="divide-y divide-white/5 border border-white/10 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
                 {coaches.length === 0 ? (
                   <div className="p-3 text-center text-xs text-slate-400">Aucun entraîneur configuré.</div>
                 ) : (
                   coaches.map((c) => (
-                    <div key={c.id} className="p-2.5 flex items-center justify-between text-xs">
-                      <div>
+                    <div key={c.id} className="p-2.5 flex items-center justify-between text-xs gap-2">
+                      <div className="min-w-0 flex-1">
                         <span className="font-semibold text-white">{c.name}</span>
                         {c.specialties && (
                           <span className="ml-2 text-[11px] text-slate-400">({c.specialties})</span>
@@ -2118,10 +2128,22 @@ export default function SwimGroupsPage() {
                           <span className="ml-2 font-mono text-[10px] text-cyan-400">{c.phone}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <Badge tone={c.active ? "success" : "danger"}>
                           {c.active ? "Actif" : "Inactif"}
                         </Badge>
+                        <button
+                          type="button"
+                          title="Copier le lien terminal coach"
+                          onClick={() => copyCoachTerminalLink(c.id)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-colors ${
+                            copiedCoachId === c.id
+                              ? "bg-emerald-900/60 text-emerald-400 border-emerald-700/60"
+                              : "bg-slate-800 text-cyan-400 border-white/10 hover:border-cyan-500/50 hover:bg-slate-700"
+                          }`}
+                        >
+                          {copiedCoachId === c.id ? "Copie !" : "Lien"}
+                        </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteCoach(c.id)}
