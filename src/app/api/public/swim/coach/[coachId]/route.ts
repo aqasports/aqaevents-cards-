@@ -1,20 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { decodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  decodeSolidNotes,
+  decodeMemberGroupIds,
+  parseScheduleSlots,
+  FRENCH_DAYS,
+} from "@/lib/swim-groups";
+import { calculateSwimPrice } from "@/lib/swim-pricing";
+import {
+  getEffectiveSubscriptionStart,
+  computeSubscriptionEnd,
+} from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Computes a chronological sort key based on French weekly days (Lundi -> Dimanche)
+ * and session start times so coach groups appear in weekly schedule order.
+ */
+function getGroupScheduleSortKey(schedule: string): number {
+  const slots = parseScheduleSlots(schedule || "");
+  if (slots.length === 0 || !slots[0].day) return 999999;
+
+  let minKey = 999999;
+  for (const s of slots) {
+    if (!s.day) continue;
+    const dayIdx = FRENCH_DAYS.findIndex(
+      (d) => d.toLowerCase() === s.day.toLowerCase()
+    );
+    const normDay = dayIdx !== -1 ? dayIdx : 90;
+    let mins = 9999;
+    if (s.time) {
+      const [h, m] = s.time.split(":").map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        mins = h * 60 + m;
+      }
+    }
+    const key = normDay * 10000 + mins;
+    if (key < minKey) {
+      minKey = key;
+    }
+  }
+  return minKey;
+}
 
 /**
  * GET /api/public/swim/coach/[coachId]
  *
  * Public read-only terminal endpoint for a coach to view their assigned
- * swim groups and the payment situation of each swimmer.
- *
- * No authentication required — the coach ID acts as the opaque access token.
- * Returns only the data the coach needs: groups, swimmers, and payment status.
- * Phone numbers are partially masked for privacy.
- * No PII (emails, full addresses) is exposed.
+ * swim groups, all enrolled swimmers (primary + secondary multi-group),
+ * remaining blank places up to group capacity, and individual payment status.
  */
 export async function GET(
   _req: NextRequest,
@@ -42,10 +78,12 @@ export async function GET(
       );
     }
 
-    // Find all active groups where coachName matches this coach's name
-    const groups = await prisma.swimGroup.findMany({
+    const coachNameNorm = coach.name.trim().toLowerCase();
+
+    // Fetch all active groups and match coachName case-insensitively and trimmed
+    // Also build a level lookup map for accurate multi-group tariff calculation
+    const allActiveGroups = await prisma.swimGroup.findMany({
       where: {
-        coachName: coach.name,
         active: true,
       },
       include: {
@@ -65,16 +103,34 @@ export async function GET(
       orderBy: { createdAt: "asc" },
     });
 
-    // Also find secondary multi-group swimmers for each group
-    // (members assigned via [GROUPS:...] tag in notes)
-    const allGroupIds = groups.map((g) => g.id);
+    const groupLevelById = new Map<string, string>();
+    for (const g of allActiveGroups) {
+      groupLevelById.set(g.id, g.level);
+    }
 
-    const secondarySwimmersByGroup: Record<string, typeof groups[0]["swimmers"]> = {};
+    const groups = allActiveGroups
+      .filter(
+        (g) => (g.coachName ?? "").trim().toLowerCase() === coachNameNorm
+      )
+      .sort((a, b) => {
+        const keyA = getGroupScheduleSortKey(a.schedule);
+        const keyB = getGroupScheduleSortKey(b.schedule);
+        if (keyA !== keyB) return keyA - keyB;
+        return a.name.localeCompare(b.name);
+      });
 
-    if (allGroupIds.length > 0) {
-      const secondaryMembers = await prisma.swimMember.findMany({
+    const allGroupIds = new Set(groups.map((g) => g.id));
+
+    // Fetch ALL multi-group swimmers (including those whose primary groupId
+    // is ALSO one of this coach's groups or null) so 2x/3x swimmers are never missed
+    const secondarySwimmersByGroup: Record<
+      string,
+      typeof allActiveGroups[0]["swimmers"]
+    > = {};
+
+    if (allGroupIds.size > 0) {
+      const multiGroupMembers = await prisma.swimMember.findMany({
         where: {
-          groupId: { notIn: allGroupIds, not: null },
           notes: { contains: "[GROUPS:" },
         },
         include: {
@@ -89,59 +145,114 @@ export async function GET(
         orderBy: { fullName: "asc" },
       });
 
-      for (const member of secondaryMembers) {
-        const assignedGroups = decodeMemberGroupIds(member.notes, member.groupId);
+      for (const member of multiGroupMembers) {
+        const assignedGroups = decodeMemberGroupIds(
+          member.notes,
+          member.groupId
+        );
         for (const gid of assignedGroups) {
-          if (allGroupIds.includes(gid) && member.groupId !== gid) {
+          if (allGroupIds.has(gid)) {
             if (!secondarySwimmersByGroup[gid]) {
               secondarySwimmersByGroup[gid] = [];
             }
-            secondarySwimmersByGroup[gid].push(member as unknown as typeof groups[0]["swimmers"][0]);
+            secondarySwimmersByGroup[gid].push(
+              member as unknown as typeof allActiveGroups[0]["swimmers"][0]
+            );
           }
         }
       }
     }
 
-    // Shape the response — mask phone, compute payment summary
+    // Shape the response — deduplicate swimmers per group and compute individual payment status
     const shapedGroups = groups.map((g) => {
       const { isSolid, cleanNotes } = decodeSolidNotes(g.notes);
       const primary = g.swimmers;
       const secondary = secondarySwimmersByGroup[g.id] ?? [];
-      const allSwimmers = [...primary, ...secondary];
+
+      const seenMemberIds = new Set<string>();
+      const allSwimmers: typeof primary = [];
+      for (const s of [...primary, ...secondary]) {
+        if (!seenMemberIds.has(s.id)) {
+          seenMemberIds.add(s.id);
+          allSwimmers.push(s);
+        }
+      }
+
+      // Sort combined swimmers alphabetically by fullName
+      allSwimmers.sort((a, b) => a.fullName.localeCompare(b.fullName));
 
       const swimmers = allSwimmers.map((s) => {
         const totalPaid = s.payments.reduce((sum, p) => sum + p.amount, 0);
-        const remaining = Math.max(0, s.priceDA - totalPaid);
-        const maskedPhone = maskPhone(s.phone);
+
+        // Compute effective price if DB priceDA is 0
+        let effectivePriceDA = s.priceDA || 0;
+        if (effectivePriceDA <= 0) {
+          const memberGids = decodeMemberGroupIds(s.notes, s.groupId);
+          const groupTypes =
+            memberGids.length > 0
+              ? memberGids.map((id) => groupLevelById.get(id) || g.level)
+              : [g.level];
+          const computed = calculateSwimPrice({
+            category: s.category,
+            groupTypes,
+            duration: s.duration || "3m",
+          });
+          if (computed > 0) {
+            effectivePriceDA = computed;
+          }
+        }
+
+        const remaining = Math.max(0, effectivePriceDA - totalPaid);
+
+        let effectivePaymentStatus: "paid" | "partial" | "unpaid" = "unpaid";
+        if (
+          s.paymentStatus === "paid" ||
+          (effectivePriceDA > 0 && totalPaid >= effectivePriceDA)
+        ) {
+          effectivePaymentStatus = "paid";
+        } else if (s.paymentStatus === "partial" || totalPaid > 0) {
+          effectivePaymentStatus = "partial";
+        }
+
+        const subStart = s.subscriptionStart
+          ? s.subscriptionStart
+          : getEffectiveSubscriptionStart(s.dateOfStart);
+        const subEnd = s.subscriptionEnd
+          ? s.subscriptionEnd
+          : computeSubscriptionEnd(subStart, s.duration);
 
         return {
           id: s.id,
           swimId: s.swimId,
           fullName: s.fullName,
-          phone: maskedPhone,
           category: s.category,
           level: s.level,
           formula: s.formula,
           duration: s.duration,
-          priceDA: s.priceDA,
-          paymentStatus: s.paymentStatus,
+          priceDA: effectivePriceDA,
+          paymentStatus: effectivePaymentStatus,
           groupStatus: s.groupStatus,
           totalPaid,
           remaining,
           paymentCount: s.payments.length,
           cardCode: s.card?.cardCode ?? null,
           cardStatus: s.card?.status ?? null,
-          subscriptionStart: s.subscriptionStart,
-          subscriptionEnd: s.subscriptionEnd,
+          subscriptionStart: subStart,
+          subscriptionEnd: subEnd,
         };
       });
 
-      // Group-level payment summary
-      const totalExpected = swimmers.reduce((sum, s) => sum + s.priceDA, 0);
-      const totalCollected = swimmers.reduce((sum, s) => sum + s.totalPaid, 0);
-      const paidCount = swimmers.filter((s) => s.paymentStatus === "paid").length;
-      const partialCount = swimmers.filter((s) => s.paymentStatus === "partial").length;
-      const unpaidCount = swimmers.filter((s) => s.paymentStatus === "unpaid").length;
+      const effectiveCapacity = Math.max(g.capacity || 10, swimmers.length);
+      const emptyCount = Math.max(0, effectiveCapacity - swimmers.length);
+      const paidCount = swimmers.filter(
+        (s) => s.paymentStatus === "paid"
+      ).length;
+      const partialCount = swimmers.filter(
+        (s) => s.paymentStatus === "partial"
+      ).length;
+      const unpaidCount = swimmers.filter(
+        (s) => s.paymentStatus === "unpaid"
+      ).length;
 
       return {
         id: g.id,
@@ -149,21 +260,17 @@ export async function GET(
         category: g.category,
         level: g.level,
         schedule: g.schedule,
-        capacity: g.capacity,
+        capacity: effectiveCapacity,
         isSolid,
         cleanNotes,
         swimmers,
         summary: {
           total: swimmers.length,
+          capacity: effectiveCapacity,
+          emptyCount,
           paidCount,
           partialCount,
           unpaidCount,
-          totalExpected,
-          totalCollected,
-          collectionRate:
-            totalExpected > 0
-              ? Math.round((totalCollected / totalExpected) * 100)
-              : 0,
         },
       };
     });
@@ -184,17 +291,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
-
-/**
- * Masks a phone number for privacy, showing only the last 3 digits.
- * e.g. "+213 555 123 456" -> "+213 *** *** 456"
- */
-function maskPhone(phone: string): string {
-  if (!phone) return "";
-  const cleaned = phone.replace(/\s/g, "");
-  if (cleaned.length <= 4) return "***";
-  const visible = cleaned.slice(-3);
-  const masked = "*".repeat(Math.max(0, cleaned.length - 3));
-  return masked + visible;
 }
