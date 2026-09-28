@@ -230,10 +230,38 @@ export async function GET(
       },
     });
 
-    // Fallback: search by phone or partial ID if not matched directly
+    // Fallback: search by cardCode, publicToken, internal id, phone, or partial ID if not matched directly
     if (!member) {
       const cleanDigits = normalizedId.replace(/\D/g, "");
-      const allMembers = await prisma.swimMember.findMany({
+      const formattedSwm = cleanDigits.length === 6 ? `SWM-${cleanDigits}` : null;
+
+      member = await prisma.swimMember.findFirst({
+        where: {
+          OR: [
+            { id: swimId.trim() },
+            { swimId: { equals: normalizedId, mode: "insensitive" } },
+            ...(formattedSwm ? [{ swimId: { equals: formattedSwm, mode: "insensitive" as const } }] : []),
+            ...(normalizedId.length >= 4 ? [{ swimId: { endsWith: normalizedId, mode: "insensitive" as const } }] : []),
+            ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
+              ? [{ swimId: { endsWith: cleanDigits, mode: "insensitive" as const } }]
+              : []),
+            {
+              card: {
+                OR: [
+                  { cardCode: { equals: normalizedId, mode: "insensitive" } },
+                  ...(formattedSwm ? [{ cardCode: { equals: formattedSwm, mode: "insensitive" as const } }] : []),
+                  ...(normalizedId.length >= 4
+                    ? [{ cardCode: { endsWith: normalizedId, mode: "insensitive" as const } }]
+                    : []),
+                  ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
+                    ? [{ cardCode: { endsWith: cleanDigits, mode: "insensitive" as const } }]
+                    : []),
+                  { publicToken: { equals: swimId.trim() } },
+                ],
+              },
+            },
+          ],
+        },
         include: {
           group: {
             include: {
@@ -259,24 +287,46 @@ export async function GET(
             orderBy: { paidAt: "desc" },
           },
         },
-        take: 30,
       });
 
-      member = allMembers.find((m) => {
-        const sId = m.swimId.toUpperCase();
-        const mPhone = m.phone.replace(/\D/g, "");
-        if (sId === normalizedId || (normalizedId.length >= 4 && sId.endsWith(normalizedId))) {
-          return true;
-        }
-        if (
-          cleanDigits.length >= 8 &&
-          mPhone.length >= 8 &&
-          (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
-        ) {
-          return true;
-        }
-        return false;
-      }) || null;
+      if (!member && cleanDigits.length >= 8) {
+        const allMembers = await prisma.swimMember.findMany({
+          include: {
+            group: {
+              include: {
+                swimmers: {
+                  select: {
+                    id: true,
+                    swimId: true,
+                    fullName: true,
+                    groupStatus: true,
+                  },
+                },
+              },
+            },
+            card: true,
+            payments: {
+              select: {
+                id: true,
+                amount: true,
+                method: true,
+                notes: true,
+                paidAt: true,
+              },
+              orderBy: { paidAt: "desc" },
+            },
+          },
+        });
+
+        member =
+          allMembers.find((m) => {
+            const mPhone = (m.phone || "").replace(/\D/g, "");
+            return (
+              mPhone.length >= 8 &&
+              (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
+            );
+          }) || null;
+      }
     }
 
     if (!member) {

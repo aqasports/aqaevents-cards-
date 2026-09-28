@@ -48,24 +48,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cleanUpper = rawId.toUpperCase();
+    const cleanUpper = rawId.toUpperCase().replace(/\s+/g, "");
     const cleanDigits = rawId.replace(/\D/g, "");
+    const formattedSwmCode =
+      cleanDigits.length === 6 ? `SWM-${cleanDigits}` : cleanUpper;
 
-    // 1. Try exact swimId match first
-    let member = await prisma.swimMember.findUnique({
-      where: { swimId: cleanUpper },
-      include: { group: true },
+    // 1. Try direct exact match on swimId, internal id, card.cardCode, or card.publicToken
+    let member = await prisma.swimMember.findFirst({
+      where: {
+        OR: [
+          { swimId: { equals: cleanUpper, mode: "insensitive" } },
+          { swimId: { equals: formattedSwmCode, mode: "insensitive" } },
+          { id: rawId },
+          {
+            card: {
+              OR: [
+                { cardCode: { equals: cleanUpper, mode: "insensitive" } },
+                { cardCode: { equals: formattedSwmCode, mode: "insensitive" } },
+                { publicToken: rawId },
+              ],
+            },
+          },
+        ],
+      },
+      include: { group: true, card: true },
     });
 
-    // 2. Fallback search across SwimMember by swimId suffix or phone digits
+    // 2. Fallback search across SwimMember by swimId/cardCode suffix (>= 4 chars/digits) or phone digits
     if (!member) {
+      const suffixToken =
+        cleanDigits.length >= 4 ? cleanDigits : cleanUpper.replace(/^SWM-?/i, "");
       const orConditions: Record<string, unknown>[] = [
         { swimId: { equals: cleanUpper, mode: "insensitive" } },
       ];
-      if (cleanUpper.length >= 4) {
-        orConditions.push({
-          swimId: { endsWith: cleanUpper, mode: "insensitive" },
-        });
+      if (suffixToken.length >= 4) {
+        orConditions.push(
+          { swimId: { endsWith: suffixToken, mode: "insensitive" } },
+          {
+            card: {
+              cardCode: { endsWith: suffixToken, mode: "insensitive" },
+            },
+          }
+        );
       }
       if (cleanDigits.length >= 8) {
         const last8 = cleanDigits.slice(-8);
@@ -76,17 +100,33 @@ export async function POST(request: NextRequest) {
 
       const candidates = await prisma.swimMember.findMany({
         where: { OR: orConditions },
-        include: { group: true },
-        take: 25,
+        include: { group: true, card: true },
+        take: 50,
       });
 
       member =
         candidates.find((m) => {
           const sId = m.swimId.toUpperCase();
+          const sDigits = sId.replace(/\D/g, "");
+          const cCode = (m.card?.cardCode || "").toUpperCase();
+          const cDigits = cCode.replace(/\D/g, "");
           const mPhone = m.phone.replace(/\D/g, "");
+
           if (
             sId === cleanUpper ||
-            (cleanUpper.length >= 4 && sId.endsWith(cleanUpper))
+            sId === formattedSwmCode ||
+            cCode === cleanUpper ||
+            cCode === formattedSwmCode
+          ) {
+            return true;
+          }
+          if (
+            suffixToken.length >= 4 &&
+            (sId.endsWith(suffixToken) ||
+              (cCode && cCode.endsWith(suffixToken)) ||
+              (cleanDigits.length >= 4 &&
+                (sDigits.endsWith(cleanDigits) ||
+                  (cDigits && cDigits.endsWith(cleanDigits)))))
           ) {
             return true;
           }
@@ -119,7 +159,10 @@ export async function POST(request: NextRequest) {
           })
         : [];
 
-    const hasAssignedGroup = assignedGroups.length > 0;
+    // A member is treated as unassigned if they have no active assigned groups
+    // OR if their proposed group was rejected.
+    const hasAssignedGroup =
+      assignedGroups.length > 0 && member.groupStatus !== "rejected";
     const freqNum = assignedGroups.length > 0 ? assignedGroups.length : 1;
 
     const matchedGroups = assignedGroups.map((g) => ({
@@ -178,7 +221,10 @@ export async function POST(request: NextRequest) {
 
       // Account for secondary multi-group assignments stored in SwimMember.notes
       const multiGroupMembers = await prisma.swimMember.findMany({
-        where: { notes: { contains: "[GROUPS:" } },
+        where: {
+          groupId: { not: null },
+          notes: { contains: "[GROUPS:" },
+        },
         select: { id: true, groupId: true, notes: true },
       });
 
@@ -192,7 +238,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      availableGroups = categoryGroups
+      const mappedCategoryGroups = categoryGroups
         .map((g) => {
           const { isSolid } = decodeSolidNotes(g.notes);
           const totalSwimmers =
@@ -212,7 +258,6 @@ export async function POST(request: NextRequest) {
             isSolid,
           };
         })
-        .filter((g) => g.remaining > 0)
         .sort((a, b) => {
           const slotA = a.slots[0];
           const slotB = b.slots[0];
@@ -227,6 +272,15 @@ export async function POST(request: NextRequest) {
           if (normDayA !== normDayB) return normDayA - normDayB;
           return (slotA?.time || "").localeCompare(slotB?.time || "");
         });
+
+      const nonFull = mappedCategoryGroups.filter((g) => g.remaining > 0);
+      availableGroups =
+        nonFull.length > 0
+          ? nonFull
+          : mappedCategoryGroups.map((g) => ({
+              ...g,
+              remaining: Math.max(1, g.remaining),
+            }));
     }
 
     return NextResponse.json(

@@ -91,16 +91,43 @@ export async function POST(request: NextRequest) {
       : null;
 
     if (!isNew && (resolvedMemberId || rawPersonalId)) {
-      const cleanUpper = rawPersonalId.toUpperCase();
+      const cleanUpper = rawPersonalId.toUpperCase().replace(/\s+/g, "");
+      const cleanDigits = rawPersonalId.replace(/\D/g, "");
+      const formattedSwmFromDigits =
+        cleanDigits.length === 6 ? `SWM-${cleanDigits}` : null;
+
       const existingMember = resolvedMemberId
         ? await prisma.swimMember.findUnique({ where: { id: resolvedMemberId } })
         : await prisma.swimMember.findFirst({
             where: {
               OR: [
                 { swimId: { equals: cleanUpper, mode: "insensitive" } },
+                ...(formattedSwmFromDigits
+                  ? [{ swimId: { equals: formattedSwmFromDigits, mode: "insensitive" as const } }]
+                  : []),
                 ...(cleanUpper.length >= 4
                   ? [{ swimId: { endsWith: cleanUpper, mode: "insensitive" as const } }]
                   : []),
+                ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
+                  ? [{ swimId: { endsWith: cleanDigits, mode: "insensitive" as const } }]
+                  : []),
+                {
+                  card: {
+                    OR: [
+                      { cardCode: { equals: cleanUpper, mode: "insensitive" } },
+                      ...(formattedSwmFromDigits
+                        ? [{ cardCode: { equals: formattedSwmFromDigits, mode: "insensitive" as const } }]
+                        : []),
+                      ...(cleanUpper.length >= 4
+                        ? [{ cardCode: { endsWith: cleanUpper, mode: "insensitive" as const } }]
+                        : []),
+                      ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
+                        ? [{ cardCode: { endsWith: cleanDigits, mode: "insensitive" as const } }]
+                        : []),
+                      { publicToken: { equals: rawPersonalId } },
+                    ],
+                  },
+                },
               ],
             },
           });

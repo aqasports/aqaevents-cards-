@@ -786,16 +786,14 @@ export default function AdminSwimmerProfilePage({
                             <span className="text-[10px] font-mono text-cyan-300 font-semibold px-1.5 py-0.5 rounded bg-slate-900 border border-white/10">
                               {grp.level}
                             </span>
-                            {assignedGroupsList.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveSlot(grp.id)}
-                                disabled={savingGroup}
-                                className="text-[11px] text-rose-400 hover:text-rose-300 underline font-medium transition-colors"
-                              >
-                                Remove Slot
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSlot(grp.id)}
+                              disabled={savingGroup}
+                              className="text-[11px] text-rose-400 hover:text-rose-300 underline font-medium transition-colors"
+                            >
+                              Remove Slot
+                            </button>
                           </div>
                         </div>
                         {grp.coachName && (
@@ -1137,11 +1135,15 @@ export default function AdminSwimmerProfilePage({
               <SwimFlipCard member={member} qrDataUrl={cardQrDataUrl} />
 
               {/* Card Actions & Print */}
-              <div className="space-y-2 pt-2 border-t border-white/5 text-xs">
+              <div className="space-y-1.5 pt-2 border-t border-white/5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-[var(--muted)]">Member ID:</span>
+                  <span className="font-mono font-bold text-white select-all">{member.swimId}</span>
+                </div>
                 {member.card && (
                   <div className="flex justify-between">
                     <span className="text-[var(--muted)]">Card Code:</span>
-                    <span className="font-mono font-bold text-cyan-300">{member.card.cardCode}</span>
+                    <span className="font-mono font-bold text-cyan-300 select-all">{member.card.cardCode}</span>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2 mt-1">

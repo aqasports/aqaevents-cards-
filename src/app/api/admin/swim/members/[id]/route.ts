@@ -23,11 +23,17 @@ export async function GET(
   const { id } = await params;
 
   try {
-    // Support lookup by swimId (SWM-XXXXXX) or internal DB id
-    const isSwimlId = id.toUpperCase().startsWith("SWM-");
+    // Support lookup by swimId (SWM-XXXXXX), card.cardCode (SWM-XXXXXX), or internal DB id
+    const upperId = id.trim().toUpperCase();
+    const isSwimlId = upperId.startsWith("SWM-");
     const member = isSwimlId
       ? await prisma.swimMember.findFirst({
-          where: { swimId: id.toUpperCase() },
+          where: {
+            OR: [
+              { swimId: { equals: upperId, mode: "insensitive" } },
+              { card: { cardCode: { equals: upperId, mode: "insensitive" } } },
+            ],
+          },
           include: {
             group: true,
             card: true,
