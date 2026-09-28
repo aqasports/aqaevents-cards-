@@ -110,12 +110,12 @@ export async function POST(request: NextRequest) {
 
     const firstName = member.fullName.split(" ")[0];
 
-    // Check all assigned groups (primary + multi-group notes)
+    // Check all active assigned groups (primary + multi-group notes)
     const assignedIds = decodeMemberGroupIds(member.notes, member.groupId);
     const assignedGroups =
       assignedIds.length > 0
         ? await prisma.swimGroup.findMany({
-            where: { id: { in: assignedIds } },
+            where: { id: { in: assignedIds }, active: true },
           })
         : [];
 
@@ -131,6 +131,23 @@ export async function POST(request: NextRequest) {
       coachName: g.coachName || null,
     }));
 
+    function getCategoryAliases(rawCat?: string | null): string[] {
+      const c = (rawCat || "homme").toLowerCase().trim();
+      if (c === "homme" || c === "men" || c === "teens" || c === "ados") {
+        return ["homme", "men", "teens", "ados"];
+      }
+      if (c === "femme" || c === "women") {
+        return ["femme", "women"];
+      }
+      if (c === "enfants" || c === "kids") {
+        return ["enfants", "kids"];
+      }
+      if (c === "apnea" || c === "apnee") {
+        return ["apnea", "apnee"];
+      }
+      return [c];
+    }
+
     // If the old member has no assigned group yet, fetch remaining available groups
     // for their category WITHOUT any assigned swimmers' names.
     let availableGroups: Array<{
@@ -140,6 +157,7 @@ export async function POST(request: NextRequest) {
       level: string;
       coachName: string | null;
       schedule: string;
+      slots: Array<{ day: string; time: string; location: string }>;
       capacity: number;
       remaining: number;
       isSolid: boolean;
@@ -149,7 +167,7 @@ export async function POST(request: NextRequest) {
       const categoryGroups = await prisma.swimGroup.findMany({
         where: {
           active: true,
-          category: member.category,
+          category: { in: getCategoryAliases(member.category) },
         },
         include: {
           _count: {
@@ -180,6 +198,7 @@ export async function POST(request: NextRequest) {
           const totalSwimmers =
             (g._count?.swimmers ?? 0) + (extraCounts[g.id] || 0);
           const remaining = Math.max(0, g.capacity - totalSwimmers);
+          const parsedSlots = parseScheduleSlots(g.schedule);
           return {
             id: g.id,
             name: g.name,
@@ -187,6 +206,7 @@ export async function POST(request: NextRequest) {
             level: g.level,
             coachName: g.coachName || null,
             schedule: g.schedule,
+            slots: parsedSlots,
             capacity: g.capacity,
             remaining,
             isSolid,
@@ -194,8 +214,8 @@ export async function POST(request: NextRequest) {
         })
         .filter((g) => g.remaining > 0)
         .sort((a, b) => {
-          const slotA = parseScheduleSlots(a.schedule)[0];
-          const slotB = parseScheduleSlots(b.schedule)[0];
+          const slotA = a.slots[0];
+          const slotB = b.slots[0];
           const dayIdxA = FRENCH_DAYS.findIndex(
             (d) => d.toLowerCase() === (slotA?.day || "").toLowerCase()
           );

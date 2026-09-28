@@ -74,7 +74,10 @@ export async function POST(request: NextRequest) {
     let frequency = normalizeFrequency(body.frequency || body.payload?.frequency);
     const rawFormule = body.formule || body.formula || body.payload?.formule || "G10";
     let formula = String(rawFormule).trim();
-    const duration = normalizeDuration(body.duration || body.payload?.duration, rawFormule);
+    const duration = normalizeDuration(
+      body.duration || body.payload?.duration,
+      body.tier || body.payload?.formule || rawFormule
+    );
     const level = !isNew
       ? "old_aqa"
       : body.level || body.goal || body.payload?.goal || "new_aqa";
@@ -147,9 +150,11 @@ export async function POST(request: NextRequest) {
         .filter((g): g is NonNullable<typeof g> => Boolean(g));
 
       if (orderedGroups.length > 0) {
-        selectedGroupNames = orderedGroups.map(
-          (g) => `${g.name} (${g.level.toUpperCase()})`
-        );
+        selectedGroupNames = orderedGroups.map((g) => {
+          const sched = g.schedule || g.name;
+          const coachPart = g.coachName ? `${g.coachName} - ` : "";
+          return `${sched} (${coachPart}${g.level.toUpperCase()})`;
+        });
         const groupTypes = orderedGroups.map((g) => g.level);
         const multiResolved = resolveMultiGroupFormula(groupTypes);
         formula = multiResolved.formula;
@@ -242,25 +247,57 @@ export async function POST(request: NextRequest) {
         ? selectedGroupNames.join(" + ")
         : body.dayNight || body.payload?.timePref || null;
 
-    const lead = await prisma.swimLead.create({
-      data: {
-        fullName,
-        phone,
-        email,
-        category,
-        level,
-        frequency,
-        formula,
-        duration,
-        preferredDays: preferredDaysValue,
-        notes: formattedNotes,
-        marketingConsent: Boolean(body.marketingConsent),
-        utmSource: body.utmSource ? String(body.utmSource).trim() : null,
-        utmMedium: body.utmMedium ? String(body.utmMedium).trim() : null,
-        utmCampaign: body.utmCampaign ? String(body.utmCampaign).trim() : null,
-        status: "pending",
-      },
-    });
+    // If this is an old member who already has a pending/waiting lead, update it in place
+    let existingPendingLeadId: string | null = null;
+    if (!isNew && resolvedPersonalId) {
+      const existingPending = await prisma.swimLead.findFirst({
+        where: {
+          status: { in: ["pending", "waiting"] },
+          notes: { contains: resolvedPersonalId },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existingPending) {
+        existingPendingLeadId = existingPending.id;
+      }
+    }
+
+    const lead = existingPendingLeadId
+      ? await prisma.swimLead.update({
+          where: { id: existingPendingLeadId },
+          data: {
+            fullName,
+            phone,
+            email,
+            category,
+            level,
+            frequency,
+            formula,
+            duration,
+            preferredDays: preferredDaysValue,
+            notes: formattedNotes,
+            status: "pending",
+          },
+        })
+      : await prisma.swimLead.create({
+          data: {
+            fullName,
+            phone,
+            email,
+            category,
+            level,
+            frequency,
+            formula,
+            duration,
+            preferredDays: preferredDaysValue,
+            notes: formattedNotes,
+            marketingConsent: Boolean(body.marketingConsent),
+            utmSource: body.utmSource ? String(body.utmSource).trim() : null,
+            utmMedium: body.utmMedium ? String(body.utmMedium).trim() : null,
+            utmCampaign: body.utmCampaign ? String(body.utmCampaign).trim() : null,
+            status: "pending",
+          },
+        });
 
     return NextResponse.json(
       { success: true, leadId: lead.id, paymentUrl: null },
