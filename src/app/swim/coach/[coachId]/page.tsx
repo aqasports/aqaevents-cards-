@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useState, useMemo } from "react";
-import { parseScheduleSlots } from "@/lib/swim-groups";
+import { parseScheduleSlots, isOldSwimMember } from "@/lib/swim-groups";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -187,6 +187,7 @@ function SwimmerCard({
   barColor: string;
 }) {
   const [open, setOpen] = useState(false);
+  const isNewMember = !isOldSwimMember(swimmer.level);
 
   const borderColor =
     swimmer.paymentStatus === "paid"
@@ -212,8 +213,13 @@ function SwimmerCard({
 
         {/* Name + swimId */}
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-[13px] text-white truncate leading-tight">
-            {swimmer.fullName}
+          <div className="font-semibold text-[13px] text-white leading-tight flex items-center gap-1.5 min-w-0">
+            <span className="truncate">{swimmer.fullName}</span>
+            {isNewMember && (
+              <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-cyan-300 bg-cyan-950/70 border border-cyan-700/50 leading-none">
+                (new)
+              </span>
+            )}
           </div>
           <div className="text-[10px] font-mono text-slate-500 mt-0.5 flex items-center gap-1.5">
             <span>{swimmer.swimId}</span>
