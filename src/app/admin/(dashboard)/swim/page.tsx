@@ -808,12 +808,12 @@ export default function SwimOverviewPage() {
       actionText: "Manage Groups",
     },
     {
-      title: "4. PVC Pass QR Generator",
-      desc: "Generate blank PVC card batches (SWM-000001), export print sheets, and link cards to swimmers.",
+      title: "4. PVC Pass QR Generator & Sticker Studio",
+      desc: "Customize PVC card tickets in the Sticker Studio, search & select swimmers, wrap stickers on A4 sheets, and generate blank card batches.",
       href: "/admin/swim/cards",
       badge: `${cards.length} PVC Cards`,
       badgeTone: "info" as const,
-      actionText: "Generate & Print",
+      actionText: "Open Sticker Studio & Print",
     },
     {
       title: "5. Reinscription & Call Manager",
@@ -1825,12 +1825,20 @@ export default function SwimOverviewPage() {
                 {cards.filter((c) => !c.memberId).length}
               </p>
             </div>
-            <Link
-              href="/admin/swim/cards"
-              className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold"
-            >
-              Batch Generate & Print →
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/admin/swim/cards?mode=studio"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-[var(--primary)] hover:bg-sky-400 text-white text-xs font-bold shadow-sm transition-colors"
+              >
+                PVC Ticket Studio & A4 Printer
+              </Link>
+              <Link
+                href="/admin/swim/cards?mode=inventory"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold transition-colors"
+              >
+                Batch Generate & Inventory
+              </Link>
+            </div>
           </div>
 
           <Card>
