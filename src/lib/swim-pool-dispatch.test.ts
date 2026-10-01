@@ -9,6 +9,10 @@ import {
   exportPoolRowsToCSV,
   generatePoolDispatchMessage,
   formatMonthLabel,
+  buildPoolSlotReservations,
+  computeSlotReservationsSummary,
+  exportSlotReservationsToCSV,
+  generatePlaceReservationMessage,
   DEFAULT_POOL_PRICING,
   DEFAULT_PREVIEW_COLUMNS,
   DEFAULT_REAL_FINAL_COLUMNS,
@@ -292,6 +296,95 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(DEFAULT_PREVIEW_COLUMNS.name).toBe(true);
       expect(DEFAULT_REAL_FINAL_COLUMNS.poolPrice).toBe(true);
       expect(DEFAULT_REAL_FINAL_COLUMNS.number).toBe(true);
+    });
+  });
+
+  describe("Method ONE: simple place reservations without names", () => {
+    const groups = [
+      { id: "g1", name: "G10 Homme Soir", schedule: "Samedi 18:00 - 19:00", capacity: 10, category: "homme" },
+      { id: "g2", name: "MAX5 Kids", schedule: "Mardi 17:00 - 18:00", capacity: 5, category: "enfants" },
+    ];
+
+    const members = [
+      {
+        id: "m1",
+        swimId: "SWM-01",
+        fullName: "Ali Baba",
+        category: "homme",
+        level: "new_aqa",
+        phone: "0555",
+        paymentStatus: "paid" as const,
+        notes: null,
+        groupId: "g1",
+      },
+      {
+        id: "m2",
+        swimId: "SWM-02",
+        fullName: "Nadir Test",
+        category: "homme",
+        level: "old_aqa",
+        phone: "0556",
+        paymentStatus: "paid" as const,
+        notes: null,
+        groupId: "g1",
+      },
+    ];
+
+    it("should build place reservations by slot with no client names", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      expect(res.length).toBe(2);
+
+      const g1Slot = res.find((r) => r.groupId === "g1");
+      expect(g1Slot).toBeDefined();
+      expect(g1Slot?.day).toBe("Samedi");
+      expect(g1Slot?.time).toBe("18:00");
+      expect(g1Slot?.reservedPlaces).toBe(2); // 2 members assigned
+      expect(g1Slot?.isPeak).toBe(true);
+
+      // Verify no member name property exists on reservation
+      expect((g1Slot as unknown as Record<string, unknown>).fullName).toBeUndefined();
+      expect((g1Slot as unknown as Record<string, unknown>).swimId).toBeUndefined();
+    });
+
+    it("should support manual place count overrides", () => {
+      const overrides = { g1_slot_0: 8 };
+      const res = buildPoolSlotReservations(groups, members, overrides);
+      const g1Slot = res.find((r) => r.id === "g1_slot_0");
+      expect(g1Slot?.reservedPlaces).toBe(8);
+      expect(g1Slot?.hasCustomPlaces).toBe(true);
+    });
+
+    it("should compute reservation summary places count", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      const selected = new Set([res[0].id, res[1].id]);
+      const summary = computeSlotReservationsSummary(res, selected);
+      expect(summary.selectedReservationsCount).toBe(2);
+      expect(summary.totalReservedPlaces).toBe(7); // 2 in g1 + 5 in g2
+    });
+
+    it("should export CSV with places and without client names", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      const selected = new Set([res[0].id, res[1].id]);
+      const csv = exportSlotReservationsToCSV(res, "Octobre 2026", true, selected);
+      expect(csv).toContain("Places Reservees");
+      expect(csv).toContain("G10 Homme Soir");
+      expect(csv).toContain("MAX5 Kids");
+      expect(csv).not.toContain("Ali Baba");
+      expect(csv).not.toContain("Nadir Test");
+    });
+
+    it("should generate WhatsApp message with places and without client names", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      const msg = generatePlaceReservationMessage({
+        monthLabel: "Octobre 2026",
+        reservations: res,
+        totalPlaces: 7,
+      });
+      expect(msg).toContain("AQA SPORTS - ETAT PREVISIONNEL DE RESERVATION DES PLACES");
+      expect(msg).toContain("Nombre total de places reservees: 7 places");
+      expect(msg).toContain("G10 Homme Soir");
+      expect(msg).not.toContain("Ali Baba");
+      expect(msg).not.toContain("Nadir Test");
     });
   });
 });

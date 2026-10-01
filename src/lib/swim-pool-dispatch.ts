@@ -75,6 +75,7 @@ export interface SwimGroupReference {
   level?: string;
   coachName?: string | null;
   schedule: string;
+  capacity?: number;
   active?: boolean;
 }
 
@@ -94,6 +95,7 @@ export interface SwimMemberReference {
     name: string;
     coachName?: string | null;
     schedule: string;
+    capacity?: number;
     category?: string;
     active?: boolean;
   } | null;
@@ -143,6 +145,31 @@ export interface RealFinalPoolSummary {
   categoryBreakdown: Record<string, { count: number; subtotalDA: number }>;
 }
 
+export interface PoolSlotReservation {
+  id: string;
+  groupId: string;
+  groupName: string;
+  category: string;
+  coachName?: string | null;
+  day: string;
+  time: string;
+  timeSlot: string;
+  location: string;
+  isPeak: boolean;
+  reservedPlaces: number;
+  capacity: number;
+  actualAssignedCount: number;
+  hasCustomPlaces: boolean;
+}
+
+export interface PoolSlotReservationSummary {
+  totalReservations: number;
+  selectedReservationsCount: number;
+  totalReservedPlaces: number;
+  peakReservedPlaces: number;
+  normalReservedPlaces: number;
+}
+
 export interface PoolDispatchSnapshot {
   id: string;
   mode: PoolCorrespondenceMode;
@@ -168,6 +195,8 @@ export const STORAGE_KEYS = {
   COLUMNS_FINAL: "aqa_swim_pool_cols_final_v1",
   SNAPSHOTS: "aqa_swim_realfinalpool_snapshots_v1",
   SELECTED_MEMBERS: "aqa_swim_pool_selected_members_v1",
+  RESERVATION_OVERRIDES: "aqa_swim_pool_places_overrides_v1",
+  SELECTED_RESERVATIONS: "aqa_swim_pool_selected_reservations_v1",
 };
 
 /**
@@ -535,3 +564,171 @@ export function generatePoolDispatchMessage(params: {
   msg += `Cordialement,\nDirection AQA Sports`;
   return msg;
 }
+
+/**
+ * Builds simple place reservations for Method ONE (slots and capacity places only, NO client names).
+ */
+export function buildPoolSlotReservations(
+  groups: SwimGroupReference[],
+  members: SwimMemberReference[],
+  placeOverrides: Record<string, number> = {}
+): PoolSlotReservation[] {
+  // Count assigned members per group
+  const memberCountsByGroup = new Map<string, number>();
+  for (const m of members) {
+    const assigned = resolveMemberGroups(m, groups);
+    for (const g of assigned) {
+      memberCountsByGroup.set(g.id, (memberCountsByGroup.get(g.id) || 0) + 1);
+    }
+  }
+
+  const reservations: PoolSlotReservation[] = [];
+
+  for (const g of groups) {
+    if (!g.schedule) continue;
+    const slots = parseScheduleSlots(g.schedule);
+    const assignedCount = memberCountsByGroup.get(g.id) || 0;
+
+    slots.forEach((s, idx) => {
+      if (!s.day && !s.time) return;
+      const resId = `${g.id}_slot_${idx}`;
+      const isPeak = isPeakTimeSlot(s.time, s.day);
+      const defaultPlaces = assignedCount > 0 ? assignedCount : (g.capacity || 10);
+      const hasCustom = placeOverrides[resId] !== undefined;
+      const reservedPlaces = hasCustom ? placeOverrides[resId] : defaultPlaces;
+
+      reservations.push({
+        id: resId,
+        groupId: g.id,
+        groupName: g.name,
+        category: g.category || "homme",
+        coachName: g.coachName,
+        day: s.day || "Samedi",
+        time: s.time || "18:00",
+        timeSlot: `${s.day} ${s.time}`.trim(),
+        location: s.location || "Piscine",
+        isPeak,
+        reservedPlaces,
+        capacity: g.capacity || 10,
+        actualAssignedCount: assignedCount,
+        hasCustomPlaces: hasCustom,
+      });
+    });
+  }
+
+  const dayIndex = (d: string) => {
+    const idx = FRENCH_DAYS.findIndex((fd) => fd.toLowerCase() === d.toLowerCase());
+    return idx === -1 ? 99 : idx;
+  };
+
+  return reservations.sort((a, b) => {
+    const dDiff = dayIndex(a.day) - dayIndex(b.day);
+    if (dDiff !== 0) return dDiff;
+    return a.time.localeCompare(b.time);
+  });
+}
+
+/**
+ * Computes summary of place reservations for Method ONE.
+ */
+export function computeSlotReservationsSummary(
+  reservations: PoolSlotReservation[],
+  selectedIds: Set<string>
+): PoolSlotReservationSummary {
+  const totalReservations = reservations.length;
+  let selectedReservationsCount = 0;
+  let totalReservedPlaces = 0;
+  let peakReservedPlaces = 0;
+  let normalReservedPlaces = 0;
+
+  for (const r of reservations) {
+    if (!selectedIds.has(r.id)) continue;
+    selectedReservationsCount += 1;
+    totalReservedPlaces += r.reservedPlaces;
+    if (r.isPeak) {
+      peakReservedPlaces += r.reservedPlaces;
+    } else {
+      normalReservedPlaces += r.reservedPlaces;
+    }
+  }
+
+  return {
+    totalReservations,
+    selectedReservationsCount,
+    totalReservedPlaces,
+    peakReservedPlaces,
+    normalReservedPlaces,
+  };
+}
+
+/**
+ * Exports place reservations to CSV for Method ONE (No client names).
+ */
+export function exportSlotReservationsToCSV(
+  reservations: PoolSlotReservation[],
+  monthLabel: string,
+  selectedOnly: boolean,
+  selectedIds: Set<string>
+): string {
+  const headers = [
+    "N",
+    "Jour",
+    "Horaire",
+    "Groupe",
+    "Categorie",
+    "Places Reservees",
+    "Heure de Pointe",
+    "Mois",
+  ];
+
+  const escapeCSV = (val: string | number) => {
+    const s = String(val ?? "").replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  const lines = [headers.join(";")];
+  let rowIndex = 1;
+
+  for (const r of reservations) {
+    if (selectedOnly && !selectedIds.has(r.id)) continue;
+    const cols = [
+      escapeCSV(rowIndex++),
+      escapeCSV(r.day),
+      escapeCSV(r.time),
+      escapeCSV(r.groupName),
+      escapeCSV(r.category),
+      escapeCSV(r.reservedPlaces),
+      escapeCSV(r.isPeak ? "Oui (Pointe)" : "Non"),
+      escapeCSV(monthLabel),
+    ];
+    lines.push(cols.join(";"));
+  }
+
+  return "\uFEFF" + lines.join("\r\n");
+}
+
+/**
+ * Generates place reservation message for Method ONE without any client names.
+ */
+export function generatePlaceReservationMessage(params: {
+  monthLabel: string;
+  reservations: PoolSlotReservation[];
+  totalPlaces: number;
+}): string {
+  const { monthLabel, reservations, totalPlaces } = params;
+
+  let msg = `*AQA SPORTS - ETAT PREVISIONNEL DE RESERVATION DES PLACES (DEBUT DE MOIS)*\n`;
+  msg += `A l'attention de la Direction de la Piscine\n`;
+  msg += `Periode: ${monthLabel}\n`;
+  msg += `Nombre total de places reservees: ${totalPlaces} places\n\n`;
+
+  msg += `*Detail des Creneaux & Reservations de Places :*\n`;
+  for (const r of reservations) {
+    const peakTag = r.isPeak ? " [Heure de pointe]" : "";
+    msg += `- ${r.day} ${r.time} | ${r.groupName} (${r.category}) : ${r.reservedPlaces} places${peakTag}\n`;
+  }
+  msg += `\nCe previsionnel est transmis a titre indicatif pour securiser les creneaux et lignes d'eau.\n`;
+  msg += `Cordialement,\nDirection AQA Sports`;
+  return msg;
+}
+
