@@ -1,0 +1,55 @@
+"use client";
+
+import { Suspense } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { PageHeader, Button } from "@/components/admin/ui";
+import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
+import { useTranslations } from "@/lib/i18n";
+
+function SwimPoolPageInner() {
+  const router = useRouter();
+  const { t } = useTranslations("swimPool");
+
+  return (
+    <div className="space-y-6">
+      <div className="print:hidden">
+        <PageHeader
+          title={t("tabTitle") + " - AQA Swim"}
+          description={t("subtitle")}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => router.push("/admin/swim")} variant="secondary">
+                Back to Swim Manager
+              </Button>
+              <Link
+                href="/admin/swim?tab=confirmed"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-white/10 transition-colors"
+              >
+                Confirmed Swimmers
+              </Link>
+            </div>
+          }
+        />
+      </div>
+
+      <SwimPoolDesk />
+    </div>
+  );
+}
+
+export default function SwimPoolPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-sm text-[var(--muted)] animate-pulse">
+            Loading pool correspondence desk...
+          </div>
+        </div>
+      }
+    >
+      <SwimPoolPageInner />
+    </Suspense>
+  );
+}

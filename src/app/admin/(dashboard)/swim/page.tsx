@@ -40,6 +40,7 @@ import {
 import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
 import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
+import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -161,7 +162,7 @@ interface SwimCardItem {
 
 export default function SwimOverviewPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -184,7 +185,8 @@ export default function SwimOverviewPage() {
         tabParam === "calls" ||
         tabParam === "payments" ||
         tabParam === "backups" ||
-        tabParam === "equipment"
+        tabParam === "equipment" ||
+        tabParam === "pool"
       ) {
         setActiveTab(tabParam);
       }
@@ -1078,6 +1080,23 @@ export default function SwimOverviewPage() {
                 {equipmentDemandsCount}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab("pool")}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              activeTab === "pool"
+                ? "bg-[var(--primary)] text-white shadow-sm"
+                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+            }`}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <span>Pool Direction</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
+              2 Methods
+            </span>
           </button>
         </div>
 
@@ -2257,6 +2276,11 @@ export default function SwimOverviewPage() {
       {/* ─── TAB: EQUIPMENT DEMANDS, SALES & PROFITS ───────────────── */}
       {activeTab === "equipment" && (
         <SwimEquipmentDesk leads={leads} onRefreshLeads={loadAllData} />
+      )}
+
+      {/* ─── TAB: POOL DIRECTION DISPATCH & CORRESPONDENCE ─────────── */}
+      {activeTab === "pool" && (
+        <SwimPoolDesk members={members} groups={groups} />
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}
