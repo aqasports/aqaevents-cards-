@@ -16,7 +16,6 @@ import {
   DEFAULT_POOL_PRICING,
   DEFAULT_PREVIEW_COLUMNS,
   DEFAULT_REAL_FINAL_COLUMNS,
-  DEFAULT_DOCUMENT_META,
   exportOfficialCorrespondenceToCSV,
 } from "./swim-pool-dispatch";
 
@@ -342,7 +341,6 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(g1Slot?.day).toBe("Samedi");
       expect(g1Slot?.time).toBe("18:00");
       expect(g1Slot?.reservedPlaces).toBe(2); // 2 members assigned
-      expect(g1Slot?.isPeak).toBe(true);
 
       // Verify no member name property exists on reservation
       expect((g1Slot as unknown as Record<string, unknown>).fullName).toBeUndefined();
@@ -370,8 +368,8 @@ describe("swim-pool-dispatch domain utilities", () => {
       const selected = new Set([res[0].id, res[1].id]);
       const csv = exportSlotReservationsToCSV(res, "Octobre 2026", true, selected);
       expect(csv).toContain("Places Reservees");
-      expect(csv).toContain("G10 Homme Soir");
-      expect(csv).toContain("MAX5 Kids");
+      expect(csv).toContain("Samedi");
+      expect(csv).toContain("18:00");
       expect(csv).not.toContain("Ali Baba");
       expect(csv).not.toContain("Nadir Test");
     });
@@ -385,25 +383,22 @@ describe("swim-pool-dispatch domain utilities", () => {
       });
       expect(msg).toContain("AQA SPORTS - ETAT PREVISIONNEL DE RESERVATION DES PLACES");
       expect(msg).toContain("Nombre total de places reservees: 7 places");
-      expect(msg).toContain("G10 Homme Soir");
+      expect(msg).toContain("Samedi 18:00 : 2 places");
       expect(msg).not.toContain("Ali Baba");
       expect(msg).not.toContain("Nadir Test");
     });
 
-    it("should allow overriding peak hour status explicitly", () => {
-      // By default g1 slot at 18:00 is peak
-      const defaultRes = buildPoolSlotReservations(groups, members);
-      expect(defaultRes[0].isPeak).toBe(true);
+    it("should never include slots with 0 places in summary or exports", () => {
+      const overrides = { g1_slot_0: 0 };
+      const res = buildPoolSlotReservations(groups, members, overrides);
+      const selected = new Set([res[0].id, res[1].id]);
+      const summary = computeSlotReservationsSummary(res, selected);
+      expect(summary.selectedReservationsCount).toBe(1);
+      expect(summary.totalReservedPlaces).toBe(5); // g1 has 0 places, so excluded
 
-      // User overrides it to false (normal)
-      const overrides = { [defaultRes[0].id]: false };
-      const customRes = buildPoolSlotReservations(groups, members, {}, overrides);
-      expect(customRes[0].isPeak).toBe(false);
-
-      // User marks g2 slot as peak
-      const customPeak = { [customRes[1].id]: true };
-      const resWithPeak = buildPoolSlotReservations(groups, members, {}, customPeak);
-      expect(resWithPeak[1].isPeak).toBe(true);
+      const csv = exportSlotReservationsToCSV(res, "Octobre 2026", true, selected);
+      expect(csv).not.toContain("Samedi");
+      expect(csv).toContain("\"Mardi\";\"17:00\"");
     });
   });
 

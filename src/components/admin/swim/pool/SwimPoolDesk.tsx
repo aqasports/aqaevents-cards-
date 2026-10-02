@@ -364,12 +364,49 @@ export function SwimPoolDesk({
   }, [rawGroups, rawMembers, placeOverrides]);
 
   const [selectedReservationIds, setSelectedReservationIds] = useState<Set<string>>(new Set());
+  const [hasInitializedResIds, setHasInitializedResIds] = useState(false);
 
   useEffect(() => {
-    if (slotReservations.length > 0 && selectedReservationIds.size === 0) {
-      setSelectedReservationIds(new Set(slotReservations.map((r) => r.id)));
+    if (!hasInitializedResIds && slotReservations.length > 0) {
+      const activeIds = slotReservations
+        .filter((r) => r.reservedPlaces > 0)
+        .map((r) => r.id);
+      setSelectedReservationIds(new Set(activeIds));
+      setHasInitializedResIds(true);
     }
-  }, [slotReservations, selectedReservationIds.size]);
+  }, [slotReservations, hasInitializedResIds]);
+
+  const handleToggleReservation = (resId: string) => {
+    setSelectedReservationIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(resId)) {
+        next.delete(resId);
+      } else {
+        next.add(resId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllReservations = () => {
+    const activeFiltered = filteredReservations.filter((r) => r.reservedPlaces > 0);
+    const allSelected =
+      activeFiltered.length > 0 &&
+      activeFiltered.every((r) => selectedReservationIds.has(r.id));
+    if (allSelected) {
+      setSelectedReservationIds((prev) => {
+        const next = new Set(prev);
+        activeFiltered.forEach((r) => next.delete(r.id));
+        return next;
+      });
+    } else {
+      setSelectedReservationIds((prev) => {
+        const next = new Set(prev);
+        activeFiltered.forEach((r) => next.add(r.id));
+        return next;
+      });
+    }
+  };
 
   const resSummary = useMemo(() => {
     return computeSlotReservationsSummary(slotReservations, selectedReservationIds);
@@ -614,96 +651,135 @@ export function SwimPoolDesk({
       {/* ─── WORKSPACE: METHOD ONE (PRE-RESERVATION - NO PRICING) ─────────────── */}
       {!loadingData && mode === "preview" && (
         <div className="print:hidden space-y-4">
-          {/* Summary Box */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <span className="text-[11px] font-bold uppercase text-slate-400">Total Places Réservées</span>
-              <p className="text-2xl font-mono font-extrabold text-cyan-400 mt-1">
-                {resSummary.totalReservedPlaces} places
-              </p>
-            </div>
-            <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
-              <span className="text-[11px] font-bold uppercase text-slate-400">Créneaux Actifs</span>
-              <p className="text-2xl font-mono font-extrabold text-white mt-1">
-                {slotReservations.length}
-              </p>
-            </div>
-            <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)] col-span-2 sm:col-span-1">
-              <span className="text-[11px] font-bold uppercase text-slate-400">Période</span>
-              <p className="text-xl font-bold text-slate-200 mt-1">{monthLabel}</p>
-            </div>
-          </div>
-
-          {/* Slots Table */}
+          {/* Table Container - Clean, focused only on the table */}
           <div className="rounded-2xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-sm">
-            <div className="p-3 border-b border-[var(--border)] bg-slate-950/40 flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300">
-                Réservation des Places par Créneau (Aucun nom ni tarif affiché)
-              </span>
-              <input
-                type="text"
-                placeholder="Filtrer créneau / groupe..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="px-3 py-1 rounded-lg bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none"
-              />
+            <div className="p-3 sm:p-4 border-b border-[var(--border)] bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-white">
+                  Pré-réservation des Places par Créneau (Sans noms ni tarifs)
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                  {resSummary.totalReservedPlaces} places réservées ({resSummary.selectedReservationsCount} créneaux retenus)
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllReservations}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 transition-colors"
+                >
+                  Tout cocher / décocher
+                </button>
+                <input
+                  type="text"
+                  placeholder="Filtrer créneau / groupe..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="px-3 py-1 rounded-lg bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-950/60 border-b border-[var(--border)] text-slate-400 font-bold uppercase text-[10px]">
+                    <th className="p-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={
+                          filteredReservations.filter((r) => r.reservedPlaces > 0).length > 0 &&
+                          filteredReservations
+                            .filter((r) => r.reservedPlaces > 0)
+                            .every((r) => selectedReservationIds.has(r.id))
+                        }
+                        onChange={handleSelectAllReservations}
+                        aria-label="Sélectionner tous les créneaux"
+                        className="rounded border-white/20 text-cyan-500 focus:ring-0 cursor-pointer"
+                      />
+                    </th>
                     <th className="p-3 w-12 text-center">N</th>
                     <th className="p-3">Créneau (Jour & Heure)</th>
                     <th className="p-3">Groupe d&apos;Entrainement</th>
-                    <th className="p-3 text-center">Catégorie</th>
                     <th className="p-3 text-center bg-cyan-500/10 text-cyan-300">Places Réservées</th>
-                    <th className="p-3 text-center">Affluence</th>
+                    <th className="p-3 text-center">Inclusion PDF</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredReservations.map((r, idx) => (
-                    <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="p-3 text-center font-mono text-slate-500">{idx + 1}</td>
-                      <td className="p-3 font-bold text-white">
-                        {r.day} <span className="font-mono text-cyan-300 font-semibold ml-1">{r.time}</span>
-                      </td>
-                      <td className="p-3 font-medium text-slate-300">{r.groupName}</td>
-                      <td className="p-3 text-center uppercase text-[10px] text-slate-400">{r.category}</td>
-                      <td className="p-3 text-center bg-cyan-500/5">
-                        <div className="inline-flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdatePlaceCount(r.id, -1)}
-                            className="w-5 h-5 rounded bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center font-bold"
-                          >
-                            -
-                          </button>
-                          <span className="font-mono font-extrabold text-sm text-cyan-300 min-w-[28px]">
-                            {r.reservedPlaces}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdatePlaceCount(r.id, 1)}
-                            className="w-5 h-5 rounded bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center font-bold"
-                          >
-                            +
-                          </button>
-                        </div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            r.isPeak
-                              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                              : "bg-slate-800 text-slate-400"
-                          }`}
-                        >
-                          {r.isPeak ? "Heure de Pointe" : "Normal"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredReservations.map((r, idx) => {
+                    const isSelected = selectedReservationIds.has(r.id);
+                    const isIncludedInPdf = isSelected && r.reservedPlaces > 0;
+                    return (
+                      <tr
+                        key={r.id}
+                        className={`transition-colors ${
+                          isIncludedInPdf
+                            ? "hover:bg-cyan-500/[0.04]"
+                            : "opacity-60 bg-slate-950/20 hover:bg-slate-950/40"
+                        }`}
+                      >
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleReservation(r.id)}
+                            aria-label={`Sélectionner ${r.groupName}`}
+                            className="rounded border-white/20 text-cyan-500 focus:ring-0 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 text-center font-mono text-slate-500">{idx + 1}</td>
+                        <td className="p-3 font-bold text-white">
+                          {r.day} <span className="font-mono text-cyan-300 font-semibold ml-1">{r.time}</span>
+                        </td>
+                        <td className="p-3 font-medium text-slate-300">
+                          {r.groupName}
+                        </td>
+                        <td className="p-3 text-center bg-cyan-500/5">
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdatePlaceCount(r.id, -1)}
+                              className="w-5 h-5 rounded bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center font-bold"
+                              title="Diminuer d'une place"
+                            >
+                              -
+                            </button>
+                            <span className="font-mono font-extrabold text-sm text-cyan-300 min-w-[28px]">
+                              {r.reservedPlaces}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdatePlaceCount(r.id, 1)}
+                              className="w-5 h-5 rounded bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center font-bold"
+                              title="Augmenter d'une place"
+                            >
+                              +
+                            </button>
+                          </div>
+                          {r.reservedPlaces <= 0 && (
+                            <span className="block text-[9px] text-amber-400 font-semibold mt-0.5">
+                              0 place (exclu du PDF)
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {isIncludedInPdf ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                              Inclus au PDF
+                            </span>
+                          ) : r.reservedPlaces <= 0 ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              0 place (Exclu)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-white/10">
+                              Décoché
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

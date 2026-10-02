@@ -375,12 +375,20 @@ export interface PoolDocumentMeta {
   year: string;
 }
 
-export const DEFAULT_DOCUMENT_META: PoolDocumentMeta = {
-  title: "Demande d'accès",
-  referenceNumber: "n:0031/26",
-  date: "10/07/2026",
-  year: "2026",
-};
+export function getDynamicDocumentMeta(targetDate: Date = new Date()): PoolDocumentMeta {
+  const d = String(targetDate.getDate()).padStart(2, "0");
+  const m = String(targetDate.getMonth() + 1).padStart(2, "0");
+  const y = targetDate.getFullYear();
+  const shortYear = String(y).slice(-2);
+  return {
+    title: "Demande d'accès",
+    referenceNumber: `n:00${m}/${shortYear}`,
+    date: `${d}/${m}/${y}`,
+    year: String(y),
+  };
+}
+
+export const DEFAULT_DOCUMENT_META: PoolDocumentMeta = getDynamicDocumentMeta();
 
 export interface CustomPoolRow {
   id: string;
@@ -443,7 +451,6 @@ export interface PoolSlotReservation {
   time: string;
   timeSlot: string;
   location: string;
-  isPeak: boolean;
   reservedPlaces: number;
   capacity: number;
   actualAssignedCount: number;
@@ -454,8 +461,6 @@ export interface PoolSlotReservationSummary {
   totalReservations: number;
   selectedReservationsCount: number;
   totalReservedPlaces: number;
-  peakReservedPlaces: number;
-  normalReservedPlaces: number;
 }
 
 export interface PoolDispatchSnapshot {
@@ -933,13 +938,12 @@ export function generatePoolDispatchMessage(params: {
 
 /**
  * Builds simple place reservations for Method ONE (slots and capacity places only, NO client names).
- * Peak hours status is fully editable via peakOverrides.
+ * Never includes slots with reservedPlaces <= 0.
  */
 export function buildPoolSlotReservations(
   groups: SwimGroupReference[],
   members: SwimMemberReference[],
-  placeOverrides: Record<string, number> = {},
-  peakOverrides: Record<string, boolean> = {}
+  placeOverrides: Record<string, number> = {}
 ): PoolSlotReservation[] {
   // Count assigned members per group
   const memberCountsByGroup = new Map<string, number>();
@@ -960,12 +964,9 @@ export function buildPoolSlotReservations(
     slots.forEach((s, idx) => {
       if (!s.day && !s.time) return;
       const resId = `${g.id}_slot_${idx}`;
-      const defaultPeak = isPeakTimeSlot(s.time, s.day);
-      const isPeak =
-        peakOverrides[resId] !== undefined ? Boolean(peakOverrides[resId]) : defaultPeak;
       const defaultPlaces = assignedCount > 0 ? assignedCount : (g.capacity || 10);
       const hasCustom = placeOverrides[resId] !== undefined;
-      const reservedPlaces = hasCustom ? placeOverrides[resId] : defaultPlaces;
+      const reservedPlaces = hasCustom ? Math.max(0, placeOverrides[resId]) : defaultPlaces;
 
       reservations.push({
         id: resId,
@@ -977,7 +978,6 @@ export function buildPoolSlotReservations(
         time: s.time || "18:00",
         timeSlot: `${s.day} ${s.time}`.trim(),
         location: s.location || "Piscine",
-        isPeak,
         reservedPlaces,
         capacity: g.capacity || 10,
         actualAssignedCount: assignedCount,
@@ -1008,31 +1008,22 @@ export function computeSlotReservationsSummary(
   const totalReservations = reservations.length;
   let selectedReservationsCount = 0;
   let totalReservedPlaces = 0;
-  let peakReservedPlaces = 0;
-  let normalReservedPlaces = 0;
 
   for (const r of reservations) {
-    if (!selectedIds.has(r.id)) continue;
+    if (!selectedIds.has(r.id) || r.reservedPlaces <= 0) continue;
     selectedReservationsCount += 1;
     totalReservedPlaces += r.reservedPlaces;
-    if (r.isPeak) {
-      peakReservedPlaces += r.reservedPlaces;
-    } else {
-      normalReservedPlaces += r.reservedPlaces;
-    }
   }
 
   return {
     totalReservations,
     selectedReservationsCount,
     totalReservedPlaces,
-    peakReservedPlaces,
-    normalReservedPlaces,
   };
 }
 
 /**
- * Exports place reservations to CSV for Method ONE (No client names).
+ * Exports place reservations to CSV for Method ONE (No client names, no category, no group name).
  */
 export function exportSlotReservationsToCSV(
   reservations: PoolSlotReservation[],
@@ -1044,10 +1035,7 @@ export function exportSlotReservationsToCSV(
     "N",
     "Jour",
     "Horaire",
-    "Groupe",
-    "Categorie",
     "Places Reservees",
-    "Heure de Pointe",
     "Mois",
   ];
 
@@ -1060,15 +1048,13 @@ export function exportSlotReservationsToCSV(
   let rowIndex = 1;
 
   for (const r of reservations) {
+    if (r.reservedPlaces <= 0) continue;
     if (selectedOnly && !selectedIds.has(r.id)) continue;
     const cols = [
       escapeCSV(rowIndex++),
       escapeCSV(r.day),
       escapeCSV(r.time),
-      escapeCSV(r.groupName),
-      escapeCSV(r.category),
       escapeCSV(r.reservedPlaces),
-      escapeCSV(r.isPeak ? "Oui (Pointe)" : "Non"),
       escapeCSV(monthLabel),
     ];
     lines.push(cols.join(";"));
@@ -1078,7 +1064,7 @@ export function exportSlotReservationsToCSV(
 }
 
 /**
- * Generates place reservation message for Method ONE without any client names.
+ * Generates place reservation message for Method ONE without client names, category, or group names.
  */
 export function generatePlaceReservationMessage(params: {
   monthLabel: string;
@@ -1094,8 +1080,8 @@ export function generatePlaceReservationMessage(params: {
 
   msg += `*Detail des Creneaux & Reservations de Places :*\n`;
   for (const r of reservations) {
-    const peakTag = r.isPeak ? " [Heure de pointe]" : "";
-    msg += `- ${r.day} ${r.time} | ${r.groupName} (${r.category}) : ${r.reservedPlaces} places${peakTag}\n`;
+    if (r.reservedPlaces <= 0) continue;
+    msg += `- ${r.day} ${r.time} : ${r.reservedPlaces} places\n`;
   }
   msg += `\nCe previsionnel est transmis a titre indicatif pour securiser les creneaux et lignes d'eau.\n`;
   msg += `Cordialement,\nDirection AQA Sports`;
