@@ -6,6 +6,266 @@ import { FRENCH_DAYS, parseScheduleSlots, decodeMemberGroupIds } from "./swim-gr
 
 export type PoolCorrespondenceMode = "preview" | "real_final";
 
+export interface PoolOption {
+  id: string;
+  name: string;
+  address?: string;
+  defaultRules?: AzalTariffRules;
+}
+
+export interface AzalTariffRules {
+  hourlyRateDA: number; // 500 DA / hour
+  standardSessionHours: number; // 2 hours
+  monthly: {
+    matin: {
+      x1: number; // 3500 DA
+      x2: number; // 6600 DA
+      x3: number; // 9000 DA
+    };
+    soir: {
+      x1: number; // 4000 DA
+      x2: number; // 7600 DA
+      x3: number; // 10000 DA
+    };
+    mixed: {
+      x2: number; // 7100 DA
+      x3: number; // 9900 DA
+    };
+  };
+}
+
+export const DEFAULT_AZAL_RULES: AzalTariffRules = {
+  hourlyRateDA: 500,
+  standardSessionHours: 2,
+  monthly: {
+    matin: {
+      x1: 3500,
+      x2: 6600,
+      x3: 9000,
+    },
+    soir: {
+      x1: 4000,
+      x2: 7600,
+      x3: 10000,
+    },
+    mixed: {
+      x2: 7100,
+      x3: 9900,
+    },
+  },
+};
+
+export const DEFAULT_POOLS: PoolOption[] = [
+  { id: "azal", name: "Piscine Azal", defaultRules: DEFAULT_AZAL_RULES },
+  { id: "olympique", name: "Piscine Olympique" },
+  { id: "mouradia", name: "Piscine El Mouradia" },
+];
+
+export type SlotPeriod = "matin" | "soir";
+
+/**
+ * Returns "matin" if start time is before 13:00, otherwise "soir".
+ */
+export function getSlotPeriod(time: string): SlotPeriod {
+  if (!time) return "soir";
+  const match = time.match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return "soir";
+  const hour = parseInt(match[1], 10);
+  return hour < 13 ? "matin" : "soir";
+}
+
+export type SwimmerBillingMode = "monthly" | "session";
+
+export interface SwimmerBillingConfig {
+  mode: SwimmerBillingMode; // "monthly" | "session"
+  sessionsConsumed?: number; // e.g. 1, 2, 3 (each is 2h standard = 1000 DA)
+  hoursConsumed?: number; // e.g. 1h (500 DA), 6h (3000 DA)
+  manualPriceOverride?: number; // optional manual override
+}
+
+export interface CalculatedPoolPrice {
+  priceDA: number;
+  formulaLabel: string;
+  freq: number;
+  matinCount: number;
+  soirCount: number;
+  periodType: "matin" | "soir" | "mixed" | "none";
+  billingMode: SwimmerBillingMode;
+}
+
+/**
+ * Calculates pool fee automatically according to Azal settlement rules:
+ * - By session: 500 DA / hour (standard session 2h = 1000 DA)
+ * - By month (1-31): based on frequency & time of day (Matin vs Soir vs Mixte)
+ */
+export function calculateAzalPrice(
+  slots: ParsedSlot[],
+  billingConfig?: SwimmerBillingConfig,
+  rules: AzalTariffRules = DEFAULT_AZAL_RULES
+): CalculatedPoolPrice {
+  // 1. Manual price override takes absolute priority if specified
+  if (
+    billingConfig?.manualPriceOverride !== undefined &&
+    billingConfig.manualPriceOverride !== null &&
+    !isNaN(billingConfig.manualPriceOverride)
+  ) {
+    return {
+      priceDA: billingConfig.manualPriceOverride,
+      formulaLabel: `Manuel: ${billingConfig.manualPriceOverride} DA`,
+      freq: slots.length,
+      matinCount: slots.filter((s) => getSlotPeriod(s.time) === "matin").length,
+      soirCount: slots.filter((s) => getSlotPeriod(s.time) === "soir").length,
+      periodType: "none",
+      billingMode: billingConfig.mode || "monthly",
+    };
+  }
+
+  // 2. Billing by session: 500 DA / hour
+  if (billingConfig?.mode === "session") {
+    if (typeof billingConfig.hoursConsumed === "number" && billingConfig.hoursConsumed > 0) {
+      const price = Math.round(billingConfig.hoursConsumed * rules.hourlyRateDA);
+      return {
+        priceDA: price,
+        formulaLabel: `Séance: ${billingConfig.hoursConsumed}h @ ${rules.hourlyRateDA} DA/h`,
+        freq: slots.length,
+        matinCount: 0,
+        soirCount: 0,
+        periodType: "none",
+        billingMode: "session",
+      };
+    }
+    const sessions = billingConfig?.sessionsConsumed ?? 1;
+    const hours = sessions * rules.standardSessionHours;
+    const price = Math.round(hours * rules.hourlyRateDA);
+    return {
+      priceDA: price,
+      formulaLabel: `Séance: ${sessions} séance${sessions > 1 ? "s" : ""} (${hours}h @ 500 DA/h)`,
+      freq: slots.length,
+      matinCount: 0,
+      soirCount: 0,
+      periodType: "none",
+      billingMode: "session",
+    };
+  }
+
+  // 3. Monthly settlement (from 1-31, full month)
+  const validSlots = slots.filter((s) => Boolean(s.time));
+  const freq = validSlots.length;
+
+  let matinCount = 0;
+  let soirCount = 0;
+  for (const s of validSlots) {
+    if (getSlotPeriod(s.time) === "matin") {
+      matinCount++;
+    } else {
+      soirCount++;
+    }
+  }
+
+  // If unassigned: default to 1x Soir (4000 DA)
+  if (freq === 0) {
+    return {
+      priceDA: rules.monthly.soir.x1,
+      formulaLabel: "Soir x1 (défaut)",
+      freq: 0,
+      matinCount: 0,
+      soirCount: 0,
+      periodType: "soir",
+      billingMode: "monthly",
+    };
+  }
+
+  if (freq === 1) {
+    if (matinCount === 1) {
+      return {
+        priceDA: rules.monthly.matin.x1,
+        formulaLabel: "Matin x1",
+        freq: 1,
+        matinCount: 1,
+        soirCount: 0,
+        periodType: "matin",
+        billingMode: "monthly",
+      };
+    }
+    return {
+      priceDA: rules.monthly.soir.x1,
+      formulaLabel: "Soir x1",
+      freq: 1,
+      matinCount: 0,
+      soirCount: 1,
+      periodType: "soir",
+      billingMode: "monthly",
+    };
+  }
+
+  if (freq === 2) {
+    if (matinCount === 2) {
+      return {
+        priceDA: rules.monthly.matin.x2,
+        formulaLabel: "Matin x2",
+        freq: 2,
+        matinCount: 2,
+        soirCount: 0,
+        periodType: "matin",
+        billingMode: "monthly",
+      };
+    }
+    if (soirCount === 2) {
+      return {
+        priceDA: rules.monthly.soir.x2,
+        formulaLabel: "Soir x2",
+        freq: 2,
+        matinCount: 0,
+        soirCount: 2,
+        periodType: "soir",
+        billingMode: "monthly",
+      };
+    }
+    return {
+      priceDA: rules.monthly.mixed.x2,
+      formulaLabel: "Mixte x2",
+      freq: 2,
+      matinCount: 1,
+      soirCount: 1,
+      periodType: "mixed",
+      billingMode: "monthly",
+    };
+  }
+
+  // freq >= 3
+  if (soirCount === 0) {
+    return {
+      priceDA: rules.monthly.matin.x3,
+      formulaLabel: `Matin x${freq}`,
+      freq,
+      matinCount,
+      soirCount: 0,
+      periodType: "matin",
+      billingMode: "monthly",
+    };
+  }
+  if (matinCount === 0) {
+    return {
+      priceDA: rules.monthly.soir.x3,
+      formulaLabel: `Soir x${freq}`,
+      freq,
+      matinCount: 0,
+      soirCount,
+      periodType: "soir",
+      billingMode: "monthly",
+    };
+  }
+  return {
+    priceDA: rules.monthly.mixed.x3,
+    formulaLabel: `Mixte x${freq}`,
+    freq,
+    matinCount,
+    soirCount,
+    periodType: "mixed",
+    billingMode: "monthly",
+  };
+}
+
 export interface PoolPricingConfig {
   defaultPrice: number;
   categoryPrices: {
@@ -145,6 +405,10 @@ export interface PoolSwimmerRow {
   hasBusySlot: boolean;
   busySlotLabels: string[];
   poolPriceDA: number;
+  formulaLabel?: string;
+  billingMode?: SwimmerBillingMode;
+  sessionsConsumed?: number;
+  hoursConsumed?: number;
   hasPriceOverride: boolean;
   currentMonth: string;
   isCustom?: boolean;
@@ -215,6 +479,8 @@ export interface PoolDispatchSnapshot {
 
 export const STORAGE_KEYS = {
   PRICING: "aqa_swim_pool_pricing_v1",
+  SELECTED_POOL: "aqa_swim_pool_selected_pool_v1",
+  BILLING_CONFIGS: "aqa_swim_pool_billing_configs_v1",
   COLUMNS_PREVIEW: "aqa_swim_pool_cols_preview_v1",
   COLUMNS_FINAL: "aqa_swim_pool_cols_final_v1",
   SNAPSHOTS: "aqa_swim_realfinalpool_snapshots_v1",
@@ -335,12 +601,21 @@ export function resolveMemberGroups(
 export function buildPoolDispatchRows(
   members: SwimMemberReference[],
   allGroups: SwimGroupReference[],
-  pricingConfig: PoolPricingConfig,
+  pricingConfigOrBilling: PoolPricingConfig | Record<string, SwimmerBillingConfig>,
   currentMonthLabel: string,
   monthOverrides: Record<string, string> = {},
   customRows: CustomPoolRow[] = [],
-  peakOverrides: Record<string, boolean> = {}
+  peakOverrides: Record<string, boolean> = {},
+  poolRules: AzalTariffRules = DEFAULT_AZAL_RULES
 ): PoolSwimmerRow[] {
+  // Check if pricingConfigOrBilling is legacy PoolPricingConfig or modern Record<string, SwimmerBillingConfig>
+  const isLegacy =
+    Boolean(pricingConfigOrBilling) && "categoryPrices" in (pricingConfigOrBilling as object);
+  const legacyConfig = isLegacy ? (pricingConfigOrBilling as PoolPricingConfig) : undefined;
+  const billingMap: Record<string, SwimmerBillingConfig> = isLegacy
+    ? {}
+    : ((pricingConfigOrBilling as Record<string, SwimmerBillingConfig>) || {});
+
   const memberRows: PoolSwimmerRow[] = members.map((m) => {
     const assignedGroups = resolveMemberGroups(m, allGroups);
     const assignedGroupIds = assignedGroups.map((g) => g.id);
@@ -357,7 +632,8 @@ export function buildPoolDispatchRows(
         if (!slot.day && !slot.time) return;
         const resId = `${group.id}_slot_${sIdx}`;
         const defaultPeak = isPeakTimeSlot(slot.time, slot.day);
-        const isPeak = peakOverrides[resId] !== undefined ? Boolean(peakOverrides[resId]) : defaultPeak;
+        const isPeak =
+          peakOverrides[resId] !== undefined ? Boolean(peakOverrides[resId]) : defaultPeak;
         parsedSlots.push({
           day: slot.day,
           time: slot.time,
@@ -373,7 +649,29 @@ export function buildPoolDispatchRows(
       });
     }
 
-    const { priceDA, hasOverride } = calculateMemberPoolPrice(m, pricingConfig);
+    // Determine billing config for this member
+    const swimmerBilling = billingMap[m.swimId] || billingMap[m.id];
+
+    // Compute automatic pricing via Azal frequency & time-of-day engine
+    const calculated = calculateAzalPrice(parsedSlots, swimmerBilling, poolRules);
+
+    let finalPriceDA = calculated.priceDA;
+    let hasOverride = swimmerBilling?.manualPriceOverride !== undefined;
+    let formulaLabel = calculated.formulaLabel;
+
+    // Check if legacy individual override exists
+    if (
+      legacyConfig?.individualOverrides &&
+      (legacyConfig.individualOverrides[m.swimId] !== undefined ||
+        legacyConfig.individualOverrides[m.id] !== undefined)
+    ) {
+      const ov =
+        legacyConfig.individualOverrides[m.swimId] ?? legacyConfig.individualOverrides[m.id];
+      finalPriceDA = Number(ov) || 0;
+      hasOverride = true;
+      formulaLabel = `Manuel: ${finalPriceDA} DA`;
+    }
+
     const rowMonth =
       monthOverrides[m.swimId] || monthOverrides[m.id] || currentMonthLabel;
 
@@ -391,7 +689,11 @@ export function buildPoolDispatchRows(
       parsedSlots,
       hasBusySlot: busySlotLabels.length > 0,
       busySlotLabels,
-      poolPriceDA: priceDA,
+      poolPriceDA: finalPriceDA,
+      formulaLabel,
+      billingMode: swimmerBilling?.mode || calculated.billingMode,
+      sessionsConsumed: swimmerBilling?.sessionsConsumed,
+      hoursConsumed: swimmerBilling?.hoursConsumed,
       hasPriceOverride: hasOverride,
       currentMonth: rowMonth,
       isCustom: false,
@@ -415,6 +717,8 @@ export function buildPoolDispatchRows(
       hasBusySlot: false,
       busySlotLabels: [],
       poolPriceDA: Number(c.poolPriceDA) || 0,
+      formulaLabel: "Ligne Collective",
+      billingMode: "monthly",
       hasPriceOverride: true,
       currentMonth: rowMonth,
       isCustom: true,

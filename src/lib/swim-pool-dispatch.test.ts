@@ -149,8 +149,9 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(rows).toHaveLength(2);
       expect(rows[0].fullName).toBe("Amine Belkacem");
       expect(rows[0].hasBusySlot).toBe(true);
-      expect(rows[0].poolPriceDA).toBe(2000);
+      expect(rows[0].poolPriceDA).toBe(4000); // Soir x1: 4000 DA
       expect(rows[1].assignedGroupNames).toEqual(["G10 Lundi Soir", "G10 Samedi Soir"]);
+      expect(rows[1].poolPriceDA).toBe(7600); // Soir x2: 7600 DA
     });
 
     it("should compute slot occupancy accurately", () => {
@@ -508,6 +509,86 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(csv).toContain("\"Chakib hafid\";\"Groupe Adultes\";\"6600\";\"JUIN\"");
       expect(csv).toContain("\"AQA KIDS\";\"Section Enfants\";\"80500\";\"Juillet\"");
       expect(csv).toContain(";\"Total\";;\"91100\";"); // 6600 + 4000 + 80500 = 91100
+    });
+  });
+
+  describe("Azal Automated Pool Pricing Engine", () => {
+    it("should correctly classify morning and evening slots", async () => {
+      const { getSlotPeriod } = await import("./swim-pool-dispatch");
+      expect(getSlotPeriod("09:00")).toBe("matin");
+      expect(getSlotPeriod("10:30")).toBe("matin");
+      expect(getSlotPeriod("12:00")).toBe("matin");
+      expect(getSlotPeriod("13:00")).toBe("soir");
+      expect(getSlotPeriod("18:00")).toBe("soir");
+      expect(getSlotPeriod("20:30")).toBe("soir");
+    });
+
+    it("should compute exact Azal monthly prices based on frequency and time of day", async () => {
+      const { calculateAzalPrice } = await import("./swim-pool-dispatch");
+
+      // Matin: x1=3500, x2=6600, x3=9000
+      const matin1 = [{ day: "Lundi", time: "09:00", location: "Azal", isPeak: false }];
+      expect(calculateAzalPrice(matin1).priceDA).toBe(3500);
+
+      const matin2 = [
+        { day: "Lundi", time: "09:00", location: "Azal", isPeak: false },
+        { day: "Mercredi", time: "09:00", location: "Azal", isPeak: false },
+      ];
+      expect(calculateAzalPrice(matin2).priceDA).toBe(6600);
+
+      const matin3 = [
+        { day: "Lundi", time: "09:00", location: "Azal", isPeak: false },
+        { day: "Mercredi", time: "09:00", location: "Azal", isPeak: false },
+        { day: "Vendredi", time: "09:00", location: "Azal", isPeak: false },
+      ];
+      expect(calculateAzalPrice(matin3).priceDA).toBe(9000);
+
+      // Soir: x1=4000, x2=7600, x3=10000
+      const soir1 = [{ day: "Mardi", time: "18:00", location: "Azal", isPeak: true }];
+      expect(calculateAzalPrice(soir1).priceDA).toBe(4000);
+
+      const soir2 = [
+        { day: "Lundi", time: "18:00", location: "Azal", isPeak: true },
+        { day: "Jeudi", time: "18:00", location: "Azal", isPeak: true },
+      ];
+      expect(calculateAzalPrice(soir2).priceDA).toBe(7600);
+
+      const soir3 = [
+        { day: "Samedi", time: "16:00", location: "Azal", isPeak: true },
+        { day: "Lundi", time: "19:00", location: "Azal", isPeak: true },
+        { day: "Mercredi", time: "19:00", location: "Azal", isPeak: true },
+      ];
+      expect(calculateAzalPrice(soir3).priceDA).toBe(10000);
+
+      // Mixed: x2=7100, x3=9900
+      const mixed2 = [
+        { day: "Samedi", time: "09:00", location: "Azal", isPeak: false },
+        { day: "Mardi", time: "18:00", location: "Azal", isPeak: true },
+      ];
+      expect(calculateAzalPrice(mixed2).priceDA).toBe(7100);
+
+      const mixed3 = [
+        { day: "Samedi", time: "09:00", location: "Azal", isPeak: false },
+        { day: "Lundi", time: "18:00", location: "Azal", isPeak: true },
+        { day: "Mercredi", time: "18:00", location: "Azal", isPeak: true },
+      ];
+      expect(calculateAzalPrice(mixed3).priceDA).toBe(9900);
+    });
+
+    it("should compute session settlement at 500 DA/hour", async () => {
+      const { calculateAzalPrice } = await import("./swim-pool-dispatch");
+
+      // Hafid louchat: 3 sessions = 6h consumed = 3000 DA
+      const res6h = calculateAzalPrice([], { mode: "session", hoursConsumed: 6 });
+      expect(res6h.priceDA).toBe(3000);
+
+      // racil moualhi: 1 hour consumed = 500 DA
+      const res1h = calculateAzalPrice([], { mode: "session", hoursConsumed: 1 });
+      expect(res1h.priceDA).toBe(500);
+
+      // Standard 1 session (2h) = 1000 DA
+      const resSession = calculateAzalPrice([], { mode: "session", sessionsConsumed: 1 });
+      expect(resSession.priceDA).toBe(1000);
     });
   });
 });
