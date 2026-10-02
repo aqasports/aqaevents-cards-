@@ -6,6 +6,7 @@ import {
   PoolSwimmerRow,
   PoolSlotReservation,
 } from "@/lib/swim-pool-dispatch";
+import { AQA_LOGO_DATA_URI } from "@/lib/aqa-logo-data";
 
 interface PoolPrintTemplateProps {
   mode: PoolCorrespondenceMode;
@@ -126,15 +127,14 @@ export function PoolPrintTemplate({
               {/* Row 1: Official Logo & Dynamic Year */}
               <tr className="h-10 border-b border-[#93c5fd]">
                 <td colSpan={3} className="border-r border-[#93c5fd] px-3 py-1.5 align-middle">
-                  <div className="flex items-center gap-1.5">
-                    {/* Official AQA Logo extracted from PDF */}
+                    {/* Official AQA Logo embedded as inline Data URI */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/aqa-logo.png"
+                      src={AQA_LOGO_DATA_URI}
                       alt="AQA"
+                      style={{ height: "28px", width: "auto", display: "inline-block" }}
                       className="h-7 w-auto object-contain"
                     />
-                  </div>
                 </td>
                 <td
                   colSpan={4}
@@ -225,6 +225,23 @@ export function PoolPrintTemplate({
                 </tr>
               ))}
             </tbody>
+
+            <tfoot>
+              {/* Grand Total Row directly below the last item */}
+              <tr className="h-8 border-b-2 border-[#93c5fd]">
+                {/* Gray spanning block across columns 1-7 */}
+                <td colSpan={7} className="border-r border-[#93c5fd] bg-slate-200"></td>
+
+                {/* Cyan Grand Total Box on Column 8 (Places) */}
+                <td className="border-r border-[#93c5fd] bg-[#00c0f0] text-black text-center font-mono font-extrabold text-sm align-middle">
+                  {totalReservedPlaces}
+                </td>
+
+                {/* Remaining grid cells */}
+                <td className="border-r border-[#93c5fd] bg-slate-100/30"></td>
+                <td className="border-b border-[#93c5fd]"></td>
+              </tr>
+            </tfoot>
           </table>
         ) : (
           /* REALFINALPOOL OFFICIAL EXCEL GRID - 100% IDENTICAL TO UPLOADED PDF */
@@ -246,15 +263,14 @@ export function PoolPrintTemplate({
               {/* Row 1: Logo & Dynamic Year */}
               <tr className="h-10 border-b border-[#93c5fd]">
                 <td colSpan={2} className="border-r border-[#93c5fd] px-3 py-1.5 align-middle">
-                  <div className="flex items-center gap-1.5">
-                    {/* Official AQA Logo extracted from PDF */}
+                    {/* Official AQA Logo embedded as inline Data URI */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/aqa-logo.png"
+                      src={AQA_LOGO_DATA_URI}
                       alt="AQA"
+                      style={{ height: "28px", width: "auto", display: "inline-block" }}
                       className="h-7 w-auto object-contain"
                     />
-                  </div>
                 </td>
                 <td
                   colSpan={4}
@@ -337,56 +353,25 @@ export function PoolPrintTemplate({
                 </tr>
               ))}
             </tbody>
+
+            <tfoot>
+              {/* Grand Total Row directly below the last item */}
+              <tr className="h-8 border-b-2 border-[#93c5fd]">
+                {/* Gray spanning block across columns 1-7 */}
+                <td colSpan={7} className="border-r border-[#93c5fd] bg-slate-200"></td>
+
+                {/* Cyan Grand Total Box on Column 8 */}
+                <td className="border-r border-[#93c5fd] bg-[#00c0f0] text-black text-center font-mono font-extrabold text-sm align-middle">
+                  {totalDuePoolDA}
+                </td>
+
+                {/* Remaining grid cells */}
+                <td className="border-r border-[#93c5fd] bg-slate-100/30"></td>
+                <td className="border-b border-[#93c5fd]"></td>
+              </tr>
+            </tfoot>
           </table>
         )}
-      </div>
-
-      {/* ─── PAGE 2: TOTAL ROW (100% IDENTICAL TO UPLOADED PDF PAGE 2) ─────────── */}
-      <div className="page-break pt-8">
-        <table className="w-full border-collapse border border-[#93c5fd] text-xs font-sans">
-          <colgroup>
-            <col style={{ width: "42px" }} />
-            <col style={{ width: mode === "preview" ? "180px" : "230px" }} />
-            <col style={{ width: mode === "preview" ? "180px" : "45px" }} />
-            <col style={{ width: "45px" }} />
-            <col style={{ width: "45px" }} />
-            <col style={{ width: "45px" }} />
-            <col style={{ width: "45px" }} />
-            <col style={{ width: mode === "preview" ? "100px" : "85px" }} />
-            <col style={{ width: mode === "preview" ? "85px" : "75px" }} />
-            <col style={{ width: "45px" }} />
-          </colgroup>
-
-          <tbody>
-            {/* Top empty grid spacer rows matching Page 2 of uploaded PDF */}
-            <tr className="h-6 border-b border-[#93c5fd]">
-              <td colSpan={10} className="h-6"></td>
-            </tr>
-
-            {/* Official Grand Total Row */}
-            <tr className="h-8 border-b-2 border-[#93c5fd]">
-              {/* Gray spanning block across columns 1-7 */}
-              <td colSpan={7} className="border-r border-[#93c5fd] bg-slate-300"></td>
-
-              {/* Cyan Grand Total Box on Column 8 */}
-              <td className="border-r border-[#93c5fd] bg-[#00c0f0] text-black text-center font-mono font-extrabold text-sm align-middle">
-                {mode === "real_final" ? totalDuePoolDA : totalReservedPlaces}
-              </td>
-
-              {/* Remaining grid cells */}
-              <td className="border-r border-[#93c5fd] bg-slate-100/30"></td>
-              <td className="bg-slate-100/30"></td>
-            </tr>
-
-            {/* Empty grid continuation rows below matching Excel sheet */}
-            <tr className="h-6 border-b border-[#93c5fd]">
-              <td colSpan={10} className="h-6 bg-cyan-50/10"></td>
-            </tr>
-            <tr className="h-6 border-b border-[#93c5fd]">
-              <td colSpan={10} className="h-6 bg-cyan-50/10"></td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
   );
