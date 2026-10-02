@@ -363,10 +363,19 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(summary.totalReservedPlaces).toBe(7); // 2 in g1 + 5 in g2
     });
 
-    it("should export CSV with places and without client names", () => {
+    it("should populate memberNames for assigned swimmers in each slot", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      const g1Slot = res.find((r) => r.groupId === "g1");
+      expect(g1Slot?.memberNames).toBeDefined();
+      expect(g1Slot?.memberNames).toContain("Ali Baba");
+      expect(g1Slot?.memberNames).toContain("Nadir Test");
+      expect(g1Slot?.actualAssignedCount).toBe(2);
+    });
+
+    it("should export CSV with places and without client names by default", () => {
       const res = buildPoolSlotReservations(groups, members);
       const selected = new Set([res[0].id, res[1].id]);
-      const csv = exportSlotReservationsToCSV(res, "Octobre 2026", true, selected);
+      const csv = exportSlotReservationsToCSV(res, "Octobre 2026", true, selected, false);
       expect(csv).toContain("Places Reservees");
       expect(csv).toContain("Samedi");
       expect(csv).toContain("18:00");
@@ -374,18 +383,41 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(csv).not.toContain("Nadir Test");
     });
 
-    it("should generate WhatsApp message with places and without client names", () => {
+    it("should export CSV with client names when includeNames is true", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      const selected = new Set([res[0].id, res[1].id]);
+      const csv = exportSlotReservationsToCSV(res, "Octobre 2026", true, selected, true);
+      expect(csv).toContain("Noms des Adherents");
+      expect(csv).toContain("Ali Baba");
+      expect(csv).toContain("Nadir Test");
+    });
+
+    it("should generate WhatsApp message with places and without client names by default", () => {
       const res = buildPoolSlotReservations(groups, members);
       const msg = generatePlaceReservationMessage({
         monthLabel: "Octobre 2026",
         reservations: res,
         totalPlaces: 7,
+        includeNames: false,
       });
       expect(msg).toContain("AQA SPORTS - ETAT PREVISIONNEL DE RESERVATION DES PLACES");
       expect(msg).toContain("Nombre total de places reservees: 7 places");
       expect(msg).toContain("Samedi 18:00 : 2 places");
       expect(msg).not.toContain("Ali Baba");
       expect(msg).not.toContain("Nadir Test");
+    });
+
+    it("should generate WhatsApp message with client names when includeNames is true", () => {
+      const res = buildPoolSlotReservations(groups, members);
+      const msg = generatePlaceReservationMessage({
+        monthLabel: "Octobre 2026",
+        reservations: res,
+        totalPlaces: 7,
+        includeNames: true,
+      });
+      expect(msg).toContain("AQA SPORTS - ETAT PREVISIONNEL DE RESERVATION DES PLACES");
+      expect(msg).toContain("Ali Baba");
+      expect(msg).toContain("Nadir Test");
     });
 
     it("should never include slots with 0 places in summary or exports", () => {

@@ -16,6 +16,7 @@ interface PoolPrintTemplateProps {
   totalDuePoolDA: number;
   slotReservations?: PoolSlotReservation[];
   selectedReservationIds?: Set<string>;
+  showNamesInPreview?: boolean;
   meta?: {
     title: string;
     referenceNumber: string;
@@ -33,6 +34,7 @@ export function PoolPrintTemplate({
   totalDuePoolDA,
   slotReservations = [],
   selectedReservationIds = new Set(),
+  showNamesInPreview = false,
   meta = {
     title: "Demande d'accès",
     referenceNumber: "n:0010/26",
@@ -111,16 +113,16 @@ export function PoolPrintTemplate({
           /* PRE-RESERVATION OFFICIAL EXCEL GRID - ONLY THE TABLE, NO HERO, NO AFFLUENCE, NO GROUP NAME, NO CATEGORY, NEVER 0 */
           <table className="w-full border-collapse border border-[#93c5fd] text-xs font-sans">
             <colgroup>
-              <col style={{ width: "42px" }} /> {/* Col 1: N */}
-              <col style={{ width: "180px" }} /> {/* Col 2: Jour */}
-              <col style={{ width: "180px" }} /> {/* Col 3: Horaire */}
-              <col style={{ width: "45px" }} /> {/* Col 4: Grid spacer */}
-              <col style={{ width: "45px" }} /> {/* Col 5: Grid spacer */}
-              <col style={{ width: "45px" }} /> {/* Col 6: Grid spacer */}
-              <col style={{ width: "45px" }} /> {/* Col 7: Grid spacer */}
-              <col style={{ width: "100px" }} /> {/* Col 8: Places Réservées */}
-              <col style={{ width: "85px" }} /> {/* Col 9: Mois */}
-              <col style={{ width: "45px" }} /> {/* Col 10: Grid spacer */}
+              <col style={{ width: showNamesInPreview ? "35px" : "42px" }} /> {/* Col 1: N */}
+              <col style={{ width: showNamesInPreview ? "90px" : "180px" }} /> {/* Col 2: Jour */}
+              <col style={{ width: showNamesInPreview ? "90px" : "180px" }} /> {/* Col 3: Horaire */}
+              <col style={{ width: showNamesInPreview ? "75px" : "45px" }} /> {/* Col 4: Grid spacer / Names */}
+              <col style={{ width: showNamesInPreview ? "75px" : "45px" }} /> {/* Col 5: Grid spacer / Names */}
+              <col style={{ width: showNamesInPreview ? "75px" : "45px" }} /> {/* Col 6: Grid spacer / Names */}
+              <col style={{ width: showNamesInPreview ? "75px" : "45px" }} /> {/* Col 7: Grid spacer / Names */}
+              <col style={{ width: showNamesInPreview ? "65px" : "100px" }} /> {/* Col 8: Places Réservées */}
+              <col style={{ width: showNamesInPreview ? "65px" : "85px" }} /> {/* Col 9: Mois */}
+              <col style={{ width: "40px" }} /> {/* Col 10: Grid spacer */}
             </colgroup>
 
             <thead>
@@ -168,12 +170,21 @@ export function PoolPrintTemplate({
                 </td>
               </tr>
 
-              {/* Row 3: Table Header Row - No category, No group name, No affluence */}
+              {/* Row 3: Table Header Row - Dynamic Names column when option is enabled */}
               <tr className="h-7 border-b border-[#93c5fd] bg-slate-100 text-[11px] font-bold text-slate-900">
                 <th className="border-r border-[#93c5fd] text-center">N</th>
                 <th className="border-r border-[#93c5fd] px-3 text-left">Jour</th>
                 <th className="border-r border-[#93c5fd] px-3 text-left">Horaire</th>
-                <th colSpan={4} className="border-r border-[#93c5fd]"></th>
+                {showNamesInPreview ? (
+                  <th
+                    colSpan={4}
+                    className="border-r border-[#93c5fd] px-3 text-left bg-slate-200/80 font-bold text-slate-950"
+                  >
+                    Noms des Adhérents
+                  </th>
+                ) : (
+                  <th colSpan={4} className="border-r border-[#93c5fd]"></th>
+                )}
                 <th className="border-r border-[#93c5fd] bg-[#00c0f0] text-black text-center font-bold">
                   Places
                 </th>
@@ -204,11 +215,24 @@ export function PoolPrintTemplate({
                     {r.time}
                   </td>
 
-                  {/* Col 4-7: Empty Grid spacers */}
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
+                  {/* Col 4-7: Either Noms des Adhérents or Empty Grid spacers */}
+                  {showNamesInPreview ? (
+                    <td
+                      colSpan={4}
+                      className="border-r border-[#93c5fd] px-2.5 py-1 text-[11px] font-medium text-slate-900 align-middle leading-snug"
+                    >
+                      {r.memberNames && r.memberNames.length > 0
+                        ? r.memberNames.join(", ")
+                        : "-"}
+                    </td>
+                  ) : (
+                    <>
+                      <td className="border-r border-[#93c5fd]"></td>
+                      <td className="border-r border-[#93c5fd]"></td>
+                      <td className="border-r border-[#93c5fd]"></td>
+                      <td className="border-r border-[#93c5fd]"></td>
+                    </>
+                  )}
 
                   {/* Col 8: Places Réservées (never 0) */}
                   <td className="border-r border-[#93c5fd] bg-cyan-100/60 px-2 text-center font-mono font-black text-sm text-slate-950 align-middle">

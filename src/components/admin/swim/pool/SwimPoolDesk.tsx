@@ -366,6 +366,28 @@ export function SwimPoolDesk({
   const [selectedReservationIds, setSelectedReservationIds] = useState<Set<string>>(new Set());
   const [hasInitializedResIds, setHasInitializedResIds] = useState(false);
 
+  // Option: show names in pre-reservation
+  const [showNamesInPreview, setShowNamesInPreview] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEYS.PREVIEW_SHOW_NAMES);
+        if (saved !== null) return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return false;
+  });
+
+  const handleToggleShowNamesInPreview = (val: boolean) => {
+    setShowNamesInPreview(val);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PREVIEW_SHOW_NAMES, JSON.stringify(val));
+    } catch {
+      // ignore
+    }
+  };
+
   useEffect(() => {
     if (!hasInitializedResIds && slotReservations.length > 0) {
       const activeIds = slotReservations
@@ -432,9 +454,10 @@ export function SwimPoolDesk({
       (r) =>
         r.groupName.toLowerCase().includes(q) ||
         r.day.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q)
+        r.category.toLowerCase().includes(q) ||
+        (showNamesInPreview && r.memberNames?.some((name) => name.toLowerCase().includes(q)))
     );
-  }, [slotReservations, searchQuery]);
+  }, [slotReservations, searchQuery, showNamesInPreview]);
 
   // ─── 13. MODALS & PREVIEW CONTROLS ───────────────────────────────────────────
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -456,7 +479,8 @@ export function SwimPoolDesk({
         slotReservations,
         monthLabel,
         true,
-        selectedReservationIds
+        selectedReservationIds,
+        showNamesInPreview
       );
       downloadBlob(csv, `PreReservation_AQA_${docMeta.year}.csv`);
     } else {
@@ -656,13 +680,23 @@ export function SwimPoolDesk({
             <div className="p-3 sm:p-4 border-b border-[var(--border)] bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-bold text-white">
-                  Pré-réservation des Places par Créneau (Sans noms ni tarifs)
+                  Pré-réservation des Places par Créneau {showNamesInPreview ? "(Avec noms)" : "(Sans noms)"}
                 </span>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
                   {resSummary.totalReservedPlaces} places réservées ({resSummary.selectedReservationsCount} créneaux retenus)
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Option to show names in pre-reservation */}
+                <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 px-3 py-1 rounded-lg border border-white/10 hover:border-cyan-500/40 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showNamesInPreview}
+                    onChange={(e) => handleToggleShowNamesInPreview(e.target.checked)}
+                    className="rounded border-white/20 text-cyan-500 focus:ring-0 cursor-pointer"
+                  />
+                  <span>Afficher les noms</span>
+                </label>
                 <button
                   type="button"
                   onClick={handleSelectAllReservations}
@@ -672,7 +706,7 @@ export function SwimPoolDesk({
                 </button>
                 <input
                   type="text"
-                  placeholder="Filtrer créneau / groupe..."
+                  placeholder="Filtrer créneau / groupe / nom..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="px-3 py-1 rounded-lg bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none"
@@ -701,6 +735,9 @@ export function SwimPoolDesk({
                     <th className="p-3 w-12 text-center">N</th>
                     <th className="p-3">Créneau (Jour & Heure)</th>
                     <th className="p-3">Groupe d&apos;Entrainement</th>
+                    {showNamesInPreview && (
+                      <th className="p-3 bg-slate-900/60 text-slate-200">Adhérents assignés</th>
+                    )}
                     <th className="p-3 text-center bg-cyan-500/10 text-cyan-300">Places Réservées</th>
                     <th className="p-3 text-center">Inclusion PDF</th>
                   </tr>
@@ -734,6 +771,29 @@ export function SwimPoolDesk({
                         <td className="p-3 font-medium text-slate-300">
                           {r.groupName}
                         </td>
+                        {showNamesInPreview && (
+                          <td className="p-3">
+                            {r.memberNames && r.memberNames.length > 0 ? (
+                              <div className="space-y-1">
+                                <div className="flex flex-wrap gap-1 max-w-sm">
+                                  {r.memberNames.map((name, i) => (
+                                    <span
+                                      key={i}
+                                      className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-200 border border-white/5 font-medium"
+                                    >
+                                      {name}
+                                    </span>
+                                  ))}
+                                </div>
+                                <span className="text-[10px] text-slate-400">
+                                  {r.memberNames.length} adhérent{r.memberNames.length > 1 ? "s" : ""}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 italic text-[11px]">Aucun adhérent assigné</span>
+                            )}
+                          </td>
+                        )}
                         <td className="p-3 text-center bg-cyan-500/5">
                           <div className="inline-flex items-center gap-2">
                             <button
@@ -1065,6 +1125,17 @@ export function SwimPoolDesk({
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {mode === "preview" && (
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-300 hover:text-white bg-slate-900 px-2.5 py-1.5 rounded-xl border border-white/10 hover:border-cyan-500/30 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={showNamesInPreview}
+                      onChange={(e) => handleToggleShowNamesInPreview(e.target.checked)}
+                      className="rounded border-white/20 text-cyan-500 focus:ring-0 cursor-pointer"
+                    />
+                    <span>Noms</span>
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={handlePrint}
@@ -1092,6 +1163,7 @@ export function SwimPoolDesk({
                 totalDuePoolDA={summary.totalDuePoolDA}
                 slotReservations={slotReservations}
                 selectedReservationIds={selectedReservationIds}
+                showNamesInPreview={showNamesInPreview}
                 meta={docMeta}
                 isScreenPreview={true}
               />
@@ -1117,6 +1189,7 @@ export function SwimPoolDesk({
         totalDuePoolDA={summary.totalDuePoolDA}
         slotReservations={slotReservations}
         selectedReservationIds={selectedReservationIds}
+        showNamesInPreview={showNamesInPreview}
         meta={docMeta}
         isScreenPreview={false}
       />

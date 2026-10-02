@@ -455,6 +455,8 @@ export interface PoolSlotReservation {
   capacity: number;
   actualAssignedCount: number;
   hasCustomPlaces: boolean;
+  memberNames?: string[];
+  assignedMembers?: Array<{ id: string; swimId?: string; fullName: string; phone?: string }>;
 }
 
 export interface PoolSlotReservationSummary {
@@ -496,6 +498,7 @@ export const STORAGE_KEYS = {
   CUSTOM_ROWS: "aqa_swim_pool_custom_rows_v1",
   PEAK_OVERRIDES: "aqa_swim_pool_peak_overrides_v1",
   ROW_MONTH_OVERRIDES: "aqa_swim_pool_row_months_v1",
+  PREVIEW_SHOW_NAMES: "aqa_swim_pool_preview_show_names_v1",
 };
 
 /**
@@ -945,12 +948,14 @@ export function buildPoolSlotReservations(
   members: SwimMemberReference[],
   placeOverrides: Record<string, number> = {}
 ): PoolSlotReservation[] {
-  // Count assigned members per group
-  const memberCountsByGroup = new Map<string, number>();
+  // Collect assigned members per group
+  const membersByGroup = new Map<string, SwimMemberReference[]>();
   for (const m of members) {
     const assigned = resolveMemberGroups(m, groups);
     for (const g of assigned) {
-      memberCountsByGroup.set(g.id, (memberCountsByGroup.get(g.id) || 0) + 1);
+      const list = membersByGroup.get(g.id) || [];
+      list.push(m);
+      membersByGroup.set(g.id, list);
     }
   }
 
@@ -959,7 +964,15 @@ export function buildPoolSlotReservations(
   for (const g of groups) {
     if (!g.schedule) continue;
     const slots = parseScheduleSlots(g.schedule);
-    const assignedCount = memberCountsByGroup.get(g.id) || 0;
+    const assignedList = membersByGroup.get(g.id) || [];
+    const assignedCount = assignedList.length;
+    const memberNames = assignedList.map((m) => m.fullName.trim()).filter(Boolean);
+    const assignedMembers = assignedList.map((m) => ({
+      id: m.id,
+      swimId: m.swimId,
+      fullName: m.fullName,
+      phone: m.phone,
+    }));
 
     slots.forEach((s, idx) => {
       if (!s.day && !s.time) return;
@@ -982,6 +995,8 @@ export function buildPoolSlotReservations(
         capacity: g.capacity || 10,
         actualAssignedCount: assignedCount,
         hasCustomPlaces: hasCustom,
+        memberNames,
+        assignedMembers,
       });
     });
   }
@@ -1023,18 +1038,20 @@ export function computeSlotReservationsSummary(
 }
 
 /**
- * Exports place reservations to CSV for Method ONE (No client names, no category, no group name).
+ * Exports place reservations to CSV for Method ONE with optional client names.
  */
 export function exportSlotReservationsToCSV(
   reservations: PoolSlotReservation[],
   monthLabel: string,
   selectedOnly: boolean,
-  selectedIds: Set<string>
+  selectedIds: Set<string>,
+  includeNames: boolean = false
 ): string {
   const headers = [
     "N",
     "Jour",
     "Horaire",
+    ...(includeNames ? ["Noms des Adherents"] : []),
     "Places Reservees",
     "Mois",
   ];
@@ -1054,6 +1071,9 @@ export function exportSlotReservationsToCSV(
       escapeCSV(rowIndex++),
       escapeCSV(r.day),
       escapeCSV(r.time),
+      ...(includeNames
+        ? [escapeCSV(r.memberNames && r.memberNames.length > 0 ? r.memberNames.join(", ") : "-")]
+        : []),
       escapeCSV(r.reservedPlaces),
       escapeCSV(monthLabel),
     ];
@@ -1064,14 +1084,15 @@ export function exportSlotReservationsToCSV(
 }
 
 /**
- * Generates place reservation message for Method ONE without client names, category, or group names.
+ * Generates place reservation message for Method ONE with optional client names.
  */
 export function generatePlaceReservationMessage(params: {
   monthLabel: string;
   reservations: PoolSlotReservation[];
   totalPlaces: number;
+  includeNames?: boolean;
 }): string {
-  const { monthLabel, reservations, totalPlaces } = params;
+  const { monthLabel, reservations, totalPlaces, includeNames = false } = params;
 
   let msg = `*AQA SPORTS - ETAT PREVISIONNEL DE RESERVATION DES PLACES (DEBUT DE MOIS)*\n`;
   msg += `A l'attention de la Direction de la Piscine\n`;
@@ -1081,7 +1102,11 @@ export function generatePlaceReservationMessage(params: {
   msg += `*Detail des Creneaux & Reservations de Places :*\n`;
   for (const r of reservations) {
     if (r.reservedPlaces <= 0) continue;
-    msg += `- ${r.day} ${r.time} : ${r.reservedPlaces} places\n`;
+    const namesSuffix =
+      includeNames && r.memberNames && r.memberNames.length > 0
+        ? ` (Adherents: ${r.memberNames.join(", ")})`
+        : "";
+    msg += `- ${r.day} ${r.time} : ${r.reservedPlaces} places${namesSuffix}\n`;
   }
   msg += `\nCe previsionnel est transmis a titre indicatif pour securiser les creneaux et lignes d'eau.\n`;
   msg += `Cordialement,\nDirection AQA Sports`;
