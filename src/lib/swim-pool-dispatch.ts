@@ -108,6 +108,28 @@ export interface ParsedSlot {
   isPeak: boolean;
 }
 
+export interface PoolDocumentMeta {
+  title: string;
+  referenceNumber: string;
+  date: string;
+  year: string;
+}
+
+export const DEFAULT_DOCUMENT_META: PoolDocumentMeta = {
+  title: "Demande d'accès",
+  referenceNumber: "n:0031/26",
+  date: "10/07/2026",
+  year: "2026",
+};
+
+export interface CustomPoolRow {
+  id: string;
+  fullName: string;
+  groupOrNote?: string;
+  poolPriceDA: number;
+  month?: string;
+}
+
 export interface PoolSwimmerRow {
   memberId: string;
   swimId: string;
@@ -125,6 +147,8 @@ export interface PoolSwimmerRow {
   poolPriceDA: number;
   hasPriceOverride: boolean;
   currentMonth: string;
+  isCustom?: boolean;
+  groupOrNote?: string;
 }
 
 export interface SlotOccupancySummary {
@@ -197,6 +221,10 @@ export const STORAGE_KEYS = {
   SELECTED_MEMBERS: "aqa_swim_pool_selected_members_v1",
   RESERVATION_OVERRIDES: "aqa_swim_pool_places_overrides_v1",
   SELECTED_RESERVATIONS: "aqa_swim_pool_selected_reservations_v1",
+  DOCUMENT_META: "aqa_swim_pool_doc_meta_v1",
+  CUSTOM_ROWS: "aqa_swim_pool_custom_rows_v1",
+  PEAK_OVERRIDES: "aqa_swim_pool_peak_overrides_v1",
+  ROW_MONTH_OVERRIDES: "aqa_swim_pool_row_months_v1",
 };
 
 /**
@@ -302,15 +330,18 @@ export function resolveMemberGroups(
 }
 
 /**
- * Builds the complete list of dispatch rows for all members.
+ * Builds the complete list of dispatch rows for all members and custom collective rows.
  */
 export function buildPoolDispatchRows(
   members: SwimMemberReference[],
   allGroups: SwimGroupReference[],
   pricingConfig: PoolPricingConfig,
-  currentMonthLabel: string
+  currentMonthLabel: string,
+  monthOverrides: Record<string, string> = {},
+  customRows: CustomPoolRow[] = [],
+  peakOverrides: Record<string, boolean> = {}
 ): PoolSwimmerRow[] {
-  return members.map((m) => {
+  const memberRows: PoolSwimmerRow[] = members.map((m) => {
     const assignedGroups = resolveMemberGroups(m, allGroups);
     const assignedGroupIds = assignedGroups.map((g) => g.id);
     const assignedGroupNames = assignedGroups.map((g) => g.name);
@@ -322,9 +353,11 @@ export function buildPoolDispatchRows(
     for (const group of assignedGroups) {
       if (!group.schedule) continue;
       const slots = parseScheduleSlots(group.schedule);
-      for (const slot of slots) {
-        if (!slot.day && !slot.time) continue;
-        const isPeak = isPeakTimeSlot(slot.time, slot.day);
+      slots.forEach((slot, sIdx) => {
+        if (!slot.day && !slot.time) return;
+        const resId = `${group.id}_slot_${sIdx}`;
+        const defaultPeak = isPeakTimeSlot(slot.time, slot.day);
+        const isPeak = peakOverrides[resId] !== undefined ? Boolean(peakOverrides[resId]) : defaultPeak;
         parsedSlots.push({
           day: slot.day,
           time: slot.time,
@@ -337,10 +370,12 @@ export function buildPoolDispatchRows(
             busySlotLabels.push(label);
           }
         }
-      }
+      });
     }
 
     const { priceDA, hasOverride } = calculateMemberPoolPrice(m, pricingConfig);
+    const rowMonth =
+      monthOverrides[m.swimId] || monthOverrides[m.id] || currentMonthLabel;
 
     return {
       memberId: m.id,
@@ -358,9 +393,36 @@ export function buildPoolDispatchRows(
       busySlotLabels,
       poolPriceDA: priceDA,
       hasPriceOverride: hasOverride,
-      currentMonth: currentMonthLabel,
+      currentMonth: rowMonth,
+      isCustom: false,
     };
   });
+
+  const customMemberRows: PoolSwimmerRow[] = customRows.map((c) => {
+    const rowMonth = monthOverrides[c.id] || c.month || currentMonthLabel;
+    return {
+      memberId: c.id,
+      swimId: `CUST-${c.id}`,
+      fullName: c.fullName,
+      category: "groupe",
+      level: "-",
+      phone: "-",
+      paymentStatus: "paid",
+      assignedGroupIds: [],
+      assignedGroupNames: c.groupOrNote ? [c.groupOrNote] : [],
+      assignedSchedules: [],
+      parsedSlots: [],
+      hasBusySlot: false,
+      busySlotLabels: [],
+      poolPriceDA: Number(c.poolPriceDA) || 0,
+      hasPriceOverride: true,
+      currentMonth: rowMonth,
+      isCustom: true,
+      groupOrNote: c.groupOrNote,
+    };
+  });
+
+  return [...memberRows, ...customMemberRows];
 }
 
 /**
@@ -567,11 +629,13 @@ export function generatePoolDispatchMessage(params: {
 
 /**
  * Builds simple place reservations for Method ONE (slots and capacity places only, NO client names).
+ * Peak hours status is fully editable via peakOverrides.
  */
 export function buildPoolSlotReservations(
   groups: SwimGroupReference[],
   members: SwimMemberReference[],
-  placeOverrides: Record<string, number> = {}
+  placeOverrides: Record<string, number> = {},
+  peakOverrides: Record<string, boolean> = {}
 ): PoolSlotReservation[] {
   // Count assigned members per group
   const memberCountsByGroup = new Map<string, number>();
@@ -592,7 +656,9 @@ export function buildPoolSlotReservations(
     slots.forEach((s, idx) => {
       if (!s.day && !s.time) return;
       const resId = `${g.id}_slot_${idx}`;
-      const isPeak = isPeakTimeSlot(s.time, s.day);
+      const defaultPeak = isPeakTimeSlot(s.time, s.day);
+      const isPeak =
+        peakOverrides[resId] !== undefined ? Boolean(peakOverrides[resId]) : defaultPeak;
       const defaultPlaces = assignedCount > 0 ? assignedCount : (g.capacity || 10);
       const hasCustom = placeOverrides[resId] !== undefined;
       const reservedPlaces = hasCustom ? placeOverrides[resId] : defaultPlaces;
@@ -730,5 +796,49 @@ export function generatePlaceReservationMessage(params: {
   msg += `\nCe previsionnel est transmis a titre indicatif pour securiser les creneaux et lignes d'eau.\n`;
   msg += `Cordialement,\nDirection AQA Sports`;
   return msg;
+}
+
+/**
+ * Exports official Demande d'accès correspondence format matching the uploaded official document.
+ */
+export function exportOfficialCorrespondenceToCSV(
+  rows: PoolSwimmerRow[],
+  meta: PoolDocumentMeta,
+  selectedOnly: boolean,
+  selectedIds: Set<string>
+): string {
+  const escapeCSV = (val: string | number) => {
+    const s = String(val ?? "").replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  const lines: string[] = [];
+  lines.push(`AQA;${escapeCSV(meta.year)};;;`);
+  lines.push(`${escapeCSV(meta.title)};;;${escapeCSV(meta.date)};${escapeCSV(meta.referenceNumber)}`);
+  lines.push(";prix;;;");
+  lines.push(["N", "Nom", "Groupe", "prix", "Mois"].join(";"));
+
+  let rowIndex = 1;
+  let totalSum = 0;
+
+  for (const r of rows) {
+    if (selectedOnly && !selectedIds.has(r.swimId) && !selectedIds.has(r.memberId)) {
+      continue;
+    }
+    totalSum += r.poolPriceDA;
+    const groupLabel = r.assignedGroupNames.join(" + ") || r.groupOrNote || "";
+    lines.push([
+      escapeCSV(rowIndex++),
+      escapeCSV(r.fullName),
+      escapeCSV(groupLabel),
+      escapeCSV(r.poolPriceDA),
+      escapeCSV(r.currentMonth),
+    ].join(";"));
+  }
+
+  // Summary row
+  lines.push(["", escapeCSV("Total"), "", escapeCSV(totalSum), ""].join(";"));
+
+  return "\uFEFF" + lines.join("\r\n");
 }
 

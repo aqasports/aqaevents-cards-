@@ -16,6 +16,8 @@ import {
   DEFAULT_POOL_PRICING,
   DEFAULT_PREVIEW_COLUMNS,
   DEFAULT_REAL_FINAL_COLUMNS,
+  DEFAULT_DOCUMENT_META,
+  exportOfficialCorrespondenceToCSV,
 } from "./swim-pool-dispatch";
 
 describe("swim-pool-dispatch domain utilities", () => {
@@ -385,6 +387,127 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(msg).toContain("G10 Homme Soir");
       expect(msg).not.toContain("Ali Baba");
       expect(msg).not.toContain("Nadir Test");
+    });
+
+    it("should allow overriding peak hour status explicitly", () => {
+      // By default g1 slot at 18:00 is peak
+      const defaultRes = buildPoolSlotReservations(groups, members);
+      expect(defaultRes[0].isPeak).toBe(true);
+
+      // User overrides it to false (normal)
+      const overrides = { [defaultRes[0].id]: false };
+      const customRes = buildPoolSlotReservations(groups, members, {}, overrides);
+      expect(customRes[0].isPeak).toBe(false);
+
+      // User marks g2 slot as peak
+      const customPeak = { [customRes[1].id]: true };
+      const resWithPeak = buildPoolSlotReservations(groups, members, {}, customPeak);
+      expect(resWithPeak[1].isPeak).toBe(true);
+    });
+  });
+
+  describe("Official Correspondence & Custom Rows (Demande d'acces)", () => {
+    const config = {
+      defaultPrice: 4000,
+      categoryPrices: { homme: 4000, femme: 4000, enfants: 3000, apnea: 4000 },
+      individualOverrides: { "SWM-001": 6600 },
+    };
+
+    const members = [
+      {
+        id: "m1",
+        swimId: "SWM-001",
+        fullName: "Chakib hafid",
+        phone: "0555112233",
+        category: "homme",
+        level: "old_aqa",
+        paymentStatus: "paid" as const,
+        notes: null,
+        groupId: "g1",
+      },
+      {
+        id: "m2",
+        swimId: "SWM-002",
+        fullName: "Nadjib yetto",
+        phone: "0555445566",
+        category: "homme",
+        level: "new_aqa",
+        paymentStatus: "paid" as const,
+        notes: null,
+        groupId: "g1",
+      },
+    ];
+
+    const groups = [
+      {
+        id: "g1",
+        name: "Groupe Adultes",
+        category: "homme",
+        schedule: "Samedi 18:00",
+      },
+    ];
+
+    const customRows = [
+      {
+        id: "cust_kids",
+        fullName: "AQA KIDS",
+        groupOrNote: "Section Enfants",
+        poolPriceDA: 80500,
+        month: "Juillet",
+      },
+    ];
+
+    it("should include custom collective rows and per-row months", () => {
+      const monthOverrides = { "SWM-001": "JUIN" };
+      const rows = buildPoolDispatchRows(
+        members,
+        groups,
+        config,
+        "Juillet",
+        monthOverrides,
+        customRows
+      );
+
+      expect(rows.length).toBe(3); // 2 members + 1 custom row
+
+      const chakib = rows.find((r) => r.fullName === "Chakib hafid");
+      expect(chakib?.currentMonth).toBe("JUIN");
+      expect(chakib?.poolPriceDA).toBe(6600);
+
+      const nadjib = rows.find((r) => r.fullName === "Nadjib yetto");
+      expect(nadjib?.currentMonth).toBe("Juillet");
+      expect(nadjib?.poolPriceDA).toBe(4000);
+
+      const aqaKids = rows.find((r) => r.fullName === "AQA KIDS");
+      expect(aqaKids?.isCustom).toBe(true);
+      expect(aqaKids?.poolPriceDA).toBe(80500);
+      expect(aqaKids?.currentMonth).toBe("Juillet");
+    });
+
+    it("should export official correspondence matching Demande d'acces format", () => {
+      const rows = buildPoolDispatchRows(
+        members,
+        groups,
+        config,
+        "Juillet",
+        { "SWM-001": "JUIN" },
+        customRows
+      );
+      const meta = {
+        title: "Demande d'accès",
+        referenceNumber: "n:0031/26",
+        date: "10/07/2026",
+        year: "2026",
+      };
+
+      const csv = exportOfficialCorrespondenceToCSV(rows, meta, false, new Set());
+      expect(csv).toContain("AQA;\"2026\"");
+      expect(csv).toContain("\"Demande d'accès\";;;\"10/07/2026\";\"n:0031/26\"");
+      expect(csv).toContain(";prix;;;");
+      expect(csv).toContain("N;Nom;Groupe;prix;Mois");
+      expect(csv).toContain("\"Chakib hafid\";\"Groupe Adultes\";\"6600\";\"JUIN\"");
+      expect(csv).toContain("\"AQA KIDS\";\"Section Enfants\";\"80500\";\"Juillet\"");
+      expect(csv).toContain(";\"Total\";;\"91100\";"); // 6600 + 4000 + 80500 = 91100
     });
   });
 });
