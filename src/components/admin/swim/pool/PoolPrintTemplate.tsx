@@ -61,18 +61,42 @@ export function PoolPrintTemplate({
     : "hidden print:block print:w-full print:p-0 bg-white text-black font-sans text-xs";
 
   return (
-    <div className={containerClass}>
+    <div
+      id={isScreenPreview ? undefined : "pool-official-print-document"}
+      className={containerClass}
+    >
       <style jsx global>{`
         @media print {
           @page {
             size: A4 portrait;
             margin: 10mm;
           }
+          /* Strict Isolation: Hide everything on the page */
+          body * {
+            visibility: hidden !important;
+          }
+          /* Only make the official pool print document visible */
+          #pool-official-print-document,
+          #pool-official-print-document * {
+            visibility: visible !important;
+          }
+          #pool-official-print-document {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            display: block !important;
+            background: white !important;
+            color: black !important;
+            z-index: 999999 !important;
+          }
           body {
             background: white !important;
             color: black !important;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
           }
           .page-break {
             page-break-before: always;

@@ -866,250 +866,253 @@ export default function SwimOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="AQA Swim Inscription Manager"
-        description="Comprehensive operational hub for managing swim inscriptions, confirmed client profiles, solid groups, and PVC pass cards."
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              onClick={() => setShowAddMemberModal(true)}
-              variant="primary"
-            >
-              + Add Swimmer
-            </Button>
-            <Button
-              onClick={() => setShowAddLeadModal(true)}
-              variant="secondary"
-            >
-              + New Lead
-            </Button>
-            <Button
-              onClick={handleExportCSV}
-              variant="secondary"
-            >
-              Export CSV
-            </Button>
-          </div>
-        }
-      />
-
-      {/* Top Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Confirmed Swimmers"
-          value={members.length}
-          animated
-          hint="Registered clients & active profiles"
-          icon={
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
+      {/* Top Header & Operational Stats (Hidden from all printouts & PDFs) */}
+      <div className="print:hidden space-y-6">
+        <PageHeader
+          title="AQA Swim Inscription Manager"
+          description="Comprehensive operational hub for managing swim inscriptions, confirmed client profiles, solid groups, and PVC pass cards."
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                onClick={() => setShowAddMemberModal(true)}
+                variant="primary"
+              >
+                + Add Swimmer
+              </Button>
+              <Button
+                onClick={() => setShowAddLeadModal(true)}
+                variant="secondary"
+              >
+                + New Lead
+              </Button>
+              <Button
+                onClick={handleExportCSV}
+                variant="secondary"
+              >
+                Export CSV
+              </Button>
+            </div>
           }
         />
-        <StatCard
-          label="Pending Waitlist Leads"
-          value={pendingLeadsCount}
-          animated
-          hint="Clients to call & confirm"
-          icon={
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-        />
-        <StatCard
-          label="Active Groups"
-          value={groups.filter((g) => g.active).length}
-          animated
-          hint="Configured training slots"
-          icon={
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-            </svg>
-          }
-        />
-        <StatCard
-          label="Revenue Collected"
-          value={`${totalRevenueCollected.toLocaleString("fr-DZ")} DA`}
-          hint={`Of ${totalRevenueExpected.toLocaleString("fr-DZ")} DA total expected`}
-          icon={
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          }
-        />
-      </div>
 
-      {/* Main Navigation Tabs */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
-        <div className="flex flex-wrap bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] gap-1">
-          <button
-            onClick={() => setActiveTab("confirmed")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === "confirmed"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
-            }`}
-          >
-            <span>Confirmed Swimmers</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-950 text-sky-300 border border-sky-800/40">
-              {members.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("leads")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
-              activeTab === "leads"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
-            }`}
-          >
-            <span>Waitlist Demands</span>
-            {pendingLeadsCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-950 text-amber-300 border border-amber-800/40">
-                {pendingLeadsCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab("groups")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === "groups"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
-            }`}
-          >
-            Training Groups ({groups.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab("calendar")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              activeTab === "calendar"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
-            }`}
-          >
-            <span>Coach Calendar</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("cards")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === "cards"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
-            }`}
-          >
-            PVC Cards ({cards.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab("sectors")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === "sectors"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
-            }`}
-          >
-            Sectors Hub
-          </button>
-
-          <button
-            onClick={() => setActiveTab("calls")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              activeTab === "calls"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
-            }`}
-          >
-            <span>Reinscription Calls</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900 text-sky-200">
-              Desk
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("payments")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              activeTab === "payments"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
-            }`}
-          >
-            <span>Payments</span>
-            {expiringCount > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-900 text-amber-200 font-bold">
-                {expiringCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab("backups")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              activeTab === "backups"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-              <polyline points="17 21 17 13 7 13 7 21" />
-              <polyline points="7 3 7 8 15 8" />
-            </svg>
-            <span>Backups</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("equipment")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              activeTab === "equipment"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-            <span>Equipment Shop</span>
-            {equipmentDemandsCount > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
-                {equipmentDemandsCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab("pool")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
-              activeTab === "pool"
-                ? "bg-[var(--primary)] text-white shadow-sm"
-                : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
-            }`}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-            <span>Pool Direction</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
-              2 Methods
-            </span>
-          </button>
+        {/* Top Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Confirmed Swimmers"
+            value={members.length}
+            animated
+            hint="Registered clients & active profiles"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Pending Waitlist Leads"
+            value={pendingLeadsCount}
+            animated
+            hint="Clients to call & confirm"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Active Groups"
+            value={groups.filter((g) => g.active).length}
+            animated
+            hint="Configured training slots"
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            }
+          />
+          <StatCard
+            label="Revenue Collected"
+            value={`${totalRevenueCollected.toLocaleString("fr-DZ")} DA`}
+            hint={`Of ${totalRevenueExpected.toLocaleString("fr-DZ")} DA total expected`}
+            icon={
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            }
+          />
         </div>
 
-        {/* Global Search */}
-        {(activeTab === "confirmed" || activeTab === "leads") && (
-          <div className="w-full sm:w-72">
-            <Input
-              placeholder={activeTab === "confirmed" ? "Search name, phone, Swimmer ID..." : "Search leads..."}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        {/* Main Navigation Tabs */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+          <div className="flex flex-wrap bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] gap-1">
+            <button
+              onClick={() => setActiveTab("confirmed")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+                activeTab === "confirmed"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              <span>Confirmed Swimmers</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-950 text-sky-300 border border-sky-800/40">
+                {members.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("leads")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+                activeTab === "leads"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              <span>Waitlist Demands</span>
+              {pendingLeadsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-950 text-amber-300 border border-amber-800/40">
+                  {pendingLeadsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("groups")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === "groups"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              Training Groups ({groups.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab("calendar")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === "calendar"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              <span>Coach Calendar</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("cards")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === "cards"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              PVC Cards ({cards.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab("sectors")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                activeTab === "sectors"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
+              }`}
+            >
+              Sectors Hub
+            </button>
+
+            <button
+              onClick={() => setActiveTab("calls")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === "calls"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+              }`}
+            >
+              <span>Reinscription Calls</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-900 text-sky-200">
+                Desk
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("payments")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === "payments"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+              }`}
+            >
+              <span>Payments</span>
+              {expiringCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-900 text-amber-200 font-bold">
+                  {expiringCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("backups")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === "backups"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
+              </svg>
+              <span>Backups</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("equipment")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === "equipment"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              <span>Equipment Shop</span>
+              {equipmentDemandsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
+                  {equipmentDemandsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("pool")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+                activeTab === "pool"
+                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+              <span>Pool Direction</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
+                2 Methods
+              </span>
+            </button>
           </div>
-        )}
+
+          {/* Global Search */}
+          {(activeTab === "confirmed" || activeTab === "leads") && (
+            <div className="w-full sm:w-72">
+              <Input
+                placeholder={activeTab === "confirmed" ? "Search name, phone, Swimmer ID..." : "Search leads..."}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* TAB 1: CONFIRMED SWIMMERS & PROFILES */}
