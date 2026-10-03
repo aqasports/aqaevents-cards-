@@ -23,7 +23,7 @@ export const FRENCH_DAYS = [
 ] as const;
 
 export const DEFAULT_SWIM_LOCATIONS = [
-  "Bassin Olympique",
+  "Azal",
   "Piscine Kouba",
   "Bassin 25m",
   "Piscine El Biar",
@@ -112,7 +112,7 @@ export function isOldSwimMember(level: string | null | undefined): boolean {
  * (space)
  * (4 first letters from loc name)
  *
- * Example: Lundi + 18:00 + Karim Benali + Bassin Olympique -> "Lun 18:00 Karim B Bass"
+ * Example: Lundi + 18:00 + Karim Benali + Azal -> "Lun 18:00 Karim B Azal"
  */
 export function generateSwimGroupName(
   day?: string | null,
@@ -133,8 +133,8 @@ export function generateSwimGroupName(
  * different days per week.
  *
  * Format: "Sam 18:00+Mer 18:00 CoachNa Loca"
- * Example: Samedi 18:00 + Mercredi 18:00 + Karim Benali + Bassin Olympique
- *          -> "Sam 18:00+Mer 18:00 Karim B Bass"
+ * Example: Samedi 18:00 + Mercredi 18:00 + Karim Benali + Azal
+ *          -> "Sam 18:00+Mer 18:00 Karim B Azal"
  */
 export function generateKidsGroupName(
   day1?: string | null,
@@ -161,8 +161,8 @@ export function generateKidsGroupName(
 /**
  * Builds a schedule string for storage.
  *
- * Single slot: "Samedi 18:00 · Bassin Olympique"
- * Dual slot:   "Samedi 18:00 + Mercredi 18:00 · Bassin Olympique"
+ * Single slot: "Samedi 18:00 · Azal"
+ * Dual slot:   "Samedi 18:00 + Mercredi 18:00 · Azal"
  */
 export function buildScheduleString(
   day1: string,
@@ -183,8 +183,8 @@ export function buildScheduleString(
  * Returns 1 slot for standard groups, 2 slots for dual-day kids groups.
  *
  * Supports formats:
- *   "Samedi 18:00 · Bassin Olympique"                    -> 1 slot
- *   "Samedi 18:00 + Mercredi 18:00 · Bassin Olympique"   -> 2 slots
+ *   "Samedi 18:00 · Azal"                    -> 1 slot
+ *   "Samedi 18:00 + Mercredi 18:00 · Azal"   -> 2 slots
  *   Legacy plain text fallback for older records.
  */
 export function parseScheduleSlots(
@@ -194,7 +194,11 @@ export function parseScheduleSlots(
 
   // Extract location (everything after the last middle dot)
   const dotIdx = schedule.lastIndexOf("\u00b7");
-  const location = dotIdx !== -1 ? schedule.slice(dotIdx + 1).trim() : "";
+  const rawLocation = dotIdx !== -1 ? schedule.slice(dotIdx + 1).trim() : "";
+  const location =
+    rawLocation === "Bassin Olympique" || rawLocation === "Piscine Olympique"
+      ? "Azal"
+      : rawLocation;
   const slotsPart = dotIdx !== -1 ? schedule.slice(0, dotIdx).trim() : schedule;
 
   function extractDayTime(part: string): { day: string; time: string } {

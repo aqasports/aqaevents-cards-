@@ -57,11 +57,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Self-healing migration: replace any legacy Bassin Olympique with Azal in memory and database
+    const legacyGroups = groups.filter(
+      (g) =>
+        g.schedule &&
+        (g.schedule.includes("Bassin Olympique") || g.schedule.includes("Piscine Olympique"))
+    );
+    if (legacyGroups.length > 0) {
+      Promise.all(
+        legacyGroups.map((lg) =>
+          prisma.swimGroup.update({
+            where: { id: lg.id },
+            data: {
+              schedule: lg.schedule.replace(/Bassin Olympique|Piscine Olympique/g, "Azal"),
+            },
+          }).catch((e) => logger.error(`Failed to migrate legacy group location for ${lg.id}:`, e))
+        )
+      ).catch(() => {});
+    }
+
     const enriched = groups.map((g) => {
       const { isSolid, cleanNotes } = decodeSolidNotes(g.notes);
       const secondaryCount = extraCounts[g.id] || 0;
+      const cleanSchedule = g.schedule
+        ? g.schedule.replace(/Bassin Olympique|Piscine Olympique/g, "Azal")
+        : g.schedule;
       return {
         ...g,
+        schedule: cleanSchedule,
         isSolid,
         cleanNotes,
         _count: {
@@ -90,6 +113,8 @@ export async function POST(request: NextRequest) {
     }
 
     const encodedNotes = encodeSolidNotes(notes, Boolean(isSolid));
+    const rawSchedule = typeof schedule === "string" ? schedule : JSON.stringify(schedule || []);
+    const cleanSchedule = rawSchedule.replace(/Bassin Olympique|Piscine Olympique/g, "Azal");
 
     const group = await prisma.swimGroup.create({
       data: {
@@ -97,7 +122,7 @@ export async function POST(request: NextRequest) {
         category: category || "homme",
         level: level.trim(),
         coachName: coachName?.trim() || null,
-        schedule: typeof schedule === "string" ? schedule : JSON.stringify(schedule || []),
+        schedule: cleanSchedule,
         capacity: capacity ? parseInt(capacity, 10) : 10,
         notes: encodedNotes,
         active: true,

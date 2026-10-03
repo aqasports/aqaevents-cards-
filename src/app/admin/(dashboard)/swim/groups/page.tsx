@@ -156,7 +156,7 @@ export default function SwimGroupsPage() {
   const [addTime, setAddTime] = useState<string>("18:00");
   const [addDay2, setAddDay2] = useState<string>("Mercredi");
   const [addTime2, setAddTime2] = useState<string>("18:00");
-  const [addLocation, setAddLocation] = useState<string>("Bassin Olympique");
+  const [addLocation, setAddLocation] = useState<string>("Azal");
   const [addIsSolid, setAddIsSolid] = useState(false);
   const [addCapacity, setAddCapacity] = useState("10");
   const [addNotes, setAddNotes] = useState("");
@@ -173,7 +173,7 @@ export default function SwimGroupsPage() {
   const [editTime, setEditTime] = useState<string>("18:00");
   const [editDay2, setEditDay2] = useState<string>("Mercredi");
   const [editTime2, setEditTime2] = useState<string>("18:00");
-  const [editLocation, setEditLocation] = useState<string>("Bassin Olympique");
+  const [editLocation, setEditLocation] = useState<string>("Azal");
   const [editIsSolid, setEditIsSolid] = useState(false);
   const [editCapacity, setEditCapacity] = useState("10");
   const [editNotes, setEditNotes] = useState("");
@@ -422,7 +422,7 @@ export default function SwimGroupsPage() {
     setEditDay2(slot2 ? slot2.day || "Mercredi" : "Mercredi");
     setEditTime2(slot2 ? slot2.time || "18:00" : "18:00");
 
-    let foundLoc = locations[0] || "Bassin Olympique";
+    let foundLoc = locations[0] || "Azal";
     if (slot1.location) {
       foundLoc = slot1.location;
     } else {
@@ -1730,7 +1730,7 @@ export default function SwimGroupsPage() {
                   id={addNotesId}
                   value={addNotes}
                   onChange={(e) => setAddNotes(e.target.value)}
-                  placeholder="ex: Bassin olympique, lignes 3 et 4..."
+                  placeholder="ex: Azal, lignes 3 et 4..."
                   rows={2}
                   className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
                 />
@@ -2169,7 +2169,7 @@ export default function SwimGroupsPage() {
                 <Input
                   id={prefLocNameId}
                   required
-                  placeholder="ex: Bassin Olympique Kouba..."
+                  placeholder="ex: Azal, Piscine Kouba..."
                   value={newLocationName}
                   onChange={(e) => setNewLocationName(e.target.value)}
                   className="flex-1"

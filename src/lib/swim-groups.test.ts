@@ -23,9 +23,9 @@ describe("Swim Groups Utilities", () => {
         "Lundi",
         "18:00",
         "Karim Benali",
-        "Bassin Olympique"
+        "Azal"
       );
-      expect(name).toBe("Lun 18:00 Karim B Bass");
+      expect(name).toBe("Lun 18:00 Karim B Azal");
     });
 
     it("handles short coach and location names correctly", () => {
@@ -177,8 +177,8 @@ describe("Swim Groups Utilities", () => {
   describe("generateKidsGroupName", () => {
     it("produces dual-slot name with both days and times", () => {
       expect(
-        generateKidsGroupName("Samedi", "18:00", "Mercredi", "18:00", "Karim Benali", "Bassin Olympique")
-      ).toBe("Sam 18:00+Mer 18:00 Karim B Bass");
+        generateKidsGroupName("Samedi", "18:00", "Mercredi", "18:00", "Karim Benali", "Azal")
+      ).toBe("Sam 18:00+Mer 18:00 Karim B Azal");
     });
 
     it("falls back to single-slot name when second day/time is absent", () => {
@@ -196,36 +196,42 @@ describe("Swim Groups Utilities", () => {
 
   describe("buildScheduleString", () => {
     it("builds single-slot string correctly", () => {
-      expect(buildScheduleString("Samedi", "18:00", "Bassin Olympique")).toBe(
-        "Samedi 18:00 \u00b7 Bassin Olympique"
+      expect(buildScheduleString("Samedi", "18:00", "Azal")).toBe(
+        "Samedi 18:00 \u00b7 Azal"
       );
     });
 
     it("builds dual-slot string correctly", () => {
       expect(
-        buildScheduleString("Samedi", "18:00", "Bassin Olympique", "Mercredi", "18:00")
-      ).toBe("Samedi 18:00 + Mercredi 18:00 \u00b7 Bassin Olympique");
+        buildScheduleString("Samedi", "18:00", "Azal", "Mercredi", "18:00")
+      ).toBe("Samedi 18:00 + Mercredi 18:00 \u00b7 Azal");
     });
 
     it("builds single-slot string when day2 provided but time2 is missing", () => {
       expect(
-        buildScheduleString("Samedi", "18:00", "Bassin Olympique", "Mercredi", null)
-      ).toBe("Samedi 18:00 \u00b7 Bassin Olympique");
+        buildScheduleString("Samedi", "18:00", "Azal", "Mercredi", null)
+      ).toBe("Samedi 18:00 \u00b7 Azal");
     });
   });
 
   describe("parseScheduleSlots", () => {
     it("parses a single-slot schedule string", () => {
-      const slots = parseScheduleSlots("Samedi 18:00 \u00b7 Bassin Olympique");
+      const slots = parseScheduleSlots("Samedi 18:00 \u00b7 Azal");
       expect(slots).toHaveLength(1);
-      expect(slots[0]).toMatchObject({ day: "Samedi", time: "18:00", location: "Bassin Olympique" });
+      expect(slots[0]).toMatchObject({ day: "Samedi", time: "18:00", location: "Azal" });
     });
 
     it("parses a dual-slot schedule string into two slots", () => {
-      const slots = parseScheduleSlots("Samedi 18:00 + Mercredi 18:00 \u00b7 Bassin Olympique");
+      const slots = parseScheduleSlots("Samedi 18:00 + Mercredi 18:00 \u00b7 Azal");
       expect(slots).toHaveLength(2);
-      expect(slots[0]).toMatchObject({ day: "Samedi", time: "18:00", location: "Bassin Olympique" });
-      expect(slots[1]).toMatchObject({ day: "Mercredi", time: "18:00", location: "Bassin Olympique" });
+      expect(slots[0]).toMatchObject({ day: "Samedi", time: "18:00", location: "Azal" });
+      expect(slots[1]).toMatchObject({ day: "Mercredi", time: "18:00", location: "Azal" });
+    });
+
+    it("automatically normalizes legacy Bassin Olympique to Azal", () => {
+      const slots = parseScheduleSlots("Samedi 18:00 \u00b7 Bassin Olympique");
+      expect(slots).toHaveLength(1);
+      expect(slots[0]).toMatchObject({ day: "Samedi", time: "18:00", location: "Azal" });
     });
 
     it("parses dual slot with different times", () => {

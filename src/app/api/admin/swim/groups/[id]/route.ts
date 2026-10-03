@@ -55,8 +55,18 @@ export async function GET(
 
     const { isSolid, cleanNotes } = decodeSolidNotes(group.notes);
 
+    let cleanSchedule = group.schedule;
+    if (cleanSchedule && /Bassin\s+Olympique|Piscine\s+Olympique/i.test(cleanSchedule)) {
+      cleanSchedule = cleanSchedule.replace(/Bassin\s+Olympique|Piscine\s+Olympique/gi, "Azal");
+      await prisma.swimGroup.update({
+        where: { id },
+        data: { schedule: cleanSchedule },
+      }).catch(() => {});
+    }
+
     return NextResponse.json({
       ...group,
+      schedule: cleanSchedule,
       swimmers: allSwimmers,
       isSolid,
       cleanNotes,
@@ -99,7 +109,12 @@ export async function PATCH(
         ...(category && { category }),
         ...(level && { level }),
         ...(coachName !== undefined && { coachName: coachName?.trim() || null }),
-        ...(schedule !== undefined && { schedule: typeof schedule === "string" ? schedule : JSON.stringify(schedule) }),
+        ...(schedule !== undefined && {
+          schedule:
+            typeof schedule === "string"
+              ? schedule.replace(/Bassin\s+Olympique|Piscine\s+Olympique/gi, "Azal")
+              : JSON.stringify(schedule).replace(/Bassin\s+Olympique|Piscine\s+Olympique/gi, "Azal"),
+        }),
         ...(capacity !== undefined && { capacity: parseInt(capacity, 10) }),
         ...(active !== undefined && { active: Boolean(active) }),
         ...(updatedNotes !== undefined && { notes: updatedNotes }),

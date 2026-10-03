@@ -16,7 +16,18 @@ async function getStoredLocations(): Promise<string[]> {
     if (setting?.value) {
       const parsed = JSON.parse(setting.value);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+        const cleaned = parsed
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .map((item) =>
+            item.trim() === "Bassin Olympique" || item.trim() === "Piscine Olympique"
+              ? "Azal"
+              : item.trim()
+          );
+        const unique = Array.from(new Set(cleaned));
+        if (JSON.stringify(parsed) !== JSON.stringify(unique)) {
+          await saveStoredLocations(unique);
+        }
+        return unique;
       }
     }
   } catch (err) {

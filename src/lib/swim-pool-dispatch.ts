@@ -57,7 +57,7 @@ export const DEFAULT_AZAL_RULES: AzalTariffRules = {
 
 export const DEFAULT_POOLS: PoolOption[] = [
   { id: "azal", name: "Piscine Azal", defaultRules: DEFAULT_AZAL_RULES },
-  { id: "olympique", name: "Piscine Olympique" },
+  { id: "kouba", name: "Piscine Kouba" },
   { id: "mouradia", name: "Piscine El Mouradia" },
 ];
 
