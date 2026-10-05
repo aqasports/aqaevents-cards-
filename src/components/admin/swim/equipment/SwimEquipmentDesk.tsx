@@ -1,871 +1,517 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Button, Input, StatCard } from "@/components/admin/ui";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Badge,
+  Button,
+  ConfirmModal,
+  Input,
+  StatCard,
+} from "@/components/admin/ui";
 import { useTranslations } from "@/lib/i18n";
-import { SwimLeadDetails } from "@/lib/swim-lead-details";
-
-function formatDA(amount: number): string {
-  return `${amount.toLocaleString("fr-DZ")} DA`;
-}
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface CatalogArticle {
-  id: string;
-  name: string;
-  code: string;
-  description: string | null;
-  defaultSellPrice: number;
-  defaultCostPrice: number;
-  active: boolean;
-  createdAt: string;
-}
-
-interface SwimLeadItem {
-  id: string;
-  fullName: string;
-  phone: string;
-  email: string | null;
-  category: string;
-  level: string;
-  status: string;
-  createdAt: string;
-  notes: string | null;
-  details?: SwimLeadDetails;
-}
-
-interface EquipmentSaleItem {
-  id: string;
-  article: string;
-  clientName: string;
-  clientPhone: string;
-  leadId: string | null;
-  sellPrice: number;
-  costPrice: number;
-  quantity: number;
-  notes: string | null;
-  soldAt: string;
-  createdAt: string;
-}
-
-interface SalesStats {
-  totalSalesRevenue: number;
-  totalCost: number;
-  totalProfit: number;
-  totalUnitsSold: number;
-  byArticle: Record<
-    string,
-    { revenue: number; cost: number; profit: number; units: number }
-  >;
-}
+import { aggregateSalesStats } from "@/lib/swim-equipment";
+import {
+  buildCsv,
+  buildEquipmentDemandMessage,
+  buildWhatsAppLink,
+  countSalesByLead,
+  type EquipmentLocale,
+  filterSales,
+  formatDA,
+  formatSaleDate,
+  toDateInputValue,
+} from "@/lib/swim-equipment-utils";
+import { getArticleShortLabel, type EquipmentArticleId } from "@/lib/swim-lead-details";
+import { ArticleFormModal } from "./ArticleFormModal";
+import { SaleFormModal } from "./SaleFormModal";
+import type {
+  CatalogArticle,
+  EquipmentSaleItem,
+  NoticeState,
+  SaleModalState,
+  SwimLeadItem,
+} from "./types";
 
 interface SwimEquipmentDeskProps {
   leads: SwimLeadItem[];
-  onRefreshLeads?: () => Promise<void> | void;
 }
 
-// ── Article Form Modal ───────────────────────────────────────────────────────
+type ViewMode = "demands" | "sales" | "catalog";
+type BadgeTone = "default" | "success" | "warning" | "danger" | "info" | "primary";
 
-interface ArticleFormModalProps {
-  existing?: CatalogArticle | null;
-  onClose: () => void;
-  onSaved: () => void;
-  t: (key: string, replacements?: Record<string, string | number>) => string;
+const TH_CLASS = "py-3 px-4 text-start font-semibold";
+const SELECT_CLASS =
+  "px-3 py-2 rounded-[10px] bg-[var(--surface)] border border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)] transition-colors";
+const DATE_CLASS =
+  "px-3 py-2 rounded-[10px] bg-[var(--surface-2)] border border-[var(--border)] text-xs text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)] transition-colors";
+
+const LEAD_STATUS_KEYS: Record<string, string> = {
+  pending: "leadPending",
+  called: "leadCalled",
+  confirmed: "leadConfirmed",
+  rejected: "leadRejected",
+};
+
+function leadStatusTone(status: string): BadgeTone {
+  if (status === "confirmed") return "success";
+  if (status === "called") return "info";
+  if (status === "rejected") return "danger";
+  return "warning";
 }
 
-function ArticleFormModal({
-  existing,
-  onClose,
-  onSaved,
-  t,
-}: ArticleFormModalProps) {
-  const [name, setName] = useState(existing?.name || "");
-  const [code, setCode] = useState(existing?.code || "");
-  const [description, setDescription] = useState(existing?.description || "");
-  const [defaultSellPrice, setDefaultSellPrice] = useState(
-    existing?.defaultSellPrice ?? 0
-  );
-  const [defaultCostPrice, setDefaultCostPrice] = useState(
-    existing?.defaultCostPrice ?? 0
-  );
-  const [active, setActive] = useState(existing?.active ?? true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+function marginTone(margin: number): BadgeTone {
+  if (margin >= 50) return "success";
+  if (margin >= 25) return "info";
+  if (margin < 0) return "danger";
+  return "default";
+}
 
-  const isEdit = Boolean(existing);
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
-  function autoSlug(val: string) {
-    return val
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "")
-      .replace(/-+/g, "-");
-  }
+function firstOfMonth(): string {
+  const now = new Date();
+  return toDateInputValue(new Date(now.getFullYear(), now.getMonth(), 1));
+}
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !code.trim()) {
-      setError("Nom et code sont obligatoires.");
-      return;
-    }
+function daysAgo(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return toDateInputValue(date);
+}
 
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const url = isEdit
-        ? `/api/admin/swim/equipment/articles/${existing!.id}`
-        : "/api/admin/swim/equipment/articles";
-
-      const method = isEdit ? "PATCH" : "POST";
-      const body = isEdit
-        ? { name: name.trim(), description: description.trim() || null, defaultSellPrice, defaultCostPrice, active }
-        : { name: name.trim(), code: code.trim(), description: description.trim() || null, defaultSellPrice, defaultCostPrice, active };
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to save article");
-      }
-
-      onSaved();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur inattendue");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const modalUnitProfit = defaultSellPrice - defaultCostPrice;
-  const modalMarginPct =
-    defaultSellPrice > 0
-      ? Math.round((modalUnitProfit / defaultSellPrice) * 100)
-      : 0;
-
+function EmptyRow({ colSpan, children }: { colSpan: number; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-[var(--border)] shadow-2xl overflow-hidden">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between">
-          <h3 className="font-bold text-base text-white">
-            {isEdit ? t("modalEditArticleTitle") : t("modalAddArticleTitle")}
-          </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-lg font-bold">
-            ✕
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {error && (
-            <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs">
-              {error}
-            </div>
-          )}
-
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              {t("inputName")} <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (!isEdit) setCode(autoSlug(e.target.value));
-              }}
-              placeholder="ex. Lunettes Pro UV400"
-              className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
-            />
-          </div>
-
-          {/* Code — only editable on create */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              {t("inputCode")} <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              readOnly={isEdit}
-              value={code}
-              onChange={(e) => setCode(autoSlug(e.target.value))}
-              placeholder="ex. lunettes-pro-uv400"
-              className={`w-full px-3 py-2 rounded-xl border text-xs focus:outline-none font-mono ${
-                isEdit
-                  ? "bg-slate-800/40 border-white/5 text-slate-500 cursor-not-allowed"
-                  : "bg-slate-800 border-white/10 text-white placeholder-slate-500 focus:border-cyan-400"
-              }`}
-            />
-            <p className="text-[10px] text-slate-500 mt-0.5">{t("inputCodeHint")}</p>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              {t("inputDescription")}
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="ex. Protection UV, anti-buee, taille reglable"
-              className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
-            />
-          </div>
-
-          {/* Prices */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                {t("inputDefaultSellPrice")}
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={defaultSellPrice}
-                onChange={(e) =>
-                  setDefaultSellPrice(Math.max(0, parseInt(e.target.value) || 0))
-                }
-                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400 font-mono text-right"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">
-                {t("inputDefaultCostPrice")}
-              </label>
-              <input
-                type="number"
-                min="0"
-                value={defaultCostPrice}
-                onChange={(e) =>
-                  setDefaultCostPrice(Math.max(0, parseInt(e.target.value) || 0))
-                }
-                className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400 font-mono text-right"
-              />
-            </div>
-          </div>
-
-          {/* Live margin preview */}
-          <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-950/60 to-cyan-950/60 border border-emerald-500/30 flex items-center justify-between">
-            <div>
-              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                Marge par Defaut
-              </div>
-              <div className="text-xs text-slate-300 mt-0.5">
-                {defaultSellPrice} - {defaultCostPrice} = {modalUnitProfit} DA
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-base font-bold font-mono text-emerald-400">
-                {modalMarginPct}%
-              </div>
-              <div className="text-[10px] text-slate-400">Marge brute</div>
-            </div>
-          </div>
-
-          {/* Active toggle */}
-          <label className="flex items-center gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-              className="w-4 h-4 rounded accent-cyan-500"
-            />
-            <span className="text-xs text-slate-300">{t("inputActive")}</span>
-          </label>
-
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-            <Button type="button" variant="secondary" onClick={onClose}>
-              {t("cancelBtn")}
-            </Button>
-            <Button type="submit" variant="primary" disabled={submitting}>
-              {submitting ? t("savingArticleBtn") : t("saveArticleBtn")}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <tr>
+      <td colSpan={colSpan} className="py-12 px-4 text-center text-[var(--muted)] text-xs">
+        {children}
+      </td>
+    </tr>
   );
 }
 
-// ── Add Sale Modal ───────────────────────────────────────────────────────────
+export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
+  const { t, locale } = useTranslations("swimEquipment");
+  const uiLocale = (locale as EquipmentLocale) || "fr";
 
-interface AddSaleModalProps {
-  articles: CatalogArticle[];
-  leads: SwimLeadItem[];
-  prefill?: {
-    clientName: string;
-    clientPhone: string;
-    leadId: string;
-    articleCode: string;
-  } | null;
-  onClose: () => void;
-  onSaved: () => void;
-  t: (key: string, replacements?: Record<string, string | number>) => string;
-}
+  const [viewMode, setViewMode] = useState<ViewMode>("demands");
 
-function AddSaleModal({
-  articles,
-  leads,
-  prefill,
-  onClose,
-  onSaved,
-  t,
-}: AddSaleModalProps) {
-  const activeArticles = articles.filter((a) => a.active);
-
-  const initial = prefill?.articleCode
-    ? activeArticles.find((a) => a.code === prefill.articleCode) || activeArticles[0] || null
-    : activeArticles[0] || null;
-
-  const [selectedArticleId, setSelectedArticleId] = useState<string>(
-    initial?.id || ""
-  );
-  const [clientName, setClientName] = useState(prefill?.clientName || "");
-  const [clientPhone, setClientPhone] = useState(prefill?.clientPhone || "");
-  const [leadId, setLeadId] = useState(prefill?.leadId || "");
-  const [sellPrice, setSellPrice] = useState(initial?.defaultSellPrice ?? 0);
-  const [costPrice, setCostPrice] = useState(initial?.defaultCostPrice ?? 0);
-  const [quantity, setQuantity] = useState(1);
-  const [notes, setNotes] = useState("");
-  const [soldAt, setSoldAt] = useState(new Date().toISOString().split("T")[0]);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const selectedArticle = articles.find((a) => a.id === selectedArticleId);
-
-  function handleArticleChange(id: string) {
-    setSelectedArticleId(id);
-    const art = articles.find((a) => a.id === id);
-    if (art) {
-      setSellPrice(art.defaultSellPrice);
-      setCostPrice(art.defaultCostPrice);
-    }
-  }
-
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!selectedArticleId || !clientName.trim() || !clientPhone.trim()) {
-      setError("Article, nom et telephone sont obligatoires.");
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/admin/swim/equipment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          article: selectedArticle?.code || selectedArticleId,
-          clientName: clientName.trim(),
-          clientPhone: clientPhone.trim(),
-          leadId: leadId || null,
-          sellPrice: Number(sellPrice),
-          costPrice: Number(costPrice),
-          quantity: Number(quantity),
-          notes: notes.trim() || null,
-          soldAt,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to record sale");
-      }
-
-      onSaved();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erreur lors de l'enregistrement");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg rounded-2xl bg-slate-900 border border-[var(--border)] shadow-2xl overflow-hidden max-h-[92vh] overflow-y-auto">
-        <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-slate-900 z-10">
-          <h3 className="font-bold text-base text-white">{t("modalAddTitle")}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-lg font-bold">
-            ✕
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
-          {error && (
-            <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-300 text-xs">
-              {error}
-            </div>
-          )}
-
-          {activeArticles.length === 0 ? (
-            <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs text-center">
-              Aucun article actif dans le catalogue. Ajoutez d&apos;abord un article dans l&apos;onglet &quot;Catalogue Articles&quot;.
-            </div>
-          ) : (
-            <>
-              {/* Article picker — dynamic grid from catalog */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {t("inputArticle")} <span className="text-red-400">*</span>
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {activeArticles.map((art) => (
-                    <button
-                      key={art.id}
-                      type="button"
-                      onClick={() => handleArticleChange(art.id)}
-                      className={`p-2.5 rounded-xl border text-left text-xs font-semibold transition-all ${
-                        selectedArticleId === art.id
-                          ? "bg-cyan-950/70 text-cyan-300 border-cyan-500 shadow-[0_0_12px_rgba(0,242,255,0.15)]"
-                          : "bg-slate-800/60 text-slate-400 border-white/5 hover:text-white"
-                      }`}
-                    >
-                      <div className="font-bold text-xs truncate">{art.name}</div>
-                      <div className="font-mono text-[10px] mt-0.5 text-slate-500">
-                        {art.code}
-                      </div>
-                      <div className="text-[10px] mt-1 text-emerald-400 font-mono">
-                        {formatDA(art.defaultSellPrice)}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Client info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t("inputClientName")} <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                    placeholder="ex. Mohamed Benali"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t("inputClientPhone")} <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    placeholder="ex. 0555123456"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Optional lead link */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  {t("inputLinkLead")}
-                </label>
-                <select
-                  value={leadId}
-                  onChange={(e) => {
-                    setLeadId(e.target.value);
-                    if (e.target.value) {
-                      const l = leads.find((ld) => ld.id === e.target.value);
-                      if (l) {
-                        setClientName(l.fullName);
-                        setClientPhone(l.phone);
-                      }
-                    }
-                  }}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                >
-                  <option value="">{t("inputNoLead")}</option>
-                  {leads.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.fullName} — {l.phone}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Quantity + Unit Selling Price (Client-Facing: No Cost or Profit Shown) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t("inputQuantity")}
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={quantity}
-                    onChange={(e) =>
-                      setQuantity(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400 font-mono text-center"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t("inputSellPrice")}
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={sellPrice}
-                    onChange={(e) =>
-                      setSellPrice(Math.max(0, parseInt(e.target.value) || 0))
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400 font-mono text-right"
-                  />
-                </div>
-              </div>
-
-              {/* Total Due Banner (Client-Facing, no internal margins or costs shown) */}
-              <div className="p-3.5 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-cyan-950/40 border border-cyan-500/30 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    {t("totalDue")}
-                  </div>
-                  <div className="text-xs text-slate-300 mt-0.5">
-                    {quantity} x {formatDA(sellPrice)}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-bold font-mono text-cyan-400">
-                    {formatDA(sellPrice * quantity)}
-                  </div>
-                </div>
-              </div>
-
-              {/* Date + Notes */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t("inputSoldAt")}
-                  </label>
-                  <input
-                    type="date"
-                    value={soldAt}
-                    onChange={(e) => setSoldAt(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    {t("inputNotes")}
-                  </label>
-                  <input
-                    type="text"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="ex. Taille L, regle en especes"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-                <Button type="button" variant="secondary" onClick={onClose}>
-                  {t("cancelBtn")}
-                </Button>
-                <Button type="submit" variant="primary" disabled={submitting}>
-                  {submitting ? t("savingBtn") : t("saveBtn")}
-                </Button>
-              </div>
-            </>
-          )}
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── Main SwimEquipmentDesk ────────────────────────────────────────────────────
-
-export function SwimEquipmentDesk({
-  leads,
-  onRefreshLeads,
-}: SwimEquipmentDeskProps) {
-  const { t } = useTranslations("swimEquipment");
-
-  // View: "demands" | "sales" | "catalog"
-  const [viewMode, setViewMode] = useState<"demands" | "sales" | "catalog">("demands");
-
-  // Article catalog state
+  // Data (one batched request returns sales and catalog together)
   const [articles, setArticles] = useState<CatalogArticle[]>([]);
-  const [loadingArticles, setLoadingArticles] = useState(true);
-  const [showArticleModal, setShowArticleModal] = useState(false);
-  const [editingArticle, setEditingArticle] = useState<CatalogArticle | null>(null);
-  const [deleteArticleTarget, setDeleteArticleTarget] = useState<CatalogArticle | null>(null);
-  const [deletingArticle, setDeletingArticle] = useState(false);
-
-  // Sales state
   const [sales, setSales] = useState<EquipmentSaleItem[]>([]);
-  const [salesStats, setSalesStats] = useState<SalesStats>({
-    totalSalesRevenue: 0,
-    totalCost: 0,
-    totalProfit: 0,
-    totalUnitsSold: 0,
-    byArticle: {},
-  });
-  const [loadingSales, setLoadingSales] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadErrorDetail, setLoadErrorDetail] = useState<string | null>(null);
 
-  // Sale modal
-  const [showAddSaleModal, setShowAddSaleModal] = useState(false);
-  const [salePrefill, setSalePrefill] = useState<{
-    clientName: string;
-    clientPhone: string;
-    leadId: string;
-    articleCode: string;
-  } | null>(null);
+  // Feedback
+  const [notice, setNotice] = useState<NoticeState>(null);
 
-  // Delete sale
+  // Modals
+  const [saleModal, setSaleModal] = useState<SaleModalState | null>(null);
+  const [articleModal, setArticleModal] = useState<{ article: CatalogArticle | null } | null>(null);
   const [deleteSaleTarget, setDeleteSaleTarget] = useState<EquipmentSaleItem | null>(null);
-  const [deletingSale, setDeletingSale] = useState(false);
+  const [deleteArticleTarget, setDeleteArticleTarget] = useState<CatalogArticle | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [togglingArticleId, setTogglingArticleId] = useState<string | null>(null);
 
   // Filters
+  const [periodFrom, setPeriodFrom] = useState("");
+  const [periodTo, setPeriodTo] = useState("");
   const [demandSearch, setDemandSearch] = useState("");
   const [demandStatusFilter, setDemandStatusFilter] = useState("all");
+  const [demandSaleFilter, setDemandSaleFilter] = useState("all");
   const [saleSearch, setSaleSearch] = useState("");
   const [saleArticleFilter, setSaleArticleFilter] = useState("all");
 
-  // Load articles
-  const loadArticles = useCallback(async () => {
-    setLoadingArticles(true);
+  const loadAll = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/swim/equipment/articles");
-      if (res.ok) {
-        const data = await res.json();
-        setArticles(Array.isArray(data) ? data : []);
+      const res = await fetch("/api/admin/swim/equipment?include=articles", {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "");
       }
-    } catch (err) {
-      console.error("Failed to load articles:", err);
+      const data = await res.json();
+      setSales(Array.isArray(data.sales) ? data.sales : []);
+      setArticles(Array.isArray(data.articles) ? data.articles : []);
+      setLoadFailed(false);
+      setLoadErrorDetail(null);
+    } catch (err: unknown) {
+      setLoadFailed(true);
+      setLoadErrorDetail(err instanceof Error && err.message ? err.message : null);
     } finally {
-      setLoadingArticles(false);
-    }
-  }, []);
-
-  // Load sales
-  const loadSales = useCallback(async () => {
-    setLoadingSales(true);
-    try {
-      const res = await fetch("/api/admin/swim/equipment");
-      if (res.ok) {
-        const data = await res.json();
-        setSales(Array.isArray(data.sales) ? data.sales : []);
-        if (data.stats) setSalesStats(data.stats);
-      }
-    } catch (err) {
-      console.error("Failed to load sales:", err);
-    } finally {
-      setLoadingSales(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadArticles();
-    loadSales();
-  }, [loadArticles, loadSales]);
+    loadAll();
+  }, [loadAll]);
 
-  // Delete article
-  async function handleDeleteArticle() {
-    if (!deleteArticleTarget) return;
-    setDeletingArticle(true);
+  // One-shot UI timer that clears the feedback banner (no network, no polling).
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
+  function retryLoad() {
+    setLoading(true);
+    loadAll();
+  }
+
+  // Derived data
+
+  const articleNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const article of articles) map[article.code] = article.name;
+    return map;
+  }, [articles]);
+
+  function articleLabel(code: string): string {
+    return articleNameMap[code] || getArticleShortLabel(code as EquipmentArticleId);
+  }
+
+  const periodSales = useMemo(
+    () => filterSales(sales, { from: periodFrom, to: periodTo }),
+    [sales, periodFrom, periodTo]
+  );
+
+  const stats = useMemo(() => aggregateSalesStats(periodSales), [periodSales]);
+
+  const articleStatCards = useMemo(
+    () => Object.entries(stats.byArticle).sort((a, b) => b[1].revenue - a[1].revenue),
+    [stats]
+  );
+
+  const filteredSales = useMemo(
+    () =>
+      filterSales(sales, {
+        from: periodFrom,
+        to: periodTo,
+        search: saleSearch,
+        article: saleArticleFilter,
+        articleNames: articleNameMap,
+      }),
+    [sales, periodFrom, periodTo, saleSearch, saleArticleFilter, articleNameMap]
+  );
+
+  const saleArticleCodes = useMemo(
+    () => Array.from(new Set(sales.map((sale) => sale.article))),
+    [sales]
+  );
+
+  const salesByLead = useMemo(() => countSalesByLead(sales), [sales]);
+
+  const equipmentDemands = useMemo(() => {
+    if (!Array.isArray(leads)) return [];
+    return leads.filter(
+      (lead) =>
+        Boolean(lead?.details?.equipment?.hasPack) ||
+        (Array.isArray(lead?.details?.equipment?.articles) &&
+          lead.details!.equipment.articles.length > 0)
+    );
+  }, [leads]);
+
+  const filteredDemands = useMemo(() => {
+    const query = demandSearch.toLowerCase().trim();
+    return equipmentDemands.filter((lead) => {
+      if (query && !lead.fullName.toLowerCase().includes(query) && !lead.phone.includes(query)) {
+        return false;
+      }
+      if (demandStatusFilter !== "all" && lead.status !== demandStatusFilter) return false;
+      const sold = (salesByLead.get(lead.id) || 0) > 0;
+      if (demandSaleFilter === "sold" && !sold) return false;
+      if (demandSaleFilter === "open" && sold) return false;
+      return true;
+    });
+  }, [equipmentDemands, demandSearch, demandStatusFilter, demandSaleFilter, salesByLead]);
+
+  const activeArticleCount = articles.filter((a) => a.active).length;
+  const periodActive = Boolean(periodFrom || periodTo);
+
+  // Actions
+
+  async function afterMutation(message: string) {
+    setNotice({ tone: "success", text: message });
+    await loadAll();
+  }
+
+  async function confirmDeleteSale() {
+    if (!deleteSaleTarget || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/swim/equipment/${deleteSaleTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" && data.error ? data.error : t("errorGeneric"));
+      }
+      setDeleteSaleTarget(null);
+      await afterMutation(t("deletedSuccess"));
+    } catch (err: unknown) {
+      setDeleteSaleTarget(null);
+      setNotice({ tone: "danger", text: err instanceof Error ? err.message : t("errorGeneric") });
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function confirmDeleteArticle() {
+    if (!deleteArticleTarget || deleting) return;
+    setDeleting(true);
     try {
       const res = await fetch(
         `/api/admin/swim/equipment/articles/${deleteArticleTarget.id}`,
         { method: "DELETE" }
       );
-      if (res.ok) {
-        setDeleteArticleTarget(null);
-        await loadArticles();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" && data.error ? data.error : t("errorGeneric"));
       }
-    } catch (err) {
-      console.error("Failed to delete article:", err);
+      setDeleteArticleTarget(null);
+      await afterMutation(t("articleDeletedSuccess"));
+    } catch (err: unknown) {
+      setDeleteArticleTarget(null);
+      setNotice({ tone: "danger", text: err instanceof Error ? err.message : t("errorGeneric") });
     } finally {
-      setDeletingArticle(false);
+      setDeleting(false);
     }
   }
 
-  // Delete sale
-  async function handleDeleteSale() {
-    if (!deleteSaleTarget) return;
-    setDeletingSale(true);
-    try {
-      const res = await fetch(
-        `/api/admin/swim/equipment/${deleteSaleTarget.id}`,
-        { method: "DELETE" }
-      );
-      if (res.ok) {
-        setDeleteSaleTarget(null);
-        await loadSales();
-      }
-    } catch (err) {
-      console.error("Failed to delete sale:", err);
-    } finally {
-      setDeletingSale(false);
-    }
-  }
-
-  // Toggle article active
   async function handleToggleActive(article: CatalogArticle) {
+    if (togglingArticleId) return;
+    setTogglingArticleId(article.id);
     try {
-      await fetch(`/api/admin/swim/equipment/articles/${article.id}`, {
+      const res = await fetch(`/api/admin/swim/equipment/articles/${article.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: !article.active }),
       });
-      await loadArticles();
-    } catch (err) {
-      console.error("Failed to toggle article:", err);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" && data.error ? data.error : t("errorGeneric"));
+      }
+      await afterMutation(t("articleUpdatedSuccess"));
+    } catch (err: unknown) {
+      setNotice({ tone: "danger", text: err instanceof Error ? err.message : t("errorGeneric") });
+    } finally {
+      setTogglingArticleId(null);
     }
   }
 
-  // Prefill sale from demand row
-  function handleOpenSaleForLead(lead: SwimLeadItem) {
-    const firstArticleCode = lead.details?.equipment.articles?.[0] || "";
-    setSalePrefill({
-      clientName: lead.fullName,
-      clientPhone: lead.phone,
-      leadId: lead.id,
-      articleCode: firstArticleCode,
+  function openSaleForLead(lead: SwimLeadItem) {
+    const firstCode = lead.details?.equipment.articles?.[0] || "";
+    setSaleModal({
+      mode: "create",
+      prefill: {
+        clientName: lead.fullName,
+        clientPhone: lead.phone || "",
+        leadId: lead.id,
+        articleCode: firstCode,
+      },
     });
-    setShowAddSaleModal(true);
   }
 
-  // Open blank sale modal
-  function handleOpenFreshSale() {
-    setSalePrefill(null);
-    setShowAddSaleModal(true);
+  function leadArticleSummary(lead: SwimLeadItem): string {
+    const codes = lead.details?.equipment.articles || [];
+    if (codes.length === 0) return t("packComplete");
+    return codes.map((code) => getArticleShortLabel(code)).join(", ");
   }
 
-  // Demand filter: leads with equipment packs
-  const equipmentDemands = useMemo(() => {
-    if (!Array.isArray(leads)) return [];
-    return leads.filter(
-      (l) =>
-        Boolean(l?.details?.equipment?.hasPack) ||
-        (Array.isArray(l?.details?.equipment?.articles) &&
-          l.details.equipment.articles.length > 0)
+  function leadStatusLabel(status: string): string {
+    const key = LEAD_STATUS_KEYS[status];
+    return key ? t(key) : status;
+  }
+
+  function applyPreset(preset: "all" | "month" | "30d") {
+    if (preset === "all") {
+      setPeriodFrom("");
+      setPeriodTo("");
+    } else if (preset === "month") {
+      setPeriodFrom(firstOfMonth());
+      setPeriodTo("");
+    } else {
+      setPeriodFrom(daysAgo(29));
+      setPeriodTo("");
+    }
+  }
+
+  function exportDemandsCsv() {
+    const csv = buildCsv(
+      [
+        t("colClient"),
+        t("colPhone"),
+        t("colLeadStatus"),
+        t("colDetails"),
+        t("colSize"),
+        t("colDate"),
+      ],
+      filteredDemands.map((lead) => [
+        lead.fullName,
+        lead.phone,
+        leadStatusLabel(lead.status),
+        leadArticleSummary(lead),
+        lead.details?.equipment.size || "",
+        formatSaleDate(lead.createdAt, uiLocale),
+      ])
     );
-  }, [leads]);
-
-  const filteredDemands = useMemo(() => {
-    return equipmentDemands.filter((l) => {
-      const q = demandSearch.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        l.fullName.toLowerCase().includes(q) ||
-        l.phone.includes(q);
-      const matchStatus =
-        demandStatusFilter === "all" || l.status === demandStatusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [equipmentDemands, demandSearch, demandStatusFilter]);
-
-  // Sales filter
-  const filteredSales = useMemo(() => {
-    return sales.filter((s) => {
-      const q = saleSearch.toLowerCase().trim();
-      const matchSearch =
-        !q ||
-        s.clientName.toLowerCase().includes(q) ||
-        s.clientPhone.includes(q) ||
-        s.article.toLowerCase().includes(q);
-      const matchArticle =
-        saleArticleFilter === "all" || s.article === saleArticleFilter;
-      return matchSearch && matchArticle;
-    });
-  }, [sales, saleSearch, saleArticleFilter]);
-
-  const totalProfit = salesStats.totalProfit;
-  const totalRevenue = salesStats.totalSalesRevenue;
-  const profitMarginPct =
-    totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0;
-
-  // Map article code → display name
-  const articleNameMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    articles.forEach((a) => {
-      m[a.code] = a.name;
-    });
-    return m;
-  }, [articles]);
-
-  // Get all unique article codes present in sales (for filter)
-  const saleArticleCodes = useMemo(() => {
-    const codes = new Set(sales.map((s) => s.article));
-    return Array.from(codes);
-  }, [sales]);
-
-  // Export demands CSV
-  function handleExportDemandsCSV() {
-    const headers = ["Client", "Phone", "Category", "Status", "Articles", "Date"];
-    const rows = filteredDemands.map((d) => [
-      `"${d.fullName.replace(/"/g, '""')}"`,
-      d.phone,
-      d.category,
-      d.status,
-      `"${(d.details?.equipment.articles || []).join(", ")}"`,
-      new Date(d.createdAt).toLocaleDateString("fr-DZ"),
-    ]);
-    const csv = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const link = document.createElement("a");
-    link.href = encodeURI(csv);
-    link.download = `aqa_swim_equipment_demands_${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCsv(`aqa_swim_equipment_demands_${toDateInputValue()}.csv`, csv);
   }
 
-  // Export sales CSV
-  function handleExportSalesCSV() {
-    const headers = ["Date", "Article", "Client", "Phone", "Qty", "Sell (DA)", "Cost (DA)", "Total Revenue", "Total Profit", "Notes"];
-    const rows = filteredSales.map((s) => [
-      new Date(s.soldAt).toLocaleDateString("fr-DZ"),
-      `"${(articleNameMap[s.article] || s.article).replace(/"/g, '""')}"`,
-      `"${s.clientName.replace(/"/g, '""')}"`,
-      s.clientPhone,
-      s.quantity,
-      s.sellPrice,
-      s.costPrice,
-      s.sellPrice * s.quantity,
-      (s.sellPrice - s.costPrice) * s.quantity,
-      `"${(s.notes || "").replace(/"/g, '""')}"`,
-    ]);
-    const csv = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const link = document.createElement("a");
-    link.href = encodeURI(csv);
-    link.download = `aqa_swim_equipment_sales_${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  function exportSalesCsv() {
+    const csv = buildCsv(
+      [
+        t("colDate"),
+        t("colArticle"),
+        t("colClient"),
+        t("colPhone"),
+        t("colQty"),
+        t("colSellPrice"),
+        t("colCostPrice"),
+        t("totalRevenue"),
+        t("colProfit"),
+        t("inputNotes"),
+      ],
+      filteredSales.map((sale) => [
+        formatSaleDate(sale.soldAt, uiLocale),
+        articleLabel(sale.article),
+        sale.clientName,
+        sale.clientPhone,
+        sale.quantity,
+        sale.sellPrice,
+        sale.costPrice,
+        sale.sellPrice * sale.quantity,
+        (sale.sellPrice - sale.costPrice) * sale.quantity,
+        sale.notes || "",
+      ])
+    );
+    downloadCsv(`aqa_swim_equipment_sales_${toDateInputValue()}.csv`, csv);
   }
+
+  const tabClass = (mode: ViewMode) =>
+    `px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+      viewMode === mode
+        ? "bg-[var(--primary)] text-white shadow-sm"
+        : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+    }`;
+
+  if (loading) {
+    return (
+      <div className="py-20 text-center text-sm text-[var(--muted)] animate-pulse" role="status">
+        {t("loading")}
+      </div>
+    );
+  }
+
+  if (loadFailed && sales.length === 0 && articles.length === 0) {
+    return (
+      <div className="py-16 flex flex-col items-center gap-4 text-center">
+        <Alert tone="danger">{loadErrorDetail || t("loadError")}</Alert>
+        <Button variant="secondary" size="sm" onClick={retryLoad}>
+          {t("retryBtn")}
+        </Button>
+      </div>
+    );
+  }
+
+  const exportDisabled =
+    viewMode === "demands" ? filteredDemands.length === 0 : filteredSales.length === 0;
 
   return (
     <div className="space-y-6">
+      {notice ? (
+        <div className="flex items-start gap-3" role="status">
+          <div className="flex-1">
+            <Alert tone={notice.tone}>{notice.text}</Alert>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            aria-label={t("closeLabel")}
+            className="mt-2 h-7 w-7 inline-flex items-center justify-center rounded-lg text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface-2)]"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
 
-      {/* ── PROFIT SUMMARY STAT CARDS ── */}
+      {loadFailed ? (
+        <div className="flex items-center gap-3">
+          <div className="flex-1">
+            <Alert tone="warning">{loadErrorDetail || t("loadError")}</Alert>
+          </div>
+          <Button variant="secondary" size="sm" onClick={retryLoad}>
+            {t("retryBtn")}
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Period filter (applies to the figures below and to the sales table) */}
+      <div className="flex flex-wrap items-end gap-3 p-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/80">
+        <div>
+          <label htmlFor="equip-period-from" className="block text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] mb-1">
+            {t("periodFrom")}
+          </label>
+          <input
+            id="equip-period-from"
+            type="date"
+            value={periodFrom}
+            max={periodTo || undefined}
+            onChange={(e) => setPeriodFrom(e.target.value)}
+            className={DATE_CLASS}
+          />
+        </div>
+        <div>
+          <label htmlFor="equip-period-to" className="block text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] mb-1">
+            {t("periodTo")}
+          </label>
+          <input
+            id="equip-period-to"
+            type="date"
+            value={periodTo}
+            min={periodFrom || undefined}
+            onChange={(e) => setPeriodTo(e.target.value)}
+            className={DATE_CLASS}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="ghost" size="sm" onClick={() => applyPreset("month")}>
+            {t("periodMonth")}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => applyPreset("30d")}>
+            {t("period30")}
+          </Button>
+          <Button
+            variant={periodActive ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => applyPreset("all")}
+          >
+            {t("periodAll")}
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label={t("totalRevenue")}
-          value={formatDA(salesStats.totalSalesRevenue)}
-          hint={`${salesStats.totalUnitsSold} unites vendues`}
+          value={formatDA(stats.totalSalesRevenue)}
+          hint={t("unitsSoldHint", { count: stats.totalUnitsSold })}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -874,8 +520,8 @@ export function SwimEquipmentDesk({
         />
         <StatCard
           label={t("totalCost")}
-          value={formatDA(salesStats.totalCost)}
-          hint="Cout d'achat total"
+          value={formatDA(stats.totalCost)}
+          hint={t("totalCostHint")}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -884,11 +530,10 @@ export function SwimEquipmentDesk({
         />
         <StatCard
           label={t("totalProfit")}
-          value={formatDA(salesStats.totalProfit)}
-          hint={`${t("marginRate")}: ${profitMarginPct}%`}
-          trend={totalProfit > 0 ? { value: profitMarginPct, label: "Marge brute" } : undefined}
+          value={formatDA(stats.totalProfit)}
+          hint={`${t("marginRate")}: ${stats.marginPercent}%`}
           icon={
-            <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-5 w-5 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
             </svg>
           }
@@ -896,95 +541,110 @@ export function SwimEquipmentDesk({
         <StatCard
           label={t("catalogTitle")}
           value={articles.length}
-          hint={`${articles.filter((a) => a.active).length} actifs`}
+          hint={t("activeCount", { count: activeArticleCount })}
           icon={
-            <svg className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-5 w-5 text-[var(--accent,#00f2ff)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
             </svg>
           }
         />
       </div>
 
-      {/* ── PER-ARTICLE PROFIT CARDS (from sales stats) ── */}
-      {Object.keys(salesStats.byArticle).length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {Object.entries(salesStats.byArticle).map(([code, stat]) => {
-            const margin = stat.revenue > 0 ? Math.round((stat.profit / stat.revenue) * 100) : 0;
-            return (
-              <div key={code} className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md hover:border-cyan-500/40 transition-all">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-200 truncate">
-                    {articleNameMap[code] || code}
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-950 text-cyan-300 border border-cyan-800/40 shrink-0">
-                    {stat.units} vendus
-                  </span>
+      {/* Per-article performance */}
+      {articleStatCards.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {articleStatCards.map(([code, stat]) => (
+            <div
+              key={code}
+              className="p-4 rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md hover:border-[var(--primary)]/40 transition-all"
+            >
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-bold text-[var(--foreground)] truncate">
+                  {articleLabel(code)}
+                </span>
+                <Badge tone="primary" size="sm">
+                  {t("soldUnits", { count: stat.units })}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <span className="text-[10px] text-[var(--muted)] block">{t("labelRevenue")}</span>
+                  <span className="font-mono font-semibold text-[var(--foreground)]">{formatDA(stat.revenue)}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Ventes</span>
-                    <span className="font-mono font-semibold text-white">{formatDA(stat.revenue)}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block">Benefice Net</span>
-                    <span className="font-mono font-bold text-emerald-400">{formatDA(stat.profit)}</span>
-                  </div>
-                </div>
-                <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
-                  <span>Marge: {margin}%</span>
-                  <span>Cout: {formatDA(stat.cost)}</span>
+                <div>
+                  <span className="text-[10px] text-[var(--muted)] block">{t("colProfit")}</span>
+                  <span
+                    className={`font-mono font-bold ${
+                      stat.profit < 0 ? "text-[var(--danger)]" : "text-[var(--success)]"
+                    }`}
+                  >
+                    {formatDA(stat.profit)}
+                  </span>
                 </div>
               </div>
-            );
-          })}
+              <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center justify-between text-[11px] text-[var(--muted)]">
+                <span>{t("marginLabel", { pct: stat.marginPercent })}</span>
+                <span>{t("costLabel", { amount: formatDA(stat.cost) })}</span>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
+      ) : null}
 
-      {/* ── TAB NAV + ACTIONS ── */}
+      {/* Tabs and primary actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
-        <div className="flex flex-wrap bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] gap-1">
+        <div
+          role="tablist"
+          className="flex flex-wrap bg-[var(--surface)] p-1 rounded-[10px] border border-[var(--border)] gap-1"
+        >
           <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "demands"}
             onClick={() => setViewMode("demands")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${viewMode === "demands" ? "bg-[var(--primary)] text-white shadow-sm" : "text-[var(--muted)] hover:text-white hover:bg-slate-800"}`}
+            className={tabClass("demands")}
           >
             <span>{t("demandsTitle")}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-950 text-sky-300 border border-sky-800/40 font-mono">
-              {equipmentDemands.length}
-            </span>
+            <Badge tone="info" size="sm">{equipmentDemands.length}</Badge>
           </button>
-
           <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "sales"}
             onClick={() => setViewMode("sales")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${viewMode === "sales" ? "bg-[var(--primary)] text-white shadow-sm" : "text-[var(--muted)] hover:text-white hover:bg-slate-800"}`}
+            className={tabClass("sales")}
           >
             <span>{t("salesTitle")}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/40 font-mono">
-              {sales.length}
-            </span>
+            <Badge tone="success" size="sm">{sales.length}</Badge>
           </button>
-
           <button
+            type="button"
+            role="tab"
+            aria-selected={viewMode === "catalog"}
             onClick={() => setViewMode("catalog")}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${viewMode === "catalog" ? "bg-[var(--primary)] text-white shadow-sm" : "text-[var(--muted)] hover:text-white hover:bg-slate-800"}`}
+            className={tabClass("catalog")}
           >
             <span>{t("tabCatalog")}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300 border border-white/10 font-mono">
-              {articles.length}
-            </span>
+            <Badge tone="default" size="sm">{articles.length}</Badge>
           </button>
         </div>
 
         <div className="flex items-center gap-2">
           {viewMode === "catalog" ? (
-            <Button variant="primary" size="sm" onClick={() => { setEditingArticle(null); setShowArticleModal(true); }}>
+            <Button variant="primary" size="sm" onClick={() => setArticleModal({ article: null })}>
               {t("addArticleBtn")}
             </Button>
           ) : (
             <>
-              <Button variant="secondary" size="sm" onClick={viewMode === "demands" ? handleExportDemandsCSV : handleExportSalesCSV}>
-                Exporter CSV
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={exportDisabled}
+                onClick={viewMode === "demands" ? exportDemandsCsv : exportSalesCsv}
+              >
+                {t("exportCsv")}
               </Button>
-              <Button variant="primary" size="sm" onClick={handleOpenFreshSale}>
+              <Button variant="primary" size="sm" onClick={() => setSaleModal({ mode: "create", prefill: null })}>
                 {t("addSaleBtn")}
               </Button>
             </>
@@ -992,13 +652,14 @@ export function SwimEquipmentDesk({
         </div>
       </div>
 
-      {/* ── VIEW: DEMANDS ── */}
-      {viewMode === "demands" && (
+      {/* VIEW: DEMANDS */}
+      {viewMode === "demands" ? (
         <div className="space-y-4">
+          <p className="text-xs text-[var(--muted)]">{t("demandsDesc")}</p>
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-full sm:w-64">
               <Input
-                placeholder="Rechercher par nom, telephone..."
+                placeholder={t("searchDemandsPlaceholder")}
                 value={demandSearch}
                 onChange={(e) => setDemandSearch(e.target.value)}
               />
@@ -1006,89 +667,122 @@ export function SwimEquipmentDesk({
             <select
               value={demandStatusFilter}
               onChange={(e) => setDemandStatusFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs text-slate-200 focus:outline-none focus:border-cyan-400"
+              aria-label={t("colLeadStatus")}
+              className={SELECT_CLASS}
             >
-              <option value="all">Tous les statuts</option>
-              <option value="pending">En attente</option>
-              <option value="called">Appele</option>
-              <option value="confirmed">Confirme</option>
+              <option value="all">{t("allStatuses")}</option>
+              {Object.keys(LEAD_STATUS_KEYS).map((status) => (
+                <option key={status} value={status}>
+                  {leadStatusLabel(status)}
+                </option>
+              ))}
             </select>
-            <span className="text-xs text-[var(--muted)] ml-auto">
-              {filteredDemands.length} / {equipmentDemands.length} demandes
+            <select
+              value={demandSaleFilter}
+              onChange={(e) => setDemandSaleFilter(e.target.value)}
+              aria-label={t("colSaleState")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("saleFilterAll")}</option>
+              <option value="open">{t("saleFilterOpen")}</option>
+              <option value="sold">{t("saleFilterSold")}</option>
+            </select>
+            <span className="text-xs text-[var(--muted)] ms-auto">
+              {t("demandsCount", { shown: filteredDemands.length, total: equipmentDemands.length })}
             </span>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
+          <div className="overflow-x-auto rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+            <table className="w-full text-xs">
+              <thead className="bg-[var(--surface-2)]/60 text-[var(--muted)] uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
                 <tr>
-                  <th className="py-3 px-4">Client</th>
-                  <th className="py-3 px-4">Telephone</th>
-                  <th className="py-3 px-4">Articles Demandes</th>
-                  <th className="py-3 px-4">Taille</th>
-                  <th className="py-3 px-4">Statut</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th scope="col" className={TH_CLASS}>{t("colClient")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colPhone")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colDetails")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colSize")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colLeadStatus")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colSaleState")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colActions")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-[var(--border)]">
                 {filteredDemands.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">{t("noDemands")}</td>
-                  </tr>
+                  <EmptyRow colSpan={7}>
+                    {equipmentDemands.length === 0 ? t("noDemands") : t("noMatchDemands")}
+                  </EmptyRow>
                 ) : (
                   filteredDemands.map((lead) => {
-                    const articles = lead.details?.equipment.articles || [];
-                    const cleanPhone = lead.phone.replace(/[^0-9]/g, "");
-                    const waPhone = cleanPhone.startsWith("0") ? `213${cleanPhone.slice(1)}` : cleanPhone;
+                    const soldCount = salesByLead.get(lead.id) || 0;
+                    const whatsappLink = buildWhatsAppLink(
+                      {
+                        phone: lead.phone,
+                        notes: lead.notes,
+                        whatsapp: lead.details?.demographics.whatsapp,
+                      },
+                      buildEquipmentDemandMessage(lead.fullName)
+                    );
+                    const codes = lead.details?.equipment.articles || [];
                     return (
-                      <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 font-semibold text-white">
+                      <tr key={lead.id} className="hover:bg-[var(--surface-2)]/40 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-[var(--foreground)]">
                           <div>{lead.fullName}</div>
-                          <span className="text-[10px] text-slate-400 capitalize">{lead.category}</span>
+                          <span className="text-[10px] text-[var(--muted)] capitalize">{lead.category}</span>
                         </td>
-                        <td className="py-3 px-4 font-mono text-slate-300">
-                          <a href={`tel:${lead.phone}`} className="hover:text-cyan-400">{lead.phone}</a>
+                        <td className="py-3 px-4 font-mono text-[var(--muted)]" dir="ltr">
+                          {lead.phone ? (
+                            <a href={`tel:${lead.phone}`} className="hover:text-[var(--primary)]">
+                              {lead.phone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-500">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex flex-wrap gap-1">
-                            {articles.length === 0 ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-cyan-950/70 text-cyan-300 border border-cyan-800/30">Pack Complet</span>
+                            {codes.length === 0 ? (
+                              <Badge tone="primary" size="sm">{t("packComplete")}</Badge>
                             ) : (
-                              articles.map((code) => (
-                                <span key={code} className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-cyan-300 border border-cyan-500/20">
-                                  {code}
-                                </span>
+                              codes.map((code) => (
+                                <Badge key={code} tone="info" size="sm">
+                                  {getArticleShortLabel(code)}
+                                </Badge>
                               ))
                             )}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-slate-300">
-                          {lead.details?.equipment.size
-                            ? <span className="font-semibold text-white">T: {lead.details.equipment.size}</span>
-                            : <span className="text-slate-500">—</span>
-                          }
+                        <td className="py-3 px-4 text-[var(--foreground)]">
+                          {lead.details?.equipment.size ? (
+                            <span className="font-semibold">{lead.details.equipment.size}</span>
+                          ) : (
+                            <span className="text-slate-500">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
-                            lead.status === "confirmed" ? "bg-emerald-950 text-emerald-300 border border-emerald-800/40"
-                            : lead.status === "called" ? "bg-sky-950 text-sky-300 border border-sky-800/40"
-                            : "bg-amber-950 text-amber-300 border border-amber-800/40"
-                          }`}>
-                            {lead.status}
-                          </span>
+                          <Badge tone={leadStatusTone(lead.status)} size="sm">
+                            {leadStatusLabel(lead.status)}
+                          </Badge>
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4">
+                          {soldCount > 0 ? (
+                            <Badge tone="success" size="sm">{t("saleStateSold", { count: soldCount })}</Badge>
+                          ) : (
+                            <Badge tone="default" size="sm">{t("saleStateOpen")}</Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
                           <div className="flex items-center justify-end gap-1.5">
-                            <a
-                              href={`https://wa.me/${waPhone}?text=${encodeURIComponent(`Salam ${lead.fullName}, concernant votre demande de pack equipement natation AQA Sports.`)}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2 py-1 rounded-lg bg-emerald-950 text-emerald-400 hover:bg-emerald-900 border border-emerald-800/40 text-[11px] font-semibold"
-                            >
-                              WhatsApp
-                            </a>
-                            <Button size="sm" variant="primary" onClick={() => handleOpenSaleForLead(lead)}>
-                              + Vente
+                            {whatsappLink ? (
+                              <a
+                                href={whatsappLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1.5 rounded-lg bg-[var(--success-bg)] text-[var(--success-text)] hover:brightness-125 border border-[var(--success)]/30 text-[11px] font-semibold transition-all"
+                              >
+                                {t("whatsappBtn")}
+                              </a>
+                            ) : null}
+                            <Button size="sm" variant="primary" onClick={() => openSaleForLead(lead)}>
+                              {t("recordSaleForLead")}
                             </Button>
                           </div>
                         </td>
@@ -1100,15 +794,16 @@ export function SwimEquipmentDesk({
             </table>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* ── VIEW: SALES ── */}
-      {viewMode === "sales" && (
+      {/* VIEW: SALES */}
+      {viewMode === "sales" ? (
         <div className="space-y-4">
+          <p className="text-xs text-[var(--muted)]">{t("salesDesc")}</p>
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-full sm:w-64">
               <Input
-                placeholder="Rechercher par client, article..."
+                placeholder={t("searchSalesPlaceholder")}
                 value={saleSearch}
                 onChange={(e) => setSaleSearch(e.target.value)}
               />
@@ -1116,85 +811,118 @@ export function SwimEquipmentDesk({
             <select
               value={saleArticleFilter}
               onChange={(e) => setSaleArticleFilter(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-[var(--surface)] border border-[var(--border)] text-xs text-slate-200 focus:outline-none focus:border-cyan-400"
+              aria-label={t("colArticle")}
+              className={SELECT_CLASS}
             >
-              <option value="all">Tous les articles</option>
+              <option value="all">{t("filterAll")}</option>
               {saleArticleCodes.map((code) => (
-                <option key={code} value={code}>{articleNameMap[code] || code}</option>
+                <option key={code} value={code}>
+                  {articleLabel(code)}
+                </option>
               ))}
             </select>
-            <span className="text-xs text-[var(--muted)] ml-auto">
-              {filteredSales.length} / {sales.length} ventes
+            <span className="text-xs text-[var(--muted)] ms-auto">
+              {t("salesCount", { shown: filteredSales.length, total: sales.length })}
             </span>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
+          <div className="overflow-x-auto rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+            <table className="w-full text-xs">
+              <thead className="bg-[var(--surface-2)]/60 text-[var(--muted)] uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
                 <tr>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Article</th>
-                  <th className="py-3 px-4">Client</th>
-                  <th className="py-3 px-4 text-center">Qte</th>
-                  <th className="py-3 px-4 text-right">Prix Vente</th>
-                  <th className="py-3 px-4 text-right">Cout Achat</th>
-                  <th className="py-3 px-4 text-right">Benefice Net</th>
-                  <th className="py-3 px-4 text-center">Marge</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th scope="col" className={TH_CLASS}>{t("colDate")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colArticle")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colClient")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-center`}>{t("colQty")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colSellPrice")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colCostPrice")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colProfit")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-center`}>{t("colMarginShort")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colActions")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {loadingSales ? (
-                  <tr><td colSpan={9} className="py-12 text-center text-slate-400 animate-pulse">Chargement...</td></tr>
-                ) : filteredSales.length === 0 ? (
-                  <tr><td colSpan={9} className="py-12 text-center text-slate-400">{t("noSales")}</td></tr>
+              <tbody className="divide-y divide-[var(--border)]">
+                {filteredSales.length === 0 ? (
+                  <EmptyRow colSpan={9}>
+                    {sales.length === 0 ? t("noSales") : t("noMatchSales")}
+                  </EmptyRow>
                 ) : (
                   filteredSales.map((sale) => {
                     const lineRevenue = sale.sellPrice * sale.quantity;
                     const lineCost = sale.costPrice * sale.quantity;
                     const lineProfit = lineRevenue - lineCost;
-                    const lineMargin = lineRevenue > 0 ? Math.round((lineProfit / lineRevenue) * 100) : 0;
+                    const lineMargin =
+                      lineRevenue > 0 ? Math.round((lineProfit / lineRevenue) * 100) : 0;
                     return (
-                      <tr key={sale.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
-                          {new Date(sale.soldAt).toLocaleDateString("fr-DZ")}
+                      <tr key={sale.id} className="hover:bg-[var(--surface-2)]/40 transition-colors">
+                        <td className="py-3 px-4 text-[var(--muted)] font-mono text-[11px]" dir="ltr">
+                          {formatSaleDate(sale.soldAt, uiLocale)}
                         </td>
-                        <td className="py-3 px-4 font-semibold text-white">
-                          <div>{articleNameMap[sale.article] || sale.article}</div>
-                          <div className="text-[10px] font-mono text-slate-500">{sale.article}</div>
+                        <td className="py-3 px-4 font-semibold text-[var(--foreground)]">
+                          <div>{articleLabel(sale.article)}</div>
+                          <div className="text-[10px] font-mono text-slate-500" dir="ltr">{sale.article}</div>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-white">{sale.clientName}</div>
-                          <div className="font-mono text-[10px] text-slate-400">{sale.clientPhone}</div>
+                          <div className="font-semibold text-[var(--foreground)]">{sale.clientName}</div>
+                          {sale.clientPhone ? (
+                            <div className="font-mono text-[10px] text-[var(--muted)]" dir="ltr">
+                              {sale.clientPhone}
+                            </div>
+                          ) : null}
+                          {sale.notes ? (
+                            <div className="text-[10px] text-slate-500 truncate max-w-[220px]" title={sale.notes}>
+                              {sale.notes}
+                            </div>
+                          ) : null}
                         </td>
-                        <td className="py-3 px-4 text-center font-mono font-semibold text-white">{sale.quantity}</td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300">
+                        <td className="py-3 px-4 text-center font-mono font-semibold text-[var(--foreground)]">
+                          {sale.quantity}
+                        </td>
+                        <td className="py-3 px-4 text-end font-mono text-[var(--foreground)]" dir="ltr">
                           {formatDA(lineRevenue)}
-                          {sale.quantity > 1 && <div className="text-[10px] text-slate-500">{formatDA(sale.sellPrice)} /u</div>}
+                          {sale.quantity > 1 ? (
+                            <div className="text-[10px] text-slate-500">
+                              {formatDA(sale.sellPrice)} {t("perUnit")}
+                            </div>
+                          ) : null}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-400">
+                        <td className="py-3 px-4 text-end font-mono text-[var(--muted)]" dir="ltr">
                           {formatDA(lineCost)}
-                          {sale.quantity > 1 && <div className="text-[10px] text-slate-500">{formatDA(sale.costPrice)} /u</div>}
+                          {sale.quantity > 1 ? (
+                            <div className="text-[10px] text-slate-500">
+                              {formatDA(sale.costPrice)} {t("perUnit")}
+                            </div>
+                          ) : null}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
-                          +{formatDA(lineProfit)}
+                        <td
+                          className={`py-3 px-4 text-end font-mono font-bold ${
+                            lineProfit < 0 ? "text-[var(--danger)]" : "text-[var(--success)]"
+                          }`}
+                          dir="ltr"
+                        >
+                          {lineProfit >= 0 ? "+" : ""}
+                          {formatDA(lineProfit)}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                            lineMargin >= 50 ? "bg-emerald-950 text-emerald-300 border border-emerald-800/40"
-                            : lineMargin >= 25 ? "bg-cyan-950 text-cyan-300 border border-cyan-800/40"
-                            : "bg-slate-800 text-slate-300"
-                          }`}>
-                            {lineMargin}%
-                          </span>
+                          <Badge tone={marginTone(lineMargin)} size="sm">{lineMargin}%</Badge>
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={() => setDeleteSaleTarget(sale)}
-                            className="px-2 py-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/40 text-[11px] transition-colors"
-                          >
-                            Supprimer
-                          </button>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setSaleModal({ mode: "edit", sale })}
+                              className="px-2 py-1 rounded text-[var(--primary)] hover:bg-[var(--primary-light)] text-[11px] transition-colors"
+                            >
+                              {t("editSaleBtn")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteSaleTarget(sale)}
+                              className="px-2 py-1 rounded text-[var(--danger)] hover:bg-[var(--danger-bg)] text-[11px] transition-colors"
+                            >
+                              {t("deleteBtn")}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1204,81 +932,95 @@ export function SwimEquipmentDesk({
             </table>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* ── VIEW: ARTICLE CATALOG ── */}
-      {viewMode === "catalog" && (
+      {/* VIEW: CATALOG */}
+      {viewMode === "catalog" ? (
         <div className="space-y-4">
-          <div className="p-3 rounded-xl bg-slate-800/40 border border-[var(--border)] text-xs text-slate-400">
+          <div className="p-3 rounded-[10px] bg-[var(--surface-2)]/40 border border-[var(--border)] text-xs text-[var(--muted)]">
             {t("catalogDesc")}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
+          <div className="overflow-x-auto rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-sm">
+            <table className="w-full text-xs">
+              <thead className="bg-[var(--surface-2)]/60 text-[var(--muted)] uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
                 <tr>
-                  <th className="py-3 px-4">{t("colCode")}</th>
-                  <th className="py-3 px-4">{t("colName")}</th>
-                  <th className="py-3 px-4 text-right">{t("colDefaultSell")}</th>
-                  <th className="py-3 px-4 text-right">{t("colDefaultCost")}</th>
-                  <th className="py-3 px-4 text-center">{t("colMargin")}</th>
-                  <th className="py-3 px-4 text-center">{t("colStatus")}</th>
-                  <th className="py-3 px-4 text-right">{t("colActions")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colCode")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colName")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colDefaultSell")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colDefaultCost")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-center`}>{t("colMargin")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-center`}>{t("colStatus")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-end`}>{t("colActions")}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                {loadingArticles ? (
-                  <tr><td colSpan={7} className="py-12 text-center text-slate-400 animate-pulse">Chargement du catalogue...</td></tr>
-                ) : articles.length === 0 ? (
-                  <tr><td colSpan={7} className="py-12 text-center text-slate-400">{t("noArticles")}</td></tr>
+              <tbody className="divide-y divide-[var(--border)]">
+                {articles.length === 0 ? (
+                  <EmptyRow colSpan={7}>{t("noArticles")}</EmptyRow>
                 ) : (
-                  articles.map((art) => {
-                    const margin = art.defaultSellPrice > 0
-                      ? Math.round(((art.defaultSellPrice - art.defaultCostPrice) / art.defaultSellPrice) * 100)
-                      : 0;
+                  articles.map((article) => {
+                    const margin =
+                      article.defaultSellPrice > 0
+                        ? Math.round(
+                            ((article.defaultSellPrice - article.defaultCostPrice) /
+                              article.defaultSellPrice) *
+                              100
+                          )
+                        : 0;
                     return (
-                      <tr key={art.id} className={`hover:bg-slate-800/40 transition-colors ${!art.active ? "opacity-60" : ""}`}>
-                        <td className="py-3 px-4 font-mono text-slate-400 text-[11px]">{art.code}</td>
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-white">{art.name}</div>
-                          {art.description && (
-                            <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-xs">{art.description}</div>
-                          )}
+                      <tr
+                        key={article.id}
+                        className={`hover:bg-[var(--surface-2)]/40 transition-colors ${
+                          article.active ? "" : "opacity-60"
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-mono text-[var(--muted)] text-[11px]" dir="ltr">
+                          {article.code}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-300">{formatDA(art.defaultSellPrice)}</td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-400">{formatDA(art.defaultCostPrice)}</td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-[var(--foreground)]">{article.name}</div>
+                          {article.description ? (
+                            <div className="text-[10px] text-[var(--muted)] mt-0.5 truncate max-w-xs">
+                              {article.description}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="py-3 px-4 text-end font-mono text-[var(--foreground)]" dir="ltr">
+                          {formatDA(article.defaultSellPrice)}
+                        </td>
+                        <td className="py-3 px-4 text-end font-mono text-[var(--muted)]" dir="ltr">
+                          {formatDA(article.defaultCostPrice)}
+                        </td>
                         <td className="py-3 px-4 text-center">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                            margin >= 50 ? "bg-emerald-950 text-emerald-300 border border-emerald-800/40"
-                            : margin >= 25 ? "bg-cyan-950 text-cyan-300 border border-cyan-800/40"
-                            : "bg-slate-800 text-slate-300"
-                          }`}>
-                            {margin}%
-                          </span>
+                          <Badge tone={marginTone(margin)} size="sm">{margin}%</Badge>
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button
-                            onClick={() => handleToggleActive(art)}
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-colors ${
-                              art.active
-                                ? "bg-emerald-950 text-emerald-300 border-emerald-800/40 hover:bg-emerald-900"
-                                : "bg-slate-800 text-slate-400 border-white/10 hover:bg-slate-700"
-                            }`}
+                            type="button"
+                            onClick={() => handleToggleActive(article)}
+                            disabled={togglingArticleId !== null}
+                            aria-pressed={article.active}
+                            title={t("toggleActiveBtn")}
+                            className="disabled:opacity-50"
                           >
-                            {art.active ? t("statusActive") : t("statusInactive")}
+                            <Badge tone={article.active ? "success" : "default"} size="sm">
+                              {article.active ? t("statusActive") : t("statusInactive")}
+                            </Badge>
                           </button>
                         </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => { setEditingArticle(art); setShowArticleModal(true); }}
-                              className="px-2 py-1 rounded text-sky-400 hover:text-sky-300 hover:bg-sky-950/40 text-[11px] transition-colors"
+                              type="button"
+                              onClick={() => setArticleModal({ article })}
+                              className="px-2 py-1 rounded text-[var(--primary)] hover:bg-[var(--primary-light)] text-[11px] transition-colors"
                             >
                               {t("editArticleBtn")}
                             </button>
                             <button
-                              onClick={() => setDeleteArticleTarget(art)}
-                              className="px-2 py-1 rounded text-red-400 hover:text-red-300 hover:bg-red-950/40 text-[11px] transition-colors"
+                              type="button"
+                              onClick={() => setDeleteArticleTarget(article)}
+                              className="px-2 py-1 rounded text-[var(--danger)] hover:bg-[var(--danger-bg)] text-[11px] transition-colors"
                             >
                               {t("deleteArticleBtn")}
                             </button>
@@ -1292,82 +1034,70 @@ export function SwimEquipmentDesk({
             </table>
           </div>
         </div>
-      )}
+      ) : null}
 
-      {/* ── MODAL: ARTICLE FORM ── */}
-      {showArticleModal && (
+      {/* Modals */}
+      {articleModal ? (
         <ArticleFormModal
-          existing={editingArticle}
-          onClose={() => { setShowArticleModal(false); setEditingArticle(null); }}
-          onSaved={async () => {
-            setShowArticleModal(false);
-            setEditingArticle(null);
-            await loadArticles();
+          existing={articleModal.article}
+          onClose={() => setArticleModal(null)}
+          onSaved={async (message) => {
+            setArticleModal(null);
+            await afterMutation(message);
           }}
           t={t}
         />
-      )}
+      ) : null}
 
-      {/* ── MODAL: CONFIRM DELETE ARTICLE ── */}
-      {deleteArticleTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-[var(--border)] shadow-2xl p-5 space-y-4">
-            <h3 className="font-bold text-base text-white">Confirmer la suppression</h3>
-            <p className="text-xs text-slate-300">
-              {t("deleteArticleConfirm", { name: deleteArticleTarget.name })}
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-              <Button variant="secondary" size="sm" onClick={() => setDeleteArticleTarget(null)}>
-                {t("cancelBtn")}
-              </Button>
-              <Button variant="danger" size="sm" disabled={deletingArticle} onClick={handleDeleteArticle}>
-                {deletingArticle ? "Suppression..." : t("deleteArticleBtn")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL: ADD SALE ── */}
-      {showAddSaleModal && (
-        <AddSaleModal
+      {saleModal ? (
+        <SaleFormModal
           articles={articles}
           leads={leads}
-          prefill={salePrefill}
-          onClose={() => { setShowAddSaleModal(false); setSalePrefill(null); }}
-          onSaved={async () => {
-            setShowAddSaleModal(false);
-            setSalePrefill(null);
-            await loadSales();
-            if (onRefreshLeads) onRefreshLeads();
+          existing={saleModal.mode === "edit" ? saleModal.sale : null}
+          prefill={saleModal.mode === "create" ? saleModal.prefill : null}
+          onClose={() => setSaleModal(null)}
+          onSaved={async (message) => {
+            setSaleModal(null);
+            await afterMutation(message);
           }}
           t={t}
         />
-      )}
+      ) : null}
 
-      {/* ── MODAL: CONFIRM DELETE SALE ── */}
-      {deleteSaleTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-[var(--border)] shadow-2xl p-5 space-y-4">
-            <h3 className="font-bold text-base text-white">Confirmer la suppression</h3>
-            <p className="text-xs text-slate-300">
-              Supprimer la vente de{" "}
-              <span className="font-semibold text-white">
-                {articleNameMap[deleteSaleTarget.article] || deleteSaleTarget.article}
-              </span>{" "}
-              pour <span className="font-semibold text-white">{deleteSaleTarget.clientName}</span> ? Cette action est irreversible.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
-              <Button variant="secondary" size="sm" onClick={() => setDeleteSaleTarget(null)}>
-                {t("cancelBtn")}
-              </Button>
-              <Button variant="danger" size="sm" disabled={deletingSale} onClick={handleDeleteSale}>
-                {deletingSale ? "Suppression..." : "Supprimer"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmModal
+        isOpen={deleteSaleTarget !== null}
+        isDanger
+        title={t("confirmDeleteTitle")}
+        message={
+          deleteSaleTarget
+            ? t("deleteSaleConfirm", {
+                article: articleLabel(deleteSaleTarget.article),
+                client: deleteSaleTarget.clientName,
+              })
+            : ""
+        }
+        confirmLabel={deleting ? t("deletingBtn") : t("deleteBtn")}
+        cancelLabel={t("cancelBtn")}
+        onConfirm={confirmDeleteSale}
+        onCancel={() => {
+          if (!deleting) setDeleteSaleTarget(null);
+        }}
+      />
+
+      <ConfirmModal
+        isOpen={deleteArticleTarget !== null}
+        isDanger
+        title={t("confirmDeleteTitle")}
+        message={
+          deleteArticleTarget ? t("deleteArticleConfirm", { name: deleteArticleTarget.name }) : ""
+        }
+        confirmLabel={deleting ? t("deletingBtn") : t("deleteArticleBtn")}
+        cancelLabel={t("cancelBtn")}
+        onConfirm={confirmDeleteArticle}
+        onCancel={() => {
+          if (!deleting) setDeleteArticleTarget(null);
+        }}
+      />
     </div>
   );
 }

@@ -7,10 +7,10 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 
 const UpdateArticleSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  description: z.string().max(300).optional().nullable(),
-  defaultSellPrice: z.number().int().nonnegative().optional(),
-  defaultCostPrice: z.number().int().nonnegative().optional(),
+  name: z.string().trim().min(1, "Name is required").max(100, "Name is too long").optional(),
+  description: z.string().trim().max(300, "Description is too long").optional().nullable(),
+  defaultSellPrice: z.number().int().min(0, "Sell price must be >= 0").max(10_000_000).optional(),
+  defaultCostPrice: z.number().int().min(0, "Cost price must be >= 0").max(10_000_000).optional(),
   active: z.boolean().optional(),
 });
 
@@ -30,7 +30,10 @@ export async function PATCH(
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.flatten() },
+        {
+          error: parsed.error.issues[0]?.message || "Validation failed",
+          details: parsed.error.flatten(),
+        },
         { status: 400 }
       );
     }

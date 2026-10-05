@@ -7,15 +7,16 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 
 const ArticleSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
+  name: z.string().trim().min(1, "Name is required").max(100, "Name is too long"),
   code: z
     .string()
+    .trim()
     .min(1, "Code is required")
-    .max(60)
+    .max(60, "Code is too long")
     .regex(/^[a-z0-9-]+$/, "Code must be lowercase letters, digits, and hyphens only"),
-  description: z.string().max(300).optional().nullable(),
-  defaultSellPrice: z.number().int().nonnegative().default(0),
-  defaultCostPrice: z.number().int().nonnegative().default(0),
+  description: z.string().trim().max(300, "Description is too long").optional().nullable(),
+  defaultSellPrice: z.number().int().min(0, "Sell price must be >= 0").max(10_000_000).default(0),
+  defaultCostPrice: z.number().int().min(0, "Cost price must be >= 0").max(10_000_000).default(0),
   active: z.boolean().default(true),
 });
 
@@ -50,7 +51,10 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.flatten() },
+        {
+          error: parsed.error.issues[0]?.message || "Validation failed",
+          details: parsed.error.flatten(),
+        },
         { status: 400 }
       );
     }

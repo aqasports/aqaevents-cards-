@@ -2278,7 +2278,7 @@ export default function SwimOverviewPage() {
 
       {/* ─── TAB: EQUIPMENT DEMANDS, SALES & PROFITS ───────────────── */}
       {activeTab === "equipment" && (
-        <SwimEquipmentDesk leads={leads} onRefreshLeads={loadAllData} />
+        <SwimEquipmentDesk leads={leads} />
       )}
 
       {/* ─── TAB: POOL DIRECTION DISPATCH & CORRESPONDENCE ─────────── */}

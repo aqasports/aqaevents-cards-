@@ -2,30 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { z } from "zod";
+import { aggregateSalesStats } from "@/lib/swim-equipment";
+import { prepareSaleWrite } from "@/lib/swim-equipment-server";
+import { firstValidationMessage, SaleInputSchema } from "@/lib/swim-equipment-validation";
 
 export const dynamic = "force-dynamic";
 
-const CreateSaleSchema = z.object({
-  article: z.enum(["goggles", "cap", "swimsuit"]),
-  clientName: z.string().min(1, "Client name is required"),
-  clientPhone: z.string().min(1, "Client phone is required"),
-  leadId: z.string().optional().nullable(),
-  sellPrice: z.number().int().nonnegative("Sell price must be >= 0"),
-  costPrice: z.number().int().nonnegative("Cost price must be >= 0"),
-  quantity: z.number().int().min(1, "Quantity must be >= 1").default(1),
-  notes: z.string().optional().nullable(),
-  soldAt: z.string().optional().nullable(),
-});
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Parses a from/to query value (YYYY-MM-DD or ISO). `to` date-only values include the whole day. */
+function parseRangeBound(value: string | null, endOfDay: boolean): Date | null | "invalid" {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const candidate = DATE_ONLY_REGEX.test(trimmed)
+    ? new Date(`${trimmed}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`)
+    : new Date(trimmed);
+  return Number.isNaN(candidate.getTime()) ? "invalid" : candidate;
+}
+
+/**
+ * GET: list sales (newest first) with aggregated profit stats.
+ * Pass `include=articles` to receive the catalog in the same response, so the desk loads
+ * with a single request instead of two.
+ */
 export async function GET(request: NextRequest) {
   const { session, error } = await requireAdminSession();
   if (error || !session) return error;
 
   const { searchParams } = new URL(request.url);
   const article = searchParams.get("article");
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
+  const from = parseRangeBound(searchParams.get("from"), false);
+  const to = parseRangeBound(searchParams.get("to"), true);
+  const includeArticles = searchParams.get("include") === "articles";
+
+  if (from === "invalid" || to === "invalid") {
+    return NextResponse.json({ error: "Invalid date range" }, { status: 400 });
+  }
 
   try {
     const where: Record<string, unknown> = {};
@@ -34,53 +47,28 @@ export async function GET(request: NextRequest) {
     }
     if (from || to) {
       where.soldAt = {
-        ...(from ? { gte: new Date(from) } : {}),
-        ...(to ? { lte: new Date(to) } : {}),
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
       };
     }
 
-    const sales = await prisma.swimEquipmentSale.findMany({
-      where,
-      orderBy: { soldAt: "desc" },
+    const [sales, articles] = await Promise.all([
+      prisma.swimEquipmentSale.findMany({
+        where,
+        orderBy: [{ soldAt: "desc" }, { createdAt: "desc" }],
+      }),
+      includeArticles
+        ? prisma.swimEquipmentArticle.findMany({ orderBy: { name: "asc" } })
+        : Promise.resolve(undefined),
+    ]);
+
+    const stats = aggregateSalesStats(sales);
+
+    return NextResponse.json({
+      sales,
+      stats,
+      ...(articles ? { articles } : {}),
     });
-
-    // Aggregate profit stats per article
-    const stats = {
-      totalSalesRevenue: 0,
-      totalCost: 0,
-      totalProfit: 0,
-      totalUnitsSold: 0,
-      byArticle: {} as Record<
-        string,
-        { revenue: number; cost: number; profit: number; units: number }
-      >,
-    };
-
-    for (const sale of sales) {
-      const revenue = sale.sellPrice * sale.quantity;
-      const cost = sale.costPrice * sale.quantity;
-      const profit = revenue - cost;
-
-      stats.totalSalesRevenue += revenue;
-      stats.totalCost += cost;
-      stats.totalProfit += profit;
-      stats.totalUnitsSold += sale.quantity;
-
-      if (!stats.byArticle[sale.article]) {
-        stats.byArticle[sale.article] = {
-          revenue: 0,
-          cost: 0,
-          profit: 0,
-          units: 0,
-        };
-      }
-      stats.byArticle[sale.article].revenue += revenue;
-      stats.byArticle[sale.article].cost += cost;
-      stats.byArticle[sale.article].profit += profit;
-      stats.byArticle[sale.article].units += sale.quantity;
-    }
-
-    return NextResponse.json({ sales, stats });
   } catch (err: unknown) {
     logger.error("GET swim equipment sales error:", err);
     return NextResponse.json(
@@ -90,36 +78,33 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** POST: record a sale. The client phone is optional. */
 export async function POST(request: NextRequest) {
   const { session, error } = await requireAdminSession();
   if (error || !session) return error;
 
+  let body: unknown;
   try {
-    const body = await request.json();
-    const parsed = CreateSaleSchema.safeParse(body);
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.flatten() },
-        { status: 400 }
-      );
+  const parsed = SaleInputSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: firstValidationMessage(parsed.error), details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  try {
+    const prepared = await prepareSaleWrite(parsed.data);
+    if (!prepared.ok) {
+      return NextResponse.json({ error: prepared.error }, { status: prepared.status });
     }
 
-    const data = parsed.data;
-
-    const sale = await prisma.swimEquipmentSale.create({
-      data: {
-        article: data.article,
-        clientName: data.clientName.trim(),
-        clientPhone: data.clientPhone.trim(),
-        leadId: data.leadId || null,
-        sellPrice: data.sellPrice,
-        costPrice: data.costPrice,
-        quantity: data.quantity,
-        notes: data.notes?.trim() || null,
-        soldAt: data.soldAt ? new Date(data.soldAt) : new Date(),
-      },
-    });
+    const sale = await prisma.swimEquipmentSale.create({ data: prepared.data });
 
     return NextResponse.json(sale, { status: 201 });
   } catch (err: unknown) {
