@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const filter = searchParams.get("filter") || "all";
   const includeMembers = searchParams.get("includeMembers") === "true";
+  const includeQr = searchParams.get("includeQr") === "true";
 
   try {
     const where: Record<string, unknown> = {};
@@ -59,11 +60,13 @@ export async function GET(request: NextRequest) {
     const enrichedCards = await Promise.all(
       cards.map(async (c) => {
         const url = getSwimCardUrl(c.publicToken);
-        const qrDataUrl = await QRCode.toDataURL(url, {
-          width: 250,
-          margin: 1,
-          color: { dark: "#0f172a", light: "#ffffff" },
-        });
+        const qrDataUrl = includeQr
+          ? await QRCode.toDataURL(url, {
+              width: 250,
+              margin: 1,
+              color: { dark: "#0f172a", light: "#ffffff" },
+            })
+          : "";
 
         return {
           ...c,

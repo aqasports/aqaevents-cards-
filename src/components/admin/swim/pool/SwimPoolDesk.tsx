@@ -74,10 +74,11 @@ export function SwimPoolDesk({
   const [loadingData, setLoadingData] = useState(false);
 
   useEffect(() => {
-    if (propMembers && propMembers.length > 0) setRawMembers(propMembers);
-    if (propGroups && propGroups.length > 0) setRawGroups(propGroups);
+    if (propMembers !== undefined) setRawMembers(propMembers);
+    if (propGroups !== undefined) setRawGroups(propGroups);
 
-    if (!propMembers || propMembers.length === 0) {
+    // Only run standalone network fetch if neither prop was provided
+    if (propMembers === undefined && propGroups === undefined) {
       setLoadingData(true);
       Promise.all([
         fetch("/api/admin/swim/members?includePayments=true").then((r) =>

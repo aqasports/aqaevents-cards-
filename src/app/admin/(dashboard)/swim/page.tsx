@@ -304,7 +304,7 @@ export default function SwimOverviewPage() {
 
       if (res.ok) {
         setSaveLeadSuccessMsg("Notes enregistrees avec succes.");
-        await loadAllData();
+        await loadAllData({ silent: true });
         setTimeout(() => setSaveLeadSuccessMsg(null), 3000);
       }
     } catch (err) {
@@ -314,41 +314,45 @@ export default function SwimOverviewPage() {
     }
   }
 
-  async function loadAllData() {
-    setLoading(true);
+  async function loadAllData(options?: { silent?: boolean }) {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     try {
-      const [memsRes, leadsRes, grpsRes, cardsRes] = await Promise.all([
-        fetch("/api/admin/swim/members?includePayments=true"),
-        fetch("/api/admin/swim/leads?status=all"),
-        fetch("/api/admin/swim/groups"),
-        fetch("/api/admin/swim/cards?filter=all"),
-      ]);
+      const res = await fetch("/api/admin/swim/overview");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.members)) {
+          setMembers(data.members);
+        }
+        if (Array.isArray(data.leads)) {
+          const augmented: SwimLead[] = data.leads.map((l: SwimLead) => ({
+            ...l,
+            details: l.details || parseSwimLeadNotes(l.notes),
+          }));
+          setLeads(augmented);
 
-      if (memsRes.ok) setMembers(await memsRes.json());
-      if (leadsRes.ok) {
-        const rawLeads: SwimLead[] = await leadsRes.json();
-        const augmented: SwimLead[] = Array.isArray(rawLeads)
-          ? rawLeads.map((l) => ({
-              ...l,
-              details: l.details || parseSwimLeadNotes(l.notes),
-            }))
-          : [];
-        setLeads(augmented);
-
-        if (selectedLeadForInspection) {
-          const fresh = augmented.find((l) => l.id === selectedLeadForInspection.id);
-          if (fresh) {
-            setSelectedLeadForInspection(fresh);
-            setEditingLeadNotes(fresh.details?.userNotes ?? cleanLeadNotesDisplay(fresh.notes));
+          if (selectedLeadForInspection) {
+            const fresh = augmented.find((l) => l.id === selectedLeadForInspection.id);
+            if (fresh) {
+              setSelectedLeadForInspection(fresh);
+              setEditingLeadNotes(fresh.details?.userNotes ?? cleanLeadNotesDisplay(fresh.notes));
+            }
           }
         }
+        if (Array.isArray(data.groups)) {
+          setGroups(data.groups);
+        }
+        if (Array.isArray(data.cards)) {
+          setCards(data.cards);
+        }
       }
-      if (grpsRes.ok) setGroups(await grpsRes.json());
-      if (cardsRes.ok) setCards(await cardsRes.json());
     } catch (err) {
       console.error("Failed to load swim manager data:", err);
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }
 
@@ -495,7 +499,7 @@ export default function SwimOverviewPage() {
         body: JSON.stringify({ memberId, subscriptionStart: rawDate }),
       });
       if (res.ok) {
-        await loadAllData();
+        await loadAllData({ silent: true });
         setEditingSubStart((prev) => {
           const next = { ...prev };
           delete next[memberId];
@@ -616,7 +620,7 @@ export default function SwimOverviewPage() {
         setPayingMember(null);
         setPaymentAmount("");
         setPaymentNotes("");
-        await loadAllData();
+        await loadAllData({ silent: true });
       }
     } catch (err) {
       console.error(err);
@@ -634,7 +638,7 @@ export default function SwimOverviewPage() {
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
-        loadAllData();
+        loadAllData({ silent: true });
       }
     } catch (err) {
       console.error(err);

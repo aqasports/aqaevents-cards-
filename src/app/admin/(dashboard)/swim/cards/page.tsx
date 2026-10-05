@@ -65,7 +65,7 @@ export default function SwimCardsPage() {
   const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/swim/cards?filter=all&includeMembers=true");
+      const res = await fetch("/api/admin/swim/cards?filter=all&includeMembers=true&includeQr=true");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
