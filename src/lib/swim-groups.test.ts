@@ -13,6 +13,9 @@ import {
   encodeMemberGroupIds,
   decodeMemberGroupIds,
   extractFirstName,
+  isMemberPoolPaid,
+  encodePoolPaidNotes,
+  POOL_PAID_TAG,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -251,6 +254,35 @@ describe("Swim Groups Utilities", () => {
       const slots = parseScheduleSlots("Lundi 18h00");
       expect(slots).toHaveLength(1);
       expect(slots[0].day).toBe("Lundi");
+    });
+  });
+
+  describe("Pool Paid Tag and Status", () => {
+    it("checks correctly if member notes contain pool paid tag", () => {
+      expect(isMemberPoolPaid("[POOLPAID] Ligne 2")).toBe(true);
+      expect(isMemberPoolPaid("[POOLPAID]")).toBe(true);
+      expect(isMemberPoolPaid("Special request [POOLPAID]")).toBe(true);
+      expect(isMemberPoolPaid(null)).toBe(false);
+      expect(isMemberPoolPaid(undefined)).toBe(false);
+      expect(isMemberPoolPaid("")).toBe(false);
+      expect(isMemberPoolPaid("Normal note")).toBe(false);
+    });
+
+    it("encodes pool paid tag while preserving other notes and tags", () => {
+      // Adding pool paid
+      expect(encodePoolPaidNotes(null, true)).toBe("[POOLPAID]");
+      expect(encodePoolPaidNotes("", true)).toBe("[POOLPAID]");
+      expect(encodePoolPaidNotes("Note test", true)).toBe("[POOLPAID] Note test");
+      expect(encodePoolPaidNotes("[SOLID] Note test", true)).toBe("[POOLPAID] [SOLID] Note test");
+
+      // Idempotent
+      expect(encodePoolPaidNotes("[POOLPAID] Note test", true)).toBe("[POOLPAID] Note test");
+
+      // Removing pool paid
+      expect(encodePoolPaidNotes("[POOLPAID] Note test", false)).toBe("Note test");
+      expect(encodePoolPaidNotes("[POOLPAID]", false)).toBe(null);
+      expect(encodePoolPaidNotes("[POOLPAID] [SOLID] Note test", false)).toBe("[SOLID] Note test");
+      expect(encodePoolPaidNotes("Note test without tag", false)).toBe("Note test without tag");
     });
   });
 });

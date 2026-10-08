@@ -17,6 +17,8 @@ import {
   DEFAULT_PREVIEW_COLUMNS,
   DEFAULT_REAL_FINAL_COLUMNS,
   exportOfficialCorrespondenceToCSV,
+  createDefaultBordereau,
+  STORAGE_KEYS,
 } from "./swim-pool-dispatch";
 
 describe("swim-pool-dispatch domain utilities", () => {
@@ -616,6 +618,55 @@ describe("swim-pool-dispatch domain utilities", () => {
       // Standard 1 session (2h) = 1000 DA
       const resSession = calculateAzalPrice([], { mode: "session", sessionsConsumed: 1 });
       expect(resSession.priceDA).toBe(1000);
+    });
+  });
+
+  describe("Bordereau management & PoolPaid flag", () => {
+    it("creates a valid default bordereau structure", () => {
+      const b = createDefaultBordereau();
+      expect(b.id).toBeDefined();
+      expect(b.title).toBe("Demande d'accès");
+      expect(b.paymentStatus).toBe("unpaid");
+      expect(b.memberIds).toEqual([]);
+      expect(parseInt(b.year, 10)).toBeGreaterThanOrEqual(2025);
+      expect(b.poolId).toBe("azal");
+    });
+
+    it("includes isPoolPaid flag correctly on PoolSwimmerRow", () => {
+      const swimmers = [
+        {
+          id: "sw1",
+          swimId: "SWM-001",
+          fullName: "Ahmed Ben",
+          phone: "0555000001",
+          groupId: null,
+          category: "homme",
+          level: "G10",
+          paymentStatus: "paid" as const,
+          notes: "[POOLPAID] Ligne 2",
+        },
+        {
+          id: "sw2",
+          swimId: "SWM-002",
+          fullName: "Yacine Ali",
+          phone: "0555000002",
+          groupId: null,
+          category: "homme",
+          level: "G10",
+          paymentStatus: "paid" as const,
+          notes: "Regular notes",
+        },
+      ];
+
+      const rows = buildPoolDispatchRows(swimmers, [], DEFAULT_POOL_PRICING, "Octobre 2026");
+      expect(rows).toHaveLength(2);
+      expect(rows[0].isPoolPaid).toBe(true);
+      expect(rows[1].isPoolPaid).toBe(false);
+    });
+
+    it("verifies STORAGE_KEYS includes BORDEREAUX and ACTIVE_BORDEREAU_ID", () => {
+      expect(STORAGE_KEYS.BORDEREAUX).toBe("aqa_swim_pool_bordereaux_v2");
+      expect(STORAGE_KEYS.ACTIVE_BORDEREAU_ID).toBe("aqa_swim_pool_active_bordereau_id_v2");
     });
   });
 });

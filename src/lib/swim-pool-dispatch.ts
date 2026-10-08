@@ -2,7 +2,16 @@
 // Standard Western Arabic numerals only (0-9). No emojis anywhere.
 // Production-grade domain logic for Pool Administration dispatches.
 
-import { FRENCH_DAYS, parseScheduleSlots, decodeMemberGroupIds } from "./swim-groups";
+import {
+  FRENCH_DAYS,
+  parseScheduleSlots,
+  decodeMemberGroupIds,
+  POOL_PAID_TAG,
+  isMemberPoolPaid,
+  encodePoolPaidNotes,
+} from "./swim-groups";
+
+export { POOL_PAID_TAG, isMemberPoolPaid, encodePoolPaidNotes };
 
 export type PoolCorrespondenceMode = "preview" | "real_final";
 
@@ -390,6 +399,50 @@ export function getDynamicDocumentMeta(targetDate: Date = new Date()): PoolDocum
 
 export const DEFAULT_DOCUMENT_META: PoolDocumentMeta = getDynamicDocumentMeta();
 
+export interface PoolBordereau {
+  id: string; // e.g. "bord_1728412345678"
+  title: string; // e.g. "Demande d'accès"
+  referenceNumber: string; // e.g. "n:0010/26"
+  date: string; // e.g. "08/10/2026"
+  month: string; // e.g. "Octobre"
+  year: string; // e.g. "2026"
+  poolId: string; // "azal" | "kouba" | "mouradia"
+  memberIds: string[]; // only selected clients in this bordereau
+  customRows: CustomPoolRow[]; // collective custom rows (e.g. AQA KIDS)
+  paymentStatus: "unpaid" | "paid"; // "unpaid" or "paid" (poolpaid)
+  paidAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function createDefaultBordereau(
+  meta: PoolDocumentMeta = DEFAULT_DOCUMENT_META,
+  poolId: string = "azal"
+): PoolBordereau {
+  return {
+    id: `bord_${Date.now()}`,
+    title: meta.title || "Demande d'accès",
+    referenceNumber: meta.referenceNumber || "n:0010/26",
+    date: meta.date || "08/10/2026",
+    month: "Octobre",
+    year: meta.year || "2026",
+    poolId: poolId || "azal",
+    memberIds: [],
+    customRows: [
+      {
+        id: "cust_aqa_kids_default",
+        fullName: "AQA KIDS",
+        groupOrNote: "Section Enfants",
+        poolPriceDA: 80500,
+        month: "Octobre",
+      },
+    ],
+    paymentStatus: "unpaid",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export interface CustomPoolRow {
   id: string;
   fullName: string;
@@ -421,6 +474,7 @@ export interface PoolSwimmerRow {
   currentMonth: string;
   isCustom?: boolean;
   groupOrNote?: string;
+  isPoolPaid?: boolean;
 }
 
 export interface SlotOccupancySummary {
@@ -499,6 +553,8 @@ export const STORAGE_KEYS = {
   PEAK_OVERRIDES: "aqa_swim_pool_peak_overrides_v1",
   ROW_MONTH_OVERRIDES: "aqa_swim_pool_row_months_v1",
   PREVIEW_SHOW_NAMES: "aqa_swim_pool_preview_show_names_v1",
+  BORDEREAUX: "aqa_swim_pool_bordereaux_v2",
+  ACTIVE_BORDEREAU_ID: "aqa_swim_pool_active_bordereau_id_v2",
 };
 
 /**
@@ -705,6 +761,7 @@ export function buildPoolDispatchRows(
       hasPriceOverride: hasOverride,
       currentMonth: rowMonth,
       isCustom: false,
+      isPoolPaid: isMemberPoolPaid(m.notes),
     };
   });
 

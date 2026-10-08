@@ -11,6 +11,7 @@ import {
   SWIM_TIME_SLOTS,
   getSwimLevelLabel,
   parseScheduleSlots,
+  isMemberPoolPaid,
 } from "@/lib/swim-groups";
 import {
   parseSwimLeadNotes,
@@ -1276,9 +1277,16 @@ export default function SwimOverviewPage() {
 
                           <td className="py-3 px-4">
                             <div>
-                              {m.paymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
-                              {m.paymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
-                              {m.paymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {m.paymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
+                                {m.paymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
+                                {m.paymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
+                                {isMemberPoolPaid(m.notes) && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-400/40">
+                                    poolpaid
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-[10px] text-[var(--muted)] font-mono mt-0.5">
                                 {m.priceDA.toLocaleString("fr-DZ")} DA
                               </div>

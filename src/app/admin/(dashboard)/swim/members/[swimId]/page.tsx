@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageHeader, Badge, Button, Input, Card } from "@/components/admin/ui";
 import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
+import { isMemberPoolPaid } from "@/lib/swim-groups";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { useLocale } from "@/lib/i18n";
 import QRCode from "qrcode";
@@ -645,6 +646,11 @@ export default function AdminSwimmerProfilePage({
             <Badge tone={member.paymentStatus === "paid" ? "success" : member.paymentStatus === "partial" ? "warning" : "danger"}>
               {member.paymentStatus === "paid" ? "Paid" : member.paymentStatus === "partial" ? "Partial" : "Unpaid"}
             </Badge>
+            {isMemberPoolPaid(member.notes) && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-950/90 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(0,242,255,0.2)]">
+                poolpaid
+              </span>
+            )}
             <span className="text-xs text-[var(--muted)]">{getLevelLabel(member.level)}</span>
           </div>
         }
@@ -1192,6 +1198,12 @@ export default function AdminSwimmerProfilePage({
                   <div className="text-[11px] text-[var(--muted)] mt-0.5">
                     Tariff: {priceDA.toLocaleString("fr-DZ")} DA · Paid: {totalPaid.toLocaleString("fr-DZ")} DA · {hasDebt ? `Debt: ${debt.toLocaleString("fr-DZ")} DA` : `Balance: 0 DA`}
                   </div>
+                  {isMemberPoolPaid(member.notes) && (
+                    <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold bg-cyan-950/70 border border-cyan-500/40 text-cyan-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                      <span>Pool Status: poolpaid</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" onClick={() => setShowTariffConfig(!showTariffConfig)}>

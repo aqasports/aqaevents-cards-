@@ -366,9 +366,12 @@ export async function GET(
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 
+    const safeMember = { ...member };
+    delete (safeMember as { notes?: unknown }).notes;
+
     return NextResponse.json(
       {
-        ...member,
+        ...safeMember,
         priceDA: enriched.effectivePriceDA,
         groups: enriched.allGroups,
         isOldMember: enriched.isOldMember,

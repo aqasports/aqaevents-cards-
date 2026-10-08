@@ -346,3 +346,33 @@ export function extractFirstName(fullName?: string | null): string {
   return trimmed.substring(0, spaceIdx).trim();
 }
 
+// ─── Pool Paid Admin Label Encoding ──────────────────────────────────────────
+
+export const POOL_PAID_TAG = "[POOLPAID]";
+
+/**
+ * Checks whether a member profile has been marked with the poolpaid label.
+ */
+export function isMemberPoolPaid(notes?: string | null): boolean {
+  if (!notes) return false;
+  return notes.includes(POOL_PAID_TAG);
+}
+
+/**
+ * Encodes or removes the [POOLPAID] tag in a member's notes field.
+ * Safely preserves any other tags ([GROUPS:...], [SOLID]) and arbitrary user text.
+ */
+export function encodePoolPaidNotes(notes: string | null | undefined, isPoolPaid: boolean): string | null {
+  const raw = notes ?? "";
+  const cleaned = raw.replace(/\[POOLPAID\]/g, "").trim().replace(/\s{2,}/g, " ");
+
+  if (!isPoolPaid) {
+    return cleaned.length > 0 ? cleaned : null;
+  }
+
+  if (cleaned.length > 0) {
+    return `${POOL_PAID_TAG} ${cleaned}`;
+  }
+  return POOL_PAID_TAG;
+}
+
