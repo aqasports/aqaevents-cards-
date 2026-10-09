@@ -4,6 +4,10 @@
 
 import {
   FRENCH_DAYS,
+  FRENCH_MONTHS,
+  FrenchMonth,
+  getCurrentFrenchMonth,
+  normalizeMonth,
   parseScheduleSlots,
   decodeMemberGroupIds,
   POOL_PAID_TAG,
@@ -11,7 +15,15 @@ import {
   encodePoolPaidNotes,
 } from "./swim-groups";
 
-export { POOL_PAID_TAG, isMemberPoolPaid, encodePoolPaidNotes };
+export {
+  FRENCH_MONTHS,
+  getCurrentFrenchMonth,
+  normalizeMonth,
+  POOL_PAID_TAG,
+  isMemberPoolPaid,
+  encodePoolPaidNotes,
+};
+export type { FrenchMonth };
 
 export type PoolCorrespondenceMode = "preview" | "real_final";
 
@@ -446,7 +458,7 @@ export function createDefaultBordereau(
     title: meta.title && meta.title !== "Demande d'accès" ? meta.title : proposedTitle,
     referenceNumber: meta.referenceNumber || "n:0010/26",
     date: meta.date || "08/10/2026",
-    month: "Octobre",
+    month: getCurrentFrenchMonth(),
     year: meta.year || "2026",
     poolId: poolId || "azal",
     memberIds: [],
@@ -456,7 +468,7 @@ export function createDefaultBordereau(
         fullName: "AQA KIDS",
         groupOrNote: "Section Enfants",
         poolPriceDA: 80500,
-        month: "Octobre",
+        month: getCurrentFrenchMonth(),
       },
     ],
     paymentStatus: "unpaid",

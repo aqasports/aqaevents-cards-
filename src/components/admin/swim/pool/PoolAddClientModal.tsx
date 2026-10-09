@@ -25,15 +25,19 @@ export function PoolAddClientModal({
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "assigned" | "unassigned">("all");
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
   // Filter members
   const filteredMembers = useMemo(() => {
     return allMembers.filter((m) => {
+      const assigned = resolveMemberGroups(m, allGroups);
+      if (assignmentFilter === "assigned" && assigned.length === 0) return false;
+      if (assignmentFilter === "unassigned" && assigned.length > 0) return false;
+
       if (categoryFilter !== "all" && m.category !== categoryFilter) return false;
 
       if (groupFilter !== "all") {
-        const assigned = resolveMemberGroups(m, allGroups);
         const hasGroup = assigned.some((g) => g.id === groupFilter);
         if (!hasGroup) return false;
       }
@@ -48,7 +52,7 @@ export function PoolAddClientModal({
 
       return true;
     });
-  }, [allMembers, allGroups, categoryFilter, groupFilter, searchTerm]);
+  }, [allMembers, allGroups, categoryFilter, groupFilter, assignmentFilter, searchTerm]);
 
   if (!isOpen) return null;
 
@@ -67,6 +71,7 @@ export function PoolAddClientModal({
   const handleSelectAllVisible = () => {
     const selectable = filteredMembers.filter(
       (m) =>
+        resolveMemberGroups(m, allGroups).length > 0 &&
         !alreadySelectedIds.has(m.id) &&
         !alreadySelectedIds.has(m.swimId) &&
         !alreadyPoolPaidIds?.has(m.id) &&
@@ -91,12 +96,19 @@ export function PoolAddClientModal({
 
   const handleAddChecked = () => {
     if (checkedIds.size === 0) return;
-    onAddMembers(Array.from(checkedIds));
+    const validIds = Array.from(checkedIds).filter((id) => {
+      const m = allMembers.find((mem) => mem.id === id || mem.swimId === id);
+      return m ? resolveMemberGroups(m, allGroups).length > 0 : false;
+    });
+    if (validIds.length === 0) return;
+    onAddMembers(validIds);
     setCheckedIds(new Set());
     onClose();
   };
 
   const handleQuickAddSingle = (memberId: string) => {
+    const m = allMembers.find((mem) => mem.id === memberId || mem.swimId === memberId);
+    if (!m || resolveMemberGroups(m, allGroups).length === 0) return;
     onAddMembers([memberId]);
     setCheckedIds((prev) => {
       const next = new Set(prev);
@@ -107,6 +119,7 @@ export function PoolAddClientModal({
 
   const availableToAddCount = filteredMembers.filter(
     (m) =>
+      resolveMemberGroups(m, allGroups).length > 0 &&
       !alreadySelectedIds.has(m.id) &&
       !alreadySelectedIds.has(m.swimId) &&
       !alreadyPoolPaidIds?.has(m.id) &&
@@ -149,7 +162,7 @@ export function PoolAddClientModal({
         </div>
 
         {/* Filter Controls */}
-        <div className="py-4 grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-[var(--border)] shrink-0">
+        <div className="py-4 grid grid-cols-1 sm:grid-cols-4 gap-3 border-b border-[var(--border)] shrink-0">
           <div>
             <input
               type="text"
@@ -186,6 +199,19 @@ export function PoolAddClientModal({
               ))}
             </select>
           </div>
+          <div>
+            <select
+              value={assignmentFilter}
+              onChange={(e) =>
+                setAssignmentFilter(e.target.value as "all" | "assigned" | "unassigned")
+              }
+              className="w-full px-3.5 py-1.5 rounded-xl bg-slate-950 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
+            >
+              <option value="all">Assignation : Tous</option>
+              <option value="assigned">Assignés uniquement</option>
+              <option value="unassigned">Non assignés (interdits)</option>
+            </select>
+          </div>
         </div>
 
         {/* Subheader bar with select-all */}
@@ -218,15 +244,16 @@ export function PoolAddClientModal({
             </div>
           ) : (
             filteredMembers.map((m) => {
+              const assignedGroups = resolveMemberGroups(m, allGroups);
+              const isAssigned = assignedGroups.length > 0;
               const isAlreadyInBordereau =
                 alreadySelectedIds.has(m.id) || alreadySelectedIds.has(m.swimId);
               const isAlreadyPoolPaid = Boolean(
                 alreadyPoolPaidIds &&
                   (alreadyPoolPaidIds.has(m.id) || alreadyPoolPaidIds.has(m.swimId))
               );
-              const isBlocked = isAlreadyInBordereau || isAlreadyPoolPaid;
+              const isBlocked = isAlreadyInBordereau || isAlreadyPoolPaid || !isAssigned;
               const isChecked = checkedIds.has(m.id);
-              const assignedGroups = resolveMemberGroups(m, allGroups);
 
               return (
                 <div
@@ -258,23 +285,31 @@ export function PoolAddClientModal({
                         <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-sky-950 text-sky-300 border border-sky-800/40">
                           {m.category}
                         </span>
-                        {isAlreadyPoolPaid && (
+                        {!isAssigned ? (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-950/80 text-rose-300 border border-rose-800/40">
+                            Non assigné (Ajout interdit)
+                          </span>
+                        ) : isAlreadyPoolPaid ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                             poolpaid (déjà réglé ce mois)
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5 truncate">
                         {assignedGroups.length > 0
                           ? assignedGroups.map((g) => g.name).join(" + ")
-                          : "Sans groupe assigné"}
+                          : "Sans groupe assigné (non diffusable)"}
                         {m.phone ? ` · ${m.phone}` : ""}
                       </div>
                     </div>
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
-                    {isAlreadyPoolPaid ? (
+                    {!isAssigned ? (
+                      <span className="px-2.5 py-1 rounded-lg bg-rose-950/40 text-rose-400 text-[11px] font-semibold border border-rose-800/20">
+                        Non assigné
+                      </span>
+                    ) : isAlreadyPoolPaid ? (
                       <span className="px-2.5 py-1 rounded-lg bg-emerald-950/40 text-emerald-300 text-[11px] font-semibold border border-emerald-500/20">
                         Déjà réglé (poolpaid)
                       </span>

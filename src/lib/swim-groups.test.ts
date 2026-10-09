@@ -16,6 +16,9 @@ import {
   isMemberPoolPaid,
   encodePoolPaidNotes,
   POOL_PAID_TAG,
+  FRENCH_MONTHS,
+  getCurrentFrenchMonth,
+  normalizeMonth,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -296,6 +299,34 @@ describe("Swim Groups Utilities", () => {
       expect(encodePoolPaidNotes("[POOLPAID:Octobre]", false)).toBe(null);
       expect(encodePoolPaidNotes("[POOLPAID] [SOLID] Note test", false)).toBe("[SOLID] Note test");
       expect(encodePoolPaidNotes("Note test without tag", false)).toBe("Note test without tag");
+    });
+  });
+
+  describe("French Months Utilities & PoolPaid Expiration", () => {
+    it("contains all 12 French months in order", () => {
+      expect(FRENCH_MONTHS).toHaveLength(12);
+      expect(FRENCH_MONTHS[0]).toBe("Janvier");
+      expect(FRENCH_MONTHS[9]).toBe("Octobre");
+      expect(FRENCH_MONTHS[11]).toBe("Décembre");
+    });
+
+    it("returns current French month accurately", () => {
+      const current = getCurrentFrenchMonth();
+      expect(FRENCH_MONTHS).toContain(current);
+    });
+
+    it("normalizes month names correctly across accents and case", () => {
+      expect(normalizeMonth("Décembre")).toBe("decembre");
+      expect(normalizeMonth("Août")).toBe("aout");
+      expect(normalizeMonth("  Février  ")).toBe("fevrier");
+      expect(normalizeMonth("OCTOBRE 2026")).toBe("octobre");
+    });
+
+    it("expires poolpaid status when checked against another month", () => {
+      const notes = "[POOLPAID:Octobre]";
+      expect(isMemberPoolPaid(notes, "Octobre")).toBe(true);
+      expect(isMemberPoolPaid(notes, "Novembre")).toBe(false);
+      expect(isMemberPoolPaid(notes, "Janvier")).toBe(false);
     });
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { FRENCH_MONTHS, getCurrentFrenchMonth } from "@/lib/swim-pool-dispatch";
 
 interface PoolCustomRowModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ export function PoolCustomRowModal({
   const [fullName, setFullName] = useState("");
   const [groupOrNote, setGroupOrNote] = useState("");
   const [priceInput, setPriceInput] = useState("4000");
-  const [monthInput, setMonthInput] = useState(defaultMonth || "Juillet");
+  const [monthInput, setMonthInput] = useState(defaultMonth || getCurrentFrenchMonth());
 
   if (!isOpen) return null;
 
@@ -111,13 +112,17 @@ export function PoolCustomRowModal({
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Mois Concerne
               </label>
-              <input
-                type="text"
-                placeholder="Ex: Juillet ou JUIN"
+              <select
                 value={monthInput}
                 onChange={(e) => setMonthInput(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-xs text-white font-mono focus:outline-none focus:border-cyan-400"
-              />
+                className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
+              >
+                {FRENCH_MONTHS.map((m) => (
+                  <option key={m} value={m} className="bg-slate-900 text-white">
+                    {m}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

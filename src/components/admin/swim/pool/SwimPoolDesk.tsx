@@ -26,6 +26,9 @@ import {
   createDefaultBordereau,
   getProposedBordereauTitle,
   getSwimmerDispatchGroupDisplay,
+  FRENCH_MONTHS,
+  getCurrentFrenchMonth,
+  resolveMemberGroups,
 } from "@/lib/swim-pool-dispatch";
 import { isMemberPoolPaid, encodePoolPaidNotes } from "@/lib/swim-groups";
 import { PoolCustomRowModal } from "./PoolCustomRowModal";
@@ -285,8 +288,26 @@ export function SwimPoolDesk({
   };
 
   const handleAddMembersToActiveBordereau = (newIds: string[]) => {
-    // Strictly filter out any members that are already poolpaid this month
-    const validIds = newIds.filter((id) => !alreadyPoolPaidIdsThisMonth.has(id));
+    // Strictly filter out any members that are unassigned (forbidden)
+    // AND any members that are already poolpaid this month
+    const unassignedIds = new Set<string>();
+    const poolPaidIds = new Set<string>();
+
+    for (const id of newIds) {
+      const member = rawMembers.find((m) => m.id === id || m.swimId === id);
+      if (!member) continue;
+      const assigned = resolveMemberGroups(member, rawGroups);
+      if (assigned.length === 0) {
+        unassignedIds.add(id);
+      }
+      if (alreadyPoolPaidIdsThisMonth.has(id)) {
+        poolPaidIds.add(id);
+      }
+    }
+
+    const validIds = newIds.filter(
+      (id) => !unassignedIds.has(id) && !poolPaidIds.has(id)
+    );
     const set = new Set(activeBordereau.memberIds || []);
     validIds.forEach((id) => set.add(id));
     const updated = bordereaux.map((b) => {
@@ -300,13 +321,29 @@ export function SwimPoolDesk({
       return b;
     });
     saveBordereaux(updated);
-    const excludedCount = newIds.length - validIds.length;
-    if (excludedCount > 0) {
+
+    const unassignedCount = unassignedIds.size;
+    const poolPaidCount = poolPaidIds.size;
+
+    if (unassignedCount > 0 && validIds.length === 0) {
       showToast(
-        `${validIds.length} adhérent${validIds.length > 1 ? "s" : ""} ajouté${validIds.length > 1 ? "s" : ""} (${excludedCount} déjà poolpaid exclu${excludedCount > 1 ? "s" : ""})`
+        `${unassignedCount} adhérent${unassignedCount > 1 ? "s" : ""} non assigné${unassignedCount > 1 ? "s" : ""} exclu${unassignedCount > 1 ? "s" : ""} (ajout interdit)`
+      );
+    } else if (unassignedCount > 0 || poolPaidCount > 0) {
+      const parts: string[] = [];
+      if (unassignedCount > 0) {
+        parts.push(`${unassignedCount} non assigné${unassignedCount > 1 ? "s" : ""} (interdit)`);
+      }
+      if (poolPaidCount > 0) {
+        parts.push(`${poolPaidCount} déjà poolpaid`);
+      }
+      showToast(
+        `${validIds.length} adhérent${validIds.length > 1 ? "s" : ""} ajouté${validIds.length > 1 ? "s" : ""} (${parts.join(", ")} exclu${unassignedCount + poolPaidCount > 1 ? "s" : ""})`
       );
     } else {
-      showToast(`${validIds.length} adhérent${validIds.length > 1 ? "s" : ""} ajouté${validIds.length > 1 ? "s" : ""} au bordereau`);
+      showToast(
+        `${validIds.length} adhérent${validIds.length > 1 ? "s" : ""} ajouté${validIds.length > 1 ? "s" : ""} au bordereau`
+      );
     }
   };
 
@@ -980,20 +1017,28 @@ export function SwimPoolDesk({
           </div>
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
-              Année / Mois
+              {mode === "real_final" ? "Mois de Référence" : "Année"}
             </label>
-            <input
-              type="text"
-              value={mode === "real_final" ? activeBordereau.month || docMeta.year : docMeta.year}
-              onChange={(e) => {
-                if (mode === "real_final") {
-                  handleUpdateActiveBordereauMeta("month", e.target.value);
-                } else {
-                  handleUpdateDocMeta("year", e.target.value);
-                }
-              }}
-              className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
-            />
+            {mode === "real_final" ? (
+              <select
+                value={activeBordereau.month || getCurrentFrenchMonth()}
+                onChange={(e) => handleUpdateActiveBordereauMeta("month", e.target.value)}
+                className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-cyan-400"
+              >
+                {FRENCH_MONTHS.map((m) => (
+                  <option key={m} value={m} className="bg-slate-900 text-white">
+                    {m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={docMeta.year}
+                onChange={(e) => handleUpdateDocMeta("year", e.target.value)}
+                className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
+              />
+            )}
           </div>
         </div>
 
@@ -1516,19 +1561,25 @@ export function SwimPoolDesk({
                           {/* Col 6: Mois with inline edit */}
                           <td className="p-3 text-center">
                             {isInlineEditingMonth ? (
-                              <input
-                                type="text"
+                              <select
                                 defaultValue={r.currentMonth}
-                                onBlur={(e) => handleSaveRowMonth(rowId, e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    handleSaveRowMonth(rowId, (e.target as HTMLInputElement).value);
-                                  }
-                                  if (e.key === "Escape") setEditingMonthRowId(null);
+                                onChange={(e) => {
+                                  handleSaveRowMonth(rowId, e.target.value);
+                                  setEditingMonthRowId(null);
+                                }}
+                                onBlur={(e) => {
+                                  handleSaveRowMonth(rowId, e.target.value);
+                                  setEditingMonthRowId(null);
                                 }}
                                 autoFocus
-                                className="w-20 px-1 py-0.5 rounded bg-slate-950 border border-cyan-400 text-xs text-center text-white focus:outline-none"
-                              />
+                                className="w-24 px-1 py-0.5 rounded bg-slate-950 border border-cyan-400 text-xs text-center text-white focus:outline-none"
+                              >
+                                {FRENCH_MONTHS.map((m) => (
+                                  <option key={m} value={m} className="bg-slate-900 text-white">
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
                             ) : (
                               <span
                                 onClick={() => setEditingMonthRowId(rowId)}

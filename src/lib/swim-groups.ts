@@ -22,6 +22,49 @@ export const FRENCH_DAYS = [
   "Dimanche",
 ] as const;
 
+export const FRENCH_MONTHS = [
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
+] as const;
+
+export type FrenchMonth = (typeof FRENCH_MONTHS)[number];
+
+export function getCurrentFrenchMonth(): string {
+  const now = new Date();
+  return FRENCH_MONTHS[now.getMonth()];
+}
+
+export function normalizeMonth(monthStr?: string | null): string {
+  if (!monthStr) return "";
+  const cleaned = monthStr
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  for (const fm of FRENCH_MONTHS) {
+    const normFm = fm
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (cleaned.includes(normFm)) {
+      return normFm;
+    }
+  }
+
+  return cleaned;
+}
+
 export const DEFAULT_SWIM_LOCATIONS = [
   "Azal",
   "Piscine Kouba",
@@ -352,12 +395,12 @@ export const POOL_PAID_TAG = "[POOLPAID]";
 
 /**
  * Checks whether a member profile has been marked with the poolpaid label.
- * Optionally checks if the payment was for a specific month.
+ * The poolpaid label expires on the last day of the month it was issued for.
+ * If targetMonth is omitted, defaults to the current active calendar month.
  */
 export function isMemberPoolPaid(notes?: string | null, targetMonth?: string): boolean {
   if (!notes) return false;
   if (!notes.includes("[POOLPAID")) return false;
-  if (!targetMonth) return true;
 
   // Check for [POOLPAID:Month] or generic [POOLPAID]
   const match = notes.match(/\[POOLPAID(?::([^\]]+))?\]/);
@@ -365,17 +408,20 @@ export function isMemberPoolPaid(notes?: string | null, targetMonth?: string): b
     return false;
   }
 
-  const recordedMonth = match[1]?.trim().toLowerCase();
+  const recordedMonth = match[1]?.trim();
   if (!recordedMonth) {
-    // Generic [POOLPAID] without specific month matches all months
+    // Generic legacy [POOLPAID] tag without a specific month always matches
     return true;
   }
 
-  const queryMonth = targetMonth.trim().toLowerCase();
+  const effectiveMonth = targetMonth?.trim() || getCurrentFrenchMonth();
+  const normRecorded = normalizeMonth(recordedMonth);
+  const normEffective = normalizeMonth(effectiveMonth);
+
   return (
-    recordedMonth === queryMonth ||
-    queryMonth.includes(recordedMonth) ||
-    recordedMonth.includes(queryMonth)
+    normRecorded === normEffective ||
+    normEffective.includes(normRecorded) ||
+    normRecorded.includes(normEffective)
   );
 }
 

@@ -5,6 +5,8 @@ import {
   PoolDocumentMeta,
   getDynamicDocumentMeta,
   getProposedBordereauTitle,
+  FRENCH_MONTHS,
+  getCurrentFrenchMonth,
 } from "@/lib/swim-pool-dispatch";
 
 interface PoolAddBordereauModalProps {
@@ -42,7 +44,7 @@ export function PoolAddBordereauModal({
     `n:00${String(bordereauNum).padStart(2, "0")}/${dynamicMeta.year.slice(-2)}`
   );
   const [date, setDate] = useState(dynamicMeta.date);
-  const [month, setMonth] = useState("Octobre");
+  const [month, setMonth] = useState(() => getCurrentFrenchMonth());
   const [year, setYear] = useState(dynamicMeta.year);
 
   // Sync title with count / pool when modal opens
@@ -168,14 +170,18 @@ export function PoolAddBordereauModal({
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Mois de Reference *
               </label>
-              <input
-                type="text"
+              <select
                 required
-                placeholder="Ex: Octobre"
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
-              />
+                className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
+              >
+                {FRENCH_MONTHS.map((m) => (
+                  <option key={m} value={m} className="bg-slate-900 text-white">
+                    {m}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
