@@ -352,27 +352,54 @@ export const POOL_PAID_TAG = "[POOLPAID]";
 
 /**
  * Checks whether a member profile has been marked with the poolpaid label.
+ * Optionally checks if the payment was for a specific month.
  */
-export function isMemberPoolPaid(notes?: string | null): boolean {
+export function isMemberPoolPaid(notes?: string | null, targetMonth?: string): boolean {
   if (!notes) return false;
-  return notes.includes(POOL_PAID_TAG);
+  if (!notes.includes("[POOLPAID")) return false;
+  if (!targetMonth) return true;
+
+  // Check for [POOLPAID:Month] or generic [POOLPAID]
+  const match = notes.match(/\[POOLPAID(?::([^\]]+))?\]/);
+  if (!match) {
+    return false;
+  }
+
+  const recordedMonth = match[1]?.trim().toLowerCase();
+  if (!recordedMonth) {
+    // Generic [POOLPAID] without specific month matches all months
+    return true;
+  }
+
+  const queryMonth = targetMonth.trim().toLowerCase();
+  return (
+    recordedMonth === queryMonth ||
+    queryMonth.includes(recordedMonth) ||
+    recordedMonth.includes(queryMonth)
+  );
 }
 
 /**
  * Encodes or removes the [POOLPAID] tag in a member's notes field.
  * Safely preserves any other tags ([GROUPS:...], [SOLID]) and arbitrary user text.
+ * Optionally stores the specific month of the payment: [POOLPAID:Octobre].
  */
-export function encodePoolPaidNotes(notes: string | null | undefined, isPoolPaid: boolean): string | null {
+export function encodePoolPaidNotes(
+  notes: string | null | undefined,
+  isPoolPaid: boolean,
+  month?: string
+): string | null {
   const raw = notes ?? "";
-  const cleaned = raw.replace(/\[POOLPAID\]/g, "").trim().replace(/\s{2,}/g, " ");
+  const cleaned = raw.replace(/\[POOLPAID(?::[^\]]*)?\]/g, "").trim().replace(/\s{2,}/g, " ");
 
   if (!isPoolPaid) {
     return cleaned.length > 0 ? cleaned : null;
   }
 
+  const tag = month && month.trim().length > 0 ? `[POOLPAID:${month.trim()}]` : POOL_PAID_TAG;
   if (cleaned.length > 0) {
-    return `${POOL_PAID_TAG} ${cleaned}`;
+    return `${tag} ${cleaned}`;
   }
-  return POOL_PAID_TAG;
+  return tag;
 }
 

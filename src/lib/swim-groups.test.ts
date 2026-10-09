@@ -259,6 +259,7 @@ describe("Swim Groups Utilities", () => {
 
   describe("Pool Paid Tag and Status", () => {
     it("checks correctly if member notes contain pool paid tag", () => {
+      expect(POOL_PAID_TAG).toBe("[POOLPAID]");
       expect(isMemberPoolPaid("[POOLPAID] Ligne 2")).toBe(true);
       expect(isMemberPoolPaid("[POOLPAID]")).toBe(true);
       expect(isMemberPoolPaid("Special request [POOLPAID]")).toBe(true);
@@ -266,6 +267,12 @@ describe("Swim Groups Utilities", () => {
       expect(isMemberPoolPaid(undefined)).toBe(false);
       expect(isMemberPoolPaid("")).toBe(false);
       expect(isMemberPoolPaid("Normal note")).toBe(false);
+
+      // Month-specific checks
+      expect(isMemberPoolPaid("[POOLPAID:Octobre]", "Octobre")).toBe(true);
+      expect(isMemberPoolPaid("[POOLPAID:Octobre]", "Novembre")).toBe(false);
+      expect(isMemberPoolPaid("[POOLPAID:Octobre 2026]", "Octobre")).toBe(true);
+      expect(isMemberPoolPaid("[POOLPAID]", "Novembre")).toBe(true); // generic tag matches any query
     });
 
     it("encodes pool paid tag while preserving other notes and tags", () => {
@@ -275,12 +282,18 @@ describe("Swim Groups Utilities", () => {
       expect(encodePoolPaidNotes("Note test", true)).toBe("[POOLPAID] Note test");
       expect(encodePoolPaidNotes("[SOLID] Note test", true)).toBe("[POOLPAID] [SOLID] Note test");
 
+      // With specific month
+      expect(encodePoolPaidNotes(null, true, "Octobre")).toBe("[POOLPAID:Octobre]");
+      expect(encodePoolPaidNotes("Note test", true, "Octobre")).toBe("[POOLPAID:Octobre] Note test");
+
       // Idempotent
       expect(encodePoolPaidNotes("[POOLPAID] Note test", true)).toBe("[POOLPAID] Note test");
 
       // Removing pool paid
       expect(encodePoolPaidNotes("[POOLPAID] Note test", false)).toBe("Note test");
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre] Note test", false)).toBe("Note test");
       expect(encodePoolPaidNotes("[POOLPAID]", false)).toBe(null);
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre]", false)).toBe(null);
       expect(encodePoolPaidNotes("[POOLPAID] [SOLID] Note test", false)).toBe("[SOLID] Note test");
       expect(encodePoolPaidNotes("Note test without tag", false)).toBe("Note test without tag");
     });

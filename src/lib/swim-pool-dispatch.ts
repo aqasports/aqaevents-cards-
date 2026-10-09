@@ -356,6 +356,7 @@ export interface SwimMemberReference {
   email?: string | null;
   category: string;
   level: string;
+  formula?: string | null;
   paymentStatus: "unpaid" | "paid" | "partial";
   notes: string | null;
   groupId: string | null;
@@ -415,13 +416,34 @@ export interface PoolBordereau {
   updatedAt: string;
 }
 
+export function getProposedBordereauTitle(
+  poolId: string = "azal",
+  bordereauNumber: number = 1
+): string {
+  const pool = DEFAULT_POOLS.find((p) => p.id === poolId);
+  let poolName = pool?.name?.replace(/^Piscine\s+/i, "").trim();
+  if (!poolName) {
+    if (poolId && poolId.trim().length > 0) {
+      poolName = poolId
+        .split(/[_\-\s]+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    } else {
+      poolName = "Azal";
+    }
+  }
+  return `${poolName} Bordereau ${bordereauNumber}`;
+}
+
 export function createDefaultBordereau(
   meta: PoolDocumentMeta = DEFAULT_DOCUMENT_META,
-  poolId: string = "azal"
+  poolId: string = "azal",
+  bordereauNumber: number = 1
 ): PoolBordereau {
+  const proposedTitle = getProposedBordereauTitle(poolId, bordereauNumber);
   return {
     id: `bord_${Date.now()}`,
-    title: meta.title || "Demande d'accès",
+    title: meta.title && meta.title !== "Demande d'accès" ? meta.title : proposedTitle,
     referenceNumber: meta.referenceNumber || "n:0010/26",
     date: meta.date || "08/10/2026",
     month: "Octobre",
@@ -441,6 +463,40 @@ export function createDefaultBordereau(
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Returns the formatted display label for group in pool dispatch & print production.
+ * If the swimmer is paid by session, displays '(number) Seance(s) libre(s)'.
+ * Otherwise displays the group name.
+ */
+export function getSwimmerDispatchGroupDisplay(row: {
+  isCustom?: boolean;
+  billingMode?: string;
+  sessionsConsumed?: number;
+  assignedGroupNames?: string[];
+  groupOrNote?: string;
+}): string {
+  if (row.isCustom) {
+    return row.groupOrNote || "Collectif";
+  }
+  if (
+    row.billingMode === "session" ||
+    (typeof row.sessionsConsumed === "number" && row.sessionsConsumed > 0)
+  ) {
+    const count =
+      typeof row.sessionsConsumed === "number" && row.sessionsConsumed > 0
+        ? row.sessionsConsumed
+        : 1;
+    return `${count} ${count > 1 ? "Séances libres" : "Séance libre"}`;
+  }
+  if (row.assignedGroupNames && row.assignedGroupNames.length > 0) {
+    return row.assignedGroupNames.join(" + ");
+  }
+  if (row.groupOrNote) {
+    return row.groupOrNote;
+  }
+  return "-";
 }
 
 export interface CustomPoolRow {
@@ -736,6 +792,25 @@ export function buildPoolDispatchRows(
       formulaLabel = `Manuel: ${finalPriceDA} DA`;
     }
 
+    const isSessionFormula =
+      Boolean(
+        m.formula &&
+          (m.formula.toLowerCase().includes("seance") ||
+            m.formula.toLowerCase().includes("séance") ||
+            m.formula.toLowerCase().includes("session"))
+      ) ||
+      Boolean(
+        m.notes &&
+          (m.notes.toLowerCase().includes("seance") ||
+            m.notes.toLowerCase().includes("séance") ||
+            m.notes.toLowerCase().includes("session"))
+      );
+
+    const effectiveBillingMode =
+      swimmerBilling?.mode || (isSessionFormula ? "session" : calculated.billingMode);
+    const effectiveSessions =
+      swimmerBilling?.sessionsConsumed || (isSessionFormula ? 1 : undefined);
+
     const rowMonth =
       monthOverrides[m.swimId] || monthOverrides[m.id] || currentMonthLabel;
 
@@ -755,13 +830,13 @@ export function buildPoolDispatchRows(
       busySlotLabels,
       poolPriceDA: finalPriceDA,
       formulaLabel,
-      billingMode: swimmerBilling?.mode || calculated.billingMode,
-      sessionsConsumed: swimmerBilling?.sessionsConsumed,
+      billingMode: effectiveBillingMode,
+      sessionsConsumed: effectiveSessions,
       hoursConsumed: swimmerBilling?.hoursConsumed,
       hasPriceOverride: hasOverride,
       currentMonth: rowMonth,
       isCustom: false,
-      isPoolPaid: isMemberPoolPaid(m.notes),
+      isPoolPaid: isMemberPoolPaid(m.notes, rowMonth),
     };
   });
 
@@ -1198,7 +1273,7 @@ export function exportOfficialCorrespondenceToCSV(
       continue;
     }
     totalSum += r.poolPriceDA;
-    const groupLabel = r.assignedGroupNames.join(" + ") || r.groupOrNote || "";
+    const groupLabel = getSwimmerDispatchGroupDisplay(r);
     lines.push([
       escapeCSV(rowIndex++),
       escapeCSV(r.fullName),

@@ -9,6 +9,7 @@ interface PoolAddClientModalProps {
   allMembers: SwimMemberReference[];
   allGroups: SwimGroupReference[];
   alreadySelectedIds: Set<string>;
+  alreadyPoolPaidIds?: Set<string>;
   onAddMembers: (memberIds: string[]) => void;
 }
 
@@ -18,6 +19,7 @@ export function PoolAddClientModal({
   allMembers,
   allGroups,
   alreadySelectedIds,
+  alreadyPoolPaidIds,
   onAddMembers,
 }: PoolAddClientModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,7 +66,11 @@ export function PoolAddClientModal({
 
   const handleSelectAllVisible = () => {
     const selectable = filteredMembers.filter(
-      (m) => !alreadySelectedIds.has(m.id) && !alreadySelectedIds.has(m.swimId)
+      (m) =>
+        !alreadySelectedIds.has(m.id) &&
+        !alreadySelectedIds.has(m.swimId) &&
+        !alreadyPoolPaidIds?.has(m.id) &&
+        !alreadyPoolPaidIds?.has(m.swimId)
     );
     const allChecked = selectable.length > 0 && selectable.every((m) => checkedIds.has(m.id));
 
@@ -100,7 +106,11 @@ export function PoolAddClientModal({
   };
 
   const availableToAddCount = filteredMembers.filter(
-    (m) => !alreadySelectedIds.has(m.id) && !alreadySelectedIds.has(m.swimId)
+    (m) =>
+      !alreadySelectedIds.has(m.id) &&
+      !alreadySelectedIds.has(m.swimId) &&
+      !alreadyPoolPaidIds?.has(m.id) &&
+      !alreadyPoolPaidIds?.has(m.swimId)
   ).length;
 
   return (
@@ -210,6 +220,11 @@ export function PoolAddClientModal({
             filteredMembers.map((m) => {
               const isAlreadyInBordereau =
                 alreadySelectedIds.has(m.id) || alreadySelectedIds.has(m.swimId);
+              const isAlreadyPoolPaid = Boolean(
+                alreadyPoolPaidIds &&
+                  (alreadyPoolPaidIds.has(m.id) || alreadyPoolPaidIds.has(m.swimId))
+              );
+              const isBlocked = isAlreadyInBordereau || isAlreadyPoolPaid;
               const isChecked = checkedIds.has(m.id);
               const assignedGroups = resolveMemberGroups(m, allGroups);
 
@@ -217,7 +232,7 @@ export function PoolAddClientModal({
                 <div
                   key={m.id}
                   className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                    isAlreadyInBordereau
+                    isBlocked
                       ? "bg-slate-950/40 border-white/5 opacity-60"
                       : isChecked
                       ? "bg-cyan-500/10 border-cyan-500/40"
@@ -227,7 +242,7 @@ export function PoolAddClientModal({
                   <div className="flex items-center gap-3 min-w-0">
                     <input
                       type="checkbox"
-                      disabled={isAlreadyInBordereau}
+                      disabled={isBlocked}
                       checked={isChecked}
                       onChange={() => toggleCheck(m.id)}
                       className="rounded border-white/20 text-cyan-500 focus:ring-0 cursor-pointer disabled:cursor-not-allowed"
@@ -243,20 +258,29 @@ export function PoolAddClientModal({
                         <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-sky-950 text-sky-300 border border-sky-800/40">
                           {m.category}
                         </span>
+                        {isAlreadyPoolPaid && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                            poolpaid (déjà réglé ce mois)
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5 truncate">
                         {assignedGroups.length > 0
                           ? assignedGroups.map((g) => g.name).join(" + ")
-                          : "Sans groupe assigne"}
+                          : "Sans groupe assigné"}
                         {m.phone ? ` · ${m.phone}` : ""}
                       </div>
                     </div>
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2">
-                    {isAlreadyInBordereau ? (
+                    {isAlreadyPoolPaid ? (
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-950/40 text-emerald-300 text-[11px] font-semibold border border-emerald-500/20">
+                        Déjà réglé (poolpaid)
+                      </span>
+                    ) : isAlreadyInBordereau ? (
                       <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 text-[11px] font-semibold border border-white/5">
-                        Deja present
+                        Déjà présent
                       </span>
                     ) : (
                       <button

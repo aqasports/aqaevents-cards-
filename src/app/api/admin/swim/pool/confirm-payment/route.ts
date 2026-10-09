@@ -13,6 +13,7 @@ const confirmPaymentSchema = z.object({
   bordereauId: z.string().optional(),
   bordereauRef: z.string().optional(),
   poolId: z.string().optional(),
+  month: z.string().optional(),
   action: z.enum(["confirm", "revert"]).default("confirm"),
 });
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { memberIds, bordereauId, bordereauRef, poolId, action } = parsed.data;
+    const { memberIds, bordereauId, bordereauRef, poolId, month, action } = parsed.data;
     const isConfirming = action === "confirm";
 
     const members = await prisma.swimMember.findMany({
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
     const updatedIds: string[] = [];
 
     for (const member of members) {
-      const alreadyPaid = isMemberPoolPaid(member.notes);
+      const alreadyPaid = isMemberPoolPaid(member.notes, month);
       if (isConfirming && alreadyPaid) {
         updatedIds.push(member.id);
         continue;
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const updatedNotes = encodePoolPaidNotes(member.notes, isConfirming);
+      const updatedNotes = encodePoolPaidNotes(member.notes, isConfirming, month);
       await prisma.swimMember.update({
         where: { id: member.id },
         data: { notes: updatedNotes },

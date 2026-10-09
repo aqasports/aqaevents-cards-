@@ -24,7 +24,10 @@ import {
   SwimGroupReference,
   PoolBordereau,
   createDefaultBordereau,
+  getProposedBordereauTitle,
+  getSwimmerDispatchGroupDisplay,
 } from "@/lib/swim-pool-dispatch";
+import { isMemberPoolPaid, encodePoolPaidNotes } from "@/lib/swim-groups";
 import { PoolCustomRowModal } from "./PoolCustomRowModal";
 import { PoolPrintTemplate } from "./PoolPrintTemplate";
 import { PoolAddBordereauModal } from "./PoolAddBordereauModal";
@@ -133,6 +136,43 @@ export function SwimPoolDesk({
     const found = bordereaux.find((b) => b.id === activeBordereauId);
     return found || bordereaux[0] || createDefaultBordereau(DEFAULT_DOCUMENT_META, selectedPoolId);
   }, [bordereaux, activeBordereauId, selectedPoolId]);
+
+  // ─── 4b. DATE & MONTH CONTEXT & DUPLICATE PROTECTION ────────────────────────
+  const [targetDate] = useState<Date>(() => new Date());
+  const monthLabel = useMemo(() => {
+    return (
+      activeBordereau.month ||
+      formatMonthLabel(targetDate.getFullYear(), targetDate.getMonth(), locale)
+    );
+  }, [activeBordereau.month, targetDate, locale]);
+
+  // Strict duplicate pool payment prevention for the same month
+  const alreadyPoolPaidIdsThisMonth = useMemo(() => {
+    const currentMonth = (activeBordereau.month || monthLabel || "").trim().toLowerCase();
+    const set = new Set<string>();
+
+    // 1. Members whose profile notes contain [POOLPAID] for this month
+    for (const m of rawMembers) {
+      if (isMemberPoolPaid(m.notes, activeBordereau.month || monthLabel)) {
+        set.add(m.id);
+        set.add(m.swimId);
+      }
+    }
+
+    // 2. Members belonging to any already-paid bordereau for the same month
+    for (const b of bordereaux) {
+      if (b.paymentStatus === "paid") {
+        const bMonth = (b.month || "").trim().toLowerCase();
+        if (!currentMonth || !bMonth || bMonth === currentMonth) {
+          (b.memberIds || []).forEach((id) => {
+            set.add(id);
+          });
+        }
+      }
+    }
+
+    return set;
+  }, [activeBordereau.month, monthLabel, rawMembers, bordereaux]);
 
   const saveBordereaux = useCallback((updatedList: PoolBordereau[]) => {
     setBordereaux(updatedList);
@@ -245,8 +285,10 @@ export function SwimPoolDesk({
   };
 
   const handleAddMembersToActiveBordereau = (newIds: string[]) => {
+    // Strictly filter out any members that are already poolpaid this month
+    const validIds = newIds.filter((id) => !alreadyPoolPaidIdsThisMonth.has(id));
     const set = new Set(activeBordereau.memberIds || []);
-    newIds.forEach((id) => set.add(id));
+    validIds.forEach((id) => set.add(id));
     const updated = bordereaux.map((b) => {
       if (b.id === activeBordereau.id) {
         return {
@@ -258,7 +300,14 @@ export function SwimPoolDesk({
       return b;
     });
     saveBordereaux(updated);
-    showToast(`${newIds.length} adhérent${newIds.length > 1 ? "s" : ""} ajouté${newIds.length > 1 ? "s" : ""} au bordereau`);
+    const excludedCount = newIds.length - validIds.length;
+    if (excludedCount > 0) {
+      showToast(
+        `${validIds.length} adhérent${validIds.length > 1 ? "s" : ""} ajouté${validIds.length > 1 ? "s" : ""} (${excludedCount} déjà poolpaid exclu${excludedCount > 1 ? "s" : ""})`
+      );
+    } else {
+      showToast(`${validIds.length} adhérent${validIds.length > 1 ? "s" : ""} ajouté${validIds.length > 1 ? "s" : ""} au bordereau`);
+    }
   };
 
   const handleRemoveMemberFromActiveBordereau = (memberId: string) => {
@@ -323,6 +372,7 @@ export function SwimPoolDesk({
       showToast("Aucun adhérent dans ce bordereau à confirmer");
       return;
     }
+    const activeMonth = activeBordereau.month || monthLabel;
     const res = await fetch("/api/admin/swim/pool/confirm-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -331,6 +381,7 @@ export function SwimPoolDesk({
         bordereauId: activeBordereau.id,
         bordereauRef: activeBordereau.referenceNumber,
         poolId: activeBordereau.poolId,
+        month: activeMonth,
         action: "confirm",
       }),
     });
@@ -354,7 +405,7 @@ export function SwimPoolDesk({
     });
     saveBordereaux(updated);
 
-    // Reflect [POOLPAID] on rawMembers in state
+    // Reflect [POOLPAID:Month] on rawMembers in state
     setRawMembers((prev) =>
       prev.map((m) => {
         if (
@@ -363,7 +414,7 @@ export function SwimPoolDesk({
         ) {
           return {
             ...m,
-            notes: encodePoolPaidNotes(m.notes, true),
+            notes: encodePoolPaidNotes(m.notes, true, activeMonth),
           };
         }
         return m;
@@ -532,14 +583,7 @@ export function SwimPoolDesk({
     }
   };
 
-  // ─── 9. DATE & MONTH CONTEXT ────────────────────────────────────────────────
-  const [targetDate] = useState<Date>(() => new Date());
-  const monthLabel = useMemo(() => {
-    return (
-      activeBordereau.month ||
-      formatMonthLabel(targetDate.getFullYear(), targetDate.getMonth(), locale)
-    );
-  }, [activeBordereau.month, targetDate, locale]);
+  // ─── 9. DATE & MONTH CONTEXT (DEFINED ABOVE IN 4b) ──────────────────────────
 
   // ─── 10. BUILD REALFINALPOOL ROWS (SELECTED CLIENTS IN ACTIVE BORDEREAU) ─────
   const activeBordereauMembers = useMemo(() => {
@@ -698,7 +742,22 @@ export function SwimPoolDesk({
 
   // ─── 13. EXPORT & PRINT HANDLERS ─────────────────────────────────────────────
   const handlePrint = () => {
+    const originalTitle = typeof document !== "undefined" ? document.title : "";
+    const proposedName =
+      activeBordereau.title ||
+      getProposedBordereauTitle(
+        activeBordereau.poolId,
+        bordereaux.findIndex((b) => b.id === activeBordereau.id) + 1
+      );
+    if (typeof document !== "undefined") {
+      document.title = proposedName;
+    }
     window.print();
+    setTimeout(() => {
+      if (typeof document !== "undefined") {
+        document.title = originalTitle;
+      }
+    }, 1000);
   };
 
   const handleExportCSV = () => {
@@ -718,10 +777,8 @@ export function SwimPoolDesk({
         true,
         selectedSwimmerIds
       );
-      downloadBlob(
-        csv,
-        `Demande_Acces_AQA_${docMeta.referenceNumber.replace(/[^a-zA-Z0-9]/g, "_")}.csv`
-      );
+      const filename = `${(activeBordereau.title || `Bordereau_${docMeta.referenceNumber}`).replace(/[^a-zA-Z0-9_\-]/g, "_")}.csv`;
+      downloadBlob(csv, filename);
     }
     showToast("Fichier CSV téléchargé");
   };
@@ -1341,7 +1398,14 @@ export function SwimPoolDesk({
 
                           {/* Col 3: Group & Schedule */}
                           <td className="p-3 text-slate-300 text-xs">
-                            {r.assignedGroupNames.join(" + ") || r.groupOrNote || "-"}
+                            <span className="font-semibold text-white">
+                              {getSwimmerDispatchGroupDisplay(r)}
+                            </span>
+                            {r.billingMode === "session" && r.assignedGroupNames.length > 0 && (
+                              <span className="block text-[10px] text-slate-400">
+                                ({r.assignedGroupNames.join(" + ")})
+                              </span>
+                            )}
                           </td>
 
                           {/* Col 4: Formula / Settlement Switcher */}
@@ -1611,6 +1675,7 @@ export function SwimPoolDesk({
         allMembers={rawMembers}
         allGroups={rawGroups}
         alreadySelectedIds={new Set(activeBordereau.memberIds || [])}
+        alreadyPoolPaidIds={alreadyPoolPaidIdsThisMonth}
         onAddMembers={handleAddMembersToActiveBordereau}
       />
 
@@ -1621,6 +1686,7 @@ export function SwimPoolDesk({
         allGroups={rawGroups}
         allMembers={rawMembers}
         alreadySelectedIds={new Set(activeBordereau.memberIds || [])}
+        alreadyPoolPaidIds={alreadyPoolPaidIdsThisMonth}
         onAddGroupMembers={(ids) => handleAddMembersToActiveBordereau(ids)}
       />
 

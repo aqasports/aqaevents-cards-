@@ -1,7 +1,11 @@
 "use client";
-
 import React, { useState } from "react";
-import { DEFAULT_POOLS, PoolDocumentMeta, getDynamicDocumentMeta } from "@/lib/swim-pool-dispatch";
+import {
+  DEFAULT_POOLS,
+  PoolDocumentMeta,
+  getDynamicDocumentMeta,
+  getProposedBordereauTitle,
+} from "@/lib/swim-pool-dispatch";
 
 interface PoolAddBordereauModalProps {
   isOpen: boolean;
@@ -25,23 +29,48 @@ export function PoolAddBordereauModal({
 }: PoolAddBordereauModalProps) {
   const dynamicMeta: PoolDocumentMeta = getDynamicDocumentMeta();
 
-  const [title, setTitle] = useState("Demande d'acces");
+  const bordereauNum = existingCount + 1;
+  const getAutoTitle = React.useCallback(
+    (pid: string) => getProposedBordereauTitle(pid, bordereauNum),
+    [bordereauNum]
+  );
+
   const [poolId, setPoolId] = useState("azal");
+  const [title, setTitle] = useState(() => getProposedBordereauTitle("azal", bordereauNum));
+  const [hasUserEditedTitle, setHasUserEditedTitle] = useState(false);
   const [referenceNumber, setReferenceNumber] = useState(
-    `n:00${String(existingCount + 1).padStart(2, "0")}/${dynamicMeta.year.slice(-2)}`
+    `n:00${String(bordereauNum).padStart(2, "0")}/${dynamicMeta.year.slice(-2)}`
   );
   const [date, setDate] = useState(dynamicMeta.date);
   const [month, setMonth] = useState("Octobre");
   const [year, setYear] = useState(dynamicMeta.year);
 
+  // Sync title with count / pool when modal opens
+  React.useEffect(() => {
+    if (isOpen && !hasUserEditedTitle) {
+      setTitle(getAutoTitle(poolId));
+      setReferenceNumber(
+        `n:00${String(bordereauNum).padStart(2, "0")}/${dynamicMeta.year.slice(-2)}`
+      );
+    }
+  }, [isOpen, existingCount, poolId, bordereauNum, hasUserEditedTitle, dynamicMeta.year, getAutoTitle]);
+
   if (!isOpen) return null;
+
+  const handlePoolChange = (newPid: string) => {
+    setPoolId(newPid);
+    if (!hasUserEditedTitle) {
+      setTitle(getAutoTitle(newPid));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !referenceNumber.trim()) return;
+    const finalTitle = title.trim() || getAutoTitle(poolId);
+    if (!finalTitle || !referenceNumber.trim()) return;
 
     onAdd({
-      title: title.trim(),
+      title: finalTitle,
       referenceNumber: referenceNumber.trim(),
       poolId,
       date: date.trim() || dynamicMeta.date,
@@ -93,7 +122,7 @@ export function PoolAddBordereauModal({
             </label>
             <select
               value={poolId}
-              onChange={(e) => setPoolId(e.target.value)}
+              onChange={(e) => handlePoolChange(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-400"
             >
               {DEFAULT_POOLS.map((p) => (
@@ -111,9 +140,12 @@ export function PoolAddBordereauModal({
             <input
               type="text"
               required
-              placeholder="Ex: Demande d'acces ou Bordereau Envoi"
+              placeholder="Ex: Azal Bordereau 1"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setHasUserEditedTitle(true);
+              }}
               className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400"
             />
           </div>

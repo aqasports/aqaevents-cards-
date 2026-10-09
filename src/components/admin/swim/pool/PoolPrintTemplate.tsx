@@ -5,6 +5,7 @@ import {
   PoolCorrespondenceMode,
   PoolSwimmerRow,
   PoolSlotReservation,
+  getSwimmerDispatchGroupDisplay,
 } from "@/lib/swim-pool-dispatch";
 import { AQA_LOGO_DATA_URI } from "@/lib/aqa-logo-data";
 
@@ -328,9 +329,15 @@ export function PoolPrintTemplate({
                 </td>
               </tr>
 
-              {/* Row 3: prix header in bright green */}
+              {/* Row 3: Groupe & prix header */}
               <tr className="h-6 border-b border-[#93c5fd]">
-                <td colSpan={7} className="border-r border-[#93c5fd]"></td>
+                <td colSpan={2} className="border-r border-[#93c5fd]"></td>
+                <td
+                  colSpan={5}
+                  className="border-r border-[#93c5fd] text-center font-bold text-slate-800 text-[11px] align-middle"
+                >
+                  Groupe
+                </td>
                 <td className="border-r border-[#93c5fd] bg-[#4ade80] text-black text-center font-bold lowercase text-xs align-middle">
                   prix
                 </td>
@@ -340,42 +347,46 @@ export function PoolPrintTemplate({
 
             <tbody>
               {/* Dynamic consecutively numbered rows: 1, 2, 3... */}
-              {visibleRows.map((r, idx) => (
-                <tr
-                  key={r.swimId || r.memberId}
-                  className="h-6 border-b border-[#93c5fd] text-xs hover:bg-cyan-50/20"
-                >
-                  {/* Col 1: Dynamic Consecutive Number */}
-                  <td className="border-r border-[#93c5fd] text-center font-normal text-slate-800 align-middle">
-                    {idx + 1}
-                  </td>
+              {visibleRows.map((r, idx) => {
+                const groupDisplay = getSwimmerDispatchGroupDisplay(r);
+                return (
+                  <tr
+                    key={r.swimId || r.memberId}
+                    className="h-6 border-b border-[#93c5fd] text-xs hover:bg-cyan-50/20"
+                  >
+                    {/* Col 1: Dynamic Consecutive Number */}
+                    <td className="border-r border-[#93c5fd] text-center font-normal text-slate-800 align-middle">
+                      {idx + 1}
+                    </td>
 
-                  {/* Col 2: Name */}
-                  <td className="border-r border-[#93c5fd] px-2 font-bold text-slate-950 truncate align-middle">
-                    {r.fullName}
-                  </td>
+                    {/* Col 2: Name */}
+                    <td className="border-r border-[#93c5fd] px-2 font-bold text-slate-950 truncate align-middle">
+                      {r.fullName}
+                    </td>
 
-                  {/* Col 3-7: Empty Grid cells */}
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
-                  <td className="border-r border-[#93c5fd]"></td>
+                    {/* Col 3-7: Group Name OR (number) Seance(s) libre(s) */}
+                    <td
+                      colSpan={5}
+                      className="border-r border-[#93c5fd] px-2 font-medium text-slate-900 text-[11px] align-middle truncate"
+                    >
+                      {groupDisplay}
+                    </td>
 
-                  {/* Col 8: prix with green tinted background */}
-                  <td className="border-r border-[#93c5fd] bg-[#86efac]/35 px-2 text-right font-mono font-bold text-slate-950 align-middle">
-                    {r.poolPriceDA}
-                  </td>
+                    {/* Col 8: prix with green tinted background */}
+                    <td className="border-r border-[#93c5fd] bg-[#86efac]/35 px-2 text-right font-mono font-bold text-slate-950 align-middle">
+                      {r.poolPriceDA}
+                    </td>
 
-                  {/* Col 9: Mois */}
-                  <td className="border-r border-[#93c5fd] text-center font-semibold text-slate-900 align-middle">
-                    {r.currentMonth}
-                  </td>
+                    {/* Col 9: Mois */}
+                    <td className="border-r border-[#93c5fd] text-center font-semibold text-slate-900 align-middle">
+                      {r.currentMonth}
+                    </td>
 
-                  {/* Col 10: Grid spacer */}
-                  <td className="border-b border-[#93c5fd]"></td>
-                </tr>
-              ))}
+                    {/* Col 10: Grid spacer */}
+                    <td className="border-b border-[#93c5fd]"></td>
+                  </tr>
+                );
+              })}
             </tbody>
 
             <tfoot>

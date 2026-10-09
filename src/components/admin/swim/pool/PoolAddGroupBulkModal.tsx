@@ -9,6 +9,7 @@ interface PoolAddGroupBulkModalProps {
   allGroups: SwimGroupReference[];
   allMembers: SwimMemberReference[];
   alreadySelectedIds: Set<string>;
+  alreadyPoolPaidIds?: Set<string>;
   onAddGroupMembers: (memberIds: string[], label: string) => void;
 }
 
@@ -18,6 +19,7 @@ export function PoolAddGroupBulkModal({
   allGroups,
   allMembers,
   alreadySelectedIds,
+  alreadyPoolPaidIds,
   onAddGroupMembers,
 }: PoolAddGroupBulkModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,6 +33,7 @@ export function PoolAddGroupBulkModal({
         totalMembers: SwimMemberReference[];
         toAddMembers: SwimMemberReference[];
         alreadyInCount: number;
+        alreadyPoolPaidCount: number;
       }
     > = {};
 
@@ -40,19 +43,32 @@ export function PoolAddGroupBulkModal({
         return assigned.some((g) => g.id === group.id);
       });
 
+      const alreadyInCount = groupSwimmers.filter(
+        (m) => alreadySelectedIds.has(m.id) || alreadySelectedIds.has(m.swimId)
+      ).length;
+
+      const alreadyPoolPaidCount = groupSwimmers.filter(
+        (m) => alreadyPoolPaidIds?.has(m.id) || alreadyPoolPaidIds?.has(m.swimId)
+      ).length;
+
       const toAdd = groupSwimmers.filter(
-        (m) => !alreadySelectedIds.has(m.id) && !alreadySelectedIds.has(m.swimId)
+        (m) =>
+          !alreadySelectedIds.has(m.id) &&
+          !alreadySelectedIds.has(m.swimId) &&
+          !alreadyPoolPaidIds?.has(m.id) &&
+          !alreadyPoolPaidIds?.has(m.swimId)
       );
 
       stats[group.id] = {
         totalMembers: groupSwimmers,
         toAddMembers: toAdd,
-        alreadyInCount: groupSwimmers.length - toAdd.length,
+        alreadyInCount,
+        alreadyPoolPaidCount,
       };
     }
 
     return stats;
-  }, [allGroups, allMembers, alreadySelectedIds]);
+  }, [allGroups, allMembers, alreadySelectedIds, alreadyPoolPaidIds]);
 
   const filteredGroups = useMemo(() => {
     if (!searchTerm.trim()) return allGroups;
@@ -244,8 +260,13 @@ export function PoolAddGroupBulkModal({
                           {stat.totalMembers.length} adherent{stat.totalMembers.length > 1 ? "s" : ""} au total
                         </span>
                         {stat.alreadyInCount > 0 && (
-                          <span className="text-[10px] text-emerald-400">
+                          <span className="text-[10px] text-cyan-400">
                             ({stat.alreadyInCount} deja inclus)
+                          </span>
+                        )}
+                        {stat.alreadyPoolPaidCount > 0 && (
+                          <span className="text-[10px] text-emerald-400 font-semibold">
+                            ({stat.alreadyPoolPaidCount} deja poolpaid ce mois)
                           </span>
                         )}
                       </div>
@@ -261,6 +282,10 @@ export function PoolAddGroupBulkModal({
                       >
                         + Ajouter {stat.toAddMembers.length}
                       </button>
+                    ) : stat.alreadyPoolPaidCount > 0 && stat.alreadyInCount === 0 ? (
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-950/40 text-emerald-300 text-[11px] font-semibold border border-emerald-500/20">
+                        Tous poolpaid
+                      </span>
                     ) : (
                       <span className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 text-[11px] font-semibold border border-white/5">
                         Tous inclus

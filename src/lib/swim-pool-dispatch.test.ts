@@ -18,6 +18,8 @@ import {
   DEFAULT_REAL_FINAL_COLUMNS,
   exportOfficialCorrespondenceToCSV,
   createDefaultBordereau,
+  getProposedBordereauTitle,
+  getSwimmerDispatchGroupDisplay,
   STORAGE_KEYS,
 } from "./swim-pool-dispatch";
 
@@ -622,14 +624,58 @@ describe("swim-pool-dispatch domain utilities", () => {
   });
 
   describe("Bordereau management & PoolPaid flag", () => {
-    it("creates a valid default bordereau structure", () => {
+    it("creates a valid default bordereau structure with proposed name", () => {
       const b = createDefaultBordereau();
       expect(b.id).toBeDefined();
-      expect(b.title).toBe("Demande d'accès");
+      expect(b.title).toBe("Azal Bordereau 1");
       expect(b.paymentStatus).toBe("unpaid");
       expect(b.memberIds).toEqual([]);
       expect(parseInt(b.year, 10)).toBeGreaterThanOrEqual(2025);
       expect(b.poolId).toBe("azal");
+    });
+
+    it("generates proposed bordereau titles based on pool name and sequence number", () => {
+      expect(getProposedBordereauTitle("azal", 1)).toBe("Azal Bordereau 1");
+      expect(getProposedBordereauTitle("azal", 2)).toBe("Azal Bordereau 2");
+      expect(getProposedBordereauTitle("el_biar", 3)).toBe("El Biar Bordereau 3");
+      expect(getProposedBordereauTitle("kouba", 10)).toBe("Kouba Bordereau 10");
+    });
+
+    it("formats group and session display accurately", () => {
+      // Standard group swimmer
+      expect(
+        getSwimmerDispatchGroupDisplay({
+          assignedGroupNames: ["G10 Lundi Soir", "G10 Mercredi Soir"],
+          billingMode: "monthly",
+        })
+      ).toBe("G10 Lundi Soir + G10 Mercredi Soir");
+
+      // Single session swimmer
+      expect(
+        getSwimmerDispatchGroupDisplay({
+          assignedGroupNames: ["G10 Lundi Soir"],
+          billingMode: "session",
+          sessionsConsumed: 1,
+        })
+      ).toBe("1 Séance libre");
+
+      // Multiple sessions swimmer
+      expect(
+        getSwimmerDispatchGroupDisplay({
+          assignedGroupNames: ["G10 Lundi Soir"],
+          billingMode: "session",
+          sessionsConsumed: 3,
+        })
+      ).toBe("3 Séances libres");
+
+      // Custom collective row
+      expect(
+        getSwimmerDispatchGroupDisplay({
+          isCustom: true,
+          groupOrNote: "Section AQA KIDS",
+          assignedGroupNames: [],
+        })
+      ).toBe("Section AQA KIDS");
     });
 
     it("includes isPoolPaid flag correctly on PoolSwimmerRow", () => {
