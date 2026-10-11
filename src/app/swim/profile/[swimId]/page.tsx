@@ -70,6 +70,13 @@ interface SwimMemberData {
     status?: string;
   } | null;
   payments: SwimPaymentItem[];
+  isAssigned?: boolean;
+  isDebtOnly?: boolean;
+  debtDetails?: {
+    hasDebt: boolean;
+    amount: number;
+    reason: string;
+  };
   subscriptionStart?: string | null;
   subscriptionEnd?: string | null;
   subscriptionDaysLeft?: number | null;
@@ -348,22 +355,34 @@ export default function SwimmerProfilePage({
     ? member.groups
     : (member.group ? [member.group] : []);
 
-  // Compute official tariff dynamically if not set in database
-  const rawPriceDA = member.priceDA || 0;
-  const groupLevels = displayGroups.map((g) => g.level);
-  const computedPriceDA = calculateSwimPrice({
-    category: member.category,
-    groupTypes: groupLevels.length > 0 ? groupLevels : [member.group?.level || member.formula || "G10"],
-    duration: member.duration || "3m",
-  });
-  const priceDA = rawPriceDA > 0 ? rawPriceDA : (computedPriceDA > 0 ? computedPriceDA : 0);
+  // Compute official tariff dynamically if assigned or explicit debt set
+  const isAssigned = Boolean(member.isAssigned ?? (displayGroups.length > 0));
+  const isDebtOnly = Boolean(member.isDebtOnly ?? (!isAssigned && member.debtDetails?.hasDebt));
+  const isLinkedToPayment = isAssigned || isDebtOnly;
+
+  let priceDA = 0;
+  if (isAssigned) {
+    const rawPriceDA = member.priceDA || 0;
+    const groupLevels = displayGroups.map((g) => g.level);
+    const computedPriceDA = calculateSwimPrice({
+      category: member.category,
+      groupTypes: groupLevels.length > 0 ? groupLevels : [member.group?.level || member.formula || "G10"],
+      duration: member.duration || "3m",
+    });
+    priceDA = rawPriceDA > 0 ? rawPriceDA : (computedPriceDA > 0 ? computedPriceDA : 0);
+  } else if (isDebtOnly) {
+    priceDA = member.debtDetails?.amount || member.priceDA || 0;
+  } else {
+    // Non-assigned client without explicit debt -> 0 DA, not linked to payment situation
+    priceDA = 0;
+  }
 
   // Payments calculation
   const paymentsList = member.payments || [];
   const totalPaid = paymentsList.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const debt = Math.max(0, priceDA - totalPaid);
-  const paymentPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : 0;
-  const isFullyPaid = member.paymentStatus === "paid" || (priceDA > 0 && totalPaid >= priceDA);
+  const debt = isLinkedToPayment ? Math.max(0, priceDA - totalPaid) : 0;
+  const paymentPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : (isLinkedToPayment ? 0 : 100);
+  const isFullyPaid = !isLinkedToPayment || member.paymentStatus === "paid" || (priceDA > 0 && totalPaid >= priceDA);
 
   const formattedDateOfStart = member.dateOfStart
     ? new Date(member.dateOfStart).toLocaleDateString(locale === "ar" ? "ar-DZ" : "fr-DZ", {
@@ -450,6 +469,9 @@ export default function SwimmerProfilePage({
                   formula: member.formula,
                   duration: member.duration,
                   paymentStatus: member.paymentStatus,
+                  isAssigned,
+                  isDebtOnly,
+                  isLinkedToPayment,
                   group: member.group,
                   card: member.card,
                 }}
@@ -491,103 +513,188 @@ export default function SwimmerProfilePage({
               </div>
             </section>
 
-            {/* 3. FINANCIAL LEDGER & PAYMENTS (matching eventscard balance style) */}
+            {/* 3. FINANCIAL LEDGER & PAYMENTS */}
             <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display">
                   {t("paymentsTitle")}
                 </h2>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    isFullyPaid
-                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
-                      : totalPaid > 0
-                      ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
-                      : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
-                  }`}
-                >
-                  {isFullyPaid ? t("statusPaid") : totalPaid > 0 ? t("statusPartial") : t("statusUnpaid")}
-                </span>
-              </div>
-
-              {/* 3-stat breakdown */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
-                    {t("totalPrice")}
+                {!isLinkedToPayment ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-300 border border-white/10">
+                    {t("unassignedStatusBadge")}
                   </span>
-                  <span className="font-mono font-bold text-white text-xs sm:text-sm">
-                    {priceDA.toLocaleString("fr-DZ")} DA
+                ) : isDebtOnly ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-950/80 text-rose-300 border border-rose-500/30">
+                    {t("debtOnlyStatusBadge")}
                   </span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
-                    {t("totalPaid")}
-                  </span>
-                  <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
-                    {totalPaid.toLocaleString("fr-DZ")} DA
-                  </span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
-                    {t("remainingBalance")}
-                  </span>
+                ) : (
                   <span
-                    className={`font-mono font-bold text-xs sm:text-sm ${
-                      debt > 0 ? "text-rose-400" : "text-emerald-400"
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      isFullyPaid
+                        ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                        : totalPaid > 0
+                        ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                        : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
                     }`}
                   >
-                    {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                    {isFullyPaid ? t("statusPaid") : totalPaid > 0 ? t("statusPartial") : t("statusUnpaid")}
                   </span>
-                </div>
+                )}
               </div>
 
-              {/* Progress bar */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[10px] text-slate-400">
-                  <span>{t("paymentStatus")}</span>
-                  <span className="font-mono font-semibold text-white">{paymentPct}%</span>
+              {!isLinkedToPayment ? (
+                <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/5 space-y-1.5 text-xs text-slate-300">
+                  <p className="font-semibold text-slate-200">
+                    {t("unassignedNoPaymentExpected")}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {locale === "fr"
+                      ? "Le montant de l'abonnement sera calculé et exigible une fois votre créneau et groupe attribués par l'équipe AQA Sports."
+                      : locale === "ar"
+                      ? "سيتم تحديد مبلغ الاشتراك ومتابعته بمجرد تأكيد وتوزيع الفوج والتوقيت من قبل فريق أكوا سبورت."
+                      : "Subscription tariff will be computed and due once your training group and schedule slot are allocated by the AQA Sports team."}
+                  </p>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      isFullyPaid
-                        ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                        : "bg-gradient-to-r from-cyan-500 to-sky-400"
-                    }`}
-                    style={{ width: `${paymentPct}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Payment Action Button */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between group active:scale-[0.99] ${
-                    debt > 0
-                      ? "bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)]"
-                      : "bg-slate-800/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
-                      <rect x="2" y="5" width="20" height="14" rx="2" />
-                      <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
-                    <span>{t("paySubscriptionBtn")}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
-                    <span className="hidden sm:inline font-mono font-medium text-[10px]">
-                      {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+              ) : isDebtOnly ? (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/20 text-xs">
+                    <span className="font-bold text-rose-300 uppercase tracking-wider block">
+                      {t("debtOnlyStatusBadge")}
                     </span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
+                    {member.debtDetails?.reason && (
+                      <p className="text-slate-300 text-[11px] mt-0.5">
+                        {member.debtDetails.reason}
+                      </p>
+                    )}
                   </div>
-                </button>
-              </div>
+                  {/* 3-stat breakdown */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("debtAmount")}
+                      </span>
+                      <span className="font-mono font-bold text-white text-xs sm:text-sm">
+                        {priceDA.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("totalPaid")}
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                        {totalPaid.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("remainingBalance")}
+                      </span>
+                      <span className="font-mono font-bold text-rose-400 text-xs sm:text-sm">
+                        {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                      </span>
+                    </div>
+                  </div>
+                  {debt > 0 && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentModal(true)}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)] flex items-center justify-between group active:scale-[0.99] transition-all"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                            <rect x="2" y="5" width="20" height="14" rx="2" />
+                            <line x1="2" y1="10" x2="22" y2="10" />
+                          </svg>
+                          <span>{t("paySubscriptionBtn")}</span>
+                        </div>
+                        <span className="font-mono text-[11px] font-semibold">{debt.toLocaleString("fr-DZ")} DA</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* 3-stat breakdown */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("totalPrice")}
+                      </span>
+                      <span className="font-mono font-bold text-white text-xs sm:text-sm">
+                        {priceDA.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("totalPaid")}
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                        {totalPaid.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("remainingBalance")}
+                      </span>
+                      <span
+                        className={`font-mono font-bold text-xs sm:text-sm ${
+                          debt > 0 ? "text-rose-400" : "text-emerald-400"
+                        }`}
+                      >
+                        {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-[10px] text-slate-400">
+                      <span>{t("paymentStatus")}</span>
+                      <span className="font-mono font-semibold text-white">{paymentPct}%</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isFullyPaid
+                            ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                            : "bg-gradient-to-r from-cyan-500 to-sky-400"
+                        }`}
+                        style={{ width: `${paymentPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Payment Action Button */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentModal(true)}
+                      className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between group active:scale-[0.99] ${
+                        debt > 0
+                          ? "bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)]"
+                          : "bg-slate-800/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                          <rect x="2" y="5" width="20" height="14" rx="2" />
+                          <line x1="2" y1="10" x2="22" y2="10" />
+                        </svg>
+                        <span>{t("paySubscriptionBtn")}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
+                        <span className="hidden sm:inline font-mono font-medium text-[10px]">
+                          {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                        </span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
 
               {/* Transactions List */}
               {paymentsList.length > 0 && (
@@ -712,7 +819,7 @@ export default function SwimmerProfilePage({
                 {member.isSolid && <SolidLogoBadge t={t} compact />}
               </div>
 
-              {displayGroups.length > 0 && (
+              {displayGroups.length > 0 ? (
                 <div className="space-y-4">
                   {displayGroups.map((grp, idx) => (
                     <div key={grp.id} className="space-y-2">
@@ -753,6 +860,23 @@ export default function SwimmerProfilePage({
                       )}
                     </div>
                   ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-800/40 border border-white/5 text-center space-y-1">
+                  <p className="text-xs font-semibold text-slate-200">
+                    {locale === "fr"
+                      ? "En attente d'affectation de groupe"
+                      : locale === "ar"
+                      ? "في انتظار تحديد وتوزيع الفوج"
+                      : "Awaiting Group Allocation"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {locale === "fr"
+                      ? "Votre groupe d'entraînement et vos horaires seront attribués prochainement par l'équipe AQA Sports."
+                      : locale === "ar"
+                      ? "سيتم تحديد فوج التدريب والتوقيت الخاص بك قريباً من قبل فريق أكوا سبورت."
+                      : "Your training group and schedule will be assigned shortly by the AQA Sports team."}
+                  </p>
                 </div>
               )}
             </section>
@@ -829,7 +953,7 @@ export default function SwimmerProfilePage({
                   {member.category} · {member.formula || "G10"} ({member.duration || "3m"})
                 </span>
                 <span className="font-mono font-bold text-cyan-300 text-sm">
-                  {priceDA.toLocaleString("fr-DZ")} DA
+                  {isLinkedToPayment ? `${priceDA.toLocaleString("fr-DZ")} DA` : t("unassignedStatusBadge")}
                 </span>
               </div>
             </section>
@@ -846,7 +970,7 @@ export default function SwimmerProfilePage({
                 {member.isSolid && <SolidLogoBadge t={t} compact />}
               </div>
 
-              {displayGroups.length > 0 && (
+              {displayGroups.length > 0 ? (
                 <div className="space-y-4">
                   {displayGroups.map((grp, idx) => (
                     <div key={grp.id} className="space-y-2">
@@ -888,6 +1012,23 @@ export default function SwimmerProfilePage({
                     </div>
                   ))}
                 </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-slate-800/40 border border-white/5 text-center space-y-1">
+                  <p className="text-xs font-semibold text-slate-200">
+                    {locale === "fr"
+                      ? "En attente d'affectation de groupe"
+                      : locale === "ar"
+                      ? "في انتظار تحديد وتوزيع الفوج"
+                      : "Awaiting Group Allocation"}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {locale === "fr"
+                      ? "Votre groupe d'entraînement et vos horaires seront proposés prochainement par l'équipe AQA Sports."
+                      : locale === "ar"
+                      ? "سيتم اقتراح وتحديد فوج التدريب والتوقيت الخاص بك قريباً."
+                      : "Your training group and schedule will be proposed shortly by the AQA Sports team."}
+                  </p>
+                </div>
               )}
             </section>
 
@@ -902,103 +1043,188 @@ export default function SwimmerProfilePage({
                     {member.formula || "G10"} · {member.duration || "3m"}
                   </p>
                 </div>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    isFullyPaid
-                      ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
-                      : totalPaid > 0
-                      ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
-                      : "bg-cyan-950/80 text-cyan-300 border border-cyan-500/30"
-                  }`}
-                >
-                  {isFullyPaid
-                    ? t("statusPaid")
-                    : totalPaid > 0
-                    ? t("statusPartial")
-                    : t("statusUnpaid")}
-                </span>
-              </div>
-
-              {/* 3-stat breakdown */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
-                    {t("totalPrice")}
+                {!isLinkedToPayment ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-300 border border-white/10">
+                    {t("unassignedStatusBadge")}
                   </span>
-                  <span className="font-mono font-bold text-cyan-300 text-xs sm:text-sm">
-                    {priceDA.toLocaleString("fr-DZ")} DA
+                ) : isDebtOnly ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-950/80 text-rose-300 border border-rose-500/30">
+                    {t("debtOnlyStatusBadge")}
                   </span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
-                    {t("totalPaid")}
-                  </span>
-                  <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
-                    {totalPaid.toLocaleString("fr-DZ")} DA
-                  </span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
-                  <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
-                    {t("remainingBalance")}
-                  </span>
+                ) : (
                   <span
-                    className={`font-mono font-bold text-xs sm:text-sm ${
-                      debt > 0 ? "text-rose-400" : "text-emerald-400"
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      isFullyPaid
+                        ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                        : totalPaid > 0
+                        ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                        : "bg-cyan-950/80 text-cyan-300 border border-cyan-500/30"
                     }`}
                   >
-                    {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                    {isFullyPaid
+                      ? t("statusPaid")
+                      : totalPaid > 0
+                      ? t("statusPartial")
+                      : t("statusUnpaid")}
                   </span>
-                </div>
+                )}
               </div>
 
-              {/* Progress bar if partial/paid */}
-              {totalPaid > 0 && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] text-slate-400">
-                    <span>{t("paymentStatus")}</span>
-                    <span className="font-mono font-semibold text-white">{paymentPct}%</span>
-                  </div>
-                  <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        isFullyPaid
-                          ? "bg-gradient-to-r from-emerald-500 to-teal-400"
-                          : "bg-gradient-to-r from-cyan-500 to-sky-400"
-                      }`}
-                      style={{ width: `${paymentPct}%` }}
-                    />
-                  </div>
+              {!isLinkedToPayment ? (
+                <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/5 space-y-1.5 text-xs text-slate-300">
+                  <p className="font-semibold text-slate-200">
+                    {t("unassignedNoPaymentExpected")}
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    {locale === "fr"
+                      ? "Le montant de l'abonnement sera calculé et exigible une fois votre créneau et groupe confirmés."
+                      : locale === "ar"
+                      ? "سيتم تحديد مبلغ الاشتراك ومتابعته بمجرد تأكيد وتوزيع الفوج والتوقيت."
+                      : "Subscription tariff will be computed and due once your training group and schedule slot are confirmed."}
+                  </p>
                 </div>
-              )}
-
-              {/* Payment Action Button */}
-              <div className="pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowPaymentModal(true)}
-                  className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between group active:scale-[0.99] ${
-                    debt > 0
-                      ? "bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)]"
-                      : "bg-slate-800/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
-                      <rect x="2" y="5" width="20" height="14" rx="2" />
-                      <line x1="2" y1="10" x2="22" y2="10" />
-                    </svg>
-                    <span>{t("paySubscriptionBtn")}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
-                    <span className="hidden sm:inline font-mono font-medium text-[10px]">
-                      {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+              ) : isDebtOnly ? (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-500/20 text-xs">
+                    <span className="font-bold text-rose-300 uppercase tracking-wider block">
+                      {t("debtOnlyStatusBadge")}
                     </span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
+                    {member.debtDetails?.reason && (
+                      <p className="text-slate-300 text-[11px] mt-0.5">
+                        {member.debtDetails.reason}
+                      </p>
+                    )}
                   </div>
-                </button>
-              </div>
+                  {/* 3-stat breakdown */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("debtAmount")}
+                      </span>
+                      <span className="font-mono font-bold text-cyan-300 text-xs sm:text-sm">
+                        {priceDA.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("totalPaid")}
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                        {totalPaid.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("remainingBalance")}
+                      </span>
+                      <span className="font-mono font-bold text-rose-400 text-xs sm:text-sm">
+                        {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                      </span>
+                    </div>
+                  </div>
+                  {debt > 0 && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowPaymentModal(true)}
+                        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)] flex items-center justify-between group active:scale-[0.99] transition-all"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                            <rect x="2" y="5" width="20" height="14" rx="2" />
+                            <line x1="2" y1="10" x2="22" y2="10" />
+                          </svg>
+                          <span>{t("paySubscriptionBtn")}</span>
+                        </div>
+                        <span className="font-mono text-[11px] font-semibold">{debt.toLocaleString("fr-DZ")} DA</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* 3-stat breakdown */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("totalPrice")}
+                      </span>
+                      <span className="font-mono font-bold text-cyan-300 text-xs sm:text-sm">
+                        {priceDA.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("totalPaid")}
+                      </span>
+                      <span className="font-mono font-bold text-emerald-400 text-xs sm:text-sm">
+                        {totalPaid.toLocaleString("fr-DZ")} DA
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {t("remainingBalance")}
+                      </span>
+                      <span
+                        className={`font-mono font-bold text-xs sm:text-sm ${
+                          debt > 0 ? "text-rose-400" : "text-emerald-400"
+                        }`}
+                      >
+                        {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar if partial/paid */}
+                  {totalPaid > 0 && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] text-slate-400">
+                        <span>{t("paymentStatus")}</span>
+                        <span className="font-mono font-semibold text-white">{paymentPct}%</span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isFullyPaid
+                              ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                              : "bg-gradient-to-r from-cyan-500 to-sky-400"
+                          }`}
+                          style={{ width: `${paymentPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Action Button */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPaymentModal(true)}
+                      className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between group active:scale-[0.99] ${
+                        debt > 0
+                          ? "bg-gradient-to-r from-teal-400 to-cyan-500 hover:from-teal-300 hover:to-cyan-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.25)]"
+                          : "bg-slate-800/80 hover:bg-slate-800 text-cyan-300 border border-cyan-500/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-4 h-4">
+                          <rect x="2" y="5" width="20" height="14" rx="2" />
+                          <line x1="2" y1="10" x2="22" y2="10" />
+                        </svg>
+                        <span>{t("paySubscriptionBtn")}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold opacity-90">
+                        <span className="hidden sm:inline font-mono font-medium text-[10px]">
+                          {debt > 0 ? `${debt.toLocaleString("fr-DZ")} DA` : t("settled")}
+                        </span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-3.5 h-3.5 group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 transition-transform">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
             </section>
 
             {/* 3. ACCEPTANCE BUTTONS */}

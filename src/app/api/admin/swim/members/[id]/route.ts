@@ -5,7 +5,13 @@ import { logger } from "@/lib/logger";
 import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
 import { logAdminAction } from "@/lib/audit";
 import { getStoredCallRecords, saveStoredCallRecords } from "@/lib/swim-calls-server";
-import { decodeMemberGroupIds, encodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  decodeMemberGroupIds,
+  encodeMemberGroupIds,
+  parseDebtFromNotes,
+  encodeDebtInNotes,
+  getMemberPaymentSituation,
+} from "@/lib/swim-groups";
 import {
   getEffectiveSubscriptionStart,
   computeSubscriptionEnd,
@@ -55,7 +61,7 @@ export async function GET(
 
     // Decode all assigned groups for this member (multi-group support)
     const allGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
-    let allGroups: any[] = [];
+    let allGroups: Array<Record<string, unknown>> = [];
     if (allGroupIds.length > 0) {
       allGroups = await prisma.swimGroup.findMany({
         where: { id: { in: allGroupIds } },
@@ -72,6 +78,13 @@ export async function GET(
     const effectivelyUnassigned = effectiveGroups.length === 0;
     const effectiveGroup = effectiveGroups[0] || null;
 
+    const paymentSituation = getMemberPaymentSituation({
+      ...member,
+      effectiveGroup,
+      effectivelyUnassigned,
+      groups: effectiveGroups,
+    });
+
     return NextResponse.json({
       ...member,
       groups: allGroups,
@@ -79,6 +92,11 @@ export async function GET(
       groupIds: allGroupIds,
       effectiveGroup,
       effectivelyUnassigned,
+      paymentSituation,
+      isAssigned: paymentSituation.isAssigned,
+      isLinkedToPayment: paymentSituation.isLinkedToPayment,
+      isDebtOnly: paymentSituation.isDebtOnly,
+      debtDetails: paymentSituation.debtDetails,
     });
   } catch (err: unknown) {
     logger.error("GET admin swim member detail error:", err);
@@ -117,6 +135,9 @@ export async function PATCH(
       notes,
       whatsapp,
       subscriptionStart: rawSubscriptionStart,
+      debtAmount,
+      debtReason,
+      addDebt,
     } = body;
 
     // Handle groupIds (multi-group array) or legacy groupId
@@ -197,6 +218,28 @@ export async function PATCH(
     let finalFormula = formula;
     let finalPriceDA = priceDA !== undefined ? parseInt(priceDA, 10) : undefined;
 
+    // Handle explicit debt (ancien unsettled payment)
+    const effectiveDebtInput = debtAmount !== undefined
+      ? parseInt(debtAmount, 10)
+      : addDebt !== undefined
+      ? parseInt(addDebt, 10)
+      : undefined;
+
+    if (effectiveDebtInput !== undefined && !isNaN(effectiveDebtInput)) {
+      finalPriceDA = Math.max(0, effectiveDebtInput);
+      const currentMemberNotes = updatedNotes !== undefined
+        ? updatedNotes
+        : (await prisma.swimMember.findUnique({ where: { id }, select: { notes: true } }))?.notes;
+      updatedNotes = encodeDebtInNotes(currentMemberNotes, finalPriceDA, debtReason || "Ancien impaye");
+
+      await logAdminAction(
+        session.user?.id || null,
+        "ADD_SWIM_DEBT",
+        `Member ${id}`,
+        `Recorded debt of ${finalPriceDA} DA. Reason: ${debtReason || "Ancien impaye"}`
+      );
+    }
+
     if (targetMultiGroupIds !== undefined && targetMultiGroupIds.length > 0) {
       const groupLevels = targetGroupsList.map((g) => g.level);
       const resolved = resolveMultiGroupFormula(groupLevels);
@@ -212,6 +255,17 @@ export async function PATCH(
           duration: effDur,
         });
       }
+    } else if (finalPriceDA === undefined && targetMultiGroupIds !== undefined && targetMultiGroupIds.length === 0) {
+      // Swimmer was unassigned from all groups.
+      // Rule: Non-assigned clients are NOT automatically linked to payment situation unless explicit debt is set.
+      const current = await prisma.swimMember.findUnique({
+        where: { id },
+        select: { notes: true },
+      });
+      const parsedDebt = parseDebtFromNotes(current?.notes);
+      if (!parsedDebt.hasDebt) {
+        finalPriceDA = 0;
+      }
     } else if (finalPriceDA === undefined && (groupId !== undefined || formula !== undefined || duration !== undefined)) {
       const current = await prisma.swimMember.findUnique({
         where: { id },
@@ -219,23 +273,25 @@ export async function PATCH(
       });
       if (current) {
         const targetGroupId = effectivePrimaryGroupId !== undefined ? effectivePrimaryGroupId : current.groupId;
-        let groupLevel = current.group?.level || "G10";
-        if (targetGroupId && targetGroupId !== current.groupId) {
+        // ONLY calculate autoPrice if targetGroupId actually exists (assigned to a group)!
+        if (targetGroupId) {
           const g = await prisma.swimGroup.findUnique({ where: { id: targetGroupId } });
-          if (g) groupLevel = g.level;
-        }
-        const effFormula = formula || current.formula || "G10";
-        const effDuration = duration || current.duration || "3m";
-        const freqMatch = effFormula.match(/^([123])x/i);
-        const freq = freqMatch ? parseInt(freqMatch[1], 10) : 1;
-        const autoPrice = calculateSwimPrice({
-          category: category || current.category,
-          groupType: groupLevel,
-          duration: effDuration,
-          frequency: freq,
-        });
-        if (autoPrice > 0) {
-          finalPriceDA = autoPrice;
+          if (g && g.active) {
+            const groupLevel = g.level;
+            const effFormula = formula || current.formula || "G10";
+            const effDuration = duration || current.duration || "3m";
+            const freqMatch = effFormula.match(/^([123])x/i);
+            const freq = freqMatch ? parseInt(freqMatch[1], 10) : 1;
+            const autoPrice = calculateSwimPrice({
+              category: category || current.category,
+              groupType: groupLevel,
+              duration: effDuration,
+              frequency: freq,
+            });
+            if (autoPrice > 0) {
+              finalPriceDA = autoPrice;
+            }
+          }
         }
       }
     }
@@ -304,7 +360,7 @@ export async function PATCH(
     });
 
     const allGroupIds = decodeMemberGroupIds(updated.notes, updated.groupId);
-    let allGroups: any[] = [];
+    let allGroups: Array<Record<string, unknown>> = [];
     if (allGroupIds.length > 0) {
       allGroups = await prisma.swimGroup.findMany({
         where: { id: { in: allGroupIds } },
@@ -321,6 +377,13 @@ export async function PATCH(
     const effectivelyUnassigned = effectiveGroups.length === 0;
     const effectiveGroup = effectiveGroups[0] || null;
 
+    const paymentSituation = getMemberPaymentSituation({
+      ...updated,
+      effectiveGroup,
+      effectivelyUnassigned,
+      groups: effectiveGroups,
+    });
+
     return NextResponse.json({
       ...updated,
       groups: allGroups,
@@ -328,6 +391,11 @@ export async function PATCH(
       groupIds: allGroupIds,
       effectiveGroup,
       effectivelyUnassigned,
+      paymentSituation,
+      isAssigned: paymentSituation.isAssigned,
+      isLinkedToPayment: paymentSituation.isLinkedToPayment,
+      isDebtOnly: paymentSituation.isDebtOnly,
+      debtDetails: paymentSituation.debtDetails,
     });
   } catch (err: unknown) {
     logger.error("PATCH admin swim member error:", err);

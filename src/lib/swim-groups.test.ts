@@ -19,6 +19,11 @@ import {
   FRENCH_MONTHS,
   getCurrentFrenchMonth,
   normalizeMonth,
+  isMemberAssignedToGroup,
+  parseDebtFromNotes,
+  encodeDebtInNotes,
+  removeDebtFromNotes,
+  getMemberPaymentSituation,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -327,6 +332,87 @@ describe("Swim Groups Utilities", () => {
       expect(isMemberPoolPaid(notes, "Octobre")).toBe(true);
       expect(isMemberPoolPaid(notes, "Novembre")).toBe(false);
       expect(isMemberPoolPaid(notes, "Janvier")).toBe(false);
+    });
+  });
+
+  describe("Swimmer Assignment & Payment Situation Rule", () => {
+    it("correctly identifies assigned vs unassigned members", () => {
+      expect(isMemberAssignedToGroup({ groupId: "grp-1" })).toBe(true);
+      expect(isMemberAssignedToGroup({ groupId: null })).toBe(false);
+      expect(isMemberAssignedToGroup({ effectivelyUnassigned: true, groupId: "grp-1" })).toBe(false);
+      expect(isMemberAssignedToGroup({ effectiveGroup: { id: "grp-1", active: true } })).toBe(true);
+      expect(isMemberAssignedToGroup({ effectiveGroup: { id: "grp-1", active: false } })).toBe(false);
+      expect(isMemberAssignedToGroup({ groups: [{ id: "grp-1", active: true }] })).toBe(true);
+      expect(isMemberAssignedToGroup(null)).toBe(false);
+    });
+
+    it("parses, encodes, and removes debt tags in member notes", () => {
+      const parsedEmpty = parseDebtFromNotes(null);
+      expect(parsedEmpty.hasDebt).toBe(false);
+      expect(parsedEmpty.amount).toBe(0);
+
+      const encoded = encodeDebtInNotes("Existing user note", 5000, "Ancien impaye saison 2023-2024");
+      expect(encoded).toContain("[DEBT:5000:Ancien impaye saison 2023-2024]");
+      expect(encoded).toContain("Existing user note");
+
+      const parsed = parseDebtFromNotes(encoded);
+      expect(parsed.hasDebt).toBe(true);
+      expect(parsed.amount).toBe(5000);
+      expect(parsed.reason).toBe("Ancien impaye saison 2023-2024");
+
+      const removed = removeDebtFromNotes(encoded);
+      expect(removed).toBe("Existing user note");
+      expect(parseDebtFromNotes(removed).hasDebt).toBe(false);
+    });
+
+    it("rule: assigned client is automatically linked to payment situation", () => {
+      const assignedMember = {
+        groupId: "grp-1",
+        group: { id: "grp-1", active: true },
+        priceDA: 18000,
+        payments: [{ amount: 6000 }],
+      };
+      const situation = getMemberPaymentSituation(assignedMember);
+      expect(situation.isAssigned).toBe(true);
+      expect(situation.isLinkedToPayment).toBe(true);
+      expect(situation.isDebtOnly).toBe(false);
+      expect(situation.effectivePriceDA).toBe(18000);
+      expect(situation.totalPaid).toBe(6000);
+      expect(situation.debt).toBe(12000);
+      expect(situation.hasDebt).toBe(true);
+    });
+
+    it("rule: non-assigned client is NOT automatically linked to payment situation even if priceDA was in DB", () => {
+      const unassignedMember = {
+        groupId: null,
+        priceDA: 18000, // legacy auto-calculated tariff lingering in DB
+        payments: [],
+      };
+      const situation = getMemberPaymentSituation(unassignedMember);
+      expect(situation.isAssigned).toBe(false);
+      expect(situation.isLinkedToPayment).toBe(false);
+      expect(situation.isDebtOnly).toBe(false);
+      expect(situation.effectivePriceDA).toBe(0);
+      expect(situation.debt).toBe(0);
+      expect(situation.hasDebt).toBe(false);
+    });
+
+    it("rule: non-assigned client WITH explicit debt tag IS linked to payment situation", () => {
+      const unassignedWithDebt = {
+        groupId: null,
+        notes: "[DEBT:7000:Ancien impaye reste a payer]",
+        priceDA: 7000,
+        payments: [{ amount: 2000 }],
+      };
+      const situation = getMemberPaymentSituation(unassignedWithDebt);
+      expect(situation.isAssigned).toBe(false);
+      expect(situation.isLinkedToPayment).toBe(true);
+      expect(situation.isDebtOnly).toBe(true);
+      expect(situation.effectivePriceDA).toBe(7000);
+      expect(situation.totalPaid).toBe(2000);
+      expect(situation.debt).toBe(5000);
+      expect(situation.hasDebt).toBe(true);
+      expect(situation.debtDetails.reason).toBe("Ancien impaye reste a payer");
     });
   });
 });

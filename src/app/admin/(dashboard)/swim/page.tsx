@@ -12,6 +12,7 @@ import {
   getSwimLevelLabel,
   parseScheduleSlots,
   isMemberPoolPaid,
+  getMemberPaymentSituation,
 } from "@/lib/swim-groups";
 import {
   parseSwimLeadNotes,
@@ -241,7 +242,7 @@ export default function SwimOverviewPage() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
   // Payments Tab State
-  const [paymentsFilter, setPaymentsFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "expiring">("all");
+  const [paymentsFilter, setPaymentsFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "debt_only" | "expiring" | "unassigned">("all");
   const [paymentsSearch, setPaymentsSearch] = useState("");
   const [savingSubStart, setSavingSubStart] = useState<string | null>(null); // memberId being saved
   const [editingSubStart, setEditingSubStart] = useState<Record<string, string>>({}); // memberId -> date string
@@ -403,7 +404,22 @@ export default function SwimOverviewPage() {
         (levelFilter === "old_aqa" && (m.level === "intermediate" || m.level === "advanced"));
 
       const matchCategory = categoryFilter === "all" || m.category === categoryFilter;
-      const matchPayment = paymentFilter === "all" || m.paymentStatus === paymentFilter;
+
+      const sit = getMemberPaymentSituation(m);
+      let matchPayment = true;
+      if (paymentFilter === "all") {
+        matchPayment = true;
+      } else if (paymentFilter === "debt_only") {
+        matchPayment = sit.isDebtOnly;
+      } else if (paymentFilter === "unassigned") {
+        matchPayment = !sit.isAssigned && !sit.isDebtOnly;
+      } else if (paymentFilter === "unpaid") {
+        matchPayment = sit.isLinkedToPayment && (m.paymentStatus === "unpaid" || sit.debt > 0);
+      } else if (paymentFilter === "paid") {
+        matchPayment = sit.isLinkedToPayment && m.paymentStatus === "paid" && sit.debt === 0;
+      } else if (paymentFilter === "partial") {
+        matchPayment = sit.isLinkedToPayment && m.paymentStatus === "partial";
+      }
 
       return matchSearch && matchLevel && matchCategory && matchPayment;
     });
@@ -428,7 +444,7 @@ export default function SwimOverviewPage() {
 
   // Financial calculations
   const totalRevenueExpected = Array.isArray(members)
-    ? members.reduce((sum, m) => sum + (m?.priceDA || 0), 0)
+    ? members.reduce((sum, m) => sum + getMemberPaymentSituation(m).effectivePriceDA, 0)
     : 0;
   const totalRevenueCollected = Array.isArray(members)
     ? members.reduce(
@@ -456,16 +472,29 @@ export default function SwimOverviewPage() {
   const enrichedPaymentsMembers = useMemo(() => {
     if (!Array.isArray(members)) return [];
     return members.map((m) => {
-      const totalPaid = Array.isArray(m.payments)
-        ? m.payments.reduce((s, p) => s + (p?.amount || 0), 0)
-        : 0;
-      const debt = Math.max(0, m.priceDA - totalPaid);
+      const situation = getMemberPaymentSituation(m);
+      const totalPaid = situation.totalPaid;
+      const debt = situation.debt;
       const subStart = getEffectiveSubscriptionStart(m.dateOfStart);
       const subEnd = computeSubscriptionEnd(subStart, m.duration, excludedPeriods);
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
       const expiringSoon = isSubscriptionExpiringSoon(subEnd, 14);
-      return { ...m, totalPaid, debt, subStart, subEnd, daysLeft, subStatus, expiringSoon };
+      return {
+        ...m,
+        totalPaid,
+        debt,
+        effectivePriceDA: situation.effectivePriceDA,
+        isAssigned: situation.isAssigned,
+        isLinkedToPayment: situation.isLinkedToPayment,
+        isDebtOnly: situation.isDebtOnly,
+        debtDetails: situation.debtDetails,
+        subStart,
+        subEnd,
+        daysLeft,
+        subStatus,
+        expiringSoon,
+      };
     });
   }, [members, excludedPeriods]);
 
@@ -477,16 +506,37 @@ export default function SwimOverviewPage() {
         m.fullName.toLowerCase().includes(q) ||
         m.phone.includes(q) ||
         m.swimId.toLowerCase().includes(q);
-      const matchFilter =
-        paymentsFilter === "all" ||
-        (paymentsFilter === "expiring" && m.expiringSoon) ||
-        m.paymentStatus === paymentsFilter;
-      return matchSearch && matchFilter;
+
+      if (!matchSearch) return false;
+
+      // Filter: Unassigned without debt
+      if (paymentsFilter === "unassigned") {
+        return !m.isAssigned && !m.isDebtOnly;
+      }
+
+      // Rule: In AQA Swim, we wait payment only from assigned clients to a group.
+      // Non-assigned clients are not automatically linked to payment situation
+      // unless we set add debt (ancien unsettled payment).
+      if (!m.isLinkedToPayment) {
+        return false;
+      }
+
+      if (paymentsFilter === "all") return true;
+      if (paymentsFilter === "debt_only") return m.isDebtOnly;
+      if (paymentsFilter === "expiring") return m.expiringSoon;
+      return m.paymentStatus === paymentsFilter;
     });
   }, [enrichedPaymentsMembers, paymentsSearch, paymentsFilter]);
 
-  const totalOutstanding = enrichedPaymentsMembers.reduce((s, m) => s + m.debt, 0);
-  const expiringCount = enrichedPaymentsMembers.filter((m) => m.expiringSoon).length;
+  const totalOutstanding = enrichedPaymentsMembers
+    .filter((m) => m.isLinkedToPayment)
+    .reduce((s, m) => s + m.debt, 0);
+  const expiringCount = enrichedPaymentsMembers
+    .filter((m) => m.isLinkedToPayment && m.expiringSoon)
+    .length;
+  const debtOnlyCount = enrichedPaymentsMembers
+    .filter((m) => m.isDebtOnly)
+    .length;
 
   // Save a manually overridden subscription start for a member
   async function handleSaveSubStart(memberId: string) {
@@ -1156,6 +1206,8 @@ export default function SwimOverviewPage() {
               <option value="paid">Paid</option>
               <option value="partial">Partial</option>
               <option value="unpaid">Unpaid</option>
+              <option value="debt_only">Debt / Ancien Impayé</option>
+              <option value="unassigned">Unassigned (No Debt)</option>
             </select>
 
             <span className="text-xs text-[var(--muted)] ml-auto">
@@ -1278,9 +1330,30 @@ export default function SwimOverviewPage() {
                           <td className="py-3 px-4">
                             <div>
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                {m.paymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
-                                {m.paymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
-                                {m.paymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
+                                {(() => {
+                                  const sit = getMemberPaymentSituation(m);
+                                  if (!sit.isLinkedToPayment) {
+                                    return (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-white/10">
+                                        Non Requis
+                                      </span>
+                                    );
+                                  }
+                                  if (sit.isDebtOnly) {
+                                    return (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/30">
+                                        Dette ({sit.debt.toLocaleString("fr-DZ")} DA)
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <>
+                                      {m.paymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
+                                      {m.paymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
+                                      {m.paymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
+                                    </>
+                                  );
+                                })()}
                                 {isMemberPoolPaid(m.notes) && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-400/40">
                                     poolpaid
@@ -1288,7 +1361,10 @@ export default function SwimOverviewPage() {
                                 )}
                               </div>
                               <div className="text-[10px] text-[var(--muted)] font-mono mt-0.5">
-                                {m.priceDA.toLocaleString("fr-DZ")} DA
+                                {(() => {
+                                  const sit = getMemberPaymentSituation(m);
+                                  return `${sit.effectivePriceDA.toLocaleString("fr-DZ")} DA`;
+                                })()}
                               </div>
                             </div>
                           </td>
@@ -2062,7 +2138,15 @@ export default function SwimOverviewPage() {
               className="w-full sm:w-64"
             />
             <div className="flex gap-1.5 flex-wrap">
-              {(["all", "paid", "partial", "unpaid", "expiring"] as const).map((f) => (
+              {([
+                { key: "all", label: "All" },
+                { key: "paid", label: "Paid" },
+                { key: "partial", label: "Partial" },
+                { key: "unpaid", label: "Unpaid" },
+                { key: "debt_only", label: `Dette / Ancien (${debtOnlyCount})` },
+                { key: "expiring", label: `Expiring (${expiringCount})` },
+                { key: "unassigned", label: "Non Assignés" },
+              ] as const).map(({ key: f, label }) => (
                 <button
                   key={f}
                   onClick={() => setPaymentsFilter(f)}
@@ -2074,13 +2158,15 @@ export default function SwimOverviewPage() {
                         ? "bg-amber-700 text-white"
                         : f === "unpaid"
                         ? "bg-rose-800 text-white"
+                        : f === "debt_only"
+                        ? "bg-rose-900 text-rose-200 border border-rose-500/50"
                         : f === "expiring"
                         ? "bg-amber-900 text-amber-200"
                         : "bg-[var(--primary)] text-white"
                       : "bg-slate-800 text-slate-400 hover:text-white border border-white/8"
                   }`}
                 >
-                  {f === "expiring" ? `Expiring (${expiringCount})` : f}
+                  {label}
                 </button>
               ))}
             </div>
@@ -2143,11 +2229,38 @@ export default function SwimOverviewPage() {
                         <div className="font-semibold text-white leading-tight">{m.fullName}</div>
                         <div className="text-[10px] text-slate-400 font-mono">{m.swimId}</div>
                         <div className="text-[10px] text-slate-500">{m.phone}</div>
+                        {m.isDebtOnly && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-950/80 text-rose-300 border border-rose-500/30">
+                            Dette Antérieure
+                          </span>
+                        )}
+                        {!m.isAssigned && !m.isDebtOnly && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-400 border border-white/10">
+                            Non Assigné (Pas de dette)
+                          </span>
+                        )}
                       </td>
                       {/* Formula / Duration */}
                       <td className="px-3 py-2.5">
-                        <span className="font-semibold text-slate-200">{m.formula}</span>
-                        <span className="ml-1 text-slate-400">{m.duration}</span>
+                        {m.isDebtOnly ? (
+                          <div>
+                            <span className="font-semibold text-rose-300">Dette Antérieure</span>
+                            {m.debtDetails?.reason && (
+                              <div className="text-[10px] text-slate-400 truncate max-w-[140px]" title={m.debtDetails.reason}>
+                                {m.debtDetails.reason}
+                              </div>
+                            )}
+                          </div>
+                        ) : !m.isAssigned ? (
+                          <div>
+                            <span className="text-slate-400 italic">En attente groupe</span>
+                          </div>
+                        ) : (
+                          <>
+                            <span className="font-semibold text-slate-200">{m.formula}</span>
+                            <span className="ml-1 text-slate-400">{m.duration}</span>
+                          </>
+                        )}
                       </td>
                       {/* Sub Start — editable */}
                       <td className="px-3 py-2.5">
@@ -2217,7 +2330,7 @@ export default function SwimOverviewPage() {
                       </td>
                       {/* Price */}
                       <td className="px-3 py-2.5 font-mono text-slate-200 font-semibold">
-                        {m.priceDA.toLocaleString("fr-DZ")} DA
+                        {m.effectivePriceDA.toLocaleString("fr-DZ")} DA
                       </td>
                       {/* Paid */}
                       <td className="px-3 py-2.5 font-mono text-emerald-400 font-semibold">
@@ -2233,15 +2346,25 @@ export default function SwimOverviewPage() {
                       </td>
                       {/* Payment Status */}
                       <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          m.paymentStatus === "paid"
-                            ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
-                            : m.paymentStatus === "partial"
-                            ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
-                            : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
-                        }`}>
-                          {m.paymentStatus}
-                        </span>
+                        {m.isDebtOnly ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-950/80 text-rose-300 border border-rose-500/30">
+                            Dette ({m.debt.toLocaleString("fr-DZ")} DA)
+                          </span>
+                        ) : !m.isAssigned ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-400 border border-white/10">
+                            En Attente
+                          </span>
+                        ) : (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            m.paymentStatus === "paid"
+                              ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                              : m.paymentStatus === "partial"
+                              ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                              : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
+                          }`}>
+                            {m.paymentStatus}
+                          </span>
+                        )}
                         {m.expiringSoon && m.paymentStatus === "paid" && (
                           <span className="ml-1 px-1.5 py-0.5 rounded-full text-[9px] bg-amber-900/60 text-amber-300 border border-amber-500/20 font-semibold">
                             Renew

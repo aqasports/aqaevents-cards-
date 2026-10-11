@@ -11,7 +11,7 @@ import {
   SwimFrequency,
 } from "@/lib/swim-pricing";
 import { parseSwimLeadNotes } from "@/lib/swim-lead-details";
-import { encodeMemberGroupIds } from "@/lib/swim-groups";
+import { encodeMemberGroupIds, encodeDebtInNotes } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,6 @@ export async function POST(request: NextRequest) {
 
     const category = (lead.category || "homme") as SwimCategory;
     const duration = (lead.duration || "3m") as SwimDuration;
-    const frequency = (lead.frequency || "1x") as SwimFrequency;
 
     let formula = lead.formula || "G10";
     if (orderedTargetGroups.length > 0) {
@@ -84,16 +83,19 @@ export async function POST(request: NextRequest) {
       formula = resolved.formula;
     }
 
+    const isAssigned = orderedTargetGroups.length > 0;
     const finalPrice =
-      priceDA ??
-      leadDetails.demographics.priceDA ??
-      (orderedTargetGroups.length > 0
-        ? calculateSwimPrice({
-            category,
-            groupTypes: orderedTargetGroups.map((g) => g.level),
-            duration,
-          })
-        : calculateSwimPrice(category, formula, duration, frequency));
+      priceDA !== undefined && priceDA !== null
+        ? parseInt(String(priceDA), 10)
+        : leadDetails.demographics.priceDA !== undefined && leadDetails.demographics.priceDA !== null
+        ? leadDetails.demographics.priceDA
+        : (isAssigned
+            ? calculateSwimPrice({
+                category,
+                groupTypes: orderedTargetGroups.map((g) => g.level),
+                duration,
+              })
+            : 0);
 
     // Check if this lead belongs to an existing SwimMember (Old Member flow)
     let existingMember = null;
@@ -184,10 +186,14 @@ export async function POST(request: NextRequest) {
     }
 
     const baseNotes = notes !== undefined ? notes : lead.notes || null;
-    const finalNotes =
+    let finalNotes =
       validTargetGroupIds.length > 0
         ? encodeMemberGroupIds(baseNotes, validTargetGroupIds)
         : baseNotes;
+
+    if (!isAssigned && finalPrice > 0) {
+      finalNotes = encodeDebtInNotes(finalNotes, finalPrice, "Ancien impaye");
+    }
 
     // Create member
     const member = await prisma.swimMember.create({

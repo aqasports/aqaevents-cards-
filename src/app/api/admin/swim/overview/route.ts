@@ -3,7 +3,11 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { parseSwimLeadNotes } from "@/lib/swim-lead-details";
-import { decodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  decodeSolidNotes,
+  decodeMemberGroupIds,
+  getMemberPaymentSituation,
+} from "@/lib/swim-groups";
 import { getSwimCardUrl } from "@/lib/swim-id";
 
 export const dynamic = "force-dynamic";
@@ -87,13 +91,25 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    // Member enrichment: calculate effectiveGroup and effectivelyUnassigned
+    // Member enrichment: calculate effectiveGroup, effectivelyUnassigned, and paymentSituation
     const members = rawMembers.map((m) => {
       const effectivelyUnassigned = Boolean(m.groupId && m.group && !m.group.active);
+      const effectiveGroup = effectivelyUnassigned ? null : m.group;
+      const paymentSituation = getMemberPaymentSituation({
+        ...m,
+        effectiveGroup,
+        effectivelyUnassigned,
+      });
+
       return {
         ...m,
-        effectiveGroup: effectivelyUnassigned ? null : m.group,
+        effectiveGroup,
         effectivelyUnassigned,
+        paymentSituation,
+        isAssigned: paymentSituation.isAssigned,
+        isLinkedToPayment: paymentSituation.isLinkedToPayment,
+        isDebtOnly: paymentSituation.isDebtOnly,
+        debtDetails: paymentSituation.debtDetails,
       };
     });
 

@@ -5,7 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PageHeader, Badge, Button, Input, Card } from "@/components/admin/ui";
 import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
-import { isMemberPoolPaid } from "@/lib/swim-groups";
+import {
+  isMemberPoolPaid,
+  parseDebtFromNotes,
+  getMemberPaymentSituation,
+} from "@/lib/swim-groups";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { useLocale } from "@/lib/i18n";
 import QRCode from "qrcode";
@@ -181,6 +185,12 @@ export default function AdminSwimmerProfilePage({
   const [paymentNotes, setPaymentNotes] = useState("");
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
+  // Add Debt state (ancien unsettled payment)
+  const [showAddDebt, setShowAddDebt] = useState(false);
+  const [debtAmountInput, setDebtAmountInput] = useState("");
+  const [debtReasonInput, setDebtReasonInput] = useState("");
+  const [savingDebt, setSavingDebt] = useState(false);
+
   // Tariff Configuration State (direct ledger calculation without reassigning)
   const [showTariffConfig, setShowTariffConfig] = useState(false);
   const [tariffDuration, setTariffDuration] = useState("3m");
@@ -238,9 +248,13 @@ export default function AdminSwimmerProfilePage({
         ? data.groups
         : (data.group ? [data.group] : []);
 
-      // If member already has a group but tariff is not set (0), automatically
-      // calculate the official AQA tariff and sync it to the ledger.
-      if (effectivePrice === 0 && allMemberGroups.length > 0) {
+      // Rule: Non-assigned clients are NOT automatically linked to payment situation
+      // unless we set add debt (ancien unsettled payment).
+      const parsedDebt = parseDebtFromNotes(data.notes);
+      if (allMemberGroups.length === 0 && !parsedDebt.hasDebt) {
+        effectivePrice = 0;
+        data.priceDA = 0;
+      } else if (effectivePrice === 0 && allMemberGroups.length > 0) {
         const groupLevels = allMemberGroups.map((g) => g.level);
         const dur = data.duration || "3m";
         const computed = calculateSwimPrice({
@@ -503,14 +517,44 @@ export default function AdminSwimmerProfilePage({
     }
   }
 
+  async function handleAddDebt(e: React.FormEvent) {
+    e.preventDefault();
+    if (!member || !debtAmountInput) return;
+    setSavingDebt(true);
+    try {
+      const res = await fetch(`/api/admin/swim/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          debtAmount: parseInt(debtAmountInput, 10),
+          debtReason: debtReasonInput.trim(),
+        }),
+      });
+      if (res.ok) {
+        setShowAddDebt(false);
+        setDebtAmountInput("");
+        setDebtReasonInput("");
+        await loadMember();
+      }
+    } finally {
+      setSavingDebt(false);
+    }
+  }
+
   async function handleRemoveGroup() {
     if (!member) return;
     setSavingGroup(true);
     try {
+      const parsedDebt = parseDebtFromNotes(member.notes);
       await fetch(`/api/admin/swim/members/${member.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ groupIds: [] }),
+        body: JSON.stringify({
+          groupIds: [],
+          formula: "Pending Group",
+          // Reset subscription tariff to 0 unless explicit debt tag is present
+          ...(parsedDebt.hasDebt ? {} : { priceDA: 0 }),
+        }),
       });
       await loadMember();
     } finally {
@@ -569,12 +613,15 @@ export default function AdminSwimmerProfilePage({
 
   // ─── Derived values ─────────────────────────────────────────────────────────
 
-  const totalPaid = member?.payments.reduce((s, p) => s + p.amount, 0) ?? 0;
-  const priceDA = member?.priceDA ?? 0;
-  const debt = Math.max(0, priceDA - totalPaid);
+  const paymentSituation = getMemberPaymentSituation(member);
+  const totalPaid = paymentSituation.totalPaid;
+  const priceDA = paymentSituation.effectivePriceDA;
+  const debt = paymentSituation.debt;
   const isFullyPaid = priceDA > 0 && totalPaid >= priceDA;
-  const hasDebt = priceDA > 0 && debt > 0;
-  const balance = priceDA - totalPaid;
+  const hasDebt = paymentSituation.hasDebt;
+  const isAssigned = paymentSituation.isAssigned;
+  const isDebtOnly = paymentSituation.isDebtOnly;
+  const debtDetails = paymentSituation.debtDetails;
   const paymentProgressPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : 0;
 
   const filteredGroups = groups.filter((g) => {
@@ -720,7 +767,13 @@ export default function AdminSwimmerProfilePage({
         <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
           <div className="text-[10px] text-[var(--muted)] uppercase font-semibold mb-1">Ledger Balance</div>
           <div className={`text-sm font-bold ${hasDebt ? "text-rose-400" : isFullyPaid ? "text-emerald-400" : "text-slate-300"}`}>
-            {hasDebt ? `Debt: ${debt.toLocaleString("fr-DZ")} DA` : isFullyPaid ? "Paid in Full" : `${priceDA.toLocaleString("fr-DZ")} DA`}
+            {!isAssigned && !hasDebt
+              ? "0 DA (Unassigned)"
+              : hasDebt
+              ? `Debt: ${debt.toLocaleString("fr-DZ")} DA`
+              : isFullyPaid
+              ? "Paid in Full"
+              : `${priceDA.toLocaleString("fr-DZ")} DA`}
           </div>
         </div>
       </div>
@@ -1206,6 +1259,9 @@ export default function AdminSwimmerProfilePage({
                   )}
                 </div>
                 <div className="flex gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setShowAddDebt(true)}>
+                    + Dette
+                  </Button>
                   <Button size="sm" variant="secondary" onClick={() => setShowTariffConfig(!showTariffConfig)}>
                     {showTariffConfig ? "Cancel" : "Tariff Plan"}
                   </Button>
@@ -1286,19 +1342,43 @@ export default function AdminSwimmerProfilePage({
               )}
 
               {/* Debt / Payment Status Banner */}
-              {hasDebt ? (
+              {!isAssigned && !hasDebt ? (
+                <div className="p-3.5 rounded-xl bg-slate-800/40 border border-white/10 text-xs text-slate-300 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-slate-400" />
+                      <span className="font-semibold text-slate-200">
+                        {t("unassignedNoPaymentExpected")}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[var(--muted)] mt-1">
+                      Non assigné à un groupe : aucun paiement attendu automatiquement (sauf ajout d&apos;une dette / ancien impayé).
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => setShowAddDebt(true)}>
+                      + Dette (Ancien Impayé)
+                    </Button>
+                  </div>
+                </div>
+              ) : hasDebt ? (
                 <div className="p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
                       <span className="text-xs font-black uppercase tracking-wide">
-                        Debt Outstanding / Reste a payer
+                        {isDebtOnly ? "Ancien Impayé / Dette Antérieure" : "Debt Outstanding / Reste a payer"}
                       </span>
                     </div>
                     <span className="text-sm font-mono font-black text-rose-400">
                       {debt.toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
+                  {debtDetails.reason && (
+                    <div className="text-[11px] text-rose-300/80 font-mono">
+                      Motif: {debtDetails.reason}
+                    </div>
+                  )}
                   <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-white/5">
                     <div
                       className="bg-gradient-to-r from-amber-500 to-rose-500 h-full rounded-full transition-all duration-500"
@@ -1599,6 +1679,80 @@ export default function AdminSwimmerProfilePage({
           </div>
         </div>
       </div>
+
+      {/* Add Debt Modal (Ancien Impayé) */}
+      {showAddDebt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-md p-6 rounded-2xl bg-slate-900 border border-rose-500/40 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider font-display">
+                  {t("addDebtModalTitle")}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {t("addDebtModalDesc")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddDebt(false)}
+                className="text-slate-400 hover:text-white p-1 text-sm font-mono"
+              >
+                X
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDebt} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t("debtAmount")}
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="100"
+                  required
+                  placeholder="e.g. 5000"
+                  value={debtAmountInput}
+                  onChange={(e) => setDebtAmountInput(e.target.value)}
+                  className="w-full font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  {t("debtReason")}
+                </label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Ancien impaye saison precedente"
+                  value={debtReasonInput}
+                  onChange={(e) => setDebtReasonInput(e.target.value)}
+                  className="w-full text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowAddDebt(false)}
+                  disabled={savingDebt}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={savingDebt || !debtAmountInput}
+                >
+                  {savingDebt ? t("savingDebt") : t("saveDebt")}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

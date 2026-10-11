@@ -425,11 +425,6 @@ export function isMemberPoolPaid(notes?: string | null, targetMonth?: string): b
   );
 }
 
-/**
- * Encodes or removes the [POOLPAID] tag in a member's notes field.
- * Safely preserves any other tags ([GROUPS:...], [SOLID]) and arbitrary user text.
- * Optionally stores the specific month of the payment: [POOLPAID:Octobre].
- */
 export function encodePoolPaidNotes(
   notes: string | null | undefined,
   isPoolPaid: boolean,
@@ -448,4 +443,197 @@ export function encodePoolPaidNotes(
   }
   return tag;
 }
+
+// ─── Swimmer Assignment & Debt Utilities ─────────────────────────────────────
+// Rule: In AQA Swim, we wait payment only from clients assigned to a group.
+// Non-assigned clients are NOT automatically linked to payment situation
+// unless we explicitly set/add debt (ancien unsettled payment).
+
+export const SWIM_DEBT_TAG_PREFIX = "[DEBT";
+
+export interface ParsedSwimDebt {
+  hasDebt: boolean;
+  amount: number;
+  reason: string;
+}
+
+/**
+ * Checks whether a swimmer is assigned to at least one active group.
+ */
+export function isMemberAssignedToGroup(
+  member:
+    | {
+        groupId?: string | null;
+        effectiveGroup?: { id: string; active?: boolean } | null;
+        effectivelyUnassigned?: boolean;
+        groups?: Array<{ id: string; active?: boolean }>;
+        group?: { id: string; active?: boolean } | null;
+      }
+    | null
+    | undefined
+): boolean {
+  if (!member) return false;
+  if (member.effectivelyUnassigned) return false;
+  if (member.effectiveGroup && member.effectiveGroup.active !== false) return true;
+  if (Array.isArray(member.groups) && member.groups.length > 0) {
+    return member.groups.some((g) => g.active !== false);
+  }
+  if (member.group && member.group.active !== false) return true;
+  if (member.groupId && member.groupId.trim().length > 0) return true;
+  return false;
+}
+
+/**
+ * Parses [DEBT:amount:reason] or [DEBT:amount] from member notes.
+ */
+export function parseDebtFromNotes(notes?: string | null): ParsedSwimDebt {
+  if (!notes || !notes.includes("[DEBT")) {
+    return { hasDebt: false, amount: 0, reason: "" };
+  }
+
+  // Matches [DEBT:5000:Reason text here] or [DEBT:5000] or [DEBT]
+  const match = notes.match(/\[DEBT(?::(\d+)(?::([^\]]*))?)?\]/);
+  if (!match) {
+    return { hasDebt: false, amount: 0, reason: "" };
+  }
+
+  const rawAmount = match[1] ? parseInt(match[1], 10) : 0;
+  const reason = match[2]?.trim() || "";
+  return {
+    hasDebt: true,
+    amount: isNaN(rawAmount) ? 0 : rawAmount,
+    reason,
+  };
+}
+
+/**
+ * Encodes [DEBT:amount:reason] into member notes without corrupting other tags.
+ */
+export function encodeDebtInNotes(
+  notes: string | null | undefined,
+  amount: number,
+  reason?: string | null
+): string {
+  const raw = notes ?? "";
+  const cleaned = raw.replace(/\[DEBT(?::[^\]]*)?\]/g, "").trim().replace(/\s{2,}/g, " ");
+  const cleanReason = (reason || "").replace(/[\[\]]/g, "").trim();
+  const safeAmount = Math.max(0, Math.round(amount));
+  const tag = cleanReason
+    ? `[DEBT:${safeAmount}:${cleanReason}]`
+    : `[DEBT:${safeAmount}]`;
+
+  if (cleaned.length > 0) {
+    return `${tag} ${cleaned}`;
+  }
+  return tag;
+}
+
+/**
+ * Removes [DEBT...] tag from member notes.
+ */
+export function removeDebtFromNotes(notes: string | null | undefined): string | null {
+  if (!notes) return null;
+  const cleaned = notes.replace(/\[DEBT(?::[^\]]*)?\]/g, "").trim().replace(/\s{2,}/g, " ");
+  return cleaned.length > 0 ? cleaned : null;
+}
+
+export interface MemberPaymentSituation {
+  isAssigned: boolean;
+  isLinkedToPayment: boolean;
+  isDebtOnly: boolean;
+  effectivePriceDA: number;
+  totalPaid: number;
+  debt: number;
+  hasDebt: boolean;
+  debtDetails: ParsedSwimDebt;
+}
+
+/**
+ * Calculates whether a member is in the payment situation, their effective tariff,
+ * and their balance.
+ *
+ * Rules:
+ * 1. Assigned clients to a group are automatically linked to payment situation.
+ * 2. Non-assigned clients are NOT automatically linked to payment situation
+ *    UNLESS an explicit debt is set (ancien unsettled payment).
+ */
+export function getMemberPaymentSituation(
+  member: {
+    groupId?: string | null;
+    effectiveGroup?: { id: string; active?: boolean } | null;
+    effectivelyUnassigned?: boolean;
+    groups?: Array<{ id: string; active?: boolean }>;
+    group?: { id: string; active?: boolean } | null;
+    notes?: string | null;
+    priceDA?: number;
+    payments?: Array<{ amount: number }>;
+  } | null | undefined
+): MemberPaymentSituation {
+  if (!member) {
+    return {
+      isAssigned: false,
+      isLinkedToPayment: false,
+      isDebtOnly: false,
+      effectivePriceDA: 0,
+      totalPaid: 0,
+      debt: 0,
+      hasDebt: false,
+      debtDetails: { hasDebt: false, amount: 0, reason: "" },
+    };
+  }
+
+  const isAssigned = isMemberAssignedToGroup(member);
+  const debtDetails = parseDebtFromNotes(member.notes);
+  const totalPaid = Array.isArray(member.payments)
+    ? member.payments.reduce((s, p) => s + (p?.amount || 0), 0)
+    : 0;
+
+  // Case 1: Assigned to a group -> automatically linked to payment situation
+  if (isAssigned) {
+    const effectivePriceDA = member.priceDA ?? 0;
+    const debt = Math.max(0, effectivePriceDA - totalPaid);
+    return {
+      isAssigned: true,
+      isLinkedToPayment: true,
+      isDebtOnly: false,
+      effectivePriceDA,
+      totalPaid,
+      debt,
+      hasDebt: debt > 0,
+      debtDetails,
+    };
+  }
+
+  // Case 2: Non-assigned client
+  // Only linked to payment situation if explicit debt is set (ancien unsettled payment)
+  const hasExplicitDebt = debtDetails.hasDebt;
+
+  if (hasExplicitDebt) {
+    const debtAmount = debtDetails.amount > 0 ? debtDetails.amount : (member.priceDA || 0);
+    const debt = Math.max(0, debtAmount - totalPaid);
+    return {
+      isAssigned: false,
+      isLinkedToPayment: true,
+      isDebtOnly: true,
+      effectivePriceDA: debtAmount,
+      totalPaid,
+      debt,
+      hasDebt: debt > 0,
+      debtDetails,
+    };
+  }
+
+  // Unassigned without explicit debt -> NOT linked to payment situation
+  return {
+    isAssigned: false,
+    isLinkedToPayment: false,
+    isDebtOnly: false,
+    effectivePriceDA: 0,
+    totalPaid,
+    debt: 0,
+    hasDebt: false,
+    debtDetails,
+  };
+}
+
 

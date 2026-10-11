@@ -6,6 +6,7 @@ import {
   decodeMemberGroupIds,
   isOldSwimMember,
   extractFirstName,
+  parseDebtFromNotes,
 } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { nanoid } from "nanoid";
@@ -165,17 +166,29 @@ async function enrichMemberGroups(member: any) {
   const rootGroupMembers = primaryGroup?.groupMembers || [];
   const rootTeammates = primaryGroup?.teammates || [];
 
-  let effectivePriceDA = member.priceDA || 0;
-  if (effectivePriceDA <= 0) {
-    const groupLevels = allGroups.map((g: any) => g.level);
-    const computed = calculateSwimPrice({
-      category: member.category,
-      groupTypes: groupLevels.length > 0 ? groupLevels : [member.formula || "G10"],
-      duration: member.duration || "3m",
-    });
-    if (computed > 0) {
-      effectivePriceDA = computed;
+  const isAssigned = allGroups.length > 0;
+  const debtDetails = parseDebtFromNotes(member.notes);
+  let effectivePriceDA = 0;
+
+  if (isAssigned) {
+    effectivePriceDA = member.priceDA || 0;
+    if (effectivePriceDA <= 0) {
+      const groupLevels = allGroups.map((g: any) => g.level);
+      const computed = calculateSwimPrice({
+        category: member.category,
+        groupTypes: groupLevels.length > 0 ? groupLevels : [member.formula || "G10"],
+        duration: member.duration || "3m",
+      });
+      if (computed > 0) {
+        effectivePriceDA = computed;
+      }
     }
+  } else if (debtDetails.hasDebt) {
+    // Non-assigned client with explicit debt (ancien unsettled payment)
+    effectivePriceDA = debtDetails.amount > 0 ? debtDetails.amount : (member.priceDA || 0);
+  } else {
+    // Non-assigned client without explicit debt -> NOT linked to payment situation!
+    effectivePriceDA = 0;
   }
 
   return {
@@ -186,6 +199,9 @@ async function enrichMemberGroups(member: any) {
     groupMembers: rootGroupMembers,
     teammates: rootTeammates,
     effectivePriceDA,
+    isAssigned,
+    isDebtOnly: !isAssigned && debtDetails.hasDebt,
+    debtDetails,
   };
 }
 
@@ -379,6 +395,9 @@ export async function GET(
         solidNotes: enriched.solidNotes,
         teammates: enriched.teammates,
         groupMembers: enriched.groupMembers,
+        isAssigned: enriched.isAssigned,
+        isDebtOnly: enriched.isDebtOnly,
+        debtDetails: enriched.debtDetails,
         subscriptionStart: subStart,
         subscriptionEnd: subEnd,
         subscriptionDaysLeft: daysLeft,

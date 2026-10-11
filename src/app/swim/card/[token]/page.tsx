@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import Link from "next/link";
 import QRCode from "qrcode";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
+import { getMemberPaymentSituation } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,9 @@ export default async function SwimCardScanPage({ params }: Props) {
       member: {
         include: {
           group: true,
+          payments: {
+            select: { amount: true },
+          },
         },
       },
     },
@@ -29,8 +32,9 @@ export default async function SwimCardScanPage({ params }: Props) {
   }
 
   const member = card.member;
-  const isPaid = member?.paymentStatus === "paid";
-  const isPartial = member?.paymentStatus === "partial";
+  const sit = member ? getMemberPaymentSituation(member) : null;
+  const isPaid = member?.paymentStatus === "paid" || (sit ? sit.debt === 0 && sit.totalPaid > 0 : false);
+  const isPartial = member?.paymentStatus === "partial" || (sit ? sit.totalPaid > 0 && sit.debt > 0 : false);
 
   // Generate QR code for the back of the card
   const cardUrl = `https://aqasports.com/swim/card/${card.publicToken}`;
@@ -77,6 +81,9 @@ export default async function SwimCardScanPage({ params }: Props) {
                 formula: member.formula,
                 duration: member.duration,
                 paymentStatus: member.paymentStatus,
+                isAssigned: sit?.isAssigned,
+                isDebtOnly: sit?.isDebtOnly,
+                isLinkedToPayment: sit?.isLinkedToPayment,
                 group: member.group,
                 card: {
                   cardCode: card.cardCode,
@@ -144,14 +151,34 @@ export default async function SwimCardScanPage({ params }: Props) {
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Payment Status
                 </p>
-                {isPaid ? (
+                {!sit?.isLinkedToPayment ? (
+                  <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-800/80 border border-white/10 text-slate-300">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
+                      <span className="text-sm font-bold tracking-wide">WAITING GROUP / EN ATTENTE</span>
+                    </div>
+                    <span className="text-xs font-mono text-slate-400 font-semibold">
+                      No payment expected
+                    </span>
+                  </div>
+                ) : sit.isDebtOnly ? (
+                  <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-rose-950/50 border border-rose-500/50 text-rose-300">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
+                      <span className="text-sm font-black tracking-wide">DEBT / DETTE ANTERIEURE</span>
+                    </div>
+                    <span className="text-xs font-mono text-rose-400 font-bold">
+                      {sit.effectivePriceDA.toLocaleString("fr-DZ")} DA
+                    </span>
+                  </div>
+                ) : isPaid ? (
                   <div className="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
                     <div className="flex items-center gap-2">
                       <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-ping" />
                       <span className="text-sm font-bold tracking-wide">PAID / A JOUR</span>
                     </div>
                     <span className="text-xs font-mono text-emerald-400 font-semibold">
-                      {member.priceDA.toLocaleString("fr-DZ")} DA
+                      {sit.effectivePriceDA.toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
                 ) : isPartial ? (
@@ -161,7 +188,7 @@ export default async function SwimCardScanPage({ params }: Props) {
                       <span className="text-sm font-bold tracking-wide">PARTIAL PAYMENT</span>
                     </div>
                     <span className="text-xs font-mono text-amber-400 font-semibold">
-                      {member.priceDA.toLocaleString("fr-DZ")} DA
+                      {sit.effectivePriceDA.toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
                 ) : (
@@ -171,7 +198,7 @@ export default async function SwimCardScanPage({ params }: Props) {
                       <span className="text-sm font-black tracking-wide">NOT PAID / NON REGLE</span>
                     </div>
                     <span className="text-xs font-mono text-rose-400 font-bold">
-                      {member.priceDA.toLocaleString("fr-DZ")} DA
+                      {sit.effectivePriceDA.toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
                 )}

@@ -12,6 +12,9 @@ export interface SwimFlipCardMember {
   formula: string;
   duration?: string | null;
   paymentStatus: "paid" | "partial" | "unpaid" | string;
+  isAssigned?: boolean;
+  isDebtOnly?: boolean;
+  isLinkedToPayment?: boolean;
   group?: {
     name: string;
     coachName?: string | null;
@@ -67,8 +70,28 @@ export function SwimFlipCard({
     }
   }, [member.card?.publicToken, precomputedQr]);
 
+  const isAssigned = member.isAssigned !== undefined ? member.isAssigned : Boolean(member.group);
+  const isDebtOnly = Boolean(member.isDebtOnly);
+  const isLinked = member.isLinkedToPayment !== undefined ? member.isLinkedToPayment : (isAssigned || isDebtOnly);
+
   const isPaid = member.paymentStatus === "paid";
   const isPartial = member.paymentStatus === "partial";
+
+  const statusLabel = !isLinked
+    ? "Pending"
+    : isPaid
+    ? "Paid"
+    : isPartial
+    ? "Partial"
+    : "Debt";
+
+  const statusStyle = !isLinked
+    ? "bg-slate-900/80 text-cyan-300 border-cyan-500/50"
+    : isPaid
+    ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/60"
+    : isPartial
+    ? "bg-amber-950/80 text-amber-300 border-amber-500/60"
+    : "bg-rose-950/80 text-rose-300 border-rose-500/60";
 
   return (
     <div className={`w-full flex flex-col items-center select-none ${className}`}>
@@ -139,15 +162,9 @@ export function SwimFlipCard({
               {/* Status Indicator */}
               <div className="shrink-0">
                 <span
-                  className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider border shadow-md ${
-                    isPaid
-                      ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/60"
-                      : isPartial
-                      ? "bg-amber-950/80 text-amber-300 border-amber-500/60"
-                      : "bg-rose-950/80 text-rose-300 border-rose-500/60"
-                  }`}
+                  className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider border shadow-md ${statusStyle}`}
                 >
-                  {isPaid ? "Paid" : isPartial ? "Partial" : "Debt"}
+                  {statusLabel}
                 </span>
               </div>
             </div>
@@ -230,25 +247,17 @@ export function SwimFlipCard({
               </div>
 
               {/* Group Name */}
-              {member.group && (
-                <div className="text-[9px] text-slate-300/90 mt-0.5 truncate">
-                  Group: {member.group.name}
-                </div>
-              )}
+              <div className="text-[9px] text-slate-300/90 mt-0.5 truncate">
+                {member.group ? `Group: ${member.group.name}` : "Group: Pending assignment"}
+              </div>
             </div>
 
             {/* Bottom Right: Payment Status */}
             <div className="absolute bottom-3 right-3 z-10">
               <span
-                className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-md ${
-                  isPaid
-                    ? "bg-emerald-950/90 text-emerald-300 border-emerald-500/60"
-                    : isPartial
-                    ? "bg-amber-950/90 text-amber-300 border-amber-500/60"
-                    : "bg-rose-950/90 text-rose-300 border-rose-500/60"
-                }`}
+                className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border shadow-md ${statusStyle}`}
               >
-                {isPaid ? "Paid" : isPartial ? "Partial" : "Debt"}
+                {statusLabel}
               </span>
             </div>
 

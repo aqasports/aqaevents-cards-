@@ -11,6 +11,7 @@ import {
   isSubscriptionExpiringSoon,
   DEFAULT_EXCLUDED_PERIODS,
 } from "@/lib/swim-subscription";
+import { getMemberPaymentSituation } from "@/lib/swim-groups";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -50,8 +51,9 @@ export async function GET(request: NextRequest) {
     });
 
     const enriched = members.map((m) => {
-      const totalPaid = m.payments.reduce((s, p) => s + p.amount, 0);
-      const debt = Math.max(0, m.priceDA - totalPaid);
+      const situation = getMemberPaymentSituation(m);
+      const totalPaid = situation.totalPaid;
+      const debt = situation.debt;
 
       // Compute subscription dates on the fly if not stored
       const subStart = m.subscriptionStart
@@ -67,8 +69,13 @@ export async function GET(request: NextRequest) {
 
       return {
         ...m,
+        priceDA: situation.effectivePriceDA,
         totalPaid,
         debt,
+        isAssigned: situation.isAssigned,
+        isLinkedToPayment: situation.isLinkedToPayment,
+        isDebtOnly: situation.isDebtOnly,
+        debtDetails: situation.debtDetails,
         subscriptionStart: subStart,
         subscriptionEnd: subEnd,
         daysLeft,
