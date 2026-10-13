@@ -31,6 +31,12 @@ export const FLAG_REGISTRY: FlagDefinition[] = [
       "Enable advertising campaign tooling (Phase 9). Adds a Campaigns tab for targeted promo pushes.",
     default: false,
   },
+  {
+    key: "coach_app_enabled",
+    description:
+      "Enable AQA Coaches API and Mobile App access.",
+    default: true,
+  },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

@@ -51,6 +51,9 @@ next-env.d.ts
 /backups
 
 # prisma migration lock
-migration_lock.toml
+# coach-app flutter artifacts
+/coach-app/.dart_tool/
+/coach-app/.flutter-plugins-dependencies
+/coach-app/build/
 
 

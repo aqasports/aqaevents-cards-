@@ -1069,6 +1069,18 @@ const dictionaries = {
       cancel: "Cancel",
       apply: "Apply",
     },
+    swimCoaching: {
+      tabTitle: "Coaches & Attendance",
+      subtitle: "AQA Coaches mobile app access, group attendance tracking, technical progress, and replacements.",
+      tabStaff: "Coaches & App Access",
+      tabStaffing: "Group Staffing",
+      tabReplacements: "Absences & Replacements",
+      btnSave: "Save",
+      btnCancel: "Cancel",
+      roleHeadCoach: "Head Coach",
+      roleCoach: "Coach",
+      roleAssistant: "Assistant (View Only)",
+    },
   },
 
 
@@ -2136,6 +2148,18 @@ const dictionaries = {
       cancel: "Annuler",
       apply: "Appliquer",
     },
+    swimCoaching: {
+      tabTitle: "Coaches & Assiduité",
+      subtitle: "Gestion des accès AQA Coaches App, assiduité des groupes, suivi technique et remplacements.",
+      tabStaff: "Entraîneurs & Accès App",
+      tabStaffing: "Affectation Groupes",
+      tabReplacements: "Absences & Remplacements",
+      btnSave: "Enregistrer",
+      btnCancel: "Annuler",
+      roleHeadCoach: "Head Coach",
+      roleCoach: "Entraîneur",
+      roleAssistant: "Assistant (Consultation seule)",
+    },
   },
 
   ar: {
@@ -3201,6 +3225,18 @@ const dictionaries = {
       close: "إغلاق",
       cancel: "إلغاء",
       apply: "تطبيق",
+    },
+    swimCoaching: {
+      tabTitle: "المدربون والحضور",
+      subtitle: "إدارة تطبيق AQA Coaches ومتابعة حضور المجموعات والتقييم الفني والتعويضات.",
+      tabStaff: "المدربون وحسابات التطبيق",
+      tabStaffing: "توزيع المجموعات",
+      tabReplacements: "الغيابات والتعويضات",
+      btnSave: "حفظ",
+      btnCancel: "إلغاء",
+      roleHeadCoach: "المدرب الرئيسي",
+      roleCoach: "مدرب",
+      roleAssistant: "مساعد (عرض فقط)",
     },
   },
 

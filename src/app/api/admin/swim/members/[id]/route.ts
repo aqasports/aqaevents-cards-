@@ -61,7 +61,7 @@ export async function GET(
 
     // Decode all assigned groups for this member (multi-group support)
     const allGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
-    let allGroups: Array<Record<string, unknown>> = [];
+    let allGroups: Array<{ id: string; active?: boolean; [key: string]: any }> = [];
     if (allGroupIds.length > 0) {
       allGroups = await prisma.swimGroup.findMany({
         where: { id: { in: allGroupIds } },
@@ -360,7 +360,7 @@ export async function PATCH(
     });
 
     const allGroupIds = decodeMemberGroupIds(updated.notes, updated.groupId);
-    let allGroups: Array<Record<string, unknown>> = [];
+    let allGroups: Array<{ id: string; active?: boolean; [key: string]: any }> = [];
     if (allGroupIds.length > 0) {
       allGroups = await prisma.swimGroup.findMany({
         where: { id: { in: allGroupIds } },

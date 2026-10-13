@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider  = "sqlite"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
@@ -357,6 +357,15 @@ model Coach {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   sessions       ActivitySession[]
+  account          CoachAccount?
+  groupAssignments SwimGroupStaff[]
+  plannedSessions  SwimSession[]      @relation("SwimSessionPlannedCoach")
+  actualSessions   SwimSession[]      @relation("SwimSessionActualCoach")
+  attendanceMarks  SwimAttendance[]
+  techReviews      SwimTechReview[]
+  absences         SwimCoachAbsence[]
+  replacementsOut  SwimReplacement[]  @relation("ReplacementOriginalCoach")
+  replacementsIn   SwimReplacement[]  @relation("ReplacementSubstituteCoach")
 }
 
 model EquipmentAsset {
@@ -637,6 +646,8 @@ model SwimGroup {
   updatedAt   DateTime     @updatedAt
 
   swimmers    SwimMember[]
+  staff       SwimGroupStaff[]
+  sessions    SwimSession[]
 
   @@index([level])
   @@index([active])
@@ -669,6 +680,8 @@ model SwimMember {
   group           SwimGroup?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
   card            SwimCard?
   payments        SwimPayment[]
+  attendances     SwimAttendance[]
+  techReviews     SwimTechReview[]
 
   @@index([groupId])
   @@index([paymentStatus])
@@ -731,3 +744,184 @@ model SwimEquipmentArticle {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+// ─── AQA Coaches & Attendance Module ─────────────────────────────────────────
+
+model CoachAccount {
+  id           String    @id @default(cuid())
+  coachId      String    @unique
+  email        String    @unique
+  passwordHash String
+  role         String    @default("coach") // "head_coach" | "coach" | "assistant"
+  categories   String?   // JSON string: e.g. ["homme","femme","enfants","apnea"]
+  loginEnabled Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  coach        Coach              @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  authSessions CoachAuthSession[]
+
+  @@index([role])
+  @@index([email])
+}
+
+model CoachAuthSession {
+  id               String    @id @default(cuid())
+  accountId        String
+  refreshTokenHash String    @unique // SHA-256 hex of opaque refresh token
+  platform         String?   // "android" | "ios"
+  deviceLabel      String?
+  appVersion       String?
+  pushToken        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  lastUsedAt       DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+
+  account CoachAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([accountId])
+  @@index([expiresAt])
+}
+
+model SwimGroupStaff {
+  id        String    @id @default(cuid())
+  groupId   String
+  coachId   String
+  role      String    @default("lead") // "lead" | "assistant"
+  startsOn  DateTime  @default(now())
+  endsOn    DateTime? // null = active current assignment
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  group SwimGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  coach Coach     @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, coachId, startsOn])
+  @@index([coachId])
+  @@index([groupId])
+}
+
+model SwimSession {
+  id             String    @id @default(cuid())
+  groupId        String
+  sessionDate    DateTime // calendar date
+  startTime      String    // "HH:mm"
+  location       String?
+  status         String    @default("scheduled") // "scheduled" | "held" | "cancelled"
+  cancelReason   String?   // "coach_absent" | "pool_closed" | "schedule_changed" | "other"
+  plannedCoachId String?
+  actualCoachId  String?
+  closedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  group        SwimGroup         @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  plannedCoach Coach?            @relation("SwimSessionPlannedCoach", fields: [plannedCoachId], references: [id], onDelete: SetNull)
+  actualCoach  Coach?            @relation("SwimSessionActualCoach", fields: [actualCoachId], references: [id], onDelete: SetNull)
+  attendances  SwimAttendance[]
+  replacements SwimReplacement[]
+  techReviews  SwimTechReview[]
+
+  @@unique([groupId, sessionDate, startTime])
+  @@index([sessionDate])
+  @@index([actualCoachId, sessionDate])
+}
+
+model SwimAttendance {
+  id               String   @id @default(cuid())
+  sessionId        String
+  memberId         String
+  status           String   // "present" | "absent" | "late" | "excused"
+  method           String   @default("manual") // "manual" | "qr"
+  isGuest          Boolean  @default(false)
+  note             String?
+  markedByCoachId  String?
+  markedByAdminId  String?
+  clientMutationId String?  @unique
+  markedAt         DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  session  SwimSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  member   SwimMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  markedBy Coach?      @relation(fields: [markedByCoachId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, memberId])
+  @@index([memberId, markedAt])
+}
+
+model SwimTechReview {
+  id               String    @id @default(cuid())
+  memberId         String
+  coachId          String?
+  sessionId        String?
+  kind             String    @default("assessment") // "assessment" | "observation"
+  catalogVersion   Int       @default(1)
+  skills           String?   // JSON: [{ "key": "...", "score": 1..4 }]
+  metrics          String?   // JSON: [{ "key": "...", "value": 50, "unit": "s" }]
+  strengths        String?
+  improvements     String?
+  nextGoals        String?
+  recommendedLevel String?
+  visibility       String    @default("internal") // "internal" | "member"
+  status           String    @default("final") // "draft" | "final"
+  validatedById    String?
+  validatedAt      DateTime?
+  clientMutationId String?   @unique
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  member  SwimMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  coach   Coach?       @relation(fields: [coachId], references: [id], onDelete: SetNull)
+  session SwimSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, createdAt])
+  @@index([coachId])
+  @@index([status])
+}
+
+model SwimCoachAbsence {
+  id               String    @id @default(cuid())
+  coachId          String
+  startsAt         DateTime
+  endsAt           DateTime
+  reason           String    // "sick" | "personal" | "training" | "other"
+  details          String?
+  status           String    @default("pending") // "pending" | "approved" | "rejected" | "cancelled"
+  decidedByCoachId String?
+  decidedByAdminId String?
+  decidedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  coach        Coach             @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  replacements SwimReplacement[]
+
+  @@index([coachId, startsAt])
+  @@index([status])
+}
+
+model SwimReplacement {
+  id                 String    @id @default(cuid())
+  sessionId          String
+  absenceId          String?
+  originalCoachId    String?
+  substituteCoachId  String?
+  status             String    @default("proposed") // "proposed" | "accepted" | "declined" | "assigned" | "cancelled" | "completed"
+  note               String?
+  requestedByCoachId String?
+  requestedByAdminId String?
+  respondedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  session         SwimSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  absence         SwimCoachAbsence? @relation(fields: [absenceId], references: [id], onDelete: SetNull)
+  originalCoach   Coach?            @relation("ReplacementOriginalCoach", fields: [originalCoachId], references: [id], onDelete: SetNull)
+  substituteCoach Coach?            @relation("ReplacementSubstituteCoach", fields: [substituteCoachId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId])
+  @@index([substituteCoachId, status])
+}
+

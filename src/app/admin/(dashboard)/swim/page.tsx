@@ -888,6 +888,14 @@ export default function SwimOverviewPage() {
       badgeTone: equipmentDemandsCount > 0 ? ("warning" as const) : ("info" as const),
       actionText: "Manage Equipment",
     },
+    {
+      title: "7. Coaches & Attendance (App Mobile)",
+      desc: "Gérer l'équipe des entraîneurs, l'assiduité des groupes, le suivi technique et les remplacements.",
+      href: "/admin/swim/coaching",
+      badge: "Coaches & App",
+      badgeTone: "info" as const,
+      actionText: "Ouvrir Coaching Desk",
+    },
   ];
 
   // Eligible groups for Add Member modal (category-scoped + optional solid filter)
@@ -1155,6 +1163,19 @@ export default function SwimOverviewPage() {
                 2 Methods
               </span>
             </button>
+
+            <Link
+              href="/admin/swim/coaching"
+              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 text-teal-400 hover:text-white hover:bg-teal-950/60 border border-teal-900/40"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <span>Coaches & Presences</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-teal-950 text-teal-300 border border-teal-800/40 font-mono">
+                App
+              </span>
+            </Link>
           </div>
 
           {/* Global Search */}
