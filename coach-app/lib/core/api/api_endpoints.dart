@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ApiEndpoints {
   ApiEndpoints._();
 
-  static const String defaultBaseUrl = 'https://events.aqasports.pro';
+  static const String defaultBaseUrl = 'https://delightful-torte-bcca6a.netlify.app';
   static const String _prefBaseUrlKey = 'aqa_custom_base_url';
 
   static String _currentBaseUrl = defaultBaseUrl;
@@ -13,8 +13,11 @@ class ApiEndpoints {
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefBaseUrlKey);
-    if (saved != null && saved.trim().isNotEmpty) {
+    if (saved != null && saved.trim().isNotEmpty && !saved.contains('events.aqasports.pro')) {
       _currentBaseUrl = saved.trim();
+    } else {
+      _currentBaseUrl = defaultBaseUrl;
+      await prefs.setString(_prefBaseUrlKey, defaultBaseUrl);
     }
   }
 

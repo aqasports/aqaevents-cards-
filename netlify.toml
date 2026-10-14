@@ -40,6 +40,15 @@
     Referrer-Policy = "no-referrer"
     Permissions-Policy = "camera=(self), microphone=(), geolocation=()"
 
+# Coach API routes: enable CORS for mobile app & web clients
+[[headers]]
+  for = "/api/coach/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept"
+    Access-Control-Max-Age = "86400"
+
 # Admin API routes: enforce no-cache and no-referrer leakage.
 [[headers]]
   for = "/api/admin/*"

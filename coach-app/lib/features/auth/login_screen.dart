@@ -48,14 +48,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Enter the backend domain (e.g. https://events.aqasports.pro or local network IP):',
+              'Enter the backend domain (e.g. https://delightful-torte-bcca6a.netlify.app or local network IP):',
               style: TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
             ),
             const SizedBox(height: 12.0),
             TextField(
               controller: serverController,
               decoration: const InputDecoration(
-                hintText: 'https://events.aqasports.pro',
+                hintText: 'https://delightful-torte-bcca6a.netlify.app',
               ),
               style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0),
             ),
