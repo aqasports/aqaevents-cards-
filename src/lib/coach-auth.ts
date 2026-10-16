@@ -210,13 +210,19 @@ export async function rotateCoachAuthSession(rawRefreshToken: string) {
   return { data: newTokens };
 }
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept",
+};
+
 export async function requireCoachSession(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return {
       error: NextResponse.json(
         { error: "Unauthorized: Missing Bearer token." },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       ),
       coach: null,
       account: null,
@@ -230,7 +236,7 @@ export async function requireCoachSession(req: NextRequest) {
     return {
       error: NextResponse.json(
         { error: "Unauthorized: Invalid or expired token." },
-        { status: 401 }
+        { status: 401, headers: corsHeaders }
       ),
       coach: null,
       account: null,
@@ -246,7 +252,7 @@ export async function requireCoachSession(req: NextRequest) {
     return {
       error: NextResponse.json(
         { error: "Forbidden: Coach account is inactive or disabled." },
-        { status: 403 }
+        { status: 403, headers: corsHeaders }
       ),
       coach: null,
       account: null,

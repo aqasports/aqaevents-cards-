@@ -24,7 +24,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final user = authState.user;
     final bootstrapAsync = ref.watch(bootstrapProvider);
 
-    final pendingCount = bootstrapAsync.value?.pendingRequests.length ?? 0;
+    final pendingCount = bootstrapAsync.valueOrNull?.pendingRequests.length ?? 0;
 
     final pages = [
       const TodaySessionsView(),

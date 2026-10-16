@@ -38,6 +38,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final ApiClient _apiClient;
 
   AuthNotifier(this._apiClient) : super(const AuthState(isLoading: true)) {
+    _apiClient.onUnauthorized = () {
+      state = const AuthState(isLoading: false, isAuthenticated: false);
+    };
     restoreSession();
   }
 

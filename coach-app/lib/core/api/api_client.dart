@@ -17,6 +17,7 @@ class ApiClient {
 
   bool _isRefreshing = false;
   final List<Completer<String?>> _refreshCompleters = [];
+  void Function()? onUnauthorized;
 
   ApiClient._internal() {
     _dio.options = BaseOptions(
@@ -148,6 +149,7 @@ class ApiClient {
     await _storage.delete(key: keyAccessToken);
     await _storage.delete(key: keyRefreshToken);
     await _storage.delete(key: keyCoachData);
+    onUnauthorized?.call();
   }
 }
 

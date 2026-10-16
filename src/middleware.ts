@@ -19,6 +19,28 @@ function safeCompare(a: string, b: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // ── CORS & OPTIONS Preflight for Coach Mobile/Web API ──────────────────
+  if (pathname.startsWith("/api/coach")) {
+    if (request.method === "OPTIONS") {
+      return new NextResponse(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept",
+          "Access-Control-Max-Age": "86400",
+        },
+      });
+    }
+
+    const res = NextResponse.next();
+    res.headers.set("Access-Control-Allow-Origin", "*");
+    res.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
+    res.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);
+    return res;
+  }
+
   // ── IP rate limiting on the login endpoint ──────────────────────────────
   // Rate limiting is now handled inside the NextAuth authorize callback and
   // the /api/auth/callback/credentials route handler to avoid importing
@@ -191,5 +213,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/client/:path*", "/portal/:path*"],
+  matcher: ["/admin/:path*", "/client/:path*", "/portal/:path*", "/api/coach/:path*"],
 };

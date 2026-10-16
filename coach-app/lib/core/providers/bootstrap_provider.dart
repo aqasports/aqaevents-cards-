@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
+import '../auth/auth_state.dart';
 import '../models/coach_user.dart';
 import '../models/swim_group.dart';
 import '../models/swim_session.dart';
@@ -68,6 +69,11 @@ final syncManagerProvider = Provider<OfflineSyncManager>((ref) {
 });
 
 final bootstrapProvider = FutureProvider.autoDispose<BootstrapData>((ref) async {
+  final authState = ref.watch(authStateProvider);
+  if (!authState.isAuthenticated) {
+    throw Exception('Authentication required');
+  }
+
   final client = ref.watch(apiClientProvider);
   final syncManager = ref.watch(syncManagerProvider);
 
