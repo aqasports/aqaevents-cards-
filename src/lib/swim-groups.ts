@@ -636,4 +636,29 @@ export function getMemberPaymentSituation(
   };
 }
 
+/**
+ * Computes remaining places for a single swim group.
+ * Ensures result is never negative (overbooked group yields 0 remaining places).
+ */
+export function calculateGroupRemainingPlaces(
+  capacity?: number | null,
+  swimmersCount?: number | null
+): number {
+  const safeCapacity = capacity && capacity > 0 ? capacity : 10;
+  const count = swimmersCount && swimmersCount > 0 ? swimmersCount : 0;
+  return Math.max(0, safeCapacity - count);
+}
+
+/**
+ * Computes the total remaining places across active swim groups.
+ */
+export function calculateTotalRemainingPlaces(
+  groups: Array<{ active: boolean; capacity?: number | null; _count?: { swimmers: number } | null }>
+): number {
+  return groups
+    .filter((g) => g.active)
+    .reduce((acc, g) => acc + calculateGroupRemainingPlaces(g.capacity, g._count?.swimmers), 0);
+}
+
+
 

@@ -12,6 +12,7 @@ class BootstrapData {
   final CoachUser coach;
   final List<Map<String, dynamic>> allCoaches;
   final List<SwimGroupModel> groups;
+  final List<Map<String, dynamic>> swimmers;
   final List<SwimSessionModel> allSessions;
   final List<SwimSessionModel> todaySessions;
   final List<ReplacementModel> activeReplacements;
@@ -19,6 +20,8 @@ class BootstrapData {
   final List<Map<String, dynamic>> myAbsences;
   final Map<String, dynamic> skillsCatalog;
   final List<Map<String, dynamic>> progressionBadges;
+  final List<Map<String, dynamic>> suiviStages;
+  final Map<String, dynamic> appConfig;
   final String todayDate;
   final String serverTime;
 
@@ -26,6 +29,7 @@ class BootstrapData {
     required this.coach,
     this.allCoaches = const [],
     required this.groups,
+    this.swimmers = const [],
     this.allSessions = const [],
     required this.todaySessions,
     required this.activeReplacements,
@@ -33,6 +37,8 @@ class BootstrapData {
     this.myAbsences = const [],
     required this.skillsCatalog,
     this.progressionBadges = const [],
+    this.suiviStages = const [],
+    this.appConfig = const {},
     this.todayDate = '',
     required this.serverTime,
   });
@@ -43,6 +49,11 @@ class BootstrapData {
 
     final groupsList = (json['groups'] as List<dynamic>?)
             ?.map((e) => SwimGroupModel.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [];
+
+    final swimmersList = (json['swimmers'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList() ??
         const [];
 
@@ -93,6 +104,13 @@ class BootstrapData {
             .toList() ??
         const [];
 
+    final stagesList = (json['suiviStages'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        const [];
+
+    final appConfigMap = (json['appConfig'] as Map<String, dynamic>?) ?? const {};
+
     final todayStr = json['todayDate'] as String? ??
         DateTime.now().toIso8601String().substring(0, 10);
 
@@ -100,6 +118,7 @@ class BootstrapData {
       coach: coach,
       allCoaches: coachesList,
       groups: groupsList,
+      swimmers: swimmersList,
       allSessions: allSessionsList.isNotEmpty ? allSessionsList : sessionsList,
       todaySessions: sessionsList,
       activeReplacements: activeReps,
@@ -107,6 +126,8 @@ class BootstrapData {
       myAbsences: absencesList,
       skillsCatalog: (json['skillsCatalog'] as Map<String, dynamic>?) ?? const {},
       progressionBadges: badgesList,
+      suiviStages: stagesList,
+      appConfig: appConfigMap,
       todayDate: todayStr,
       serverTime: json['serverTime'] as String? ?? todayStr,
     );
@@ -137,4 +158,3 @@ final bootstrapProvider = FutureProvider.autoDispose<BootstrapData>((ref) async 
     throw Exception('Failed to load coach bootstrap data');
   }
 });
-

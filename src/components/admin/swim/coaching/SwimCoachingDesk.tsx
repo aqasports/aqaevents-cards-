@@ -65,8 +65,52 @@ interface ReplacementItem {
   createdAt: string;
 }
 
+interface SessionFeedItem {
+  id: string;
+  groupName: string;
+  category: string;
+  sessionDate: string;
+  startTime: string;
+  coachName: string;
+  presentCount: number;
+  absentCount: number;
+  totalMarked: number;
+  ratingStars: number | null;
+  ratingNotes: string | null;
+  ratedByCoachName: string | null;
+}
+
+interface SwimmerSuiviItem {
+  id: string;
+  swimId: string;
+  fullName: string;
+  phone: string;
+  category: string;
+  level: string;
+  groupName: string;
+  totalPresences: number;
+  totalAbsences: number;
+  attendanceRate: number;
+  reviewCount: number;
+  avgSkillScore: number;
+  badgeKey: string;
+  badgeLabel: string;
+  badgeAsset: string;
+  stageKey: string;
+  stageLabel: string;
+  stageAsset: string;
+}
+
+interface AppConfig {
+  enabled: boolean;
+  announcement: string;
+  reminderMinutes: number;
+}
+
 export function SwimCoachingDesk() {
-  const [activeTab, setActiveTab] = useState<"staff" | "staffing" | "replacements">("staff");
+  const [activeTab, setActiveTab] = useState<
+    "staff" | "staffing" | "sessions" | "suivi" | "replacements"
+  >("staff");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,13 +119,21 @@ export function SwimCoachingDesk() {
     coachesWithApp: 0,
     pendingAbsencesCount: 0,
     pendingReplacementsCount: 0,
+    totalSwimmersCount: 0,
   });
   const [coaches, setCoaches] = useState<CoachItem[]>([]);
   const [groups, setGroups] = useState<GroupItem[]>([]);
   const [absences, setAbsences] = useState<AbsenceItem[]>([]);
   const [replacements, setReplacements] = useState<ReplacementItem[]>([]);
+  const [recentSessions, setRecentSessions] = useState<SessionFeedItem[]>([]);
+  const [swimmers, setSwimmers] = useState<SwimmerSuiviItem[]>([]);
+  const [appConfig, setAppConfig] = useState<AppConfig>({
+    enabled: true,
+    announcement: "",
+    reminderMinutes: 10,
+  });
 
-  // Modal states
+  // Modal states: Coach Account
   const [editingCoach, setEditingCoach] = useState<CoachItem | null>(null);
   const [coachEmail, setCoachEmail] = useState("");
   const [coachPassword, setCoachPassword] = useState("");
@@ -90,11 +142,23 @@ export function SwimCoachingDesk() {
   const [coachLoginEnabled, setCoachLoginEnabled] = useState(true);
   const [savingCoach, setSavingCoach] = useState(false);
 
-  // Group staffing modal
+  // Modal states: Group Staffing
   const [editingGroup, setEditingGroup] = useState<GroupItem | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
   const [selectedAssistantIds, setSelectedAssistantIds] = useState<string[]>([]);
   const [savingStaffing, setSavingStaffing] = useState(false);
+
+  // Modal states: Award Swimmer Badge
+  const [awardingSwimmer, setAwardingSwimmer] = useState<SwimmerSuiviItem | null>(null);
+  const [selectedBadgeKey, setSelectedBadgeKey] = useState("beginner");
+  const [badgeRecommendedLevel, setBadgeRecommendedLevel] = useState("");
+  const [savingBadge, setSavingBadge] = useState(false);
+
+  // App Config form
+  const [savingAppConfig, setSavingAppConfig] = useState(false);
+  const [appEnabledDraft, setAppEnabledDraft] = useState(true);
+  const [announcementDraft, setAnnouncementDraft] = useState("");
+  const [reminderDraft, setReminderDraft] = useState(10);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -108,6 +172,14 @@ export function SwimCoachingDesk() {
       setGroups(data.groups);
       setAbsences(data.absences);
       setReplacements(data.replacements);
+      setRecentSessions(data.recentSessions || []);
+      setSwimmers(data.swimmers || []);
+      if (data.appConfig) {
+        setAppConfig(data.appConfig);
+        setAppEnabledDraft(data.appConfig.enabled);
+        setAnnouncementDraft(data.appConfig.announcement || "");
+        setReminderDraft(data.appConfig.reminderMinutes || 10);
+      }
     } catch (err: any) {
       setError(err?.message || "Error loading coaching data");
     } finally {
@@ -192,10 +264,88 @@ export function SwimCoachingDesk() {
     }
   }
 
+  // Handle absence decision
+  async function handleDecideAbsence(absenceId: string, status: "approved" | "rejected") {
+    try {
+      const res = await fetch("/api/admin/swim/coaching", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "DECIDE_ABSENCE",
+          absenceId,
+          status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update absence");
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || "Error updating absence.");
+    }
+  }
+
+  // Handle save app config
+  async function handleSaveAppConfig() {
+    setSavingAppConfig(true);
+    try {
+      const res = await fetch("/api/admin/swim/coaching", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "UPDATE_APP_CONFIG",
+          enabled: appEnabledDraft,
+          announcement: announcementDraft,
+          reminderMinutes: reminderDraft,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save settings");
+      alert("Paramètres de l'application AQA Coaches enregistrés.");
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || "Error saving app config.");
+    } finally {
+      setSavingAppConfig(false);
+    }
+  }
+
+  // Open award badge modal
+  function handleOpenAwardBadge(s: SwimmerSuiviItem) {
+    setAwardingSwimmer(s);
+    setSelectedBadgeKey(s.badgeKey || "beginner");
+    setBadgeRecommendedLevel(s.level || "");
+  }
+
+  // Save award badge
+  async function handleSaveSwimmerBadge() {
+    if (!awardingSwimmer) return;
+    setSavingBadge(true);
+    try {
+      const res = await fetch("/api/admin/swim/coaching", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "AWARD_SWIMMER_BADGE",
+          memberId: awardingSwimmer.id,
+          badgeKey: selectedBadgeKey,
+          recommendedLevel: badgeRecommendedLevel,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to award badge");
+      setAwardingSwimmer(null);
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || "Error awarding badge.");
+    } finally {
+      setSavingBadge(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="p-4 rounded-xl bg-slate-900 border border-white/10">
           <div className="text-xs text-slate-400 font-medium">Equipe Entraîneurs</div>
           <div className="text-2xl font-bold font-mono text-white mt-1">
@@ -210,6 +360,14 @@ export function SwimCoachingDesk() {
             {kpis.coachesWithApp}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Accès mobile actif</div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-white/10">
+          <div className="text-xs text-slate-400 font-medium">Effectif Nageurs</div>
+          <div className="text-2xl font-bold font-mono text-sky-400 mt-1">
+            {kpis.totalSwimmersCount}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Suivi technique actif</div>
         </div>
 
         <div className="p-4 rounded-xl bg-slate-900 border border-white/10">
@@ -229,21 +387,21 @@ export function SwimCoachingDesk() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-white/10 gap-2">
+      {/* Navigation Tabs */}
+      <div className="flex border-b border-white/10 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab("staff")}
-          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             activeTab === "staff"
               ? "border-[var(--primary)] text-[var(--primary)]"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          1. Entraîneurs & Accès App
+          1. Entraîneurs & Accès Mobile
         </button>
         <button
           onClick={() => setActiveTab("staffing")}
-          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             activeTab === "staffing"
               ? "border-[var(--primary)] text-[var(--primary)]"
               : "border-transparent text-slate-400 hover:text-white"
@@ -252,20 +410,40 @@ export function SwimCoachingDesk() {
           2. Affectation Groupes (Staffing)
         </button>
         <button
+          onClick={() => setActiveTab("sessions")}
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === "sessions"
+              ? "border-[var(--primary)] text-[var(--primary)]"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          3. Séances, Émargements & Notations
+        </button>
+        <button
+          onClick={() => setActiveTab("suivi")}
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === "suivi"
+              ? "border-[var(--primary)] text-[var(--primary)]"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          4. Suivi Technique & Badges AQA
+        </button>
+        <button
           onClick={() => setActiveTab("replacements")}
-          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
             activeTab === "replacements"
               ? "border-[var(--primary)] text-[var(--primary)]"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          3. Absences & Remplacements
+          5. Absences, Remplacements & Paramètres App
         </button>
       </div>
 
       {loading && (
         <div className="p-12 text-center text-sm text-slate-400 animate-pulse">
-          Chargement de l&apos;espace coaching...
+          Chargement de l&apos;espace coaching AQA Swim...
         </div>
       )}
 
@@ -437,12 +615,221 @@ export function SwimCoachingDesk() {
         </div>
       )}
 
-      {/* TAB 3: Absences & Replacements */}
+      {/* TAB 3: Recent Sessions, Attendance & Ratings */}
+      {!loading && activeTab === "sessions" && (
+        <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex justify-between items-center">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Séances Récentes & Émargement Bassin</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Présences binaires (Présent / Absent) et notations pédagogiques attribuées par les coachs (1 à 5 étoiles).
+              </p>
+            </div>
+            <span className="text-xs text-slate-400">{recentSessions.length} séances affichées</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/60 text-slate-400 border-b border-white/10">
+                <tr>
+                  <th className="p-3">Date & Heure</th>
+                  <th className="p-3">Groupe</th>
+                  <th className="p-3">Coach Responsable</th>
+                  <th className="p-3">Émargement Binaire</th>
+                  <th className="p-3">Notation Séance</th>
+                  <th className="p-3">Remarques Coach</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {recentSessions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-500">
+                      Aucune séance enregistrée récemment.
+                    </td>
+                  </tr>
+                ) : (
+                  recentSessions.map((s) => (
+                    <tr key={s.id} className="hover:bg-white/[0.02]">
+                      <td className="p-3 font-mono text-slate-300">
+                        {s.sessionDate} • {s.startTime}
+                      </td>
+                      <td className="p-3">
+                        <div className="font-semibold text-white">{s.groupName}</div>
+                        <div className="text-[11px] text-slate-400 uppercase">{s.category}</div>
+                      </td>
+                      <td className="p-3 font-semibold text-sky-400">{s.coachName}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800/40">
+                            Présents: {s.presentCount}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-300 border border-red-800/40">
+                            Absents: {s.absentCount}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        {s.ratingStars ? (
+                          <div className="flex items-center gap-1 font-mono text-amber-400 font-bold">
+                            <span>{s.ratingStars} / 5</span>
+                            <span className="text-xs text-amber-500/70">★</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-500 italic">Non notée</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-300 max-w-xs truncate">
+                        {s.ratingNotes || "-"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Suivi Technique & Badges AQA */}
+      {!loading && activeTab === "suivi" && (
+        <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
+          <div className="p-4 border-b border-white/10 flex justify-between items-center">
+            <div>
+              <h3 className="text-sm font-semibold text-white">Suivi Technique & Progression Badges</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Attribution des 4 Mascottes Paliers et 15 Badges AQA Pro avec calcul de la moyenne technique (1.0 à 5.0).
+              </p>
+            </div>
+            <span className="text-xs text-slate-400">{swimmers.length} nageurs</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/60 text-slate-400 border-b border-white/10">
+                <tr>
+                  <th className="p-3">Nageur</th>
+                  <th className="p-3">Groupe</th>
+                  <th className="p-3">Palier Mascotte</th>
+                  <th className="p-3">Badge Actuel</th>
+                  <th className="p-3">Moyenne Score</th>
+                  <th className="p-3">Assiduité Binaire</th>
+                  <th className="p-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {swimmers.map((m) => (
+                  <tr key={m.id} className="hover:bg-white/[0.02]">
+                    <td className="p-3">
+                      <div className="font-semibold text-white">{m.fullName}</div>
+                      <div className="text-[11px] text-slate-400 font-mono">{m.swimId}</div>
+                    </td>
+                    <td className="p-3 text-slate-300">{m.groupName}</td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-teal-300 border border-teal-800/40">
+                        {m.stageLabel}
+                      </span>
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800/50">
+                        {m.badgeLabel}
+                      </span>
+                    </td>
+                    <td className="p-3 font-mono font-bold text-teal-400">
+                      {m.avgSkillScore.toFixed(2)} / 5.00
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`font-mono font-bold ${
+                          m.attendanceRate >= 75 ? "text-emerald-400" : "text-amber-400"
+                        }`}
+                      >
+                        {m.attendanceRate}%
+                      </span>
+                      <span className="text-slate-500 text-[11px] ml-1">
+                        ({m.totalPresences}P / {m.totalAbsences}A)
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleOpenAwardBadge(m)}
+                      >
+                        Attribuer Badge
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: Absences, Replacements & App Settings */}
       {!loading && activeTab === "replacements" && (
         <div className="space-y-6">
+          {/* Global Coach App Settings Card */}
+          <div className="rounded-xl bg-slate-900 border border-white/10 p-5">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-white">Pilotage Global de l&apos;App AQA Coaches</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Contrôle d&apos;accès, annonce diffusée en haut du planning, et rappel 10 min avant la fin de séance.
+                </p>
+              </div>
+              <Button size="sm" onClick={handleSaveAppConfig} disabled={savingAppConfig}>
+                {savingAppConfig ? "Enregistrement..." : "Sauvegarder Paramètres"}
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="p-3 rounded-lg bg-slate-800/60 border border-white/5 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer text-white font-medium">
+                  <input
+                    type="checkbox"
+                    checked={appEnabledDraft}
+                    onChange={(e) => setAppEnabledDraft(e.target.checked)}
+                    className="rounded bg-slate-700 border-white/20 text-sky-500"
+                  />
+                  <span>Autoriser l&apos;accès à l&apos;application</span>
+                </label>
+                <p className="text-[11px] text-slate-400">
+                  Si décoché, les entraîneurs verront un écran de maintenance lors de l&apos;ouverture.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-800/60 border border-white/5 space-y-2">
+                <label className="block text-slate-300 font-medium">Rappel Fin de Séance (Minutes)</label>
+                <Input
+                  type="number"
+                  min={5}
+                  max={30}
+                  value={reminderDraft}
+                  onChange={(e) => setReminderDraft(parseInt(e.target.value, 10) || 10)}
+                />
+                <p className="text-[11px] text-slate-400">
+                  Délai avant la fin de la séance pour inviter le coach à valider l&apos;émargement.
+                </p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-slate-800/60 border border-white/5 space-y-2">
+                <label className="block text-slate-300 font-medium">Annonce Générale aux Coachs</label>
+                <Input
+                  type="text"
+                  placeholder="Ex: Réunion technique ce jeudi 18h..."
+                  value={announcementDraft}
+                  onChange={(e) => setAnnouncementDraft(e.target.value)}
+                />
+                <p className="text-[11px] text-slate-400">
+                  Bannière affichée en tête de l&apos;application pour tous les entraîneurs.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Absences Feed */}
           <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
             <div className="p-4 border-b border-white/10">
-              <h3 className="text-sm font-semibold text-white">Historique & Demandes d&apos;Absence</h3>
+              <h3 className="text-sm font-semibold text-white">Demandes d&apos;Absence des Coachs</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -453,18 +840,19 @@ export function SwimCoachingDesk() {
                     <th className="p-3">Motif</th>
                     <th className="p-3">Détails</th>
                     <th className="p-3">Statut</th>
+                    <th className="p-3 text-right">Décision</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {absences.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-6 text-center text-slate-500">
+                      <td colSpan={6} className="p-6 text-center text-slate-500">
                         Aucune absence enregistrée.
                       </td>
                     </tr>
                   ) : (
                     absences.map((a) => (
-                      <tr key={a.id}>
+                      <tr key={a.id} className="hover:bg-white/[0.02]">
                         <td className="p-3 font-semibold text-white">{a.coachName}</td>
                         <td className="p-3 font-mono text-slate-300 text-[11px]">
                           {a.startsAt.split("T")[0]} au {a.endsAt.split("T")[0]}
@@ -475,14 +863,33 @@ export function SwimCoachingDesk() {
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
                               a.status === "approved"
-                                ? "bg-emerald-950 text-emerald-300"
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-800/40"
                                 : a.status === "rejected"
-                                ? "bg-red-950 text-red-300"
-                                : "bg-amber-950 text-amber-300"
+                                ? "bg-red-950 text-red-300 border border-red-800/40"
+                                : "bg-amber-950 text-amber-300 border border-amber-800/40"
                             }`}
                           >
-                            {a.status}
+                            {a.status.toUpperCase()}
                           </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          {a.status === "pending" && (
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleDecideAbsence(a.id, "rejected")}
+                              >
+                                Rejeter
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => handleDecideAbsence(a.id, "approved")}
+                              >
+                                Approuver
+                              </Button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -492,9 +899,10 @@ export function SwimCoachingDesk() {
             </div>
           </div>
 
+          {/* Replacements Feed */}
           <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
             <div className="p-4 border-b border-white/10">
-              <h3 className="text-sm font-semibold text-white">Remplacements de Séances</h3>
+              <h3 className="text-sm font-semibold text-white">Couverture & Remplacements de Séances</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
@@ -524,8 +932,8 @@ export function SwimCoachingDesk() {
                         <td className="p-3 text-slate-400">{r.originalCoachName}</td>
                         <td className="p-3 font-semibold text-sky-400">{r.substituteCoachName}</td>
                         <td className="p-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-950 text-cyan-300">
-                            {r.status}
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800/40">
+                            {r.status.toUpperCase()}
                           </span>
                         </td>
                       </tr>
@@ -675,6 +1083,63 @@ export function SwimCoachingDesk() {
               </Button>
               <Button onClick={handleSaveGroupStaffing} disabled={savingStaffing}>
                 {savingStaffing ? "Mise à jour..." : "Enregistrer l'Affectation"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: Direct Swimmer Badge Award */}
+      {awardingSwimmer && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-white/15 rounded-2xl w-full max-w-md p-6 space-y-4 shadow-2xl">
+            <h3 className="text-base font-bold text-white">
+              Validation & Promotion Badge : {awardingSwimmer.fullName}
+            </h3>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">Sélectionner le Badge AQA (15 Badges)</label>
+                <select
+                  value={selectedBadgeKey}
+                  onChange={(e) => setSelectedBadgeKey(e.target.value)}
+                  className="w-full bg-slate-800 border border-white/10 rounded-lg p-2 text-white"
+                >
+                  <option value="starter">1. Starter (Elephant)</option>
+                  <option value="beginner">2. Beginner (Elephant)</option>
+                  <option value="floater">3. Floater (Elephant)</option>
+                  <option value="leaf">4. Leaf Glider (Crocodile)</option>
+                  <option value="dolphin">5. Dolphin (Crocodile)</option>
+                  <option value="crawler">6. Crawler (Crocodile)</option>
+                  <option value="brasseur">7. Brasseur (Dauphin)</option>
+                  <option value="butterfly">8. Butterfly (Dauphin)</option>
+                  <option value="shark">9. Shark (Dauphin)</option>
+                  <option value="orca">10. Orca (Dauphin)</option>
+                  <option value="whale">11. Whale Endurance (Requin)</option>
+                  <option value="kraken">12. Kraken Power (Requin)</option>
+                  <option value="mosasaurus">13. Mosasaurus Elite (Requin)</option>
+                  <option value="tsunami">14. Tsunami Master (Requin)</option>
+                  <option value="full_swimmer">15. Full Swimmer AQA Pro (Requin)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 mb-1 font-medium">Groupe / Niveau Recommandé</label>
+                <Input
+                  type="text"
+                  placeholder="Ex: AQA Dauphins Perfectionnement"
+                  value={badgeRecommendedLevel}
+                  onChange={(e) => setBadgeRecommendedLevel(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+              <Button variant="secondary" onClick={() => setAwardingSwimmer(null)}>
+                Annuler
+              </Button>
+              <Button onClick={handleSaveSwimmerBadge} disabled={savingBadge}>
+                {savingBadge ? "Validation..." : "Valider le Badge"}
               </Button>
             </div>
           </div>

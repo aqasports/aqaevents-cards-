@@ -8,7 +8,13 @@ import {
   computeEndTime,
   extractGroupScheduleMeta,
 } from "@/lib/swim-sessions";
-import { SWIM_SKILLS_CATALOG_V1, SWIM_PROGRESSION_BADGES } from "@/lib/swim-skills";
+import {
+  SWIM_SKILLS_CATALOG_V1,
+  AQA_SUIVI_BADGES,
+  AQA_SUIVI_STAGES,
+  computeSwimmerSuiviProgression,
+} from "@/lib/swim-skills";
+import { getFlag } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -45,86 +51,125 @@ export async function GET(req: NextRequest) {
       await ensureSessions(groupIds, today, nextWeek);
     }
 
-    // 3. Fetch groups, sessions, replacements, absences, and active coaches in parallel
-    const [groups, sessions, allReplacements, myAbsences, allCoaches] = await Promise.all([
-      prisma.swimGroup.findMany({
-        where: { id: { in: groupIds } },
-        include: {
-          staff: {
-            where: { endsOn: null },
-            include: { coach: { select: { id: true, name: true, phone: true } } },
-          },
-          _count: {
-            select: {
-              swimmers: { where: { groupStatus: { not: "rejected" } } },
+    // 3. Fetch groups, sessions, replacements, absences, active coaches, and swimmers in parallel
+    const [groups, sessions, allReplacements, myAbsences, allCoaches, rawSwimmers, rawSettings] =
+      await Promise.all([
+        prisma.swimGroup.findMany({
+          where: { id: { in: groupIds } },
+          include: {
+            staff: {
+              where: { endsOn: null },
+              include: { coach: { select: { id: true, name: true, phone: true } } },
+            },
+            _count: {
+              select: {
+                swimmers: { where: { groupStatus: { not: "rejected" } } },
+              },
             },
           },
-        },
-        orderBy: { name: "asc" },
-      }),
-      prisma.swimSession.findMany({
-        where: {
-          groupId: { in: groupIds },
-          sessionDate: { gte: today, lte: nextWeek },
-        },
-        include: {
-          group: {
-            select: {
-              id: true,
-              name: true,
-              category: true,
-              level: true,
-              schedule: true,
-              coachName: true,
-              _count: {
-                select: {
-                  swimmers: { where: { groupStatus: { not: "rejected" } } },
+          orderBy: { name: "asc" },
+        }),
+        prisma.swimSession.findMany({
+          where: {
+            groupId: { in: groupIds },
+            sessionDate: { gte: today, lte: nextWeek },
+          },
+          include: {
+            group: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                level: true,
+                schedule: true,
+                coachName: true,
+                _count: {
+                  select: {
+                    swimmers: { where: { groupStatus: { not: "rejected" } } },
+                  },
                 },
               },
             },
+            attendances: {
+              select: { id: true, status: true },
+            },
           },
-          attendances: {
-            select: { id: true, status: true },
+          orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
+        }),
+        prisma.swimReplacement.findMany({
+          where:
+            role === "head_coach"
+              ? {}
+              : {
+                  OR: [
+                    { substituteCoachId: coach.id },
+                    { originalCoachId: coach.id },
+                  ],
+                },
+          include: {
+            session: {
+              include: { group: { select: { id: true, name: true, category: true } } },
+            },
+            originalCoach: { select: { id: true, name: true, phone: true } },
+            substituteCoach: { select: { id: true, name: true, phone: true } },
           },
-        },
-        orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
-      }),
-      prisma.swimReplacement.findMany({
-        where:
-          role === "head_coach"
-            ? {}
-            : {
-                OR: [
-                  { substituteCoachId: coach.id },
-                  { originalCoachId: coach.id },
-                ],
+          orderBy: { createdAt: "desc" },
+          take: 40,
+        }),
+        prisma.swimCoachAbsence.findMany({
+          where: role === "head_coach" ? {} : { coachId: coach.id },
+          include: {
+            coach: { select: { id: true, name: true } },
+          },
+          orderBy: { startsAt: "desc" },
+          take: 25,
+        }),
+        prisma.coach.findMany({
+          where: { active: true },
+          select: { id: true, name: true, phone: true },
+          orderBy: { name: "asc" },
+        }),
+        groupIds.length > 0
+          ? prisma.swimMember.findMany({
+              where: {
+                groupId: { in: groupIds },
+                groupStatus: { not: "rejected" },
               },
-        include: {
-          session: {
-            include: { group: { select: { id: true, name: true, category: true } } },
+              select: {
+                id: true,
+                swimId: true,
+                fullName: true,
+                phone: true,
+                category: true,
+                level: true,
+                formula: true,
+                groupId: true,
+                group: { select: { id: true, name: true } },
+                attendances: {
+                  select: { status: true },
+                },
+                techReviews: {
+                  orderBy: { createdAt: "desc" },
+                  take: 1,
+                  select: {
+                    skills: true,
+                    recommendedLevel: true,
+                    createdAt: true,
+                  },
+                },
+              },
+              orderBy: { fullName: "asc" },
+              take: 300,
+            })
+          : Promise.resolve([]),
+        prisma.platformSetting.findMany({
+          where: {
+            key: { startsWith: "coach_app_" },
           },
-          originalCoach: { select: { id: true, name: true, phone: true } },
-          substituteCoach: { select: { id: true, name: true, phone: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 40,
-      }),
-      prisma.swimCoachAbsence.findMany({
-        where: role === "head_coach" ? {} : { coachId: coach.id },
-        include: {
-          coach: { select: { id: true, name: true } },
-        },
-        orderBy: { startsAt: "desc" },
-        take: 25,
-      }),
-      prisma.coach.findMany({
-        where: { active: true },
-        select: { id: true, name: true, phone: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+        }),
+      ]);
 
-    // 4. Hydrate session ratings stored in AuditLog (zero schema changes required)
+    // 4. Hydrate session ratings stored in AuditLog
     const sessionIds = sessions.map((s) => s.id);
     const ratingLogs =
       sessionIds.length > 0
@@ -155,12 +200,15 @@ export async function GET(req: NextRequest) {
 
     const todayStr = today.toISOString().split("T")[0];
 
+    // Normalize attendances to strictly binary PRESENT / ABSENT
     const shapedSessions = sessions.map((s) => {
-      const presentCount = s.attendances.filter((a) => a.status === "present").length;
-      const lateCount = s.attendances.filter((a) => a.status === "late").length;
-      const excusedCount = s.attendances.filter((a) => a.status === "excused").length;
-      const absentCount = s.attendances.filter((a) => a.status === "absent").length;
-      const totalMarked = s.attendances.length;
+      const presentCount = s.attendances.filter(
+        (a) => a.status === "present" || a.status === "late"
+      ).length;
+      const absentCount = s.attendances.filter(
+        (a) => a.status === "absent" || a.status === "excused"
+      ).length;
+      const totalMarked = presentCount + absentCount;
       const meta = extractGroupScheduleMeta(s.group.schedule);
       const endTime = computeEndTime(s.startTime, 60);
       const pool = s.location || meta.pool || "Piscine AQA";
@@ -182,12 +230,10 @@ export async function GET(req: NextRequest) {
         cancelReason: s.cancelReason,
         isMySession: s.actualCoachId === coach.id || role === "head_coach",
         closedAt: s.closedAt ? s.closedAt.toISOString() : null,
-        attendanceCount: presentCount + lateCount,
+        attendanceCount: presentCount,
         totalMembers,
         attendanceStats: {
           present: presentCount,
-          late: lateCount,
-          excused: excusedCount,
           absent: absentCount,
           marked: totalMarked,
           total: totalMembers,
@@ -227,7 +273,7 @@ export async function GET(req: NextRequest) {
         staff: g.staff.map((s) => ({
           coachId: s.coach.id,
           coachName: s.coach.name,
-          phone: s.coach.phone,
+          phone: role === "assistant" ? null : s.coach.phone,
           role: s.role,
         })),
       };
@@ -261,12 +307,73 @@ export async function GET(req: NextRequest) {
     };
 
     const pendingRequests = allReplacements
-      .filter((r) => r.status === "proposed" && (r.substituteCoachId === coach.id || role === "head_coach"))
+      .filter(
+        (r) =>
+          r.status === "proposed" &&
+          (r.substituteCoachId === coach.id || role === "head_coach")
+      )
       .map(shapeReplacement);
 
     const activeReplacements = allReplacements
       .filter((r) => r.status !== "proposed" || r.originalCoachId === coach.id)
       .map(shapeReplacement);
+
+    // Shape all swimmers with Suivi progression and binary attendance counts
+    const shapedSwimmers = rawSwimmers.map((m) => {
+      const presences = m.attendances.filter(
+        (a) => a.status === "present" || a.status === "late"
+      ).length;
+      const absences = m.attendances.filter(
+        (a) => a.status === "absent" || a.status === "excused"
+      ).length;
+      const totalAtt = presences + absences;
+      const attendanceRate = totalAtt > 0 ? Math.round((presences / totalAtt) * 100) : 100;
+
+      const latestRev = m.techReviews[0];
+      const prog = computeSwimmerSuiviProgression(
+        latestRev?.skills || null,
+        m.techReviews.length
+      );
+
+      return {
+        id: m.id,
+        memberId: m.id,
+        swimId: m.swimId,
+        fullName: m.fullName,
+        phone: role === "assistant" ? null : m.phone,
+        category: m.category,
+        level: latestRev?.recommendedLevel || m.level || "Starter",
+        groupId: m.groupId,
+        groupName: m.group?.name || "Groupe AQA",
+        gender: m.category === "femme" ? "female" : "male",
+        formula: m.formula,
+        active: true,
+        totalPresences: presences,
+        totalAbsences: absences,
+        attendanceRate,
+        reviewCount: m.techReviews.length,
+        avgSkillScore: prog.avgSkillScore,
+        badgeKey: prog.badgeKey,
+        badgeLabel: prog.badgeLabel,
+        badgeAsset: prog.badgeAsset,
+        stageKey: prog.stageKey,
+        stageLabel: prog.stageLabel,
+        stageAsset: prog.stageAsset,
+        unlockedBadges: prog.unlockedBadges,
+      };
+    });
+
+    // App command settings from AQA Swim Admin
+    const settingsMap = new Map<string, string>();
+    for (const s of rawSettings) {
+      settingsMap.set(s.key, s.value);
+    }
+    const isAppEnabled = await getFlag("coach_app_enabled", true);
+    const appConfig = {
+      enabled: isAppEnabled,
+      announcement: settingsMap.get("coach_app_announcement") || "",
+      reminderMinutes: parseInt(settingsMap.get("coach_app_reminder_minutes") || "10", 10),
+    };
 
     return NextResponse.json(
       {
@@ -286,6 +393,7 @@ export async function GET(req: NextRequest) {
           isMe: c.id === coach.id,
         })),
         groups: shapedGroups,
+        swimmers: shapedSwimmers,
         sessions: shapedSessions,
         todaySessions: todaySessions.length > 0 ? todaySessions : shapedSessions.slice(0, 6),
         actualTodaySessions: todaySessions,
@@ -304,7 +412,9 @@ export async function GET(req: NextRequest) {
           createdAt: a.createdAt.toISOString(),
         })),
         skillsCatalog: SWIM_SKILLS_CATALOG_V1,
-        progressionBadges: SWIM_PROGRESSION_BADGES,
+        progressionBadges: AQA_SUIVI_BADGES,
+        suiviStages: AQA_SUIVI_STAGES,
+        appConfig,
         todayDate: todayStr,
         serverTime: now.toISOString(),
       },
@@ -318,4 +428,3 @@ export async function GET(req: NextRequest) {
     );
   }
 }
-

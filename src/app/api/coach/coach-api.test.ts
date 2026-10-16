@@ -13,6 +13,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     platformSetting: {
       findUnique: vi.fn().mockResolvedValue({ value: "true" }),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     rateLimitBucket: {
       findUnique: vi.fn().mockResolvedValue(null),
@@ -56,6 +57,9 @@ vi.mock("@/lib/prisma", () => ({
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     swimReplacement: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    swimSetting: {
       findMany: vi.fn().mockResolvedValue([]),
     },
   },

@@ -6,7 +6,7 @@ class AttendanceRecordModel {
   final String? level;
   final String? dateOfBirth;
   final String? photoUrl;
-  String status; // PRESENT | ABSENT | LATE | EXCUSED
+  String status; // Strictly PRESENT | ABSENT
   String? notes;
   bool isGuest;
   String? guestGroupId;
@@ -25,17 +25,18 @@ class AttendanceRecordModel {
     this.guestGroupId,
   });
 
-  bool get isPresent => status.toUpperCase() == 'PRESENT';
+  bool get isPresent => status.toUpperCase() != 'ABSENT';
   bool get isAbsent => status.toUpperCase() == 'ABSENT';
-  bool get isLate => status.toUpperCase() == 'LATE';
-  bool get isExcused => status.toUpperCase() == 'EXCUSED';
+
+  void toggleBinaryStatus() {
+    status = isPresent ? 'ABSENT' : 'PRESENT';
+  }
 
   factory AttendanceRecordModel.fromJson(Map<String, dynamic> json) {
     final memberData = json['member'] as Map<String, dynamic>?;
     final rawStatus = (json['status'] as String? ?? 'PRESENT').trim().toUpperCase();
-    final normalizedStatus = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'].contains(rawStatus)
-        ? rawStatus
-        : 'PRESENT';
+    // Strictly binary: PRESENT or ABSENT
+    final normalizedStatus = rawStatus == 'ABSENT' ? 'ABSENT' : 'PRESENT';
 
     return AttendanceRecordModel(
       id: json['id'] as String?,
@@ -58,7 +59,7 @@ class AttendanceRecordModel {
     return {
       if (id != null) 'id': id,
       'memberId': memberId,
-      'status': status.toUpperCase(),
+      'status': isAbsent ? 'ABSENT' : 'PRESENT',
       'method': 'manual',
       'note': notes,
       'notes': notes,
@@ -68,4 +69,3 @@ class AttendanceRecordModel {
     };
   }
 }
-

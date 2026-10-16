@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/i18n/app_i18n.dart';
 import '../../core/theme/aqa_theme.dart';
 
 class ProfileView extends ConsumerWidget {
@@ -11,33 +12,32 @@ class ProfileView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
+    final i18n = ref.watch(i18nProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Profile Hero Card
-          Container(
-            padding: const EdgeInsets.all(22.0),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0F172A), Color(0xFF0A243E)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-              border: Border.all(color: AqaTheme.accentTeal.withValues(alpha: 0.3)),
-              boxShadow: AqaTheme.cardShadow,
-            ),
+          // Profile Hero Card (Double Bezel)
+          AqaDoubleBezelCard(
+            glowEffect: true,
+            padding: const EdgeInsets.all(20.0),
             child: Column(
               children: [
                 SizedBox(
-                  height: 36.0,
+                  height: 38.0,
                   child: Image.asset(
                     'assets/images/aqa_logo_white.png',
                     fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    errorBuilder: (_, __, ___) => const Text(
+                      'AQA SWIM',
+                      style: TextStyle(
+                        color: AqaTheme.accentTeal,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16.0),
@@ -50,7 +50,7 @@ class ProfileView extends ConsumerWidget {
                         : 'C',
                     style: const TextStyle(
                       color: AqaTheme.accentTeal,
-                      fontSize: 28.0,
+                      fontSize: 26.0,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -60,7 +60,7 @@ class ProfileView extends ConsumerWidget {
                   user?.name ?? 'Coach AQA',
                   style: const TextStyle(
                     color: AqaTheme.textPrimary,
-                    fontSize: 18.0,
+                    fontSize: 17.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -69,7 +69,7 @@ class ProfileView extends ConsumerWidget {
                   user?.email ?? '',
                   style: const TextStyle(
                     color: AqaTheme.textMuted,
-                    fontSize: 13.0,
+                    fontSize: 12.5,
                   ),
                 ),
                 const SizedBox(height: 12.0),
@@ -109,33 +109,67 @@ class ProfileView extends ConsumerWidget {
           ),
           const SizedBox(height: 16.0),
 
-          // Permissions Card
-          Container(
+          // Language Selection Pill Card
+          AqaDoubleBezelCard(
             padding: const EdgeInsets.all(16.0),
-            decoration: BoxDecoration(
-              color: AqaTheme.surfaceDark,
-              borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-              border: Border.all(color: AqaTheme.borderSubtle),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      i18n.t('common.language'),
+                      style: const TextStyle(
+                        color: AqaTheme.textPrimary,
+                        fontSize: 14.0,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      i18n.locale == 'ar'
+                          ? 'تغيير لغة التطبيق'
+                          : i18n.locale == 'en'
+                              ? 'Change application language'
+                              : 'Changer la langue de l\'application',
+                      style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+                const LanguageSwitcherPill(compact: false),
+              ],
             ),
+          ),
+          const SizedBox(height: 16.0),
+
+          // Permissions Card
+          AqaDoubleBezelCard(
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Droits & Perimetre d\'Acces',
-                  style: TextStyle(
-                    color: AqaTheme.textPrimary,
-                    fontSize: 14.0,
-                    fontWeight: FontWeight.w800,
-                  ),
+                AqaSectionHeader(
+                  title: i18n.locale == 'ar'
+                      ? 'صلاحيات ونطاق الحساب'
+                      : i18n.locale == 'en'
+                          ? 'Permissions & Scope'
+                          : 'Droits & Perimetre d\'Acces',
                 ),
                 const SizedBox(height: 8.0),
                 Text(
                   user?.isHeadCoach == true
-                      ? 'Head Coach: Supervision de tous les secteurs (Enfants, Adultes Homme/Femme, Apnee), gestion des remplacements, feuilles de presence, evaluations techniques et attribution des badges.'
+                      ? (i18n.locale == 'ar'
+                          ? 'Head Coach: إشراف عام على كافة القطاعات (أطفال، كبار، سيدات، كتم النفس)، إدارة الاستخلافات، سجلات الحضور، التقييم الفني وتثبيت الشارات.'
+                          : 'Head Coach: Supervision de tous les secteurs (Enfants, Adultes Homme/Femme, Apnee), gestion des remplacements, feuilles de presence, evaluations techniques et attribution des badges.')
                       : user?.isAssistant == true
-                          ? 'Assistant Coach: Acces en lecture seule aux groupes assignes, consultation des effectifs et fiches techniques nageurs.'
-                          : 'Coach Titulaire: Acces complet a vos groupes et seances en remplacement (appel, logger 3 etapes, notation seance et suivi d\'evolution).',
-                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5, height: 1.45),
+                          ? (i18n.locale == 'ar'
+                              ? 'Assistant Coach: اطلاع في وضع القراءة فقط على الأفواج المعينة ومتابعة بطاقات السباحين.'
+                              : 'Assistant Coach: Acces en lecture seule aux groupes assignes, consultation des effectifs et fiches techniques nageurs.')
+                          : (i18n.locale == 'ar'
+                              ? 'Coach Titulaire: وصول كامل إلى أفواجك وحصص الاستخلاف (تسجيل الحضور، تقييم الحصص، والمتابعة الفنية).'
+                              : 'Coach Titulaire: Acces complet a vos groupes et seances en remplacement (appel, logger 3 etapes, notation seance et suivi d\'evolution).'),
+                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0, height: 1.45),
                 ),
               ],
             ),
@@ -143,66 +177,79 @@ class ProfileView extends ConsumerWidget {
           const SizedBox(height: 16.0),
 
           // Details List
-          Container(
-            decoration: BoxDecoration(
-              color: AqaTheme.surfaceDark,
-              borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-              border: Border.all(color: AqaTheme.borderSubtle),
-            ),
+          AqaDoubleBezelCard(
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
             child: Column(
               children: [
-                _buildInfoTile('Identifiant Coach', user?.coachId ?? 'N/A', Icons.badge_outlined),
+                _buildInfoTile(
+                  i18n.locale == 'ar' ? 'معرف المدرب' : 'Identifiant Coach',
+                  user?.coachId ?? 'N/A',
+                  Icons.badge_outlined,
+                ),
                 const Divider(),
                 _buildInfoTile(
-                  'Telephone',
-                  user?.phone ?? 'Non renseigne',
+                  i18n.locale == 'ar' ? 'الهاتف' : 'Telephone',
+                  user?.phone ?? (i18n.locale == 'ar' ? 'غير مسجل' : 'Non renseigne'),
                   Icons.phone_outlined,
                 ),
                 const Divider(),
                 _buildInfoTile(
-                  'Bassin Principal',
-                  user?.primaryPool ?? 'Tous les bassins AQA',
+                  i18n.locale == 'ar' ? 'المسبح الرئيسي' : 'Bassin Principal',
+                  user?.primaryPool ?? (i18n.locale == 'ar' ? 'كافة مسابح AQA' : 'Tous les bassins AQA'),
                   Icons.water_outlined,
                 ),
                 const Divider(),
                 _buildInfoTile(
-                  'Specialites',
+                  i18n.locale == 'ar' ? 'التخصصات' : 'Specialites',
                   user?.specialties.isNotEmpty == true
                       ? user!.specialties.join(', ')
                       : 'Enseignement & Entrainement AQA Swim',
                   Icons.sports_outlined,
                 ),
                 const Divider(),
-                _buildInfoTile('Serveur Cloud AQA', ApiEndpoints.baseUrl, Icons.cloud_outlined),
+                _buildInfoTile(
+                  i18n.locale == 'ar' ? 'خادم AQA السحابي' : 'Serveur Cloud AQA',
+                  ApiEndpoints.baseUrl,
+                  Icons.cloud_outlined,
+                ),
               ],
             ),
           ),
           const SizedBox(height: 24.0),
 
           // Logout Button
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AqaTheme.statusDanger),
-              foregroundColor: AqaTheme.statusDanger,
-              padding: const EdgeInsets.symmetric(vertical: 14.0),
-            ),
+          AqaIslandButton(
+            label: i18n.t('auth.logout'),
+            icon: Icons.logout_rounded,
+            danger: true,
             onPressed: () {
               showDialog(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   backgroundColor: AqaTheme.surfaceDark,
-                  title: const Text(
-                    'Deconnexion',
-                    style: TextStyle(color: AqaTheme.textPrimary),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
+                    side: const BorderSide(color: AqaTheme.borderSubtle),
                   ),
-                  content: const Text(
-                    'Voulez-vous vraiment vous deconnecter de l\'application AQA Coaches?',
-                    style: TextStyle(color: AqaTheme.textMuted),
+                  title: Text(
+                    i18n.t('auth.logout'),
+                    style: const TextStyle(color: AqaTheme.textPrimary),
+                  ),
+                  content: Text(
+                    i18n.locale == 'ar'
+                        ? 'هل أنت متأكد من تسجيل الخروج من تطبيق AQA Coaches؟'
+                        : i18n.locale == 'en'
+                            ? 'Are you sure you want to log out of AQA Coaches?'
+                            : 'Voulez-vous vraiment vous deconnecter de l\'application AQA Coaches?',
+                    style: const TextStyle(color: AqaTheme.textMuted),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Annuler', style: TextStyle(color: AqaTheme.textMuted)),
+                      child: Text(
+                        i18n.t('common.cancel'),
+                        style: const TextStyle(color: AqaTheme.textMuted),
+                      ),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: AqaTheme.statusDanger),
@@ -210,14 +257,12 @@ class ProfileView extends ConsumerWidget {
                         Navigator.pop(ctx);
                         ref.read(authStateProvider.notifier).logout();
                       },
-                      child: const Text('Se Deconnecter'),
+                      child: Text(i18n.t('auth.logout')),
                     ),
                   ],
                 ),
               );
             },
-            icon: const Icon(Icons.logout, size: 18.0),
-            label: const Text('Se Deconnecter du Compte'),
           ),
           const SizedBox(height: 24.0),
 
@@ -227,6 +272,7 @@ class ProfileView extends ConsumerWidget {
               style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.0),
             ),
           ),
+          const SizedBox(height: 16.0),
         ],
       ),
     );
@@ -234,10 +280,10 @@ class ProfileView extends ConsumerWidget {
 
   Widget _buildInfoTile(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
       child: Row(
         children: [
-          Icon(icon, color: AqaTheme.textLightMuted, size: 20.0),
+          Icon(icon, color: AqaTheme.textLightMuted, size: 18.0),
           const SizedBox(width: 12.0),
           Expanded(
             child: Column(

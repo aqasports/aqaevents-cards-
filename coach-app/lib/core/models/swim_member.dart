@@ -21,6 +21,10 @@ class SwimMemberModel {
   final String badgeKey;
   final String badgeLabel;
   final String badgeAsset;
+  final String stageKey;
+  final String stageLabel;
+  final String stageAsset;
+  final List<String> unlockedBadges;
 
   const SwimMemberModel({
     required this.id,
@@ -45,9 +49,14 @@ class SwimMemberModel {
     this.badgeKey = 'starter',
     this.badgeLabel = 'Starter',
     this.badgeAsset = 'starter.png',
+    this.stageKey = 'elephant',
+    this.stageLabel = 'Stage 1 - Elephant',
+    this.stageAsset = 'elephant.png',
+    this.unlockedBadges = const ['starter'],
   });
 
   factory SwimMemberModel.fromJson(Map<String, dynamic> json) {
+    final rawUnlocked = json['unlockedBadges'] as List<dynamic>? ?? const ['starter'];
     return SwimMemberModel(
       id: json['id'] as String? ?? (json['memberId'] as String? ?? ''),
       swimId: json['swimId'] as String? ?? '',
@@ -71,6 +80,10 @@ class SwimMemberModel {
       badgeKey: json['badgeKey'] as String? ?? 'starter',
       badgeLabel: json['badgeLabel'] as String? ?? 'Starter',
       badgeAsset: json['badgeAsset'] as String? ?? 'starter.png',
+      stageKey: json['stageKey'] as String? ?? 'elephant',
+      stageLabel: json['stageLabel'] as String? ?? 'Stage 1 - Elephant',
+      stageAsset: json['stageAsset'] as String? ?? 'elephant.png',
+      unlockedBadges: rawUnlocked.map((e) => e.toString()).toList(),
     );
   }
 
@@ -98,7 +111,10 @@ class SwimMemberModel {
       'badgeKey': badgeKey,
       'badgeLabel': badgeLabel,
       'badgeAsset': badgeAsset,
+      'stageKey': stageKey,
+      'stageLabel': stageLabel,
+      'stageAsset': stageAsset,
+      'unlockedBadges': unlockedBadges,
     };
   }
 }
-

@@ -90,13 +90,17 @@ export async function GET(
       }
     }
 
-    // Map existing attendances
+    // Map existing attendances (strictly binary present/absent)
     const attendanceByMemberId = new Map(
       session.attendances.map((a) => [a.memberId, a])
     );
 
+    const normalizeBinaryStatus = (raw?: string | null) =>
+      raw?.toLowerCase() === "absent" ? "absent" : "present";
+
     const shapedMembers = roster.map((m) => {
       const att = attendanceByMemberId.get(m.id);
+      const binStatus = normalizeBinaryStatus(att?.status);
       return {
         id: m.id,
         memberId: m.id,
@@ -107,8 +111,8 @@ export async function GET(
         level: m.level,
         cardCode: m.cardCode,
         paymentStatus: m.paymentStatus,
-        status: att?.status ?? "present",
-        rawStatus: att?.status ?? "unmarked",
+        status: binStatus,
+        rawStatus: att ? binStatus : "unmarked",
         isMarked: Boolean(att),
         method: att?.method ?? "manual",
         note: att?.note ?? null,
@@ -133,6 +137,7 @@ export async function GET(
           },
         });
         if (guestMember) {
+          const binStatus = normalizeBinaryStatus(att.status);
           shapedMembers.push({
             id: guestMember.id,
             memberId: guestMember.id,
@@ -143,8 +148,8 @@ export async function GET(
             level: guestMember.level,
             cardCode: null,
             paymentStatus: "paid",
-            status: att.status,
-            rawStatus: att.status,
+            status: binStatus,
+            rawStatus: binStatus,
             isMarked: true,
             method: att.method,
             note: att.note,
@@ -194,16 +199,19 @@ export async function GET(
         },
         members: shapedMembers,
         groupMembers: shapedMembers,
-        attendance: session.attendances.map((a) => ({
-          id: a.id,
-          sessionId: a.sessionId,
-          memberId: a.memberId,
-          status: a.status.toUpperCase(),
-          rawStatus: a.status,
-          isGuest: a.isGuest,
-          note: a.note,
-          notes: a.note,
-        })),
+        attendance: session.attendances.map((a) => {
+          const bin = normalizeBinaryStatus(a.status);
+          return {
+            id: a.id,
+            sessionId: a.sessionId,
+            memberId: a.memberId,
+            status: bin.toUpperCase(),
+            rawStatus: bin,
+            isGuest: a.isGuest,
+            note: a.note,
+            notes: a.note,
+          };
+        }),
         clubSwimmers,
         sessionRating,
         isViewOnly,
@@ -219,4 +227,3 @@ export async function GET(
     );
   }
 }
-

@@ -22,8 +22,8 @@ const attendanceRecordSchema = z.object({
   memberId: z.string(),
   status: z
     .string()
-    .transform((v) => v.trim().toLowerCase())
-    .pipe(z.enum(["present", "absent", "late", "excused"])),
+    .transform((v) => (v.trim().toLowerCase() === "absent" ? "absent" : "present"))
+    .pipe(z.enum(["present", "absent"])),
   method: z
     .string()
     .optional()
@@ -48,7 +48,7 @@ const quickEvolutionSchema = z.object({
   memberId: z.string(),
   badgeKey: z.string().optional().nullable(),
   recommendedLevel: z.string().optional().nullable(),
-  starScore: z.number().int().min(1).max(4).optional().nullable(),
+  starScore: z.number().int().min(1).max(5).optional().nullable(),
   note: z.string().optional().nullable(),
 });
 
@@ -164,11 +164,13 @@ export async function PUT(
         if (!evo.note && !evo.recommendedLevel && !evo.badgeKey && !evo.starScore) {
           continue;
         }
-        const skillsPayload = evo.starScore
-          ? JSON.stringify([
-              { key: "session_mastery", score: evo.starScore },
-            ])
-          : null;
+        const skillsPayload = JSON.stringify({
+          water_comfort_immersion: evo.starScore || 4,
+          _meta: {
+            awardedBadgeKey: evo.badgeKey || null,
+            recommendedLevel: evo.recommendedLevel || null,
+          },
+        });
         await tx.swimTechReview.create({
           data: {
             memberId: evo.memberId,
@@ -242,4 +244,3 @@ export async function PUT(
     );
   }
 }
-

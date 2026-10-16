@@ -25,8 +25,8 @@ const syncPayloadSchema = z.object({
         memberId: z.string(),
         status: z
           .string()
-          .transform((v) => v.trim().toLowerCase())
-          .pipe(z.enum(["present", "absent", "late", "excused"])),
+          .transform((v) => (v.trim().toLowerCase() === "absent" ? "absent" : "present"))
+          .pipe(z.enum(["present", "absent"])),
         method: z.enum(["manual", "qr"]).default("manual"),
         isGuest: z.boolean().default(false),
         note: z.string().optional().nullable(),
@@ -90,9 +90,8 @@ export async function POST(req: NextRequest) {
             const rawStatus = String((r as Record<string, unknown>).status || "present")
               .trim()
               .toLowerCase();
-            const validStatus = ["present", "absent", "late", "excused"].includes(rawStatus)
-              ? (rawStatus as "present" | "absent" | "late" | "excused")
-              : "present";
+            const validStatus: "present" | "absent" =
+              rawStatus === "absent" ? "absent" : "present";
             attendancesList.push({
               sessionId,
               memberId: String((r as Record<string, unknown>).memberId),

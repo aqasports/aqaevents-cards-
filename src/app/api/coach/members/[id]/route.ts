@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireCoachSession } from "@/lib/coach-auth";
 import { canManageTechReview } from "@/lib/coach-rbac";
-import { getSkillsForCategory, SWIM_PROGRESSION_BADGES } from "@/lib/swim-skills";
+import {
+  AQA_BIOMECHANICAL_DOMAINS,
+  AQA_SUIVI_BADGES,
+  AQA_SUIVI_STAGES,
+  computeSwimmerSuiviProgression,
+  getSkillsForCategory,
+  SWIM_SKILLS_CATALOG_V1,
+} from "@/lib/swim-skills";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +22,28 @@ const corsHeaders = {
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
+function buildSkillLabelLookup(category: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const catCatalog = getSkillsForCategory(category);
+  for (const s of catCatalog.skills) {
+    map.set(s.key, s.labelFr || s.label);
+  }
+  for (const domain of AQA_BIOMECHANICAL_DOMAINS) {
+    for (const item of domain.items) {
+      map.set(item.key, item.labelFr || item.label);
+    }
+  }
+  return map;
+}
+
+function normalizeBinaryAttendanceStatus(rawStatus: string): "PRESENT" | "ABSENT" {
+  const norm = (rawStatus || "").trim().toLowerCase();
+  if (norm === "present" || norm === "late") {
+    return "PRESENT";
+  }
+  return "ABSENT";
 }
 
 export async function GET(
@@ -33,7 +62,7 @@ export async function GET(
         card: { select: { cardCode: true, status: true } },
         group: { select: { id: true, name: true, category: true, level: true } },
         attendances: {
-          take: 40,
+          take: 50,
           orderBy: { markedAt: "desc" },
           include: {
             session: {
@@ -63,62 +92,172 @@ export async function GET(
     );
     const canEdit = editAuth.allowed;
 
-    const skillsCatalog = getSkillsForCategory(member.category);
-    const skillLabelMap = new Map(
-      skillsCatalog.skills.map((s) => [s.key, s.label])
-    );
+    const skillLabelMap = buildSkillLabelLookup(member.category);
 
-    const presentCount = member.attendances.filter(
-      (a) => a.status === "present" || a.status === "late"
-    ).length;
-    const lateCount = member.attendances.filter((a) => a.status === "late").length;
-    const excusedCount = member.attendances.filter((a) => a.status === "excused").length;
-    const absentCount = member.attendances.filter((a) => a.status === "absent").length;
-    const totalAtt = member.attendances.length;
+    // Strictly Binary Attendance (PRESENT vs ABSENT only)
+    const binaryAttendances = member.attendances.map((a) => {
+      const binaryStatus = normalizeBinaryAttendanceStatus(a.status);
+      return {
+        id: a.id,
+        date: a.session.sessionDate.toISOString().split("T")[0],
+        time: a.session.startTime,
+        status: binaryStatus,
+        rawStatus: binaryStatus.toLowerCase(),
+        method: a.method,
+        note: a.note,
+      };
+    });
+
+    const presentCount = binaryAttendances.filter((a) => a.status === "PRESENT").length;
+    const absentCount = binaryAttendances.filter((a) => a.status === "ABSENT").length;
+    const totalAtt = presentCount + absentCount;
     const attendanceRate =
       totalAtt > 0 ? Math.round((presentCount / totalAtt) * 100) : 100;
 
-    let highestAvgScore = 0;
-
     const shapedReviews = member.techReviews.map((r) => {
-      let rawSkills: Array<{ key?: string; skillKey?: string; label?: string; score?: number }> = [];
+      let parsedSkillsPayload: unknown = null;
       let rawMetrics: Array<{ key: string; value: number; unit: string }> = [];
 
       if (r.skills) {
         try {
-          rawSkills = JSON.parse(r.skills);
+          parsedSkillsPayload = JSON.parse(r.skills);
         } catch {
-          rawSkills = [];
+          parsedSkillsPayload = null;
         }
       }
+
       if (r.metrics) {
         try {
-          rawMetrics = JSON.parse(r.metrics);
+          const mParsed = JSON.parse(r.metrics);
+          if (Array.isArray(mParsed)) {
+            rawMetrics = mParsed;
+          } else if (mParsed && typeof mParsed === "object") {
+            const mObj = mParsed as Record<string, unknown>;
+            if (Number(mObj.time25mSec || mObj.chrono25mFreestyle) > 0) {
+              rawMetrics.push({
+                key: "chrono25mFreestyle",
+                value: Number(mObj.time25mSec || mObj.chrono25mFreestyle),
+                unit: "s",
+              });
+            }
+            if (Number(mObj.time50mSec || mObj.chrono50mFreestyle) > 0) {
+              rawMetrics.push({
+                key: "chrono50mFreestyle",
+                value: Number(mObj.time50mSec || mObj.chrono50mFreestyle),
+                unit: "s",
+              });
+            }
+            if (Number(mObj.maxDistanceM || mObj.maxDistanceMeters) > 0) {
+              rawMetrics.push({
+                key: "maxDistanceMeters",
+                value: Number(mObj.maxDistanceM || mObj.maxDistanceMeters),
+                unit: "m",
+              });
+            }
+          }
         } catch {
           rawMetrics = [];
         }
       }
 
-      const normalizedSkills = rawSkills.map((s) => {
-        const k = s.key || s.skillKey || "skill";
-        return {
-          key: k,
-          skillKey: k,
-          label: s.label || skillLabelMap.get(k) || k,
-          score: Number(s.score) || 1,
-        };
-      });
+      // Build unified skillsJson object with _meta for progression calculation
+      const skillsJsonRecord: Record<string, unknown> = {};
+      const normalizedSkillsList: Array<{
+        key: string;
+        skillKey: string;
+        label: string;
+        score: number;
+      }> = [];
 
-      if (normalizedSkills.length > 0) {
-        const avg =
-          normalizedSkills.reduce((acc, s) => acc + s.score, 0) /
-          normalizedSkills.length;
-        if (avg > highestAvgScore) {
-          highestAvgScore = avg;
+      if (Array.isArray(parsedSkillsPayload)) {
+        for (const item of parsedSkillsPayload) {
+          if (item && typeof item === "object") {
+            const rec = item as Record<string, unknown>;
+            const k = String(rec.key || rec.skillKey || "skill");
+            if (k === "_meta") {
+              skillsJsonRecord._meta = rec;
+              continue;
+            }
+            const score = Math.max(1, Math.min(5, Number(rec.score) || 1));
+            const label = String(rec.label || skillLabelMap.get(k) || k);
+            normalizedSkillsList.push({ key: k, skillKey: k, label, score });
+            skillsJsonRecord[k] = score;
+          }
+        }
+      } else if (parsedSkillsPayload && typeof parsedSkillsPayload === "object") {
+        const obj = parsedSkillsPayload as Record<string, unknown>;
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === "_meta" && v && typeof v === "object") {
+            skillsJsonRecord._meta = v;
+            continue;
+          }
+          if (typeof v === "number" || typeof v === "string") {
+            const score = Math.max(1, Math.min(5, Number(v) || 1));
+            const label = skillLabelMap.get(k) || k;
+            normalizedSkillsList.push({ key: k, skillKey: k, label, score });
+            skillsJsonRecord[k] = score;
+          } else if (v && typeof v === "object" && !Array.isArray(v)) {
+            skillsJsonRecord[k] = v;
+            const nested = v as Record<string, unknown>;
+            for (const [subKey, subVal] of Object.entries(nested)) {
+              const score = Math.max(1, Math.min(5, Number(subVal) || 1));
+              const label = skillLabelMap.get(subKey) || subKey;
+              normalizedSkillsList.push({
+                key: subKey,
+                skillKey: subKey,
+                label,
+                score,
+              });
+            }
+          }
         }
       }
 
-      const overallLevel = r.recommendedLevel || member.level || "Starter";
+      // Ensure _meta is enriched with recommendedLevel or metrics if not already set
+      const existingMeta =
+        skillsJsonRecord._meta && typeof skillsJsonRecord._meta === "object"
+          ? (skillsJsonRecord._meta as Record<string, unknown>)
+          : {};
+
+      const findMetricVal = (keys: string[]): number | null => {
+        for (const m of rawMetrics) {
+          if (keys.includes(m.key) && Number(m.value) > 0) {
+            return Number(m.value);
+          }
+        }
+        return null;
+      };
+
+      const matchedBadgeFromRecommended = r.recommendedLevel
+        ? AQA_SUIVI_BADGES.find(
+            (b) =>
+              b.key.toLowerCase() === r.recommendedLevel?.toLowerCase() ||
+              b.label.toLowerCase() === r.recommendedLevel?.toLowerCase()
+          )
+        : undefined;
+
+      skillsJsonRecord._meta = {
+        awardedBadgeKey:
+          existingMeta.awardedBadgeKey || matchedBadgeFromRecommended?.key || null,
+        recommendedLevel: existingMeta.recommendedLevel || r.recommendedLevel || null,
+        chrono25mFreestyle:
+          existingMeta.chrono25mFreestyle ??
+          findMetricVal(["chrono25mFreestyle", "time25mSec", "time_25m_free"]),
+        chrono50mFreestyle:
+          existingMeta.chrono50mFreestyle ??
+          findMetricVal(["chrono50mFreestyle", "time50mSec", "time_50m_free"]),
+        maxDistanceMeters:
+          existingMeta.maxDistanceMeters ??
+          findMetricVal(["maxDistanceMeters", "maxDistanceM", "continuous_distance"]),
+      };
+
+      const revProg = computeSwimmerSuiviProgression(skillsJsonRecord, 1);
+      const overallLevel =
+        revProg.meta.recommendedLevel ||
+        r.recommendedLevel ||
+        revProg.badgeLabel ||
+        member.level ||
+        "Starter";
       const evaluatorNotes = r.strengths || "";
 
       return {
@@ -128,8 +267,19 @@ export async function GET(
         coachName: r.coach?.name ?? "Coach AQA",
         sessionId: r.sessionId,
         kind: r.kind,
-        skills: normalizedSkills,
+        skills: normalizedSkillsList,
+        skillsJson: skillsJsonRecord,
+        categoryAverages: revProg.categoryAverages,
+        avgSkillScore: revProg.avgSkillScore,
+        badgeKey: revProg.badgeKey,
+        badgeLabel: revProg.badgeLabel,
+        badgeAsset: revProg.badgeAsset,
+        stageKey: revProg.stageKey,
+        stageLabel: revProg.stageLabel,
+        stageAsset: revProg.stageAsset,
+        meta: revProg.meta,
         metrics: rawMetrics,
+        generalNotes: evaluatorNotes,
         strengths: r.strengths,
         evaluatorNotes,
         improvements: r.improvements,
@@ -140,27 +290,39 @@ export async function GET(
       };
     });
 
-    let currentBadge = SWIM_PROGRESSION_BADGES[0];
-    for (const b of SWIM_PROGRESSION_BADGES) {
-      if (highestAvgScore >= b.minScoreAvg) {
-        currentBadge = b;
+    const latestSkillsJson = shapedReviews[0]?.skillsJson ?? null;
+    const progression = computeSwimmerSuiviProgression(
+      latestSkillsJson,
+      shapedReviews.length
+    );
+
+    // Combine unlocked badges across all historical reviews as well
+    const allUnlockedSet = new Set<string>(progression.unlockedBadges);
+    for (const rev of shapedReviews) {
+      if (rev.badgeKey) {
+        const bMatch = AQA_SUIVI_BADGES.find((b) => b.key === rev.badgeKey);
+        if (bMatch) {
+          for (const b of AQA_SUIVI_BADGES) {
+            if (b.order <= bMatch.order) {
+              allUnlockedSet.add(b.key);
+            }
+          }
+        }
       }
     }
+    const unlockedBadges = AQA_SUIVI_BADGES.filter((b) => allUnlockedSet.has(b.key)).map(
+      (b) => b.key
+    );
 
-    const earnedBadges = SWIM_PROGRESSION_BADGES.map((b, idx) => ({
+    const earnedBadges = AQA_SUIVI_BADGES.map((b) => ({
       ...b,
-      unlocked:
-        idx === 0 ||
-        highestAvgScore >= b.minScoreAvg ||
-        shapedReviews.some(
-          (r) =>
-            r.recommendedLevel.toLowerCase() === b.key.toLowerCase() ||
-            r.recommendedLevel.toLowerCase() === b.label.toLowerCase()
-        ),
+      unlocked: unlockedBadges.includes(b.key),
     }));
 
     const latestRecommendedLevel =
-      shapedReviews[0]?.recommendedLevel || member.level;
+      progression.meta.recommendedLevel ||
+      shapedReviews[0]?.recommendedLevel ||
+      member.level;
 
     return NextResponse.json(
       {
@@ -183,11 +345,31 @@ export async function GET(
           totalPresences: presentCount,
           totalAbsences: absentCount,
           attendanceRate,
-          avgSkillScore: Number(highestAvgScore.toFixed(1)),
-          badgeKey: currentBadge.key,
-          badgeLabel: currentBadge.label,
-          badgeAsset: currentBadge.assetName,
+          reviewCount: shapedReviews.length,
+          avgSkillScore: progression.avgSkillScore,
+          categoryAverages: progression.categoryAverages,
+          badgeKey: progression.badgeKey,
+          badgeLabel: progression.badgeLabel,
+          badgeLabelEn: progression.badgeLabelEn,
+          badgeLabelAr: progression.badgeLabelAr,
+          badgeAsset: progression.badgeAsset,
+          stageKey: progression.stageKey,
+          stageLabel: progression.stageLabel,
+          stageLabelEn: progression.stageLabelEn,
+          stageLabelAr: progression.stageLabelAr,
+          stageAsset: progression.stageAsset,
+          unlockedBadges,
+          latestMeta: progression.meta,
         },
+        stageKey: progression.stageKey,
+        stageLabel: progression.stageLabel,
+        stageAsset: progression.stageAsset,
+        badgeKey: progression.badgeKey,
+        badgeLabel: progression.badgeLabel,
+        badgeAsset: progression.badgeAsset,
+        unlockedBadges,
+        categoryAverages: progression.categoryAverages,
+        latestMeta: progression.meta,
         currentGroup: member.group
           ? {
               id: member.group.id,
@@ -198,25 +380,20 @@ export async function GET(
           : null,
         canEdit,
         isViewOnly: !canEdit,
-        skillsCatalog,
-        progressionBadges: SWIM_PROGRESSION_BADGES,
+        allStages: AQA_SUIVI_STAGES,
+        allBadges: AQA_SUIVI_BADGES,
+        progressionBadges: AQA_SUIVI_BADGES,
         earnedBadges,
+        biomechanicalDomains: AQA_BIOMECHANICAL_DOMAINS,
+        skillsCatalog: SWIM_SKILLS_CATALOG_V1,
+        categorySkillsCatalog: getSkillsForCategory(member.category),
         attendanceSummary: {
           present: presentCount,
-          late: lateCount,
-          excused: excusedCount,
           absent: absentCount,
           total: totalAtt,
           attendanceRate,
         },
-        recentAttendances: member.attendances.map((a) => ({
-          id: a.id,
-          date: a.session.sessionDate.toISOString().split("T")[0],
-          time: a.session.startTime,
-          status: a.status,
-          method: a.method,
-          note: a.note,
-        })),
+        recentAttendances: binaryAttendances,
         techReviews: shapedReviews,
         reviews: shapedReviews,
       },
@@ -230,4 +407,3 @@ export async function GET(
     );
   }
 }
-

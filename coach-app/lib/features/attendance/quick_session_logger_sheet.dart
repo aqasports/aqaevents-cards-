@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/i18n/app_i18n.dart';
 import '../../core/models/swim_attendance.dart';
 import '../../core/models/swim_session.dart';
 import '../../core/providers/bootstrap_provider.dart';
@@ -9,7 +10,7 @@ import '../../core/theme/aqa_theme.dart';
 import 'attendance_screen.dart';
 
 class _QuickSwimmerEvolution {
-  int starScore = 0; // 0 = unchanged, 1..4 = quick mastery score
+  int starScore = 0; // 0 = unchanged, 1..5 = quick mastery score
   String? badgeKey;
   String? badgeLabel;
   String note = '';
@@ -42,7 +43,7 @@ class QuickSessionLoggerSheet extends ConsumerStatefulWidget {
 }
 
 class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerSheet> {
-  int _currentStep = 0; // 0: Presence, 1: Evolution, 2: Session Rating
+  int _currentStep = 0; // 0: Binary Presence/Absence, 1: Evolution/Badges, 2: Session Rating
   bool _isInitialized = false;
   bool _isSaving = false;
 
@@ -59,12 +60,17 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
     {'key': 'starter', 'label': 'Starter', 'asset': 'assets/images/badges/starter.png'},
     {'key': 'beginner', 'label': 'Beginner', 'asset': 'assets/images/badges/beginner.png'},
     {'key': 'floater', 'label': 'Floater', 'asset': 'assets/images/badges/floater.png'},
-    {'key': 'dauphin', 'label': 'Dauphin', 'asset': 'assets/images/badges/dauphin.png'},
+    {'key': 'leaf', 'label': 'Leaf', 'asset': 'assets/images/badges/leaf.png'},
+    {'key': 'dolphin', 'label': 'Dolphin', 'asset': 'assets/images/badges/dolphin.png'},
     {'key': 'crawler', 'label': 'Crawler', 'asset': 'assets/images/badges/crawler.png'},
     {'key': 'brasseur', 'label': 'Brasseur', 'asset': 'assets/images/badges/brasseur.png'},
     {'key': 'butterfly', 'label': 'Butterfly', 'asset': 'assets/images/badges/butterfly.png'},
-    {'key': 'requin', 'label': 'Requin', 'asset': 'assets/images/badges/requin.png'},
+    {'key': 'shark', 'label': 'Shark', 'asset': 'assets/images/badges/shark.png'},
     {'key': 'orca', 'label': 'Orca', 'asset': 'assets/images/badges/orca.png'},
+    {'key': 'whale', 'label': 'Whale', 'asset': 'assets/images/badges/whale.png'},
+    {'key': 'kraken', 'label': 'Kraken', 'asset': 'assets/images/badges/kraken.png'},
+    {'key': 'mosasaurus', 'label': 'Mosasaurus', 'asset': 'assets/images/badges/mosasaurus.png'},
+    {'key': 'tsunami', 'label': 'Tsunami', 'asset': 'assets/images/badges/tsunami.png'},
     {'key': 'full_swimmer', 'label': 'Full Swimmer', 'asset': 'assets/images/badges/full_swimmer.png'},
   ];
 
@@ -124,25 +130,7 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
     _isInitialized = true;
   }
 
-  void _cycleStatus(AttendanceRecordModel rec) {
-    setState(() {
-      switch (rec.status.toUpperCase()) {
-        case 'PRESENT':
-          rec.status = 'ABSENT';
-          break;
-        case 'ABSENT':
-          rec.status = 'LATE';
-          break;
-        case 'LATE':
-          rec.status = 'EXCUSED';
-          break;
-        default:
-          rec.status = 'PRESENT';
-      }
-    });
-  }
-
-  Future<void> _submitQuickLog() async {
+  Future<void> _submitQuickLog(AppI18n i18n) async {
     if (_isSaving) return;
     setState(() => _isSaving = true);
 
@@ -182,9 +170,9 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
         ref.invalidate(sessionDetailProvider(widget.session.id));
         ref.invalidate(bootstrapProvider);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             backgroundColor: AqaTheme.statusSuccess,
-            content: Text('Seance enregistree : Presences, evolutions et note validees.'),
+            content: Text(i18n.t('attendance.saved_success')),
           ),
         );
         Navigator.of(context).pop(true);
@@ -194,7 +182,7 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AqaTheme.statusDanger,
-            content: Text('Erreur lors de la validation: $e'),
+            content: Text('${i18n.t('common.error')}: $e'),
           ),
         );
       }
@@ -206,10 +194,11 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
   @override
   Widget build(BuildContext context) {
     final sessionAsync = ref.watch(sessionDetailProvider(widget.session.id));
+    final i18n = ref.watch(i18nProvider);
     final mediaQuery = MediaQuery.of(context);
 
     return Container(
-      height: mediaQuery.size.height * 0.88,
+      height: mediaQuery.size.height * 0.90,
       decoration: const BoxDecoration(
         color: AqaTheme.bgDark,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.0)),
@@ -243,12 +232,12 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                     Container(
                       padding: const EdgeInsets.all(8.0),
                       decoration: BoxDecoration(
-                        color: AqaTheme.accentTeal.withValues(alpha: 0.12),
+                        color: AqaTheme.accentTeal.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(10.0),
                         border: Border.all(color: AqaTheme.borderTeal),
                       ),
                       child: const Icon(
-                        Icons.bolt,
+                        Icons.bolt_rounded,
                         color: AqaTheme.accentTeal,
                         size: 20.0,
                       ),
@@ -258,43 +247,56 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'ASSISTANT LOG RAPIDE (3 ETAPES)',
-                            style: TextStyle(
-                              color: AqaTheme.accentTeal,
-                              fontSize: 10.0,
+                          Text(
+                            i18n.t('quick_logger.title'),
+                            style: const TextStyle(
+                              color: AqaTheme.textPrimary,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w800,
-                              letterSpacing: 1.1,
                             ),
                           ),
                           const SizedBox(height: 2.0),
                           Text(
                             '${widget.session.groupName} • ${widget.session.startTime} - ${widget.session.endTime}',
                             style: const TextStyle(
-                              color: AqaTheme.textPrimary,
-                              fontSize: 15.0,
-                              fontWeight: FontWeight.w700,
+                              color: AqaTheme.textMuted,
+                              fontSize: 12.0,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(false),
-                      icon: const Icon(Icons.close, color: AqaTheme.textMuted),
+                      icon: const Icon(Icons.close_rounded, color: AqaTheme.textMuted),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14.0),
-                // 3-Step Indicator Bar
+                const SizedBox(height: 12.0),
+
+                // 3-Step Indicator Strip
                 Row(
                   children: [
-                    _buildStepPill(0, '1. Presences', Icons.how_to_reg_outlined),
-                    const SizedBox(width: 8.0),
-                    _buildStepPill(1, '2. Evolution', Icons.trending_up),
-                    const SizedBox(width: 8.0),
-                    _buildStepPill(2, '3. Note Seance', Icons.star_outline),
+                    Expanded(
+                      child: _buildStepPill(
+                        stepIndex: 0,
+                        label: i18n.t('quick_logger.step1'),
+                      ),
+                    ),
+                    const SizedBox(width: 6.0),
+                    Expanded(
+                      child: _buildStepPill(
+                        stepIndex: 1,
+                        label: i18n.t('quick_logger.step2'),
+                      ),
+                    ),
+                    const SizedBox(width: 6.0),
+                    Expanded(
+                      child: _buildStepPill(
+                        stepIndex: 2,
+                        label: i18n.t('quick_logger.step3'),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -311,7 +313,7 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
                   child: Text(
-                    'Impossible de charger la seance: $err',
+                    err.toString(),
                     style: const TextStyle(color: AqaTheme.textMuted),
                   ),
                 ),
@@ -319,83 +321,55 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
               data: (data) {
                 _initFromSessionData(data);
                 if (_currentStep == 0) {
-                  return _buildStep1Presence();
+                  return _buildStep1BinaryPresence(i18n);
                 } else if (_currentStep == 1) {
-                  return _buildStep2Evolution();
+                  return _buildStep2Evolution(i18n);
                 } else {
-                  return _buildStep3SessionRating();
+                  return _buildStep3SessionRating(i18n);
                 }
               },
             ),
           ),
 
-          // Footer Navigation Bar
+          // Footer Navigation
           Container(
-            padding: EdgeInsets.fromLTRB(
-              16.0,
-              12.0,
-              16.0,
-              12.0 + mediaQuery.padding.bottom,
-            ),
+            padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
             decoration: const BoxDecoration(
               color: AqaTheme.surfaceDark,
               border: Border(top: BorderSide(color: AqaTheme.borderSubtle)),
             ),
-            child: Row(
-              children: [
-                if (_currentStep > 0) ...[
-                  OutlinedButton.icon(
-                    onPressed: _isSaving
-                        ? null
-                        : () => setState(() => _currentStep -= 1),
-                    icon: const Icon(Icons.arrow_back, size: 16.0),
-                    label: const Text('Retour'),
-                  ),
-                  const SizedBox(width: 12.0),
-                ],
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _currentStep == 2
-                          ? AqaTheme.statusSuccess
-                          : AqaTheme.primarySky,
-                      padding: const EdgeInsets.symmetric(vertical: 14.0),
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  if (_currentStep > 0) ...[
+                    OutlinedButton.icon(
+                      onPressed: () => setState(() => _currentStep -= 1),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 16.0),
+                      label: Text(i18n.t('quick_logger.prev_step')),
                     ),
-                    onPressed: _isSaving
-                        ? null
-                        : () {
-                            if (_currentStep < 2) {
-                              setState(() => _currentStep += 1);
-                            } else {
-                              _submitQuickLog();
-                            }
-                          },
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 18.0,
-                            height: 18.0,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.0,
-                              color: Colors.white,
-                            ),
+                    const SizedBox(width: 10.0),
+                  ],
+                  Expanded(
+                    child: _currentStep < 2
+                        ? AqaIslandButton(
+                            label: i18n.t('quick_logger.next_step'),
+                            icon: Icons.arrow_forward_rounded,
+                            onPressed: () => setState(() => _currentStep += 1),
                           )
-                        : Icon(
-                            _currentStep < 2
-                                ? Icons.arrow_forward
-                                : Icons.check_circle_outline,
-                            size: 18.0,
+                        : AqaIslandButton(
+                            label: _isSaving
+                                ? i18n.t('common.saving')
+                                : i18n.t('quick_logger.finish_cta'),
+                            icon: Icons.check_rounded,
+                            loading: _isSaving,
+                            color: AqaTheme.statusSuccess,
+                            textColor: Colors.white,
+                            onPressed: () => _submitQuickLog(i18n),
                           ),
-                    label: Text(
-                      _currentStep == 0
-                          ? 'Suivant : Evolution des Nageurs (Etape 2/3)'
-                          : _currentStep == 1
-                              ? 'Suivant : Noter la Seance (Etape 3/3)'
-                              : 'Valider & Cloturer la Seance',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
@@ -403,89 +377,94 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
     );
   }
 
-  Widget _buildStepPill(int stepIndex, String title, IconData icon) {
+  Widget _buildStepPill({required int stepIndex, required String label}) {
     final isCurrent = _currentStep == stepIndex;
-    final isPassed = _currentStep > stepIndex;
+    final isDone = _currentStep > stepIndex;
     final color = isCurrent
         ? AqaTheme.accentTeal
-        : isPassed
+        : isDone
             ? AqaTheme.statusSuccess
             : AqaTheme.textLightMuted;
 
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-        onTap: () => setState(() => _currentStep = stepIndex),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-          decoration: BoxDecoration(
-            color: isCurrent
-                ? AqaTheme.accentTeal.withValues(alpha: 0.14)
-                : isPassed
-                    ? AqaTheme.statusSuccessBg
-                    : AqaTheme.surfaceSecondary,
-            borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-            border: Border.all(
-              color: isCurrent
-                  ? AqaTheme.accentTeal
-                  : isPassed
-                      ? AqaTheme.statusSuccess
-                      : AqaTheme.borderSubtle,
-            ),
+    return InkWell(
+      onTap: () => setState(() => _currentStep = stepIndex),
+      borderRadius: BorderRadius.circular(10.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 6.0),
+        decoration: BoxDecoration(
+          color: isCurrent
+              ? AqaTheme.accentTeal.withValues(alpha: 0.14)
+              : const Color(0xFF090F1E),
+          borderRadius: BorderRadius.circular(10.0),
+          border: Border.all(
+            color: isCurrent ? AqaTheme.accentTeal : AqaTheme.borderSubtle,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                isPassed ? Icons.check_circle : icon,
-                color: color,
-                size: 14.0,
-              ),
-              const SizedBox(width: 5.0),
-              Flexible(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: isCurrent ? AqaTheme.textPrimary : color,
-                    fontSize: 11.0,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontSize: 11.0,
+            fontWeight: FontWeight.w800,
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStep1Presence() {
+  /// STEP 1: Strictly Binary PRESENT / ABSENT
+  Widget _buildStep1BinaryPresence(AppI18n i18n) {
     final presentCount = _records.where((r) => r.isPresent).length;
     final absentCount = _records.where((r) => r.isAbsent).length;
-    final lateCount = _records.where((r) => r.isLate).length;
 
-    return Column(
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-          color: AqaTheme.surfaceSecondary.withValues(alpha: 0.5),
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(14.0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Presents: $presentCount / ${_records.length}  •  Absents: $absentCount  •  Retards: $lateCount',
-                style: const TextStyle(
-                  color: AqaTheme.textPrimary,
-                  fontSize: 12.0,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      i18n.t('quick_logger.step1_desc'),
+                      style: const TextStyle(
+                        color: AqaTheme.textMuted,
+                        fontSize: 12.0,
+                      ),
+                    ),
+                    const SizedBox(height: 6.0),
+                    Row(
+                      children: [
+                        Text(
+                          '$presentCount ${i18n.t('attendance.present')}',
+                          style: const TextStyle(
+                            color: AqaTheme.statusSuccess,
+                            fontSize: 13.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 12.0),
+                        Text(
+                          '$absentCount ${i18n.t('attendance.absent')}',
+                          style: const TextStyle(
+                            color: AqaTheme.statusDanger,
+                            fontSize: 13.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: AqaTheme.accentTeal,
-                  visualDensity: VisualDensity.compact,
-                ),
+              TextButton(
                 onPressed: () {
                   setState(() {
                     for (final r in _records) {
@@ -493,379 +472,236 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                     }
                   });
                 },
-                icon: const Icon(Icons.done_all, size: 16.0),
-                label: const Text('Tout Present', style: TextStyle(fontSize: 12.0)),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _records.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Aucun nageur inscrit dans ce groupe.',
-                    style: TextStyle(color: AqaTheme.textMuted),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: _records.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8.0),
-                  itemBuilder: (ctx, idx) {
-                    final rec = _records[idx];
-                    Color statusColor = AqaTheme.statusSuccess;
-                    String statusLabel = 'PRESENT';
-                    if (rec.isAbsent) {
-                      statusColor = AqaTheme.statusDanger;
-                      statusLabel = 'ABSENT';
-                    } else if (rec.isLate) {
-                      statusColor = AqaTheme.statusWarning;
-                      statusLabel = 'RETARD';
-                    } else if (rec.isExcused) {
-                      statusColor = AqaTheme.statusInfo;
-                      statusLabel = 'EXCUSE';
-                    }
-
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                      onTap: () => _cycleStatus(rec),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14.0,
-                          vertical: 12.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AqaTheme.surfaceDark,
-                          borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                          border: Border.all(
-                            color: statusColor.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 18.0,
-                              backgroundColor: statusColor.withValues(alpha: 0.15),
-                              child: Text(
-                                rec.memberName.isNotEmpty
-                                    ? rec.memberName.substring(0, 1).toUpperCase()
-                                    : 'N',
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12.0),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    rec.memberName,
-                                    style: const TextStyle(
-                                      color: AqaTheme.textPrimary,
-                                      fontSize: 14.0,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const Text(
-                                    'Touchez pour basculer le statut (Present / Absent / Retard / Excuse)',
-                                    style: TextStyle(
-                                      color: AqaTheme.textLightMuted,
-                                      fontSize: 11.0,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12.0,
-                                vertical: 6.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                                border: Border.all(color: statusColor),
-                              ),
-                              child: Text(
-                                statusLabel,
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 11.0,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStep2Evolution() {
-    final presentSwimmers = _records.where((r) => !r.isAbsent).toList();
-
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(12.0),
-          decoration: BoxDecoration(
-            color: AqaTheme.surfaceSecondary,
-            borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-            border: Border.all(color: AqaTheme.borderSubtle),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.workspace_premium, color: AqaTheme.accentTeal, size: 20.0),
-              SizedBox(width: 10.0),
-              Expanded(
                 child: Text(
-                  'Optionnel : attribuez une etoile de progression (1 a 4) ou un badge AQA aux nageurs qui se sont demarques durant cette seance.',
-                  style: TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                  i18n.t('attendance.mark_all_present'),
+                  style: const TextStyle(
+                    color: AqaTheme.accentTeal,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
           ),
         ),
         const SizedBox(height: 12.0),
-        if (presentSwimmers.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(24.0),
-            child: Center(
-              child: Text(
-                'Aucun nageur present selectionne a l\'etape 1.',
-                style: TextStyle(color: AqaTheme.textMuted),
-              ),
-            ),
-          )
-        else
-          ...presentSwimmers.map((rec) {
-            final evo = _evolutions.putIfAbsent(
-              rec.memberId,
-              () => _QuickSwimmerEvolution(),
-            );
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10.0),
-              padding: const EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: AqaTheme.surfaceDark,
-                borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                border: Border.all(
-                  color: evo.hasChanges
-                      ? AqaTheme.accentTeal
-                      : AqaTheme.borderSubtle,
+        ..._records.map((rec) {
+          final isPresent = rec.isPresent;
+          final color = isPresent ? AqaTheme.statusSuccess : AqaTheme.statusDanger;
+          return AqaDoubleBezelCard(
+            margin: const EdgeInsets.only(bottom: 8.0),
+            outerRadius: 16.0,
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            onTap: () {
+              setState(() {
+                rec.toggleBinaryStatus();
+              });
+            },
+            child: Row(
+              children: [
+                Icon(
+                  isPresent ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                  color: color,
+                  size: 22.0,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          rec.memberName,
-                          style: const TextStyle(
-                            color: AqaTheme.textPrimary,
-                            fontSize: 14.0,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      // 1..4 Mastery Quick Stars
-                      Row(
-                        children: List.generate(4, (idx) {
-                          final scoreVal = idx + 1;
-                          final active = evo.starScore >= scoreVal;
-                          return IconButton(
-                            constraints: const BoxConstraints(
-                              minWidth: 30.0,
-                              minHeight: 30.0,
-                            ),
-                            padding: EdgeInsets.zero,
-                            icon: Icon(
-                              active ? Icons.star : Icons.star_border,
-                              color: active
-                                  ? AqaTheme.statusWarning
-                                  : AqaTheme.textLightMuted,
-                              size: 20.0,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                evo.starScore =
-                                    evo.starScore == scoreVal ? 0 : scoreVal;
-                              });
-                            },
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8.0),
-                  // Horizontal AQA Badge Picker
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: _badgeOptions.map((b) {
-                        final selected = evo.badgeKey == b['key'];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6.0),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8.0),
-                            onTap: () {
-                              setState(() {
-                                if (selected) {
-                                  evo.badgeKey = null;
-                                  evo.badgeLabel = null;
-                                } else {
-                                  evo.badgeKey = b['key'];
-                                  evo.badgeLabel = b['label'];
-                                }
-                              });
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8.0,
-                                vertical: 5.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AqaTheme.primarySky.withValues(alpha: 0.22)
-                                    : AqaTheme.surfaceSecondary,
-                                borderRadius: BorderRadius.circular(8.0),
-                                border: Border.all(
-                                  color: selected
-                                      ? AqaTheme.accentTeal
-                                      : AqaTheme.borderSubtle,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Image.asset(
-                                    b['asset']!,
-                                    width: 18.0,
-                                    height: 18.0,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.military_tech,
-                                      size: 16.0,
-                                      color: AqaTheme.accentTeal,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 5.0),
-                                  Text(
-                                    b['label']!,
-                                    style: TextStyle(
-                                      color: selected
-                                          ? AqaTheme.accentTeal
-                                          : AqaTheme.textMuted,
-                                      fontSize: 11.0,
-                                      fontWeight: selected
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                const SizedBox(width: 12.0),
+                Expanded(
+                  child: Text(
+                    rec.memberName,
+                    style: const TextStyle(
+                      color: AqaTheme.textPrimary,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-            );
-          }),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: color),
+                  ),
+                  child: Text(
+                    isPresent
+                        ? i18n.t('attendance.present').toUpperCase()
+                        : i18n.t('attendance.absent').toUpperCase(),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }
 
-  Widget _buildStep3SessionRating() {
+  /// STEP 2: Swimmer Evolution & 15 Official AQA Suivi Badges
+  Widget _buildStep2Evolution(AppI18n i18n) {
+    final presentRecords = _records.where((r) => r.isPresent).toList();
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // 1-5 Star Rating Card
-        Container(
-          padding: const EdgeInsets.all(18.0),
-          decoration: BoxDecoration(
-            color: AqaTheme.surfaceDark,
-            borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-            border: Border.all(color: AqaTheme.borderTeal),
-            boxShadow: AqaTheme.tealGlow,
-          ),
-          child: Column(
-            children: [
-              const Text(
-                'EVALUATION GLOBALE DE LA SEANCE',
-                style: TextStyle(
-                  color: AqaTheme.accentTeal,
-                  fontSize: 11.0,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
+        Text(
+          i18n.t('quick_logger.step2_desc'),
+          style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5),
+        ),
+        const SizedBox(height: 12.0),
+        ...presentRecords.map((rec) {
+          final evo = _evolutions.putIfAbsent(rec.memberId, () => _QuickSwimmerEvolution());
+          return AqaDoubleBezelCard(
+            margin: const EdgeInsets.only(bottom: 10.0),
+            padding: const EdgeInsets.all(14.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        rec.memberName,
+                        style: const TextStyle(
+                          color: AqaTheme.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(5, (idx) {
+                        final score = idx + 1;
+                        final active = score <= evo.starScore;
+                        return InkWell(
+                          onTap: () => setState(() {
+                            evo.starScore = evo.starScore == score ? 0 : score;
+                          }),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                            child: Icon(
+                              active ? Icons.star_rounded : Icons.star_outline_rounded,
+                              color: active ? AqaTheme.accentTeal : AqaTheme.textLightMuted,
+                              size: 20.0,
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 10.0),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _badgeOptions.map((b) {
+                      final isSelected = evo.badgeKey == b['key'];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10.0),
+                          onTap: () {
+                            setState(() {
+                              if (isSelected) {
+                                evo.badgeKey = null;
+                                evo.badgeLabel = null;
+                              } else {
+                                evo.badgeKey = b['key'];
+                                evo.badgeLabel = b['label'];
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AqaTheme.accentTeal.withValues(alpha: 0.16)
+                                  : const Color(0xFF080E1E),
+                              borderRadius: BorderRadius.circular(10.0),
+                              border: Border.all(
+                                color: isSelected ? AqaTheme.accentTeal : AqaTheme.borderSubtle,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Image.asset(
+                                  b['asset']!,
+                                  width: 20.0,
+                                  height: 20.0,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.military_tech_rounded,
+                                    size: 16.0,
+                                    color: AqaTheme.accentTeal,
+                                  ),
+                                ),
+                                const SizedBox(width: 5.0),
+                                Text(
+                                  b['label']!,
+                                  style: TextStyle(
+                                    color: isSelected ? AqaTheme.accentTeal : AqaTheme.textMuted,
+                                    fontSize: 11.0,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  /// STEP 3: Session Rating
+  Widget _buildStep3SessionRating(AppI18n i18n) {
+    return ListView(
+      padding: const EdgeInsets.all(16.0),
+      children: [
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                i18n.t('quick_logger.step3_desc'),
+                style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5),
               ),
-              const SizedBox(height: 6.0),
-              const Text(
-                'Comment s\'est deroulee cette seance d\'entrainement ?',
-                style: TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
-              ),
-              const SizedBox(height: 12.0),
+              const SizedBox(height: 14.0),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(5, (idx) {
-                  final starVal = idx + 1;
-                  final isSelected = _sessionRating >= starVal;
+                  final val = idx + 1;
+                  final active = val <= _sessionRating;
                   return IconButton(
-                    iconSize: 36.0,
-                    onPressed: () => setState(() => _sessionRating = starVal),
+                    onPressed: () => setState(() => _sessionRating = val),
                     icon: Icon(
-                      isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: isSelected
-                          ? AqaTheme.statusWarning
-                          : AqaTheme.textLightMuted,
+                      active ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: active ? AqaTheme.statusWarning : AqaTheme.textLightMuted,
+                      size: 36.0,
                     ),
                   );
                 }),
               ),
+              const SizedBox(height: 14.0),
               Text(
-                'Note : $_sessionRating / 5',
+                i18n.t('attendance.intensity_label'),
                 style: const TextStyle(
                   color: AqaTheme.textPrimary,
-                  fontSize: 14.0,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16.0),
-
-        // Intensity & Focus
-        Container(
-          padding: const EdgeInsets.all(16.0),
-          decoration: BoxDecoration(
-            color: AqaTheme.surfaceDark,
-            borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-            border: Border.all(color: AqaTheme.borderSubtle),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Intensite de la Seance',
-                style: TextStyle(
-                  color: AqaTheme.textPrimary,
-                  fontSize: 13.0,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -873,27 +709,23 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
               Wrap(
                 spacing: 8.0,
                 runSpacing: 8.0,
-                children: _intensityOptions.map((item) {
-                  final selected = _intensity == item;
+                children: _intensityOptions.map((opt) {
+                  final selected = _intensity == opt;
                   return ChoiceChip(
-                    label: Text(item, style: const TextStyle(fontSize: 12.0)),
+                    label: Text(opt),
                     selected: selected,
-                    onSelected: (_) => setState(() => _intensity = item),
+                    onSelected: (_) => setState(() => _intensity = opt),
                     selectedColor: AqaTheme.primarySky,
                     backgroundColor: AqaTheme.surfaceSecondary,
-                    labelStyle: TextStyle(
-                      color: selected ? Colors.white : AqaTheme.textMuted,
-                      fontWeight: FontWeight.w600,
-                    ),
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 16.0),
-              const Text(
-                'Focus Technique Principal',
-                style: TextStyle(
+              const SizedBox(height: 14.0),
+              Text(
+                i18n.t('sessions.focus_label'),
+                style: const TextStyle(
                   color: AqaTheme.textPrimary,
-                  fontSize: 13.0,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -901,38 +733,25 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
               Wrap(
                 spacing: 8.0,
                 runSpacing: 8.0,
-                children: _focusOptions.map((item) {
-                  final selected = _focus == item;
+                children: _focusOptions.map((opt) {
+                  final selected = _focus == opt;
                   return ChoiceChip(
-                    label: Text(item, style: const TextStyle(fontSize: 12.0)),
+                    label: Text(opt),
                     selected: selected,
-                    onSelected: (_) => setState(() => _focus = item),
-                    selectedColor: AqaTheme.accentTeal.withValues(alpha: 0.22),
+                    onSelected: (_) => setState(() => _focus = opt),
+                    selectedColor: AqaTheme.accentTeal.withValues(alpha: 0.25),
                     backgroundColor: AqaTheme.surfaceSecondary,
-                    labelStyle: TextStyle(
-                      color: selected ? AqaTheme.accentTeal : AqaTheme.textMuted,
-                      fontWeight: FontWeight.w600,
-                    ),
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 16.0),
-              const Text(
-                'Observations & Bilan de Seance',
-                style: TextStyle(
-                  color: AqaTheme.textPrimary,
-                  fontSize: 13.0,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8.0),
+              const SizedBox(height: 14.0),
               TextField(
                 controller: _summaryController,
                 maxLines: 3,
-                style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                decoration: const InputDecoration(
-                  hintText:
-                      'Ex: Excellente assiduite, travail de respiration bilaterale acquis pour le groupe...',
+                style: const TextStyle(color: AqaTheme.textPrimary),
+                decoration: InputDecoration(
+                  labelText: i18n.t('attendance.session_notes_label'),
+                  hintText: i18n.t('attendance.session_notes_hint'),
                 ),
               ),
             ],

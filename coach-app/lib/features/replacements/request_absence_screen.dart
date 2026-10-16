@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_endpoints.dart';
+import '../../core/i18n/app_i18n.dart';
 import '../../core/providers/bootstrap_provider.dart';
 import '../../core/theme/aqa_theme.dart';
 
@@ -69,6 +70,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
     setState(() => _isSubmitting = true);
 
     final client = ref.read(apiClientProvider);
+    final i18n = ref.read(i18nProvider);
 
     try {
       final response = await client.dio.post(
@@ -90,7 +92,11 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
           SnackBar(
             backgroundColor: AqaTheme.statusSuccess,
             content: Text(
-              'Absence declaree avec succes ($createdCount seance(s) en demande de couverture).',
+              i18n.locale == 'ar'
+                  ? 'تم تسجيل طلب الغياب بنجاح ($createdCount حصص تتطلب تغطية).'
+                  : i18n.locale == 'en'
+                      ? 'Absence declared successfully ($createdCount session(s) pending coverage).'
+                      : 'Absence declaree avec succes ($createdCount seance(s) en demande de couverture).',
             ),
           ),
         );
@@ -102,7 +108,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AqaTheme.statusDanger,
-            content: Text('Impossible de declarer l\'absence: $e'),
+            content: Text('${i18n.t('common.error')}: $e'),
           ),
         );
       }
@@ -114,6 +120,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
   @override
   Widget build(BuildContext context) {
     final bootstrapAsync = ref.watch(bootstrapProvider);
+    final i18n = ref.watch(i18nProvider);
     final currentCoachId = bootstrapAsync.valueOrNull?.coach.coachId ?? '';
     final colleagues = (bootstrapAsync.valueOrNull?.allCoaches ?? [])
         .where((c) => c['id'] != currentCoachId && c['role'] != 'assistant')
@@ -122,220 +129,236 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
       appBar: AppBar(
-        title: const Text('Declarer une Absence'),
+        title: Text(
+          i18n.locale == 'ar'
+              ? 'طلب غياب واستخلاف'
+              : i18n.locale == 'en'
+                  ? 'Declare Absence & Coverage'
+                  : 'Declarer une Absence',
+        ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 14.0),
+            child: LanguageSwitcherPill(compact: true),
+          ),
+          SizedBox(width: 8.0),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: AqaTheme.surfaceDark,
-                borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-                border: Border.all(color: AqaTheme.borderSubtle),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Periode d\'Absence',
-                    style: TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w800,
+      body: AqaAmbientBackground(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AqaDoubleBezelCard(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AqaSectionHeader(
+                      title: i18n.locale == 'ar'
+                          ? 'فترة الغياب المطلوبة'
+                          : i18n.locale == 'en'
+                              ? 'Absence Date Range'
+                              : 'Periode d\'Absence',
+                      subtitle: i18n.locale == 'ar'
+                          ? 'حدد تاريخ البداية والنهاية لحصصك'
+                          : i18n.locale == 'en'
+                              ? 'Select dates to be covered by other coaches'
+                              : 'Selectionnez la plage de dates des seances',
                     ),
-                  ),
-                  const SizedBox(height: 12.0),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Date de Debut',
-                              style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0),
-                            ),
-                            const SizedBox(height: 6.0),
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10.0,
-                                  vertical: 12.0,
+                    const SizedBox(height: 12.0),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                i18n.locale == 'ar' ? 'تاريخ البداية' : 'Date de Debut',
+                                style: const TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.5),
+                              ),
+                              const SizedBox(height: 6.0),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10.0,
+                                    vertical: 12.0,
+                                  ),
+                                  side: const BorderSide(color: AqaTheme.borderSubtle),
+                                ),
+                                onPressed: _pickStartDate,
+                                icon: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16.0,
+                                  color: AqaTheme.accentTeal,
+                                ),
+                                label: Text(
+                                  _dateFormat.format(_startDate),
+                                  style: const TextStyle(fontSize: 12.0, color: AqaTheme.textPrimary),
                                 ),
                               ),
-                              onPressed: _pickStartDate,
-                              icon: const Icon(
-                                Icons.calendar_today,
-                                size: 16.0,
-                                color: AqaTheme.accentTeal,
-                              ),
-                              label: Text(
-                                _dateFormat.format(_startDate),
-                                style: const TextStyle(fontSize: 12.0),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12.0),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Date de Fin',
-                              style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0),
-                            ),
-                            const SizedBox(height: 6.0),
-                            OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10.0,
-                                  vertical: 12.0,
+                        const SizedBox(width: 12.0),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                i18n.locale == 'ar' ? 'تاريخ النهاية' : 'Date de Fin',
+                                style: const TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.5),
+                              ),
+                              const SizedBox(height: 6.0),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10.0,
+                                    vertical: 12.0,
+                                  ),
+                                  side: const BorderSide(color: AqaTheme.borderSubtle),
+                                ),
+                                onPressed: _pickEndDate,
+                                icon: const Icon(
+                                  Icons.calendar_today_rounded,
+                                  size: 16.0,
+                                  color: AqaTheme.accentTeal,
+                                ),
+                                label: Text(
+                                  _dateFormat.format(_endDate),
+                                  style: const TextStyle(fontSize: 12.0, color: AqaTheme.textPrimary),
                                 ),
                               ),
-                              onPressed: _pickEndDate,
-                              icon: const Icon(
-                                Icons.calendar_today,
-                                size: 16.0,
-                                color: AqaTheme.accentTeal,
-                              ),
-                              label: Text(
-                                _dateFormat.format(_endDate),
-                                style: const TextStyle(fontSize: 12.0),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16.0),
+              const SizedBox(height: 16.0),
 
-            // Substitute & Reason Section
-            Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: AqaTheme.surfaceDark,
-                borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-                border: Border.all(color: AqaTheme.borderSubtle),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Coach Remplacant Souhaite',
-                    style: TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w800,
+              // Substitute & Reason Section
+              AqaDoubleBezelCard(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AqaSectionHeader(
+                      title: i18n.locale == 'ar'
+                          ? 'المدرب المستخلف المفضل'
+                          : i18n.locale == 'en'
+                              ? 'Preferred Substitute Coach'
+                              : 'Coach Remplacant Souhaite',
+                      subtitle: i18n.locale == 'ar'
+                          ? 'اختر زميلاً أو اترك الطلب مفتوحاً للمشرف العام'
+                          : i18n.locale == 'en'
+                              ? 'Select a colleague or broadcast to all eligible coaches'
+                              : 'Choisissez un collegue ou laissez en diffusion ouverte.',
                     ),
-                  ),
-                  const SizedBox(height: 6.0),
-                  const Text(
-                    'Choisissez un collegue ou laissez en diffusion ouverte au Head Coach.',
-                    style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.5),
-                  ),
-                  const SizedBox(height: 10.0),
-                  DropdownButtonFormField<String?>(
-                    initialValue: _selectedSubstituteCoachId,
-                    dropdownColor: AqaTheme.surfaceSecondary,
-                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-                    ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Diffusion a tous les coachs eligibles / Head Coach'),
+                    const SizedBox(height: 10.0),
+                    DropdownButtonFormField<String?>(
+                      initialValue: _selectedSubstituteCoachId,
+                      dropdownColor: AqaTheme.surfaceSecondary,
+                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
                       ),
-                      ...colleagues.map(
-                        (c) => DropdownMenuItem<String?>(
-                          value: c['id'] as String?,
-                          child: Text('${c['name']} (${(c['role'] ?? 'coach').toString().toUpperCase()})'),
+                      items: [
+                        DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text(
+                            i18n.locale == 'ar'
+                                ? 'نشر مفتوح لكافة المدربين المؤهلين / Head Coach'
+                                : 'Diffusion a tous les coachs eligibles / Head Coach',
+                          ),
                         ),
+                        ...colleagues.map(
+                          (c) => DropdownMenuItem<String?>(
+                            value: c['id'] as String?,
+                            child: Text('${c['name']} (${(c['role'] ?? 'coach').toString().toUpperCase()})'),
+                          ),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        setState(() => _selectedSubstituteCoachId = val);
+                      },
+                    ),
+                    const SizedBox(height: 16.0),
+                    AqaSectionHeader(
+                      title: i18n.locale == 'ar' ? 'سبب الغياب' : 'Motif de l\'Absence',
+                    ),
+                    const SizedBox(height: 10.0),
+                    DropdownButtonFormField<String>(
+                      initialValue: _reason,
+                      dropdownColor: AqaTheme.surfaceSecondary,
+                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
+                      decoration: const InputDecoration(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
                       ),
-                    ],
-                    onChanged: (val) {
-                      setState(() => _selectedSubstituteCoachId = val);
-                    },
-                  ),
-                  const SizedBox(height: 16.0),
-                  const Text(
-                    'Motif de l\'Absence',
-                    style: TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w800,
+                      items: [
+                        DropdownMenuItem(
+                          value: 'Personal',
+                          child: Text(i18n.locale == 'ar' ? 'شخصي' : 'Personnel'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Sickness',
+                          child: Text(i18n.locale == 'ar' ? 'صحي / عطلة مرضية' : 'Maladie / Medical'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Competition',
+                          child: Text(i18n.locale == 'ar' ? 'منافسة رسمية' : 'Competition Officielle'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Training / Seminar',
+                          child: Text(i18n.locale == 'ar' ? 'تربص / دورة تكوينية AQA' : 'Formation / Stage AQA'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Other',
+                          child: Text(i18n.locale == 'ar' ? 'سبب آخر' : 'Autre motif'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _reason = val);
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 10.0),
-                  DropdownButtonFormField<String>(
-                    initialValue: _reason,
-                    dropdownColor: AqaTheme.surfaceSecondary,
-                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
-                    decoration: const InputDecoration(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+                    const SizedBox(height: 16.0),
+                    AqaSectionHeader(
+                      title: i18n.locale == 'ar'
+                          ? 'تعليمات وتوجيهات للمستخلف'
+                          : 'Consignes Pedagogiques pour le Remplacant',
                     ),
-                    items: const [
-                      DropdownMenuItem(value: 'Personal', child: Text('Personnel')),
-                      DropdownMenuItem(value: 'Sickness', child: Text('Maladie / Medical')),
-                      DropdownMenuItem(value: 'Competition', child: Text('Competition Officielle')),
-                      DropdownMenuItem(
-                        value: 'Training / Seminar',
-                        child: Text('Formation / Stage AQA'),
+                    const SizedBox(height: 8.0),
+                    TextField(
+                      controller: _notesController,
+                      maxLines: 3,
+                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
+                      decoration: InputDecoration(
+                        hintText: i18n.locale == 'ar'
+                            ? 'البرنامج المخطط للأفواج، نقاط يجب الانتباه إليها...'
+                            : 'Programme prevu pour les groupes, points d\'attention sur certains nageurs...',
                       ),
-                      DropdownMenuItem(value: 'Other', child: Text('Autre motif')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setState(() => _reason = val);
-                    },
-                  ),
-                  const SizedBox(height: 16.0),
-                  const Text(
-                    'Consignes Pedagogiques pour le Remplacant',
-                    style: TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w800,
                     ),
-                  ),
-                  const SizedBox(height: 8.0),
-                  TextField(
-                    controller: _notesController,
-                    maxLines: 3,
-                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                    decoration: const InputDecoration(
-                      hintText:
-                          'Programme prevu pour les groupes, points d\'attention sur certains nageurs...',
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24.0),
+              const SizedBox(height: 24.0),
 
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 15.0),
+              AqaIslandButton(
+                label: i18n.locale == 'ar'
+                    ? 'إرسال طلب الغياب وطلب التغطية'
+                    : i18n.locale == 'en'
+                        ? 'Submit Absence & Request Coverage'
+                        : 'Envoyer la Declaration & Demander Couverture',
+                icon: Icons.send_rounded,
+                isLoading: _isSubmitting,
+                onPressed: _isSubmitting ? null : _submit,
               ),
-              onPressed: _isSubmitting ? null : _submit,
-              icon: _isSubmitting
-                  ? const SizedBox(
-                      height: 18.0,
-                      width: 18.0,
-                      child: CircularProgressIndicator(strokeWidth: 2.0, color: Colors.white),
-                    )
-                  : const Icon(Icons.send_rounded, size: 18.0),
-              label: const Text('Envoyer la Declaration & Demander Couverture'),
-            ),
-          ],
+              const SizedBox(height: 24.0),
+            ],
+          ),
         ),
       ),
     );

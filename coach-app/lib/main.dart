@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/api/api_endpoints.dart';
 import 'core/auth/auth_state.dart';
+import 'core/i18n/app_i18n.dart';
 import 'core/theme/aqa_theme.dart';
 import 'features/attendance/attendance_screen.dart';
 import 'features/auth/login_screen.dart';
@@ -94,12 +95,19 @@ class AqaCoachesApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final i18n = ref.watch(i18nProvider);
 
     return MaterialApp.router(
-      title: 'AQA Coaches',
+      title: 'AQA Coaches Pro',
       debugShowCheckedModeBanner: false,
       theme: AqaTheme.darkTheme,
       routerConfig: router,
+      builder: (context, child) {
+        return Directionality(
+          textDirection: i18n.textDirection,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

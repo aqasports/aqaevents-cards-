@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/i18n/app_i18n.dart';
 import '../../core/theme/aqa_theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -33,27 +34,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  void _showServerSettings() {
+  void _showServerSettings(AppI18n i18n) {
     final serverController = TextEditingController(text: ApiEndpoints.baseUrl);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AqaTheme.surfaceDark,
-        title: const Text(
-          'Serveur API AQA Sports',
-          style: TextStyle(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
+          side: const BorderSide(color: AqaTheme.borderTeal),
+        ),
+        title: Text(
+          i18n.t('auth.server_title'),
+          style: const TextStyle(
             color: AqaTheme.textPrimary,
             fontSize: 16.0,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
           ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'URL du serveur de production ou reseau local :',
-              style: TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
+            Text(
+              i18n.t('auth.server_label'),
+              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
             ),
             const SizedBox(height: 12.0),
             TextField(
@@ -68,7 +73,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Annuler', style: TextStyle(color: AqaTheme.textMuted)),
+            child: Text(
+              i18n.t('common.cancel'),
+              style: const TextStyle(color: AqaTheme.textMuted),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -76,7 +84,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (ctx.mounted) Navigator.pop(ctx);
               if (mounted) setState(() {});
             },
-            child: const Text('Enregistrer'),
+            child: Text(i18n.t('common.save')),
           ),
         ],
       ),
@@ -93,97 +101,357 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
+    final i18n = ref.watch(i18nProvider);
 
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Deep Ocean Visual Background
-          Opacity(
-            opacity: 0.25,
-            child: Image.asset(
-              'assets/images/ocean_bg.jpg',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          ),
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xB3030712),
-                  Color(0xF2030712),
-                  Color(0xFF030712),
-                ],
+      body: AqaAmbientBackground(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Opacity(
+              opacity: 0.18,
+              child: Image.asset(
+                'assets/images/ocean_bg.jpg',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
               ),
             ),
-          ),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 440.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Official AQA Brand Header
-                        Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 22.0,
-                              vertical: 14.0,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AqaTheme.surfaceDark.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(AqaTheme.radiusXl),
-                              border: Border.all(color: AqaTheme.borderTeal),
-                              boxShadow: AqaTheme.tealGlow,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Image.asset(
-                                  'assets/images/aqa_logo_white.png',
-                                  height: 36.0,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.pool,
-                                    color: AqaTheme.accentTeal,
-                                    size: 28.0,
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x99030712),
+                    Color(0xE6030712),
+                    Color(0xFF030712),
+                  ],
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 20.0),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Language Switcher Bar at Top
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10.0,
+                                  vertical: 5.0,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AqaTheme.accentTeal.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: AqaTheme.accentTeal.withValues(alpha: 0.35),
                                   ),
                                 ),
-                                const SizedBox(width: 12.0),
-                                Container(
-                                  width: 1.0,
-                                  height: 24.0,
-                                  color: AqaTheme.borderMedium,
-                                ),
-                                const SizedBox(width: 12.0),
-                                const Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    Icon(
+                                      Icons.verified_outlined,
+                                      size: 13.0,
+                                      color: AqaTheme.accentTeal,
+                                    ),
+                                    SizedBox(width: 5.0),
                                     Text(
-                                      'COACHES PRO',
+                                      'AQA SWIM COMMANDED',
                                       style: TextStyle(
                                         color: AqaTheme.accentTeal,
-                                        fontSize: 12.0,
+                                        fontSize: 9.5,
                                         fontWeight: FontWeight.w800,
-                                        letterSpacing: 1.6,
+                                        letterSpacing: 0.9,
                                       ),
                                     ),
-                                    Text(
-                                      'AQA SWIM SYSTEM',
-                                      style: TextStyle(
-                                        color: AqaTheme.textMuted,
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 1.0,
+                                  ],
+                                ),
+                              ),
+                              const LanguageSwitcherPill(compact: true),
+                            ],
+                          ),
+                          const SizedBox(height: 22.0),
+
+                          // Double-Bezel Brand Identity Card
+                          Center(
+                            child: AqaDoubleBezelCard(
+                              glowing: true,
+                              outerRadius: 24.0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 22.0,
+                                vertical: 14.0,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Image.asset(
+                                    'assets/images/aqa_logo_white.png',
+                                    height: 36.0,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.pool,
+                                      color: AqaTheme.accentTeal,
+                                      size: 28.0,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14.0),
+                                  Container(
+                                    width: 1.0,
+                                    height: 26.0,
+                                    color: AqaTheme.borderMedium,
+                                  ),
+                                  const SizedBox(width: 14.0),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        i18n.t('app.brand_title'),
+                                        style: const TextStyle(
+                                          color: AqaTheme.accentTeal,
+                                          fontSize: 12.0,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.6,
+                                        ),
+                                      ),
+                                      Text(
+                                        i18n.t('app.brand_subtitle'),
+                                        style: const TextStyle(
+                                          color: AqaTheme.textMuted,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20.0),
+                          Text(
+                            i18n.t('auth.title'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AqaTheme.textPrimary,
+                              fontSize: 23.0,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 6.0),
+                          Text(
+                            i18n.t('auth.subtitle'),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AqaTheme.textMuted,
+                              fontSize: 13.0,
+                              height: 1.45,
+                            ),
+                          ),
+                          const SizedBox(height: 22.0),
+
+                          // Double-Bezel Main Login Form
+                          AqaDoubleBezelCard(
+                            outerRadius: 22.0,
+                            padding: const EdgeInsets.all(20.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (authState.errorMessage != null) ...[
+                                  Container(
+                                    padding: const EdgeInsets.all(12.0),
+                                    decoration: BoxDecoration(
+                                      color: AqaTheme.statusDangerBg,
+                                      borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
+                                      border: Border.all(color: AqaTheme.statusDanger),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(
+                                          Icons.error_outline,
+                                          color: AqaTheme.statusDanger,
+                                          size: 18.0,
+                                        ),
+                                        const SizedBox(width: 8.0),
+                                        Expanded(
+                                          child: Text(
+                                            authState.errorMessage!,
+                                            style: const TextStyle(
+                                              color: AqaTheme.textPrimary,
+                                              fontSize: 12.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16.0),
+                                ],
+
+                                Text(
+                                  i18n.t('auth.email_label'),
+                                  style: const TextStyle(
+                                    color: AqaTheme.textPrimary,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6.0),
+                                TextFormField(
+                                  controller: _emailController,
+                                  keyboardType: TextInputType.emailAddress,
+                                  autocorrect: false,
+                                  style: const TextStyle(
+                                    color: AqaTheme.textPrimary,
+                                    fontSize: 14.0,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: i18n.t('auth.email_hint'),
+                                    prefixIcon: const Icon(
+                                      Icons.alternate_email_rounded,
+                                      color: AqaTheme.accentTeal,
+                                      size: 19.0,
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.trim().isEmpty) {
+                                      return i18n.t('auth.email_required');
+                                    }
+                                    if (!value.contains('@')) {
+                                      return i18n.t('auth.email_invalid');
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 16.0),
+
+                                Text(
+                                  i18n.t('auth.password_label'),
+                                  style: const TextStyle(
+                                    color: AqaTheme.textPrimary,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6.0),
+                                TextFormField(
+                                  controller: _passwordController,
+                                  obscureText: _obscurePassword,
+                                  style: const TextStyle(
+                                    color: AqaTheme.textPrimary,
+                                    fontSize: 14.0,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: i18n.t('auth.password_hint'),
+                                    prefixIcon: const Icon(
+                                      Icons.lock_outline_rounded,
+                                      color: AqaTheme.primarySky,
+                                      size: 19.0,
+                                    ),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _obscurePassword
+                                            ? Icons.visibility_outlined
+                                            : Icons.visibility_off_outlined,
+                                        color: AqaTheme.textLightMuted,
+                                        size: 20.0,
+                                      ),
+                                      onPressed: () => setState(
+                                        () => _obscurePassword = !_obscurePassword,
+                                      ),
+                                    ),
+                                  ),
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return i18n.t('auth.password_required');
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 22.0),
+
+                                AqaIslandButton(
+                                  label: authState.isLoading
+                                      ? i18n.t('auth.logging_in')
+                                      : i18n.t('auth.login_cta'),
+                                  icon: Icons.arrow_forward_rounded,
+                                  loading: authState.isLoading,
+                                  onPressed: _submit,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16.0),
+
+                          // Quick Role Profiles
+                          AqaDoubleBezelCard(
+                            outerRadius: 18.0,
+                            padding: const EdgeInsets.all(14.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.shield_outlined,
+                                      color: AqaTheme.accentTeal,
+                                      size: 15.0,
+                                    ),
+                                    const SizedBox(width: 6.0),
+                                    Expanded(
+                                      child: Text(
+                                        i18n.t('auth.quick_roles'),
+                                        style: const TextStyle(
+                                          color: AqaTheme.textMuted,
+                                          fontSize: 10.0,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.7,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10.0),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildRoleQuickButton(
+                                        title: i18n.t('auth.head_coach'),
+                                        subtitle: i18n.t('auth.head_coach_desc'),
+                                        color: AqaTheme.statusWarning,
+                                        email: 'headcoach@aqasports.pro',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8.0),
+                                    Expanded(
+                                      child: _buildRoleQuickButton(
+                                        title: i18n.t('auth.coach'),
+                                        subtitle: i18n.t('auth.coach_desc'),
+                                        color: AqaTheme.primarySky,
+                                        email: 'coach@aqasports.pro',
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8.0),
+                                    Expanded(
+                                      child: _buildRoleQuickButton(
+                                        title: i18n.t('auth.assistant'),
+                                        subtitle: i18n.t('auth.assistant_desc'),
+                                        color: AqaTheme.accentTeal,
+                                        email: 'assistant@aqasports.pro',
                                       ),
                                     ),
                                   ],
@@ -191,282 +459,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20.0),
-                        const Text(
-                          'Espace Coach & Suivi Technique',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AqaTheme.textPrimary,
-                            fontSize: 22.0,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                        const SizedBox(height: 6.0),
-                        const Text(
-                          'Assiduite en temps reel, suivi d\'evolution par badges AQA, notation des seances et gestion des remplacements.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: AqaTheme.textMuted,
-                            fontSize: 13.0,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 24.0),
+                          const SizedBox(height: 12.0),
 
-                        // Main Login Card
-                        Container(
-                          padding: const EdgeInsets.all(20.0),
-                          decoration: BoxDecoration(
-                            color: AqaTheme.surfaceDark.withValues(alpha: 0.94),
-                            borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-                            border: Border.all(color: AqaTheme.borderMedium),
-                            boxShadow: AqaTheme.cardShadow,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (authState.errorMessage != null) ...[
-                                Container(
-                                  padding: const EdgeInsets.all(12.0),
-                                  decoration: BoxDecoration(
-                                    color: AqaTheme.statusDangerBg,
-                                    borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                                    border: Border.all(color: AqaTheme.statusDanger),
-                                  ),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const Icon(
-                                        Icons.error_outline,
-                                        color: AqaTheme.statusDanger,
-                                        size: 18.0,
-                                      ),
-                                      const SizedBox(width: 8.0),
-                                      Expanded(
-                                        child: Text(
-                                          authState.errorMessage!,
-                                          style: const TextStyle(
-                                            color: AqaTheme.textPrimary,
-                                            fontSize: 12.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 16.0),
-                              ],
-
-                              const Text(
-                                'Email Professionnel',
-                                style: TextStyle(
-                                  color: AqaTheme.textPrimary,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 6.0),
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                autocorrect: false,
-                                style: const TextStyle(
-                                  color: AqaTheme.textPrimary,
-                                  fontSize: 14.0,
-                                ),
-                                decoration: const InputDecoration(
-                                  hintText: 'coach@aqasports.pro',
-                                  prefixIcon: Icon(
-                                    Icons.email_outlined,
-                                    color: AqaTheme.textLightMuted,
-                                    size: 20.0,
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.trim().isEmpty) {
-                                    return 'Veuillez saisir votre email';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'Format email invalide';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 16.0),
-
-                              const Text(
-                                'Mot de Passe',
-                                style: TextStyle(
-                                  color: AqaTheme.textPrimary,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 6.0),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                style: const TextStyle(
-                                  color: AqaTheme.textPrimary,
-                                  fontSize: 14.0,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: 'Votre mot de passe',
-                                  prefixIcon: const Icon(
-                                    Icons.lock_outline,
-                                    color: AqaTheme.textLightMuted,
-                                    size: 20.0,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: AqaTheme.textLightMuted,
-                                      size: 20.0,
-                                    ),
-                                    onPressed: () => setState(
-                                      () => _obscurePassword = !_obscurePassword,
-                                    ),
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Veuillez saisir votre mot de passe';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 22.0),
-
-                              ElevatedButton.icon(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(vertical: 15.0),
-                                ),
-                                onPressed: authState.isLoading ? null : _submit,
-                                icon: authState.isLoading
-                                    ? const SizedBox(
-                                        height: 18.0,
-                                        width: 18.0,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.0,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(Icons.login, size: 18.0),
-                                label: Text(
-                                  authState.isLoading
-                                      ? 'Connexion en cours...'
-                                      : 'Acceder au Portail Coach',
-                                  style: const TextStyle(
-                                    fontSize: 14.0,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18.0),
-
-                        // Quick Role Profiles
-                        Container(
-                          padding: const EdgeInsets.all(14.0),
-                          decoration: BoxDecoration(
-                            color: AqaTheme.surfaceDark.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                            border: Border.all(color: AqaTheme.borderSubtle),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.verified_user_outlined,
-                                    color: AqaTheme.accentTeal,
-                                    size: 15.0,
-                                  ),
-                                  SizedBox(width: 6.0),
-                                  Expanded(
-                                    child: Text(
-                                      'CONNEXION RAPIDE PAR ROLE (ACCES DEMO & PRODUCTION)',
-                                      style: TextStyle(
-                                        color: AqaTheme.textMuted,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.6,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 10.0),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildRoleQuickButton(
-                                      title: 'Head Coach',
-                                      subtitle: 'Tous Groupes',
-                                      color: AqaTheme.statusWarning,
-                                      email: 'headcoach@aqasports.pro',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8.0),
-                                  Expanded(
-                                    child: _buildRoleQuickButton(
-                                      title: 'Coach',
-                                      subtitle: 'Ses Groupes',
-                                      color: AqaTheme.primarySky,
-                                      email: 'coach@aqasports.pro',
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8.0),
-                                  Expanded(
-                                    child: _buildRoleQuickButton(
-                                      title: 'Assistant',
-                                      subtitle: 'Lecture Seule',
-                                      color: AqaTheme.accentTeal,
-                                      email: 'assistant@aqasports.pro',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 14.0),
-
-                        Align(
-                          alignment: Alignment.center,
-                          child: TextButton.icon(
-                            onPressed: _showServerSettings,
-                            icon: const Icon(
-                              Icons.dns_outlined,
-                              color: AqaTheme.textLightMuted,
-                              size: 15.0,
-                            ),
-                            label: Text(
-                              'Serveur : ${ApiEndpoints.baseUrl}',
-                              style: const TextStyle(
+                          Align(
+                            alignment: Alignment.center,
+                            child: TextButton.icon(
+                              onPressed: () => _showServerSettings(i18n),
+                              icon: const Icon(
+                                Icons.dns_outlined,
                                 color: AqaTheme.textLightMuted,
-                                fontSize: 11.0,
+                                size: 14.0,
                               ),
-                              overflow: TextOverflow.ellipsis,
+                              label: Text(
+                                '${i18n.t('common.server')} : ${ApiEndpoints.baseUrl}',
+                                style: const TextStyle(
+                                  color: AqaTheme.textLightMuted,
+                                  fontSize: 11.0,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -479,21 +501,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }) {
     final isSelected = _emailController.text.trim() == email;
     return InkWell(
-      borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+      borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
       onTap: () => _fillDemo(email),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 6.0),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 6.0),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.18) : AqaTheme.surfaceSecondary,
-          borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+          color: isSelected
+              ? color.withValues(alpha: 0.18)
+              : const Color(0xFF0A1224),
+          borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
           border: Border.all(
             color: isSelected ? color : AqaTheme.borderSubtle,
+            width: isSelected ? 1.4 : 1.0,
           ),
         ),
         child: Column(
           children: [
             Text(
               title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: color,
                 fontSize: 11.5,
@@ -503,6 +531,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: 2.0),
             Text(
               subtitle,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: AqaTheme.textMuted,
                 fontSize: 9.5,

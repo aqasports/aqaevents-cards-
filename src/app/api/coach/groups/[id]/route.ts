@@ -9,7 +9,11 @@ import {
   computeEndTime,
   extractGroupScheduleMeta,
 } from "@/lib/swim-sessions";
-import { SWIM_PROGRESSION_BADGES } from "@/lib/swim-skills";
+import {
+  AQA_SUIVI_BADGES,
+  AQA_SUIVI_STAGES,
+  computeSwimmerSuiviProgression,
+} from "@/lib/swim-skills";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -115,7 +119,7 @@ export async function GET(
       const curr = attByMember.get(a.memberId) || { present: 0, absent: 0, total: 0 };
       curr.total += 1;
       if (a.status === "present" || a.status === "late") curr.present += 1;
-      if (a.status === "absent") curr.absent += 1;
+      if (a.status === "absent" || a.status === "excused") curr.absent += 1;
       attByMember.set(a.memberId, curr);
     }
 
@@ -134,27 +138,7 @@ export async function GET(
       const revs = reviewsByMember.get(m.id) || [];
       const latestRev = revs[0];
 
-      let avgScore = 0;
-      if (latestRev?.skills) {
-        try {
-          const parsedSkills = JSON.parse(latestRev.skills) as Array<{ score?: number }>;
-          if (parsedSkills.length > 0) {
-            const sum = parsedSkills.reduce((acc, s) => acc + (Number(s.score) || 0), 0);
-            avgScore = sum / parsedSkills.length;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      let earnedBadge = SWIM_PROGRESSION_BADGES[0];
-      if (avgScore > 0) {
-        for (const b of SWIM_PROGRESSION_BADGES) {
-          if (avgScore >= b.minScoreAvg) {
-            earnedBadge = b;
-          }
-        }
-      }
+      const prog = computeSwimmerSuiviProgression(latestRev?.skills || null, revs.length);
 
       return {
         id: m.id,
@@ -178,10 +162,14 @@ export async function GET(
         attendanceRate: att.total > 0 ? Math.round((att.present / att.total) * 100) : 100,
         reviewCount: revs.length,
         lastReviewDate: latestRev ? latestRev.createdAt.toISOString() : null,
-        avgSkillScore: Number(avgScore.toFixed(1)),
-        badgeKey: earnedBadge.key,
-        badgeLabel: earnedBadge.label,
-        badgeAsset: earnedBadge.assetName,
+        avgSkillScore: prog.avgSkillScore,
+        badgeKey: prog.badgeKey,
+        badgeLabel: prog.badgeLabel,
+        badgeAsset: prog.badgeAsset,
+        stageKey: prog.stageKey,
+        stageLabel: prog.stageLabel,
+        stageAsset: prog.stageAsset,
+        unlockedBadges: prog.unlockedBadges,
       };
     });
 
@@ -208,7 +196,9 @@ export async function GET(
       const presentCount = s.attendances.filter(
         (a) => a.status === "present" || a.status === "late"
       ).length;
-      const absentCount = s.attendances.filter((a) => a.status === "absent").length;
+      const absentCount = s.attendances.filter(
+        (a) => a.status === "absent" || a.status === "excused"
+      ).length;
       return {
         id: s.id,
         groupId: group.id,
@@ -259,6 +249,8 @@ export async function GET(
         members: shapedRoster,
         staff: staffList,
         upcomingSessions,
+        allBadges: AQA_SUIVI_BADGES,
+        allStages: AQA_SUIVI_STAGES,
         isViewOnly,
         canEdit: !isViewOnly,
       },
@@ -272,4 +264,3 @@ export async function GET(
     );
   }
 }
-

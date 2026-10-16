@@ -16,6 +16,8 @@ import {
   parseScheduleSlots,
   decodeSolidNotes,
   getSwimLevelLabel,
+  calculateGroupRemainingPlaces,
+  calculateTotalRemainingPlaces,
 } from "@/lib/swim-groups";
 import { formatWhatsAppNumber } from "@/lib/swim-whatsapp";
 
@@ -286,6 +288,13 @@ export default function SwimGroupsPage() {
   const selectGroup = useCallback((groupId: string, openMobile = false) => {
     setSelectedGroupId(groupId);
     fetchGroupDetail(groupId);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("groupId") !== groupId) {
+        url.searchParams.set("groupId", groupId);
+        window.history.replaceState(null, "", url.toString());
+      }
+    }
     if (openMobile) {
       setShowMobileDrawer(true);
     }
@@ -691,10 +700,17 @@ export default function SwimGroupsPage() {
     return list;
   }, [filteredGroups, sortBy]);
 
-  // Automatically select first group in sorted list if none is selected
+  // Automatically select initial group: check URL param first, otherwise first group in sorted list
   useEffect(() => {
     if (!loading && sortedGroups.length > 0) {
-      if (!selectedGroupId || !sortedGroups.some((g) => g.id === selectedGroupId)) {
+      const urlGroupId = typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("groupId")
+        : null;
+      if (urlGroupId && sortedGroups.some((g) => g.id === urlGroupId)) {
+        if (selectedGroupId !== urlGroupId) {
+          selectGroup(urlGroupId);
+        }
+      } else if (!selectedGroupId || !sortedGroups.some((g) => g.id === selectedGroupId)) {
         selectGroup(sortedGroups[0].id);
       }
     }
@@ -712,6 +728,10 @@ export default function SwimGroupsPage() {
   const overallOccupancyPct = totalCapacity > 0
     ? Math.min(100, Math.round((totalSwimmersEnrolled / totalCapacity) * 100))
     : 0;
+
+  const totalRemainingPlaces = useMemo(() => {
+    return calculateTotalRemainingPlaces(groups);
+  }, [groups]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: groups.length };
@@ -757,6 +777,7 @@ export default function SwimGroupsPage() {
     const capacity = selectedGroup.capacity || 10;
     const isFull = enrolledCount >= capacity;
     const occPct = Math.min(100, Math.round((enrolledCount / capacity) * 100));
+    const remainingInGroup = calculateGroupRemainingPlaces(capacity, enrolledCount);
 
     return (
       <div className="space-y-4">
@@ -806,9 +827,18 @@ export default function SwimGroupsPage() {
           <div className="space-y-1.5 pt-2 border-t border-white/5">
             <div className="flex items-center justify-between text-xs">
               <span className="text-slate-400 font-medium">Capacité Groupe</span>
-              <span className="font-mono font-bold text-white">
-                {enrolledCount} / {capacity} places ({occPct}%)
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-white">
+                  {enrolledCount} / {capacity} places ({occPct}%)
+                </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                  remainingInGroup > 0
+                    ? "bg-amber-950/70 text-amber-300 border border-amber-800/40"
+                    : "bg-rose-950/70 text-rose-300 border border-rose-800/40"
+                }`}>
+                  {remainingInGroup} {remainingInGroup === 1 ? "place restante" : "places restantes"}
+                </span>
+              </div>
             </div>
             <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
               <div
@@ -851,8 +881,20 @@ export default function SwimGroupsPage() {
                     >
                       <div className="min-w-0 pr-2">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-white">{m.fullName}</span>
-                          <span className="font-mono text-[10px] text-cyan-400">{m.swimId}</span>
+                          <Link
+                            href={`/admin/swim/members/${m.swimId}`}
+                            className="font-bold text-white hover:text-cyan-300 transition-colors"
+                            title="Modifier le profil admin du client"
+                          >
+                            {m.fullName}
+                          </Link>
+                          <Link
+                            href={`/admin/swim/members/${m.swimId}`}
+                            className="font-mono text-[10px] text-cyan-400 hover:underline"
+                            title="Modifier le profil admin du client"
+                          >
+                            {m.swimId}
+                          </Link>
                           {isTransfer && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-950/70 text-amber-300 border border-amber-800/40">
                               Actuel: {m.group?.name}
@@ -888,9 +930,18 @@ export default function SwimGroupsPage() {
         {/* Swimmers Roster List */}
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Nageurs Inscrits ({enrolledCount} / {capacity})
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                Nageurs Inscrits ({enrolledCount} / {capacity})
+              </span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
+                remainingInGroup > 0
+                  ? "bg-slate-800 text-amber-400 border-white/10"
+                  : "bg-rose-950/60 text-rose-400 border-rose-800/40"
+              }`}>
+                {remainingInGroup} {remainingInGroup === 1 ? "libre" : "libres"}
+              </span>
+            </div>
             <span className="text-[10px] text-slate-500 font-mono">
               Accès rapide
             </span>
@@ -919,15 +970,19 @@ export default function SwimGroupsPage() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <Link
-                            href={`/swim/profile/${s.swimId}`}
-                            target="_blank"
+                            href={`/admin/swim/members/${s.swimId}`}
                             className="font-bold text-white text-sm hover:text-cyan-300 transition-colors"
+                            title="Modifier le profil admin du client"
                           >
                             {s.fullName}
                           </Link>
-                          <span className="font-mono text-[11px] text-cyan-400 font-semibold px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-800/40">
+                          <Link
+                            href={`/admin/swim/members/${s.swimId}`}
+                            className="font-mono text-[11px] text-cyan-400 font-semibold px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-800/40 hover:bg-cyan-900/60 transition-colors"
+                            title="Modifier le profil admin du client"
+                          >
                             {s.swimId}
-                          </span>
+                          </Link>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           {getSwimLevelLabel(s.level)}
@@ -960,6 +1015,13 @@ export default function SwimGroupsPage() {
                             </svg>
                           </a>
                         )}
+                        <Link
+                          href={`/admin/swim/members/${s.swimId}`}
+                          title="Modifier le profil admin du client"
+                          className="px-2 py-1 rounded-lg bg-cyan-950/70 hover:bg-cyan-900 text-[10px] font-semibold text-cyan-300 border border-cyan-800/50 transition-colors"
+                        >
+                          Modifier
+                        </Link>
                         <Link
                           href={`/swim/profile/${s.swimId}`}
                           target="_blank"
@@ -1073,7 +1135,12 @@ export default function SwimGroupsPage() {
           <div className="space-y-1 mb-4">
             <div className="flex justify-between text-[11px]">
               <span className="text-slate-400">Remplissage</span>
-              <span className="font-mono font-bold text-white">{count} / {safeCapacity}</span>
+              <span className="font-mono font-bold text-white">
+                {count} / {safeCapacity}
+                <span className="ml-1.5 font-normal text-amber-400">
+                  ({Math.max(0, safeCapacity - count)} rest.)
+                </span>
+              </span>
             </div>
             <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
               <div
@@ -1126,7 +1193,7 @@ export default function SwimGroupsPage() {
       />
 
       {/* Top Operations & Metrics Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div className="p-3.5 rounded-2xl bg-[var(--surface)]/80 border border-[var(--border)]">
           <span className="text-[11px] text-slate-400 uppercase font-semibold block">Total Groupes</span>
           <div className="flex items-baseline gap-2 mt-1">
@@ -1141,6 +1208,13 @@ export default function SwimGroupsPage() {
           <div className="flex items-baseline gap-2 mt-1">
             <span className="text-xl font-black text-cyan-400 font-mono">{totalSwimmersEnrolled}</span>
             <span className="text-xs text-slate-400">inscrits</span>
+          </div>
+        </div>
+        <div className="p-3.5 rounded-2xl bg-[var(--surface)]/80 border border-[var(--border)]">
+          <span className="text-[11px] text-slate-400 uppercase font-semibold block">Places Restantes</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <span className="text-xl font-black text-amber-400 font-mono">{totalRemainingPlaces}</span>
+            <span className="text-xs text-slate-400">disponibles</span>
           </div>
         </div>
         <div className="p-3.5 rounded-2xl bg-[var(--surface)]/80 border border-[var(--border)]">
@@ -1374,9 +1448,11 @@ export default function SwimGroupsPage() {
                           style={{ width: `${occPct}%` }}
                         />
                       </div>
-                      <span className="text-[10px] font-mono text-slate-400 block">
-                        {occPct}% plein
-                      </span>
+                      <div className="flex items-center justify-end gap-1 text-[10px] font-mono text-slate-400">
+                        <span>{occPct}% plein</span>
+                        <span>·</span>
+                        <span className="text-amber-400">{Math.max(0, g.capacity - count)} rest.</span>
+                      </div>
                     </div>
                   </div>
                 </div>

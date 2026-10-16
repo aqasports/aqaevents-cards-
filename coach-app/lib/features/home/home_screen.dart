@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_state.dart';
+import '../../core/i18n/app_i18n.dart';
 import '../../core/providers/bootstrap_provider.dart';
 import '../../core/theme/aqa_theme.dart';
 import '../groups/groups_screen.dart';
 import '../replacements/replacements_screen.dart';
 import '../teaching/teaching_support_view.dart';
+import '../tech_review/suivi_tech_hub_screen.dart';
 import 'today_sessions_view.dart';
 import 'profile_view.dart';
 
@@ -24,15 +26,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
     final bootstrapAsync = ref.watch(bootstrapProvider);
+    final i18n = ref.watch(i18nProvider);
 
     final pendingCount = bootstrapAsync.valueOrNull?.pendingRequests.length ?? 0;
 
-    final pages = [
-      const TodaySessionsView(),
-      const GroupsScreen(),
-      const ReplacementsScreen(),
-      const TeachingSupportView(),
-      const ProfileView(),
+    final pages = const [
+      TodaySessionsView(),
+      GroupsScreen(),
+      SuiviTechHubScreen(),
+      ReplacementsScreen(),
+      TeachingSupportView(),
+      ProfileView(),
     ];
 
     final isHead = user?.isHeadCoach == true;
@@ -43,20 +47,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? AqaTheme.textMuted
             : AqaTheme.accentTeal;
 
+    final roleSubtitle = isHead
+        ? i18n.t('role_banner.head_coach')
+        : isAssistant
+            ? i18n.t('role_banner.assistant')
+            : i18n.t('role_banner.coach');
+
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
       appBar: AppBar(
-        toolbarHeight: 64.0,
+        toolbarHeight: 68.0,
+        titleSpacing: 14.0,
         title: Row(
           children: [
             Container(
-              width: 38.0,
-              height: 38.0,
-              padding: const EdgeInsets.all(5.0),
+              width: 40.0,
+              height: 40.0,
+              padding: const EdgeInsets.all(6.0),
               decoration: BoxDecoration(
-                color: AqaTheme.surfaceSecondary,
-                borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF13203B), Color(0xFF0B1325)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12.0),
                 border: Border.all(color: AqaTheme.borderTeal),
+                boxShadow: [
+                  BoxShadow(
+                    color: AqaTheme.accentTeal.withValues(alpha: 0.15),
+                    blurRadius: 12.0,
+                  ),
+                ],
               ),
               child: Image.asset(
                 'assets/images/aqa_mark.png',
@@ -68,7 +89,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12.0),
+            const SizedBox(width: 11.0),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,16 +98,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     children: [
                       Flexible(
                         child: Text(
-                          user?.name ?? 'Portail Coach AQA',
+                          user?.name ?? 'AQA Coach',
                           style: const TextStyle(
                             color: AqaTheme.textPrimary,
                             fontSize: 15.0,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8.0),
+                      const SizedBox(width: 7.0),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 7.0,
@@ -94,28 +116,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: roleBadgeColor.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                          border: Border.all(color: roleBadgeColor),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: roleBadgeColor.withValues(alpha: 0.65),
+                          ),
                         ),
                         child: Text(
-                          (user?.roleDisplay ?? 'Coach').toUpperCase(),
+                          (user?.roleDisplay ?? 'COACH').toUpperCase(),
                           style: TextStyle(
                             color: roleBadgeColor,
-                            fontSize: 9.5,
+                            fontSize: 9.0,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
+                            letterSpacing: 0.6,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2.0),
+                  const SizedBox(height: 2.5),
                   Text(
-                    isHead
-                        ? 'Supervision Globale • Tous Secteurs AQA Swim'
-                        : isAssistant
-                            ? 'Mode Assistant • Consultation Groupes Assignes'
-                            : 'Suivi Presences, Evolutions & Seances AQA Swim',
+                    roleSubtitle,
                     style: const TextStyle(
                       color: AqaTheme.textMuted,
                       fontSize: 11.0,
@@ -128,21 +148,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
         actions: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14.0),
+            child: LanguageSwitcherPill(compact: true),
+          ),
           IconButton(
-            icon: const Icon(Icons.refresh, color: AqaTheme.accentTeal),
-            tooltip: 'Actualiser les donnees',
+            icon: const Icon(Icons.refresh_rounded, color: AqaTheme.accentTeal, size: 21.0),
+            tooltip: i18n.t('common.refresh'),
             onPressed: () {
               ref.invalidate(bootstrapProvider);
             },
           ),
+          const SizedBox(width: 4.0),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
+      body: AqaAmbientBackground(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: pages,
+        ),
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
+          color: Color(0xF5070C18),
           border: Border(
             top: BorderSide(color: AqaTheme.borderSubtle, width: 1.0),
           ),
@@ -151,15 +179,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
           items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.event_note_outlined),
-              activeIcon: Icon(Icons.event_note),
-              label: 'Seances',
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.event_note_outlined),
+              activeIcon: const Icon(Icons.event_note_rounded),
+              label: i18n.t('nav.sessions'),
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.groups_outlined),
-              activeIcon: Icon(Icons.groups),
-              label: 'Groupes',
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.groups_outlined),
+              activeIcon: const Icon(Icons.groups_rounded),
+              label: i18n.t('nav.groups'),
+            ),
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.radar_outlined),
+              activeIcon: const Icon(Icons.radar_rounded),
+              label: i18n.t('nav.suivi_tech'),
             ),
             BottomNavigationBarItem(
               icon: Badge(
@@ -174,19 +207,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 label: Text('$pendingCount'),
                 backgroundColor: AqaTheme.statusWarning,
                 textColor: Colors.black,
-                child: const Icon(Icons.swap_horiz),
+                child: const Icon(Icons.swap_horiz_rounded),
               ),
-              label: 'Remplacements',
+              label: i18n.t('nav.replacements'),
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.menu_book_outlined),
-              activeIcon: Icon(Icons.menu_book),
-              label: 'Support AQA',
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.menu_book_outlined),
+              activeIcon: const Icon(Icons.menu_book_rounded),
+              label: i18n.t('nav.support'),
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profil',
+            BottomNavigationBarItem(
+              icon: const Icon(Icons.person_outline_rounded),
+              activeIcon: const Icon(Icons.person_rounded),
+              label: i18n.t('nav.profile'),
             ),
           ],
         ),

@@ -24,6 +24,8 @@ import {
   encodeDebtInNotes,
   removeDebtFromNotes,
   getMemberPaymentSituation,
+  calculateGroupRemainingPlaces,
+  calculateTotalRemainingPlaces,
 } from "./swim-groups";
 
 describe("Swim Groups Utilities", () => {
@@ -415,4 +417,48 @@ describe("Swim Groups Utilities", () => {
       expect(situation.debtDetails.reason).toBe("Ancien impaye reste a payer");
     });
   });
+
+  describe("calculateGroupRemainingPlaces & calculateTotalRemainingPlaces", () => {
+    it("calculates remaining places correctly for a normal group", () => {
+      expect(calculateGroupRemainingPlaces(10, 6)).toBe(4);
+      expect(calculateGroupRemainingPlaces(5, 2)).toBe(3);
+      expect(calculateGroupRemainingPlaces(1, 0)).toBe(1);
+    });
+
+    it("returns 0 when group is exactly full or overbooked", () => {
+      expect(calculateGroupRemainingPlaces(10, 10)).toBe(0);
+      expect(calculateGroupRemainingPlaces(10, 12)).toBe(0);
+      expect(calculateGroupRemainingPlaces(5, 6)).toBe(0);
+    });
+
+    it("handles null or undefined capacities and swimmer counts safely", () => {
+      expect(calculateGroupRemainingPlaces(null, 3)).toBe(7); // defaults capacity to 10
+      expect(calculateGroupRemainingPlaces(undefined, undefined)).toBe(10);
+      expect(calculateGroupRemainingPlaces(10, null)).toBe(10);
+    });
+
+    it("calculates total remaining places across active groups only", () => {
+      const groups = [
+        { active: true, capacity: 10, _count: { swimmers: 7 } }, // 3 left
+        { active: true, capacity: 10, _count: { swimmers: 10 } }, // 0 left
+        { active: true, capacity: 5, _count: { swimmers: 1 } },  // 4 left
+        { active: false, capacity: 10, _count: { swimmers: 2 } }, // inactive -> 0 counted
+        { active: true, capacity: 10, _count: { swimmers: 12 } }, // overbooked -> 0 left, does not deduct
+      ];
+
+      // Total active remaining = 3 + 0 + 4 + 0 = 7
+      expect(calculateTotalRemainingPlaces(groups)).toBe(7);
+    });
+
+    it("returns 0 when there are no groups or all groups are full/inactive", () => {
+      expect(calculateTotalRemainingPlaces([])).toBe(0);
+      expect(
+        calculateTotalRemainingPlaces([
+          { active: false, capacity: 10, _count: { swimmers: 0 } },
+          { active: true, capacity: 10, _count: { swimmers: 10 } },
+        ])
+      ).toBe(0);
+    });
+  });
 });
+

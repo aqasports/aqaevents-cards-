@@ -703,8 +703,18 @@ export default function AdminSwimmerProfilePage({
         }
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={() => router.push("/admin/swim")}>
-              Back to Swimmers
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                if (typeof window !== "undefined" && window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/admin/swim");
+                }
+              }}
+            >
+              Back
             </Button>
             {waUrl && (
               <a
@@ -839,7 +849,13 @@ export default function AdminSwimmerProfilePage({
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
                               Slot {idx + 1} ({assignedGroupsList.length}x / week)
                             </span>
-                            <span className="font-bold text-white">{grp.name}</span>
+                            <Link
+                              href={`/admin/swim/groups?groupId=${grp.id}`}
+                              className="font-bold text-white hover:text-cyan-300 transition-colors hover:underline"
+                              title="Voir le groupe dans le gestionnaire de groupes"
+                            >
+                              {grp.name}
+                            </Link>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-mono text-cyan-300 font-semibold px-1.5 py-0.5 rounded bg-slate-900 border border-white/10">
