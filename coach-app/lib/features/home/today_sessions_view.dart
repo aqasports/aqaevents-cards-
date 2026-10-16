@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/api/api_client.dart';
+import '../../core/api/api_endpoints.dart';
 import '../../core/i18n/app_i18n.dart';
+import '../../core/models/replacement.dart';
 import '../../core/models/swim_session.dart';
 import '../../core/providers/bootstrap_provider.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/services/session_reminder_service.dart';
 import '../../core/theme/aqa_theme.dart';
 import '../attendance/quick_session_logger_sheet.dart';
@@ -105,7 +109,6 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
             0,
             (acc, g) => acc + g.activeMembersCount,
           );
-          final pendingCount = data.pendingRequests.length;
           final adminAnnouncement =
               data.appConfig['announcement']?.toString().trim() ?? '';
 
@@ -164,17 +167,25 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                 const SizedBox(height: 14.0),
               ],
 
+              // 0. Notification Authorization Prompt
+              _buildNotificationPermissionPrompt(context, i18n),
+
               // 1. 10-MINUTE PRE-END SESSION REMINDER & QUICK LOGGER BANNER
               if (reminderCandidate != null && !data.coach.isAssistant) ...[
                 _buildTenMinReminderBanner(context, reminderCandidate, i18n),
                 const SizedBox(height: 16.0),
               ],
 
-              // 2. Pending Replacement Requests Alert
-              if (pendingCount > 0) ...[
+              // 2. Incoming Replacement Requests Cards (Accept / Refuse direct actions)
+              ...data.pendingRequests.where((r) => r.isIncomingRequest).map((rep) => Padding(
+                    padding: const EdgeInsets.only(bottom: 14.0),
+                    child: _buildIncomingCoverageCard(context, rep, i18n),
+                  )),
+
+              // 2b. Outgoing or Non-Incoming Pending Requests Notice
+              if (data.pendingRequests.any((r) => !r.isIncomingRequest)) ...[
                 AqaDoubleBezelCard(
-                  glowing: true,
-                  accentColor: AqaTheme.statusWarning,
+                  glowing: false,
                   padding: const EdgeInsets.all(14.0),
                   child: Row(
                     children: [
@@ -185,7 +196,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                           borderRadius: BorderRadius.circular(10.0),
                         ),
                         child: const Icon(
-                          Icons.notification_important_outlined,
+                          Icons.schedule_send_outlined,
                           color: AqaTheme.statusWarning,
                           size: 20.0,
                         ),
@@ -198,7 +209,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                             Text(
                               i18n.t(
                                 'sessions.pending_replacements_alert',
-                                {'count': pendingCount},
+                                {'count': data.pendingRequests.where((r) => !r.isIncomingRequest).length},
                               ),
                               style: const TextStyle(
                                 color: AqaTheme.textPrimary,
@@ -336,6 +347,234 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _respondToReplacement(
+    String replacementId,
+    bool accept,
+    AppI18n i18n,
+  ) async {
+    final client = ref.read(apiClientProvider);
+    try {
+      final response = await client.dio.post(
+        ApiEndpoints.respondReplacement(replacementId),
+        data: {'accept': accept},
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        ref.invalidate(bootstrapProvider);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: accept ? AqaTheme.statusSuccess : AqaTheme.statusWarning,
+            content: Text(
+              accept
+                  ? i18n.t('replacements.accept_confirm')
+                  : i18n.t('replacements.decline_confirm'),
+            ),
+          ),
+        );
+        if (accept) {
+          final notifService = ref.read(notificationServiceProvider);
+          notifService.showNotification(
+            title: i18n.t('replacements.urgent_incoming_title'),
+            body: i18n.t('replacements.accept_confirm'),
+          );
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AqaTheme.statusDanger,
+          content: Text('${i18n.t('common.error')}: $e'),
+        ),
+      );
+    }
+  }
+
+  Widget _buildNotificationPermissionPrompt(BuildContext context, AppI18n i18n) {
+    final notifAuthorized = ref.watch(notificationPermissionProvider);
+    if (notifAuthorized) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16.0),
+      child: AqaDoubleBezelCard(
+        glowing: true,
+        accentColor: AqaTheme.accentTeal,
+        padding: const EdgeInsets.all(14.0),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8.0),
+              decoration: BoxDecoration(
+                color: AqaTheme.accentTeal.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+              child: const Icon(
+                Icons.notifications_active_outlined,
+                color: AqaTheme.accentTeal,
+                size: 20.0,
+              ),
+            ),
+            const SizedBox(width: 12.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    i18n.t('notifications.permission_title'),
+                    style: const TextStyle(
+                      color: AqaTheme.textPrimary,
+                      fontSize: 13.0,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2.0),
+                  Text(
+                    i18n.t('notifications.permission_desc'),
+                    style: const TextStyle(
+                      color: AqaTheme.textMuted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            AqaIslandButton(
+              label: i18n.t('notifications.enable_btn'),
+              icon: Icons.notifications_active_outlined,
+              compact: true,
+              onPressed: () async {
+                final granted = await ref.read(notificationServiceProvider).requestPermission();
+                ref.read(notificationPermissionProvider.notifier).state = granted;
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: granted ? AqaTheme.statusSuccess : AqaTheme.statusWarning,
+                      content: Text(
+                        granted
+                            ? i18n.t('notifications.enabled_badge')
+                            : i18n.t('notifications.denied_msg'),
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIncomingCoverageCard(
+    BuildContext context,
+    ReplacementModel rep,
+    AppI18n i18n,
+  ) {
+    final dateStr =
+        rep.sessionDate.length >= 10 ? rep.sessionDate.substring(0, 10) : rep.sessionDate;
+
+    return AqaDoubleBezelCard(
+      glowing: true,
+      accentColor: AqaTheme.statusWarning,
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  i18n.t('replacements.urgent_incoming_title'),
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                decoration: BoxDecoration(
+                  color: AqaTheme.statusWarningBg,
+                  borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                  border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.6)),
+                ),
+                child: const Text(
+                  'ACTION REQUISE',
+                  style: TextStyle(
+                    color: AqaTheme.statusWarning,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8.0),
+          Text(
+            i18n.t('replacements.urgent_incoming_desc', {
+              'coach': rep.originalCoachName,
+              'group': rep.groupName,
+              'date': dateStr,
+              'time': '${rep.startTime} - ${rep.endTime}',
+            }),
+            style: const TextStyle(
+              color: AqaTheme.textPrimary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            '${rep.groupName} (${rep.category.toUpperCase()}) • ${rep.pool}',
+            style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 12.0, fontWeight: FontWeight.w700),
+          ),
+          if (rep.reason != null && rep.reason!.isNotEmpty) ...[
+            const SizedBox(height: 4.0),
+            Text(
+              'Motif: ${rep.reason}',
+              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.5, fontStyle: FontStyle.italic),
+            ),
+          ],
+          const SizedBox(height: 14.0),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AqaTheme.statusDanger,
+                    side: const BorderSide(color: AqaTheme.statusDanger),
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () => _respondToReplacement(rep.id, false, i18n),
+                  icon: const Icon(Icons.close_rounded, size: 16.0),
+                  label: const Text('Refuser', style: TextStyle(fontSize: 12.0, fontWeight: FontWeight.w700)),
+                ),
+              ),
+              const SizedBox(width: 10.0),
+              Expanded(
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AqaTheme.statusSuccess,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: () => _respondToReplacement(rep.id, true, i18n),
+                  icon: const Icon(Icons.check_rounded, size: 16.0),
+                  label: const Text('Accepter', style: TextStyle(fontSize: 12.0, fontWeight: FontWeight.w800)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -746,6 +985,88 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
             ],
           ),
 
+          if (!session.isEvaluationUnlocked || session.isViewOnly || session.isReplacement) ...[
+            const SizedBox(height: 8.0),
+            Wrap(
+              spacing: 6.0,
+              runSpacing: 4.0,
+              children: [
+                if (!session.isEvaluationUnlocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.statusWarningBg,
+                      borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                      border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock_clock_outlined, color: AqaTheme.statusWarning, size: 12.0),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          i18n.t('sessions.eval_locked_badge', {'time': session.unlockTimeFormatted}),
+                          style: const TextStyle(
+                            color: AqaTheme.statusWarning,
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (session.isViewOnly)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.statusWarningBg,
+                      borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                      border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.visibility_outlined, color: AqaTheme.statusWarning, size: 12.0),
+                        const SizedBox(width: 4.0),
+                        Text(
+                          i18n.t('sessions.covered_by_other', {'coach': 'un autre coach'}),
+                          style: const TextStyle(
+                            color: AqaTheme.statusWarning,
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (session.isReplacement && !session.isViewOnly)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.accentTeal.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                      border: Border.all(color: AqaTheme.accentTeal.withValues(alpha: 0.5)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.swap_horiz_rounded, color: AqaTheme.accentTeal, size: 12.0),
+                        SizedBox(width: 4.0),
+                        Text(
+                          'Remplacement',
+                          style: TextStyle(
+                            color: AqaTheme.accentTeal,
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ],
+
           if (rating?.focus != null && rating!.focus!.isNotEmpty) ...[
             const SizedBox(height: 8.0),
             Container(
@@ -758,7 +1079,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                 borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
               ),
               child: Text(
-                '${i18n.t('sessions.focus_label')} : ${rating.focus}${rating.intensity != null ? ' (${rating.intensity})' : ''}',
+                '${i18n.t('sessions.focus_label')} : ${rating.focus}',
                 style: const TextStyle(
                   color: AqaTheme.textMuted,
                   fontSize: 11.0,
@@ -798,7 +1119,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
               ),
               Row(
                 children: [
-                  if (!isAssistant && session.canEdit) ...[
+                  if (!isAssistant && session.canEdit && !session.isViewOnly) ...[
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 36.0),
@@ -807,15 +1128,59 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                           vertical: 6.0,
                         ),
                         visualDensity: VisualDensity.compact,
-                        side: const BorderSide(color: AqaTheme.borderTeal),
-                        foregroundColor: AqaTheme.accentTeal,
+                        side: BorderSide(
+                          color: session.isEvaluationUnlocked
+                              ? AqaTheme.borderTeal
+                              : AqaTheme.statusWarning.withValues(alpha: 0.5),
+                        ),
+                        foregroundColor: session.isEvaluationUnlocked
+                            ? AqaTheme.accentTeal
+                            : AqaTheme.statusWarning,
                       ),
                       onPressed: () {
+                        if (!session.isEvaluationUnlocked) {
+                          showDialog(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              backgroundColor: AqaTheme.surfaceDark,
+                              title: Row(
+                                children: [
+                                  const Icon(Icons.lock_clock_outlined, color: AqaTheme.statusWarning),
+                                  const SizedBox(width: 8.0),
+                                  Text(
+                                    i18n.t('sessions.eval_locked_dialog_title'),
+                                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 16.0),
+                                  ),
+                                ],
+                              ),
+                              content: Text(
+                                i18n.t('sessions.eval_locked_dialog_desc', {
+                                  'time': session.unlockTimeFormatted,
+                                }),
+                                style: const TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                  child: Text(i18n.t('common.close')),
+                                ),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
                         QuickSessionLoggerSheet.show(context, session);
                       },
-                      icon: const Icon(Icons.bolt_rounded, size: 15.0),
+                      icon: Icon(
+                        session.isEvaluationUnlocked
+                            ? Icons.bolt_rounded
+                            : Icons.lock_clock_outlined,
+                        size: 15.0,
+                      ),
                       label: Text(
-                        i18n.t('sessions.log_3_steps'),
+                        session.isEvaluationUnlocked
+                            ? i18n.t('sessions.log_3_steps')
+                            : i18n.t('sessions.eval_locked_badge', {'time': session.unlockTimeFormatted}),
                         style: const TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
@@ -837,13 +1202,13 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                       context.push('/sessions/${session.id}');
                     },
                     icon: Icon(
-                      session.canEdit && !isAssistant
+                      session.canEdit && !isAssistant && !session.isViewOnly
                           ? Icons.checklist_rounded
                           : Icons.visibility_outlined,
                       size: 15.0,
                     ),
                     label: Text(
-                      session.canEdit && !isAssistant
+                      session.canEdit && !isAssistant && !session.isViewOnly
                           ? i18n.t('sessions.btn_attendance')
                           : i18n.t('sessions.btn_view'),
                       style: const TextStyle(fontSize: 11.5),

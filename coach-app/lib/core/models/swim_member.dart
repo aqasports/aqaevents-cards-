@@ -49,8 +49,8 @@ class SwimMemberModel {
     this.badgeKey = 'starter',
     this.badgeLabel = 'Starter',
     this.badgeAsset = 'starter.png',
-    this.stageKey = 'elephant',
-    this.stageLabel = 'Stage 1 - Elephant',
+    this.stageKey = 'basics',
+    this.stageLabel = '1. Basics',
     this.stageAsset = 'elephant.png',
     this.unlockedBadges = const ['starter'],
   });
@@ -80,8 +80,8 @@ class SwimMemberModel {
       badgeKey: json['badgeKey'] as String? ?? 'starter',
       badgeLabel: json['badgeLabel'] as String? ?? 'Starter',
       badgeAsset: json['badgeAsset'] as String? ?? 'starter.png',
-      stageKey: json['stageKey'] as String? ?? 'elephant',
-      stageLabel: json['stageLabel'] as String? ?? 'Stage 1 - Elephant',
+      stageKey: json['stageKey'] as String? ?? 'basics',
+      stageLabel: json['stageLabel'] as String? ?? '1. Basics',
       stageAsset: json['stageAsset'] as String? ?? 'elephant.png',
       unlockedBadges: rawUnlocked.map((e) => e.toString()).toList(),
     );

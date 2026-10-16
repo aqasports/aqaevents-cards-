@@ -3,6 +3,8 @@ import {
   getSkillsForCategory,
   SWIM_SKILLS_CATALOG_V1,
   SKILL_SCORE_LABELS,
+  AQA_SUIVI_STAGES,
+  AQA_SUIVI_BADGES,
 } from "./swim-skills";
 
 describe("swim-skills", () => {
@@ -29,5 +31,38 @@ describe("swim-skills", () => {
   it("falls back to homme for unrecognized categories", () => {
     const fallback = getSkillsForCategory("unknown_category");
     expect(fallback.skills).toEqual(SWIM_SKILLS_CATALOG_V1.homme.skills);
+  });
+
+  it("exports exactly 6 pedagogy stages in correct order", () => {
+    expect(AQA_SUIVI_STAGES).toHaveLength(6);
+    expect(AQA_SUIVI_STAGES.map((s) => s.key)).toEqual([
+      "basics",
+      "crawl",
+      "backstroke",
+      "breaststroke",
+      "butterfly",
+      "elite",
+    ]);
+  });
+
+  it("exports exactly 15 badges in the specified exact sequence", () => {
+    expect(AQA_SUIVI_BADGES).toHaveLength(15);
+    expect(AQA_SUIVI_BADGES.map((b) => b.key)).toEqual([
+      "starter",
+      "beginner",
+      "floater",
+      "crawler",
+      "leaf",
+      "brasseur",
+      "butterfly",
+      "full_swimmer",
+      "dolphin",
+      "shark",
+      "orca",
+      "whale",
+      "kraken",
+      "mosasaurus",
+      "tsunami",
+    ]);
   });
 });

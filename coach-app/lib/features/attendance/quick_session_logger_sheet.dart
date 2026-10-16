@@ -51,7 +51,6 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
   final Map<String, _QuickSwimmerEvolution> _evolutions = {};
 
   int _sessionRating = 5;
-  String _intensity = 'Soutenue';
   String _focus = 'Technique Crawl & Respiration';
   int _discipline = 5;
   final TextEditingController _summaryController = TextEditingController();
@@ -60,25 +59,18 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
     {'key': 'starter', 'label': 'Starter', 'asset': 'assets/images/badges/starter.png'},
     {'key': 'beginner', 'label': 'Beginner', 'asset': 'assets/images/badges/beginner.png'},
     {'key': 'floater', 'label': 'Floater', 'asset': 'assets/images/badges/floater.png'},
-    {'key': 'leaf', 'label': 'Leaf', 'asset': 'assets/images/badges/leaf.png'},
-    {'key': 'dolphin', 'label': 'Dolphin', 'asset': 'assets/images/badges/dolphin.png'},
     {'key': 'crawler', 'label': 'Crawler', 'asset': 'assets/images/badges/crawler.png'},
+    {'key': 'leaf', 'label': 'Leaf', 'asset': 'assets/images/badges/leaf.png'},
     {'key': 'brasseur', 'label': 'Brasseur', 'asset': 'assets/images/badges/brasseur.png'},
     {'key': 'butterfly', 'label': 'Butterfly', 'asset': 'assets/images/badges/butterfly.png'},
+    {'key': 'full_swimmer', 'label': 'Full Swimmer', 'asset': 'assets/images/badges/full_swimmer.png'},
+    {'key': 'dolphin', 'label': 'Dolphin', 'asset': 'assets/images/badges/dolphin.png'},
     {'key': 'shark', 'label': 'Shark', 'asset': 'assets/images/badges/shark.png'},
     {'key': 'orca', 'label': 'Orca', 'asset': 'assets/images/badges/orca.png'},
     {'key': 'whale', 'label': 'Whale', 'asset': 'assets/images/badges/whale.png'},
     {'key': 'kraken', 'label': 'Kraken', 'asset': 'assets/images/badges/kraken.png'},
     {'key': 'mosasaurus', 'label': 'Mosasaurus', 'asset': 'assets/images/badges/mosasaurus.png'},
     {'key': 'tsunami', 'label': 'Tsunami', 'asset': 'assets/images/badges/tsunami.png'},
-    {'key': 'full_swimmer', 'label': 'Full Swimmer', 'asset': 'assets/images/badges/full_swimmer.png'},
-  ];
-
-  static const List<String> _intensityOptions = [
-    'Moderee',
-    'Soutenue',
-    'Haute Intensite',
-    'Recuperation Active',
   ];
 
   static const List<String> _focusOptions = [
@@ -115,9 +107,6 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
     final existingRating = data['sessionRating'] as Map<String, dynamic>?;
     if (existingRating != null) {
       _sessionRating = (existingRating['rating'] as num?)?.toInt() ?? 5;
-      if (existingRating['intensity'] is String) {
-        _intensity = existingRating['intensity'] as String;
-      }
       if (existingRating['focus'] is String) {
         _focus = existingRating['focus'] as String;
       }
@@ -132,6 +121,22 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
 
   Future<void> _submitQuickLog(AppI18n i18n) async {
     if (_isSaving) return;
+
+    if (!widget.session.isEvaluationUnlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AqaTheme.statusWarning,
+          content: Text(
+            i18n.t(
+              'sessions.eval_locked_dialog_desc',
+              {'time': widget.session.unlockTimeFormatted},
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     final client = ref.read(apiClientProvider);
@@ -152,7 +157,6 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
       'closeSession': true,
       'sessionRating': {
         'rating': _sessionRating,
-        'intensity': _intensity,
         'focus': _focus,
         'discipline': _discipline,
         'summary': _summaryController.text.trim(),
@@ -299,6 +303,39 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                     ),
                   ],
                 ),
+                if (!widget.session.isEvaluationUnlocked) ...[
+                  const SizedBox(height: 10.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.statusWarningBg,
+                      borderRadius: BorderRadius.circular(10.0),
+                      border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.lock_clock_outlined,
+                          color: AqaTheme.statusWarning,
+                          size: 16.0,
+                        ),
+                        const SizedBox(width: 8.0),
+                        Expanded(
+                          child: Text(
+                            i18n.t('sessions.eval_locked_dialog_desc', {
+                              'time': widget.session.unlockTimeFormatted,
+                            }),
+                            style: const TextStyle(
+                              color: AqaTheme.statusWarning,
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -358,14 +395,37 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                             onPressed: () => setState(() => _currentStep += 1),
                           )
                         : AqaIslandButton(
-                            label: _isSaving
-                                ? i18n.t('common.saving')
-                                : i18n.t('quick_logger.finish_cta'),
-                            icon: Icons.check_rounded,
+                            label: !widget.session.isEvaluationUnlocked
+                                ? i18n.t('sessions.eval_locked_badge', {
+                                    'time': widget.session.unlockTimeFormatted,
+                                  })
+                                : _isSaving
+                                    ? i18n.t('common.saving')
+                                    : i18n.t('quick_logger.finish_cta'),
+                            icon: !widget.session.isEvaluationUnlocked
+                                ? Icons.lock_clock_outlined
+                                : Icons.check_rounded,
                             loading: _isSaving,
-                            color: AqaTheme.statusSuccess,
-                            textColor: Colors.white,
-                            onPressed: () => _submitQuickLog(i18n),
+                            color: !widget.session.isEvaluationUnlocked
+                                ? AqaTheme.surfaceSecondary
+                                : AqaTheme.statusSuccess,
+                            textColor: !widget.session.isEvaluationUnlocked
+                                ? AqaTheme.textLightMuted
+                                : Colors.white,
+                            onPressed: !widget.session.isEvaluationUnlocked
+                                ? () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        backgroundColor: AqaTheme.statusWarning,
+                                        content: Text(
+                                          i18n.t('sessions.eval_locked_dialog_desc', {
+                                            'time': widget.session.unlockTimeFormatted,
+                                          }),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                : () => _submitQuickLog(i18n),
                           ),
                   ),
                 ],
@@ -695,30 +755,6 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                     ),
                   );
                 }),
-              ),
-              const SizedBox(height: 14.0),
-              Text(
-                i18n.t('attendance.intensity_label'),
-                style: const TextStyle(
-                  color: AqaTheme.textPrimary,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8.0),
-              Wrap(
-                spacing: 8.0,
-                runSpacing: 8.0,
-                children: _intensityOptions.map((opt) {
-                  final selected = _intensity == opt;
-                  return ChoiceChip(
-                    label: Text(opt),
-                    selected: selected,
-                    onSelected: (_) => setState(() => _intensity = opt),
-                    selectedColor: AqaTheme.primarySky,
-                    backgroundColor: AqaTheme.surfaceSecondary,
-                  );
-                }).toList(),
               ),
               const SizedBox(height: 14.0),
               Text(

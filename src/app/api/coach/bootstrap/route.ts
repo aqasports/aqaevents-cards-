@@ -71,7 +71,18 @@ export async function GET(req: NextRequest) {
         }),
         prisma.swimSession.findMany({
           where: {
-            groupId: { in: groupIds },
+            OR: [
+              { groupId: { in: groupIds } },
+              { actualCoachId: coach.id },
+              {
+                replacements: {
+                  some: {
+                    substituteCoachId: coach.id,
+                    status: { in: ["accepted", "assigned"] },
+                  },
+                },
+              },
+            ],
             sessionDate: { gte: today, lte: nextWeek },
           },
           include: {
@@ -92,6 +103,14 @@ export async function GET(req: NextRequest) {
             },
             attendances: {
               select: { id: true, status: true },
+            },
+            replacements: {
+              select: {
+                id: true,
+                status: true,
+                originalCoachId: true,
+                substituteCoachId: true,
+              },
             },
           },
           orderBy: [{ sessionDate: "asc" }, { startTime: "asc" }],
@@ -215,6 +234,40 @@ export async function GET(req: NextRequest) {
       const totalMembers = s.group._count.swimmers || groupCountById.get(s.groupId) || 0;
       const sessionRating = ratingBySessionId.get(s.id) || null;
 
+      const isCoveredByOtherCoach =
+        (s.actualCoachId && s.actualCoachId !== coach.id) ||
+        s.replacements?.some(
+          (r) =>
+            r.originalCoachId === coach.id &&
+            r.substituteCoachId &&
+            r.substituteCoachId !== coach.id &&
+            (r.status === "accepted" || r.status === "assigned")
+        );
+
+      const isCoveringForAnotherCoach =
+        s.actualCoachId === coach.id &&
+        s.replacements?.some(
+          (r) =>
+            r.substituteCoachId === coach.id &&
+            r.originalCoachId !== coach.id &&
+            (r.status === "accepted" || r.status === "assigned")
+        );
+
+      let canEditSession = false;
+      if (s.status === "cancelled") {
+        canEditSession = false;
+      } else if (role === "head_coach") {
+        canEditSession = true;
+      } else if (role === "assistant") {
+        canEditSession = false;
+      } else if (isCoveredByOtherCoach) {
+        canEditSession = false;
+      } else if (s.actualCoachId === coach.id) {
+        canEditSession = true;
+      } else {
+        canEditSession = true;
+      }
+
       return {
         id: s.id,
         groupId: s.groupId,
@@ -229,6 +282,9 @@ export async function GET(req: NextRequest) {
         status: s.status,
         cancelReason: s.cancelReason,
         isMySession: s.actualCoachId === coach.id || role === "head_coach",
+        isReplacement: Boolean(isCoveringForAnotherCoach),
+        canEdit: canEditSession,
+        isViewOnly: !canEditSession,
         closedAt: s.closedAt ? s.closedAt.toISOString() : null,
         attendanceCount: presentCount,
         totalMembers,

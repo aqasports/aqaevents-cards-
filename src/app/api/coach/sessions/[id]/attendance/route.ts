@@ -92,6 +92,28 @@ export async function PUT(
       );
     }
 
+    // Never accept evaluating future sessions or sessions before at least 1 hour after session start time
+    if (role !== "head_coach") {
+      const sessionDateStr = session.sessionDate.toISOString().split("T")[0];
+      const [startH, startM] = session.startTime.split(":").map(Number);
+      const sessionStart = new Date(sessionDateStr);
+      sessionStart.setHours(startH || 0, startM || 0, 0, 0);
+      const oneHourAfterStart = new Date(sessionStart.getTime() + 60 * 60 * 1000);
+      const now = new Date();
+
+      if (now < oneHourAfterStart) {
+        return NextResponse.json(
+          {
+            error:
+              "L'evaluation de la seance n'est autorisee qu'au moins 1 heure apres le debut de la seance.",
+            code: "SESSION_NOT_READY_FOR_EVALUATION",
+            unlocksAt: oneHourAfterStart.toISOString(),
+          },
+          { status: 400, headers: corsHeaders }
+        );
+      }
+    }
+
     const body = await req.json();
     const parsed = attendancePayloadSchema.safeParse(body);
 

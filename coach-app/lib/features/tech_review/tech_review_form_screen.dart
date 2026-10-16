@@ -79,7 +79,7 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelAr: 'المبتدئ الأول',
       asset: 'starter.png',
       minScore: 1.0,
-      stageKey: 'elephant',
+      stageKey: 'basics',
     ),
     _AqaBadgeDef(
       key: 'beginner',
@@ -87,8 +87,8 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Beginner',
       labelAr: 'مبتدئ مائي',
       asset: 'beginner.png',
-      minScore: 1.3,
-      stageKey: 'elephant',
+      minScore: 1.25,
+      stageKey: 'basics',
     ),
     _AqaBadgeDef(
       key: 'floater',
@@ -96,26 +96,8 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Floater',
       labelAr: 'الطفو المتوازن',
       asset: 'floater.png',
-      minScore: 1.6,
-      stageKey: 'elephant',
-    ),
-    _AqaBadgeDef(
-      key: 'leaf',
-      label: 'Leaf Glider',
-      labelEn: 'Leaf Glider',
-      labelAr: 'الانزلاق الانسيابي',
-      asset: 'leaf.png',
-      minScore: 1.9,
-      stageKey: 'crocodile',
-    ),
-    _AqaBadgeDef(
-      key: 'dolphin',
-      label: 'Dolphin',
-      labelEn: 'Dolphin',
-      labelAr: 'الدلفين',
-      asset: 'dolphin.png',
-      minScore: 2.2,
-      stageKey: 'crocodile',
+      minScore: 1.5,
+      stageKey: 'basics',
     ),
     _AqaBadgeDef(
       key: 'crawler',
@@ -123,8 +105,17 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Crawler',
       labelAr: 'سباح الكراول',
       asset: 'crawler.png',
-      minScore: 2.5,
-      stageKey: 'crocodile',
+      minScore: 1.75,
+      stageKey: 'crawl',
+    ),
+    _AqaBadgeDef(
+      key: 'leaf',
+      label: 'Leaf',
+      labelEn: 'Leaf (Backstroke Master)',
+      labelAr: 'ليف (إتقان سباحة الظهر)',
+      asset: 'leaf.png',
+      minScore: 2.0,
+      stageKey: 'backstroke',
     ),
     _AqaBadgeDef(
       key: 'brasseur',
@@ -132,8 +123,8 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Breaststroker',
       labelAr: 'سباح الصدر',
       asset: 'brasseur.png',
-      minScore: 2.8,
-      stageKey: 'dauphin',
+      minScore: 2.25,
+      stageKey: 'breaststroke',
     ),
     _AqaBadgeDef(
       key: 'butterfly',
@@ -141,8 +132,26 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Butterfly',
       labelAr: 'سباح الفراشة',
       asset: 'butterfly.png',
+      minScore: 2.5,
+      stageKey: 'butterfly',
+    ),
+    _AqaBadgeDef(
+      key: 'full_swimmer',
+      label: 'Full Swimmer AQA Pro',
+      labelEn: 'Full Swimmer AQA Pro',
+      labelAr: 'السباح الكامل AQA Pro',
+      asset: 'full_swimmer.png',
+      minScore: 2.8,
+      stageKey: 'elite',
+    ),
+    _AqaBadgeDef(
+      key: 'dolphin',
+      label: 'Dolphin',
+      labelEn: 'Dolphin',
+      labelAr: 'الدلفين',
+      asset: 'dolphin.png',
       minScore: 3.1,
-      stageKey: 'dauphin',
+      stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'shark',
@@ -151,7 +160,7 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelAr: 'القرش',
       asset: 'shark.png',
       minScore: 3.4,
-      stageKey: 'dauphin',
+      stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'orca',
@@ -160,7 +169,7 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelAr: 'الأوركا',
       asset: 'orca.png',
       minScore: 3.7,
-      stageKey: 'dauphin',
+      stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'whale',
@@ -169,7 +178,7 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelAr: 'تحمل الحوت',
       asset: 'whale.png',
       minScore: 4.0,
-      stageKey: 'requin',
+      stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'kraken',
@@ -177,8 +186,8 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Kraken Power',
       labelAr: 'قوة الكراكن',
       asset: 'kraken.png',
-      minScore: 4.2,
-      stageKey: 'requin',
+      minScore: 4.3,
+      stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'mosasaurus',
@@ -186,8 +195,8 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Mosasaurus Elite',
       labelAr: 'نخبة الموزاصور',
       asset: 'mosasaurus.png',
-      minScore: 4.4,
-      stageKey: 'requin',
+      minScore: 4.6,
+      stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'tsunami',
@@ -195,17 +204,8 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
       labelEn: 'Tsunami Master',
       labelAr: 'سيد التسونامي',
       asset: 'tsunami.png',
-      minScore: 4.6,
-      stageKey: 'requin',
-    ),
-    _AqaBadgeDef(
-      key: 'full_swimmer',
-      label: 'Full Swimmer AQA Pro',
-      labelEn: 'Full Swimmer AQA Pro',
-      labelAr: 'السباح الكامل AQA Pro',
-      asset: 'full_swimmer.png',
-      minScore: 4.9,
-      stageKey: 'requin',
+      minScore: 4.85,
+      stageKey: 'elite',
     ),
   ];
 
@@ -608,10 +608,20 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
 
     String stageAssetForBadge(String stageKey) {
       switch (stageKey) {
+        case 'basics':
+        case 'elephant':
+          return 'elephant.png';
+        case 'crawl':
         case 'crocodile':
-          return 'Crocodile.png';
+          return 'crawler.png';
+        case 'backstroke':
         case 'dauphin':
-          return 'Dauphin.png';
+          return 'leaf.png';
+        case 'breaststroke':
+          return 'brasseur.png';
+        case 'butterfly':
+          return 'butterfly.png';
+        case 'elite':
         case 'requin':
           return 'requin.png';
         default:

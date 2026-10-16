@@ -92,10 +92,22 @@ class SwimmerProfileScreen extends ConsumerWidget {
 
             final badgeLabel = member['badgeLabel'] as String? ?? 'Starter';
             final badgeAsset = member['badgeAsset'] as String? ?? 'starter.png';
-            final stageLabel = member['stageLabel'] as String? ?? 'Palier 1 - Elephant';
+            final stageLabel = member['stageLabel'] as String? ?? '1. Basics';
             final stageAsset = member['stageAsset'] as String? ?? 'elephant.png';
-            final stageKey = member['stageKey'] as String? ?? 'elephant';
+            final stageKey = member['stageKey'] as String? ?? 'basics';
             final avgSkillScore = (member['avgSkillScore'] as num?)?.toDouble() ?? 1.0;
+
+            int stageOrder(String k) {
+              final l = k.toLowerCase();
+              if (l == 'basics' || l == 'elephant') return 1;
+              if (l == 'crawl' || l == 'crocodile') return 2;
+              if (l == 'backstroke' || l == 'dauphin') return 3;
+              if (l == 'breaststroke') return 4;
+              if (l == 'butterfly') return 5;
+              if (l == 'elite' || l == 'requin') return 6;
+              return 1;
+            }
+            final currentOrder = stageOrder(stageKey);
 
             final categoryAverages = (data['categoryAverages'] as Map<String, dynamic>?) ?? {};
             final latestMeta = (data['latestMeta'] as Map<String, dynamic>?) ?? {};
@@ -399,16 +411,24 @@ class SwimmerProfileScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(height: 14.0),
-                      Row(
-                        children: [
-                          _buildRoadmapStage('Palier 1', 'Elephant', 'elephant.png', stageKey == 'elephant', 'elephant' == stageKey),
-                          _buildRoadmapArrow(),
-                          _buildRoadmapStage('Palier 2', 'Crocodile', 'Crocodile.png', stageKey == 'crocodile' || stageKey == 'dauphin' || stageKey == 'requin', stageKey == 'crocodile'),
-                          _buildRoadmapArrow(),
-                          _buildRoadmapStage('Palier 3', 'Dauphin', 'Dauphin.png', stageKey == 'dauphin' || stageKey == 'requin', stageKey == 'dauphin'),
-                          _buildRoadmapArrow(),
-                          _buildRoadmapStage('Palier 4', 'Requin', 'Requin.png', stageKey == 'requin', stageKey == 'requin'),
-                        ],
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            _buildRoadmapStage('Palier 1', 'Basics', 'elephant.png', currentOrder >= 1, currentOrder == 1),
+                            _buildRoadmapArrow(),
+                            _buildRoadmapStage('Palier 2', 'Crawl', 'crawler.png', currentOrder >= 2, currentOrder == 2),
+                            _buildRoadmapArrow(),
+                            _buildRoadmapStage('Palier 3', 'Backstroke', 'leaf.png', currentOrder >= 3, currentOrder == 3),
+                            _buildRoadmapArrow(),
+                            _buildRoadmapStage('Palier 4', 'Breaststroke', 'brasseur.png', currentOrder >= 4, currentOrder == 4),
+                            _buildRoadmapArrow(),
+                            _buildRoadmapStage('Palier 5', 'Butterfly', 'butterfly.png', currentOrder >= 5, currentOrder == 5),
+                            _buildRoadmapArrow(),
+                            _buildRoadmapStage('Palier 6', 'Elite', 'requin.png', currentOrder >= 6, currentOrder == 6),
+                          ],
+                        ),
                       ),
                     ],
                   ),

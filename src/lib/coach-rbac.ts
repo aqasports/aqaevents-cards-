@@ -39,7 +39,7 @@ export async function resolveCoachGroupIds(ctx: CoachContext): Promise<string[]>
     coachName = coachRecord?.name;
   }
 
-  const [staffAssignments, replacementAssignments] = await Promise.all([
+  const [staffAssignments, replacementAssignments, actualSessionAssignments] = await Promise.all([
     prisma.swimGroupStaff.findMany({
       where: {
         coachId: ctx.coachId,
@@ -55,11 +55,18 @@ export async function resolveCoachGroupIds(ctx: CoachContext): Promise<string[]>
       },
       include: { session: { select: { groupId: true } } },
     }),
+    prisma.swimSession.findMany({
+      where: {
+        actualCoachId: ctx.coachId,
+      },
+      select: { groupId: true },
+    }),
   ]);
 
   const set = new Set<string>();
   staffAssignments.forEach((a) => set.add(a.groupId));
   replacementAssignments.forEach((r) => set.add(r.session.groupId));
+  actualSessionAssignments.forEach((s) => set.add(s.groupId));
 
   // Match legacy SwimGroup.coachName
   for (const g of allActiveGroups) {
@@ -176,8 +183,44 @@ export async function canEditAttendance(
     return { allowed: true };
   }
 
-  // Regular coach: must be actualCoachId for this session or assigned to the group
+  // If another coach was assigned as actualCoachId or has an accepted replacement,
+  // the original coach has strictly view-only access.
+  if (session.actualCoachId && session.actualCoachId !== ctx.coachId) {
+    return {
+      allowed: false,
+      reason: "Cette seance est couverte par un coach remplacant. Acces en lecture seule.",
+    };
+  }
+
+  const otherAcceptedReplacement = await prisma.swimReplacement.findFirst({
+    where: {
+      sessionId: session.id,
+      status: { in: ["accepted", "assigned"] },
+      substituteCoachId: { not: ctx.coachId },
+    },
+  });
+
+  if (otherAcceptedReplacement) {
+    return {
+      allowed: false,
+      reason: "Cette seance est couverte par un coach remplacant. Acces en lecture seule.",
+    };
+  }
+
+  // Regular coach: must be actualCoachId for this session, accepted substitute, or assigned to the group
   if (session.actualCoachId === ctx.coachId) {
+    return { allowed: true };
+  }
+
+  const myAcceptedReplacement = await prisma.swimReplacement.findFirst({
+    where: {
+      sessionId: session.id,
+      substituteCoachId: ctx.coachId,
+      status: { in: ["accepted", "assigned"] },
+    },
+  });
+
+  if (myAcceptedReplacement) {
     return { allowed: true };
   }
 

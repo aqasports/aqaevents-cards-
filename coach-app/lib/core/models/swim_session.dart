@@ -61,6 +61,7 @@ class SwimSessionModel {
   final int totalMembers;
   final bool isReplacement;
   final bool canEdit;
+  final bool isViewOnly;
   final SessionRatingModel? sessionRating;
 
   const SwimSessionModel({
@@ -80,6 +81,7 @@ class SwimSessionModel {
     this.totalMembers = 0,
     this.isReplacement = false,
     this.canEdit = true,
+    this.isViewOnly = false,
     this.sessionRating,
   });
 
@@ -89,6 +91,51 @@ class SwimSessionModel {
   }
 
   bool get isCancelled => status.toUpperCase() == 'CANCELLED';
+
+  DateTime? get startDateTime {
+    try {
+      final dateClean = sessionDate.split('T')[0];
+      final parts = dateClean.split('-');
+      if (parts.length != 3) return null;
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final day = int.parse(parts[2]);
+      final tParts = startTime.split(':');
+      final hour = int.parse(tParts[0]);
+      final minute = int.parse(tParts.length > 1 ? tParts[1] : '0');
+      return DateTime(year, month, day, hour, minute);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  DateTime? get evaluationUnlocksAt {
+    final sdt = startDateTime;
+    if (sdt == null) return null;
+    return sdt.add(const Duration(hours: 1));
+  }
+
+  /// Never accept evaluating future sessions; only unlocked at least one hour after session start.
+  bool get isEvaluationUnlocked {
+    final unlock = evaluationUnlocksAt;
+    if (unlock == null) return true;
+    return DateTime.now().isAfter(unlock) || DateTime.now().isAtSameMomentAs(unlock);
+  }
+
+  Duration? get timeUntilEvaluationUnlock {
+    final unlock = evaluationUnlocksAt;
+    if (unlock == null) return null;
+    final diff = unlock.difference(DateTime.now());
+    return diff.isNegative ? null : diff;
+  }
+
+  String get unlockTimeFormatted {
+    final unlock = evaluationUnlocksAt;
+    if (unlock == null) return startTime;
+    final h = unlock.hour.toString().padLeft(2, '0');
+    final m = unlock.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 
   static String _computeEndTime(String start) {
     if (!start.contains(':')) return '19:00';
@@ -151,6 +198,7 @@ class SwimSessionModel {
       totalMembers: totalMem,
       isReplacement: json['isReplacement'] as bool? ?? false,
       canEdit: json['canEdit'] as bool? ?? true,
+      isViewOnly: json['isViewOnly'] as bool? ?? (json['canEdit'] == false),
       sessionRating: ratingJson != null
           ? SessionRatingModel.fromJson(ratingJson)
           : null,
@@ -175,6 +223,7 @@ class SwimSessionModel {
       'totalMembers': totalMembers,
       'isReplacement': isReplacement,
       'canEdit': canEdit,
+      'isViewOnly': isViewOnly,
       if (sessionRating != null) 'sessionRating': sessionRating!.toJson(),
     };
   }

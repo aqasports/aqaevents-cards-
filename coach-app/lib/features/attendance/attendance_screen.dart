@@ -35,10 +35,8 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   List<Map<String, dynamic>> _clubSwimmers = [];
 
   final TextEditingController _sessionNotesController = TextEditingController();
-  final TextEditingController _waterTempController = TextEditingController(text: '27.5');
 
   int _sessionRatingStars = 5;
-  String _intensity = 'Moderee';
   String _focus = 'Technique de Nage';
   int _discipline = 5;
 
@@ -50,8 +48,42 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   @override
   void dispose() {
     _sessionNotesController.dispose();
-    _waterTempController.dispose();
     super.dispose();
+  }
+
+  bool get _isLockedForEvaluation {
+    if (_sessionData == null) return false;
+    final dateStr = _sessionData!['sessionDate'] as String?;
+    final startStr = _sessionData!['startTime'] as String? ?? '18:00';
+    if (dateStr == null) return false;
+    try {
+      final cleanDate = dateStr.split('T')[0];
+      final parts = cleanDate.split('-');
+      final y = int.parse(parts[0]);
+      final m = int.parse(parts[1]);
+      final d = int.parse(parts[2]);
+      final tParts = startStr.split(':');
+      final h = int.parse(tParts[0]);
+      final min = int.parse(tParts.length > 1 ? tParts[1] : '0');
+      final sessionStart = DateTime(y, m, d, h, min);
+      final unlocksAt = sessionStart.add(const Duration(hours: 1));
+      return DateTime.now().isBefore(unlocksAt);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String get _unlockTimeFormatted {
+    if (_sessionData == null) return '';
+    final startStr = _sessionData!['startTime'] as String? ?? '18:00';
+    try {
+      final tParts = startStr.split(':');
+      final h = (int.parse(tParts[0]) + 1) % 24;
+      final min = tParts.length > 1 ? tParts[1] : '00';
+      return '${h.toString().padLeft(2, '0')}:$min';
+    } catch (_) {
+      return '';
+    }
   }
 
   void _populateFromData(Map<String, dynamic> data) {
@@ -106,12 +138,8 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
         _sessionData?['sessionRating'] as Map<String, dynamic>?;
     if (ratingMap != null) {
       _sessionRatingStars = (ratingMap['rating'] as num?)?.toInt() ?? 5;
-      _intensity = ratingMap['intensity'] as String? ?? 'Moderee';
       _focus = ratingMap['focus'] as String? ?? 'Technique de Nage';
       _discipline = (ratingMap['discipline'] as num?)?.toInt() ?? 5;
-      if (ratingMap['waterTempC'] != null) {
-        _waterTempController.text = ratingMap['waterTempC'].toString();
-      }
       if (ratingMap['summary'] != null && ratingMap['summary'].toString().isNotEmpty) {
         _sessionNotesController.text = ratingMap['summary'].toString();
       }
@@ -123,12 +151,11 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   }
 
   Future<void> _saveAttendance(AppI18n i18n) async {
-    if (_isViewOnly || _isSaving) return;
+    if (_isViewOnly || _isSaving || _isLockedForEvaluation) return;
 
     setState(() => _isSaving = true);
 
     final clientMutationId = '${DateTime.now().millisecondsSinceEpoch}-${widget.sessionId}';
-    final waterTemp = double.tryParse(_waterTempController.text.trim());
     final notesText = _sessionNotesController.text.trim();
 
     final payload = {
@@ -137,10 +164,8 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       'closeSession': true,
       'sessionRating': {
         'rating': _sessionRatingStars,
-        'intensity': _intensity,
         'focus': _focus,
         'discipline': _discipline,
-        'waterTempC': waterTemp,
         'summary': notesText,
       },
     };
@@ -162,6 +187,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
         );
         ref.invalidate(sessionDetailProvider(widget.sessionId));
         ref.invalidate(bootstrapProvider);
+        context.pop();
       }
     } catch (e) {
       final syncManager = ref.read(syncManagerProvider);
@@ -184,6 +210,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
             content: Text(i18n.t('attendance.saved_offline')),
           ),
         );
+        context.pop();
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -586,16 +613,60 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                     ),
                     child: SafeArea(
                       top: false,
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: AqaIslandButton(
-                          label: _isSaving
-                              ? i18n.t('common.saving')
-                              : i18n.t('attendance.save_cta'),
-                          icon: Icons.check_rounded,
-                          loading: _isSaving,
-                          onPressed: () => _saveAttendance(i18n),
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_isLockedForEvaluation) ...[
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 10.0),
+                              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                              decoration: BoxDecoration(
+                                color: AqaTheme.statusWarning.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                                border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.lock_clock_rounded, color: AqaTheme.statusWarning, size: 18.0),
+                                  const SizedBox(width: 8.0),
+                                  Expanded(
+                                    child: Text(
+                                      i18n.locale == 'ar'
+                                          ? 'التقييم مقفل: يفتح بعد ساعة من بداية الحصة (الساعة $_unlockTimeFormatted).'
+                                          : i18n.locale == 'en'
+                                              ? 'Locked: Evaluation opens 1 hour after session start (at $_unlockTimeFormatted).'
+                                              : 'Verrouille : L\'evaluation ouvre 1h apres le debut de la seance (a $_unlockTimeFormatted).',
+                                      style: const TextStyle(
+                                        color: AqaTheme.statusWarning,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          SizedBox(
+                            width: double.infinity,
+                            child: AqaIslandButton(
+                              label: _isLockedForEvaluation
+                                  ? (i18n.locale == 'ar'
+                                      ? 'مقفلة حتى $_unlockTimeFormatted'
+                                      : i18n.locale == 'en'
+                                          ? 'Locked until $_unlockTimeFormatted'
+                                          : 'Verrouillee jusqu\'a $_unlockTimeFormatted')
+                                  : (_isSaving
+                                      ? i18n.t('common.saving')
+                                      : i18n.t('attendance.save_cta')),
+                              icon: _isLockedForEvaluation
+                                  ? Icons.lock_outline_rounded
+                                  : Icons.check_rounded,
+                              loading: _isSaving,
+                              onPressed: _isLockedForEvaluation ? null : () => _saveAttendance(i18n),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -906,84 +977,6 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                 ),
               );
             }),
-          ),
-          const SizedBox(height: 12.0),
-
-          // Intensity & Water Temp
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      i18n.t('attendance.intensity_label'),
-                      style: const TextStyle(
-                        color: AqaTheme.textMuted,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6.0),
-                    DropdownButtonFormField<String>(
-                      initialValue: ['Moderee', 'Soutenue', 'Haute Intensite', 'Recuperation Active']
-                              .contains(_intensity)
-                          ? _intensity
-                          : 'Moderee',
-                      dropdownColor: AqaTheme.surfaceSecondary,
-                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                      onChanged: _isViewOnly
-                          ? null
-                          : (val) {
-                              if (val != null) setState(() => _intensity = val);
-                            },
-                      items: [
-                        DropdownMenuItem(
-                          value: 'Moderee',
-                          child: Text(i18n.t('attendance.intensity_moderate')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Soutenue',
-                          child: Text(i18n.t('attendance.intensity_sustained')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Haute Intensite',
-                          child: Text(i18n.t('attendance.intensity_high')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Recuperation Active',
-                          child: Text(i18n.t('attendance.intensity_recovery')),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12.0),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      i18n.t('attendance.water_temp_label'),
-                      style: const TextStyle(
-                        color: AqaTheme.textMuted,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6.0),
-                    TextField(
-                      controller: _waterTempController,
-                      readOnly: _isViewOnly,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
           const SizedBox(height: 12.0),
 

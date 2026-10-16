@@ -78,10 +78,20 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                 ...allSwimmers.map((s) => s.category.toUpperCase()).where((c) => c.isNotEmpty),
               };
 
+              String normalizeStage(String sKey) {
+                final l = sKey.toLowerCase();
+                if (l == 'elephant') return 'basics';
+                if (l == 'crocodile') return 'crawl';
+                if (l == 'dauphin') return 'backstroke';
+                if (l == 'requin') return 'elite';
+                return l;
+              }
+
               // Filtered list
               final filtered = allSwimmers.where((s) {
+                final normKey = normalizeStage(s.stageKey);
                 final matchesStage = _selectedStageFilter == 'ALL' ||
-                    s.stageKey.toLowerCase() == _selectedStageFilter.toLowerCase();
+                    normKey == _selectedStageFilter.toLowerCase();
                 final matchesGroup = _selectedGroupFilter == 'ALL' ||
                     s.category.toUpperCase() == _selectedGroupFilter;
                 final query = _searchQuery.toLowerCase();
@@ -93,11 +103,13 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                 return matchesStage && matchesGroup && matchesQuery;
               }).toList();
 
-              // Stage counts for stage mascot cards
-              final elephantCount = allSwimmers.where((s) => s.stageKey == 'elephant').length;
-              final crocodileCount = allSwimmers.where((s) => s.stageKey == 'crocodile').length;
-              final dauphinCount = allSwimmers.where((s) => s.stageKey == 'dauphin').length;
-              final requinCount = allSwimmers.where((s) => s.stageKey == 'requin').length;
+              // Stage counts for the 6 pedagogical stages
+              final basicsCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'basics').length;
+              final crawlCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'crawl').length;
+              final backstrokeCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'backstroke').length;
+              final breaststrokeCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'breaststroke').length;
+              final butterflyCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'butterfly').length;
+              final eliteCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'elite').length;
 
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
@@ -110,7 +122,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   ),
                   const SizedBox(height: 16.0),
 
-                  // 2. 4 Stage Mascots Strip (Elephant, Crocodile, Dauphin, Requin)
+                  // 2. 6 Pedagogical Stages Strip (Basics, Crawl, Backstroke, Breaststroke, Butterfly, Elite)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
@@ -127,42 +139,62 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
-                          stageKey: 'elephant',
-                          label: '1. ${i18n.t('suivi.stage_elephant')}',
+                          stageKey: 'basics',
+                          label: '1. ${i18n.t('suivi.stage_basics')}',
                           asset: 'elephant.png',
-                          count: elephantCount,
+                          count: basicsCount,
                           color: const Color(0xFF38BDF8),
-                          isSelected: _selectedStageFilter == 'elephant',
+                          isSelected: _selectedStageFilter == 'basics',
                           i18n: i18n,
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
-                          stageKey: 'crocodile',
-                          label: '2. ${i18n.t('suivi.stage_crocodile')}',
-                          asset: 'Crocodile.png',
-                          count: crocodileCount,
-                          color: const Color(0xFF10B981),
-                          isSelected: _selectedStageFilter == 'crocodile',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'dauphin',
-                          label: '3. ${i18n.t('suivi.stage_dauphin')}',
-                          asset: 'Dauphin.png',
-                          count: dauphinCount,
+                          stageKey: 'crawl',
+                          label: '2. ${i18n.t('suivi.stage_crawl')}',
+                          asset: 'crawler.png',
+                          count: crawlCount,
                           color: const Color(0xFF00F2FF),
-                          isSelected: _selectedStageFilter == 'dauphin',
+                          isSelected: _selectedStageFilter == 'crawl',
                           i18n: i18n,
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
-                          stageKey: 'requin',
-                          label: '4. ${i18n.t('suivi.stage_requin')}',
-                          asset: 'Requin.png',
-                          count: requinCount,
+                          stageKey: 'backstroke',
+                          label: '3. ${i18n.t('suivi.stage_backstroke')}',
+                          asset: 'leaf.png',
+                          count: backstrokeCount,
+                          color: const Color(0xFF10B981),
+                          isSelected: _selectedStageFilter == 'backstroke',
+                          i18n: i18n,
+                        ),
+                        const SizedBox(width: 8.0),
+                        _buildStageMascotCard(
+                          stageKey: 'breaststroke',
+                          label: '4. ${i18n.t('suivi.stage_breaststroke')}',
+                          asset: 'brasseur.png',
+                          count: breaststrokeCount,
                           color: const Color(0xFFF59E0B),
-                          isSelected: _selectedStageFilter == 'requin',
+                          isSelected: _selectedStageFilter == 'breaststroke',
+                          i18n: i18n,
+                        ),
+                        const SizedBox(width: 8.0),
+                        _buildStageMascotCard(
+                          stageKey: 'butterfly',
+                          label: '5. ${i18n.t('suivi.stage_butterfly')}',
+                          asset: 'butterfly.png',
+                          count: butterflyCount,
+                          color: const Color(0xFFA855F7),
+                          isSelected: _selectedStageFilter == 'butterfly',
+                          i18n: i18n,
+                        ),
+                        const SizedBox(width: 8.0),
+                        _buildStageMascotCard(
+                          stageKey: 'elite',
+                          label: '6. ${i18n.t('suivi.stage_elite')}',
+                          asset: 'requin.png',
+                          count: eliteCount,
+                          color: const Color(0xFFEF4444),
+                          isSelected: _selectedStageFilter == 'elite',
                           i18n: i18n,
                         ),
                       ],

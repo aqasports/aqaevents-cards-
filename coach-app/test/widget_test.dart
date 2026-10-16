@@ -39,7 +39,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('COACHES PRO'), findsOneWidget);
-    expect(find.text('Espace Coach & Suivi Technique'), findsOneWidget);
+    expect(find.text('Gestion des Presences et Suivi Technique'), findsOneWidget);
     expect(find.text('Acceder au Portail Coach'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(2));
   });
@@ -74,22 +74,21 @@ void main() {
     expect(reminder.isWithinTenMinWindow, isTrue);
   });
 
-  testWidgets('TeachingSupportView renders 10 AQA progression badges and curriculum',
+  testWidgets('TeachingSupportView renders clean in-preparation placeholder',
       (WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AqaTheme.darkTheme,
-        home: const Scaffold(
-          body: TeachingSupportView(),
+      const ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: TeachingSupportView(),
+          ),
         ),
       ),
     );
 
     await tester.pump();
 
-    expect(find.text('Referentiel Pedagogique & Badges AQA Swim'), findsOneWidget);
-    expect(find.text('10 Badges Officiels de Progression AQA'), findsOneWidget);
-    expect(find.text('1. Starter'), findsOneWidget);
-    expect(find.text('10. Full Swimmer'), findsOneWidget);
+    expect(find.text('Support Pedagogique AQA'), findsOneWidget);
+    expect(find.text('Contenu en cours de preparation'), findsOneWidget);
   });
 }

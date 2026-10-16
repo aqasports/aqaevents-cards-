@@ -13,13 +13,21 @@ import 'features/replacements/request_absence_screen.dart';
 import 'features/tech_review/swimmer_profile_screen.dart';
 import 'features/tech_review/tech_review_form_screen.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/services/notification_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiEndpoints.init();
+  final prefs = await SharedPreferences.getInstance();
+  final notificationService = NotificationService(prefs);
 
   runApp(
-    const ProviderScope(
-      child: AqaCoachesApp(),
+    ProviderScope(
+      overrides: [
+        notificationServiceProvider.overrideWithValue(notificationService),
+      ],
+      child: const AqaCoachesApp(),
     ),
   );
 }
