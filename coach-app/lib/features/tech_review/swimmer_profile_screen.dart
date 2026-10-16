@@ -118,7 +118,7 @@ class SwimmerProfileScreen extends ConsumerWidget {
                     : AqaTheme.statusDanger;
 
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 36.0),
+              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
               children: [
                 // 1. Double-Bezel Hero Dossier Header
                 AqaDoubleBezelCard(

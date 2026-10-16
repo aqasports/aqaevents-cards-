@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_state.dart';
@@ -53,114 +54,178 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? i18n.t('role_banner.assistant')
             : i18n.t('role_banner.coach');
 
+    final dockItems = [
+      AqaFloatingDockItem(
+        icon: Icons.event_note_outlined,
+        activeIcon: Icons.event_note_rounded,
+        label: i18n.t('nav.sessions'),
+      ),
+      AqaFloatingDockItem(
+        icon: Icons.groups_outlined,
+        activeIcon: Icons.groups_rounded,
+        label: i18n.t('nav.groups'),
+      ),
+      AqaFloatingDockItem(
+        icon: Icons.radar_outlined,
+        activeIcon: Icons.radar_rounded,
+        label: i18n.t('nav.suivi_tech'),
+      ),
+      AqaFloatingDockItem(
+        icon: Icons.swap_horiz_outlined,
+        activeIcon: Icons.swap_horiz_rounded,
+        label: i18n.t('nav.replacements'),
+        badgeCount: pendingCount,
+      ),
+      AqaFloatingDockItem(
+        icon: Icons.menu_book_outlined,
+        activeIcon: Icons.menu_book_rounded,
+        label: i18n.t('nav.support'),
+      ),
+      AqaFloatingDockItem(
+        icon: Icons.person_outline_rounded,
+        activeIcon: Icons.person_rounded,
+        label: i18n.t('nav.profile'),
+      ),
+    ];
+
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
-      appBar: AppBar(
-        toolbarHeight: 68.0,
-        titleSpacing: 14.0,
-        title: Row(
-          children: [
-            Container(
-              width: 40.0,
-              height: 40.0,
-              padding: const EdgeInsets.all(6.0),
+      extendBody: true,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(68.0),
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
+            child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF13203B), Color(0xFF0B1325)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(color: AqaTheme.borderTeal),
-                boxShadow: [
-                  BoxShadow(
-                    color: AqaTheme.accentTeal.withValues(alpha: 0.15),
-                    blurRadius: 12.0,
+                color: const Color(0xCC050A16),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    width: 1.0,
                   ),
-                ],
-              ),
-              child: Image.asset(
-                'assets/images/aqa_mark.png',
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Icon(
-                  Icons.pool,
-                  color: AqaTheme.accentTeal,
-                  size: 20.0,
                 ),
               ),
-            ),
-            const SizedBox(width: 11.0),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                  child: Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          user?.name ?? 'AQA Coach',
-                          style: const TextStyle(
-                            color: AqaTheme.textPrimary,
-                            fontSize: 15.0,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
+                      // Luxury Coach Avatar / Brand Mark
+                      Container(
+                        width: 42.0,
+                        height: 42.0,
+                        padding: const EdgeInsets.all(7.0),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF13203B), Color(0xFF091222)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                          borderRadius: BorderRadius.circular(13.0),
+                          border: Border.all(
+                            color: AqaTheme.accentTeal.withValues(alpha: 0.50),
+                            width: 1.2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AqaTheme.accentTeal.withValues(alpha: 0.16),
+                              blurRadius: 12.0,
+                              spreadRadius: -1.0,
+                            ),
+                          ],
+                        ),
+                        child: Image.asset(
+                          'assets/images/aqa_mark.png',
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const Icon(
+                            Icons.pool,
+                            color: AqaTheme.accentTeal,
+                            size: 20.0,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 7.0),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7.0,
-                          vertical: 2.0,
+                      const SizedBox(width: 11.0),
+                      // Coach Identity & Role
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    user?.name ?? 'AQA Coach',
+                                    style: const TextStyle(
+                                      color: AqaTheme.textPrimary,
+                                      fontSize: 15.0,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: -0.3,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 7.0),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7.0,
+                                    vertical: 2.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: roleBadgeColor.withValues(alpha: 0.16),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(
+                                      color: roleBadgeColor.withValues(alpha: 0.70),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    (user?.roleDisplay ?? 'COACH').toUpperCase(),
+                                    style: TextStyle(
+                                      color: roleBadgeColor,
+                                      fontSize: 9.0,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2.0),
+                            Text(
+                              roleSubtitle,
+                              style: const TextStyle(
+                                color: AqaTheme.textMuted,
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        decoration: BoxDecoration(
-                          color: roleBadgeColor.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: roleBadgeColor.withValues(alpha: 0.65),
-                          ),
+                      ),
+                      // Language Selector Pill & Sync Action
+                      const LanguageSwitcherPill(compact: true),
+                      const SizedBox(width: 4.0),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: AqaTheme.accentTeal,
+                          size: 21.0,
                         ),
-                        child: Text(
-                          (user?.roleDisplay ?? 'COACH').toUpperCase(),
-                          style: TextStyle(
-                            color: roleBadgeColor,
-                            fontSize: 9.0,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
+                        tooltip: i18n.t('common.refresh'),
+                        onPressed: () {
+                          ref.invalidate(bootstrapProvider);
+                        },
                       ),
                     ],
                   ),
-                  const SizedBox(height: 2.5),
-                  Text(
-                    roleSubtitle,
-                    style: const TextStyle(
-                      color: AqaTheme.textMuted,
-                      fontSize: 11.0,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                ),
               ),
             ),
-          ],
+          ),
         ),
-        actions: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 14.0),
-            child: LanguageSwitcherPill(compact: true),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AqaTheme.accentTeal, size: 21.0),
-            tooltip: i18n.t('common.refresh'),
-            onPressed: () {
-              ref.invalidate(bootstrapProvider);
-            },
-          ),
-          const SizedBox(width: 4.0),
-        ],
       ),
       body: AqaAmbientBackground(
         child: IndexedStack(
@@ -168,61 +233,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           children: pages,
         ),
       ),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          color: Color(0xF5070C18),
-          border: Border(
-            top: BorderSide(color: AqaTheme.borderSubtle, width: 1.0),
-          ),
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
-          items: [
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.event_note_outlined),
-              activeIcon: const Icon(Icons.event_note_rounded),
-              label: i18n.t('nav.sessions'),
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.groups_outlined),
-              activeIcon: const Icon(Icons.groups_rounded),
-              label: i18n.t('nav.groups'),
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.radar_outlined),
-              activeIcon: const Icon(Icons.radar_rounded),
-              label: i18n.t('nav.suivi_tech'),
-            ),
-            BottomNavigationBarItem(
-              icon: Badge(
-                isLabelVisible: pendingCount > 0,
-                label: Text('$pendingCount'),
-                backgroundColor: AqaTheme.statusWarning,
-                textColor: Colors.black,
-                child: const Icon(Icons.swap_horiz_outlined),
-              ),
-              activeIcon: Badge(
-                isLabelVisible: pendingCount > 0,
-                label: Text('$pendingCount'),
-                backgroundColor: AqaTheme.statusWarning,
-                textColor: Colors.black,
-                child: const Icon(Icons.swap_horiz_rounded),
-              ),
-              label: i18n.t('nav.replacements'),
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.menu_book_outlined),
-              activeIcon: const Icon(Icons.menu_book_rounded),
-              label: i18n.t('nav.support'),
-            ),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.person_outline_rounded),
-              activeIcon: const Icon(Icons.person_rounded),
-              label: i18n.t('nav.profile'),
-            ),
-          ],
-        ),
+      bottomNavigationBar: AqaFloatingDock(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: dockItems,
       ),
     );
   }

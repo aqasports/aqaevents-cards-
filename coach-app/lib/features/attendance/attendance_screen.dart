@@ -501,7 +501,9 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                                     ),
                                   ),
                                   Text(
-                                    i18n.t('attendance.rate'),
+                                    i18n.locale == 'fr'
+                                        ? 'Assiduite'
+                                        : (i18n.locale == 'en' ? 'Attendance' : 'المواظبة'),
                                     style: const TextStyle(
                                       color: AqaTheme.textMuted,
                                       fontSize: 9.5,

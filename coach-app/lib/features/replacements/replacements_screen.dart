@@ -203,11 +203,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                i18n.locale == 'ar'
-                                    ? 'الاستخلاف والغيابات'
-                                    : i18n.locale == 'en'
-                                        ? 'Replacements & Absences'
-                                        : 'Remplacements & Absences',
+                                i18n.t('replacements.title'),
                                 style: const TextStyle(
                                   color: AqaTheme.textPrimary,
                                   fontSize: 15.0,
@@ -216,11 +212,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                               ),
                               const SizedBox(height: 2.0),
                               Text(
-                                i18n.locale == 'ar'
-                                    ? 'استمرارية التأطير البيداغوجي لـ AQA'
-                                    : i18n.locale == 'en'
-                                        ? 'Pedagogical continuity across AQA groups'
-                                        : 'Continuite pedagogique des groupes AQA',
+                                i18n.t('replacements.subtitle'),
                                 style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.0),
                               ),
                             ],
@@ -228,11 +220,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                         ),
                         const SizedBox(width: 8.0),
                         AqaIslandButton(
-                          label: i18n.locale == 'ar'
-                              ? 'طلب غياب'
-                              : i18n.locale == 'en'
-                                  ? 'Declare Absence'
-                                  : 'Declarer Absence',
+                          label: i18n.t('replacements.declare_btn'),
                           icon: Icons.event_busy_outlined,
                           compact: true,
                           onPressed: () {
@@ -255,25 +243,13 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                     labelStyle: const TextStyle(fontSize: 12.0, fontWeight: FontWeight.w700),
                     tabs: [
                       Tab(
-                        text: i18n.locale == 'ar'
-                            ? 'الطلبات (${pending.length})'
-                            : i18n.locale == 'en'
-                                ? 'Requests (${pending.length})'
-                                : 'Demandes (${pending.length})',
+                        text: i18n.t('replacements.tab_requests', {'count': pending.length}),
                       ),
                       Tab(
-                        text: i18n.locale == 'ar'
-                            ? 'التغطيات (${active.length})'
-                            : i18n.locale == 'en'
-                                ? 'Coverages (${active.length})'
-                                : 'Couvertures (${active.length})',
+                        text: i18n.t('replacements.tab_active', {'count': active.length}),
                       ),
                       Tab(
-                        text: i18n.locale == 'ar'
-                            ? 'الغيابات (${absences.length})'
-                            : i18n.locale == 'en'
-                                ? 'My Absences (${absences.length})'
-                                : 'Absences (${absences.length})',
+                        text: i18n.t('replacements.tab_absences', {'count': absences.length}),
                       ),
                     ],
                   ),
@@ -288,16 +264,12 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                       pending.isEmpty
                           ? Center(
                               child: Text(
-                                i18n.locale == 'ar'
-                                    ? 'لا توجد طلبات استخلاف معلقة'
-                                    : i18n.locale == 'en'
-                                        ? 'No pending replacement requests'
-                                        : 'Aucune demande de remplacement en attente',
+                                i18n.t('replacements.empty_requests'),
                                 style: const TextStyle(color: AqaTheme.textMuted),
                               ),
                             )
                           : ListView.builder(
-                              padding: const EdgeInsets.all(16.0),
+                              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
                               itemCount: pending.length,
                               itemBuilder: (ctx, idx) {
                                 final rep = pending[idx];
@@ -312,16 +284,12 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                       active.isEmpty
                           ? Center(
                               child: Text(
-                                i18n.locale == 'ar'
-                                    ? 'لا توجد تغطيات مؤكدة حالياً'
-                                    : i18n.locale == 'en'
-                                        ? 'No active confirmed replacements'
-                                        : 'Aucun remplacement confirme actuellement',
+                                i18n.t('replacements.empty_active'),
                                 style: const TextStyle(color: AqaTheme.textMuted),
                               ),
                             )
                           : ListView.builder(
-                              padding: const EdgeInsets.all(16.0),
+                              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
                               itemCount: active.length,
                               itemBuilder: (ctx, idx) {
                                 final rep = active[idx];
@@ -336,16 +304,12 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
                       absences.isEmpty
                           ? Center(
                               child: Text(
-                                i18n.locale == 'ar'
-                                    ? 'لم يتم تسجيل أي غياب في هذه الفترة'
-                                    : i18n.locale == 'en'
-                                        ? 'No absences declared for this period'
-                                        : 'Aucune absence declaree sur la periode',
+                                i18n.t('replacements.empty_absences'),
                                 style: const TextStyle(color: AqaTheme.textMuted),
                               ),
                             )
                           : ListView.builder(
-                              padding: const EdgeInsets.all(16.0),
+                              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
                               itemCount: absences.length,
                               itemBuilder: (ctx, idx) {
                                 final abs = absences[idx];

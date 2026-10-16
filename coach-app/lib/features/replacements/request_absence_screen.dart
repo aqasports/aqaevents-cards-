@@ -288,7 +288,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                     ),
                     const SizedBox(height: 16.0),
                     AqaSectionHeader(
-                      title: i18n.locale == 'ar' ? 'سبب الغياب' : 'Motif de l\'Absence',
+                      title: i18n.t('replacements.reason_label'),
                     ),
                     const SizedBox(height: 10.0),
                     DropdownButtonFormField<String>(
@@ -301,23 +301,23 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                       items: [
                         DropdownMenuItem(
                           value: 'Personal',
-                          child: Text(i18n.locale == 'ar' ? 'شخصي' : 'Personnel'),
+                          child: Text(i18n.locale == 'ar' ? 'شخصي' : (i18n.locale == 'en' ? 'Personal' : 'Personnel')),
                         ),
                         DropdownMenuItem(
                           value: 'Sickness',
-                          child: Text(i18n.locale == 'ar' ? 'صحي / عطلة مرضية' : 'Maladie / Medical'),
+                          child: Text(i18n.locale == 'ar' ? 'صحي / عطلة مرضية' : (i18n.locale == 'en' ? 'Medical / Sickness' : 'Maladie / Medical')),
                         ),
                         DropdownMenuItem(
                           value: 'Competition',
-                          child: Text(i18n.locale == 'ar' ? 'منافسة رسمية' : 'Competition Officielle'),
+                          child: Text(i18n.locale == 'ar' ? 'منافسة رسمية' : (i18n.locale == 'en' ? 'Official Competition' : 'Competition Officielle')),
                         ),
                         DropdownMenuItem(
                           value: 'Training / Seminar',
-                          child: Text(i18n.locale == 'ar' ? 'تربص / دورة تكوينية AQA' : 'Formation / Stage AQA'),
+                          child: Text(i18n.locale == 'ar' ? 'تربص / دورة تكوينية AQA' : (i18n.locale == 'en' ? 'AQA Coaching Seminar' : 'Formation / Stage AQA')),
                         ),
                         DropdownMenuItem(
                           value: 'Other',
-                          child: Text(i18n.locale == 'ar' ? 'سبب آخر' : 'Autre motif'),
+                          child: Text(i18n.locale == 'ar' ? 'سبب آخر' : (i18n.locale == 'en' ? 'Other Reason' : 'Autre motif')),
                         ),
                       ],
                       onChanged: (val) {
@@ -326,9 +326,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                     ),
                     const SizedBox(height: 16.0),
                     AqaSectionHeader(
-                      title: i18n.locale == 'ar'
-                          ? 'تعليمات وتوجيهات للمستخلف'
-                          : 'Consignes Pedagogiques pour le Remplacant',
+                      title: i18n.t('replacements.notes_label'),
                     ),
                     const SizedBox(height: 8.0),
                     TextField(
@@ -338,7 +336,9 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                       decoration: InputDecoration(
                         hintText: i18n.locale == 'ar'
                             ? 'البرنامج المخطط للأفواج، نقاط يجب الانتباه إليها...'
-                            : 'Programme prevu pour les groupes, points d\'attention sur certains nageurs...',
+                            : (i18n.locale == 'en'
+                                ? 'Planned session drills, swimmer special notes...'
+                                : 'Programme prevu pour les groupes, points d\'attention sur certains nageurs...'),
                       ),
                     ),
                   ],
@@ -347,11 +347,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
               const SizedBox(height: 24.0),
 
               AqaIslandButton(
-                label: i18n.locale == 'ar'
-                    ? 'إرسال طلب الغياب وطلب التغطية'
-                    : i18n.locale == 'en'
-                        ? 'Submit Absence & Request Coverage'
-                        : 'Envoyer la Declaration & Demander Couverture',
+                label: i18n.t('replacements.submit_request'),
                 icon: Icons.send_rounded,
                 isLoading: _isSubmitting,
                 onPressed: _isSubmitting ? null : _submit,

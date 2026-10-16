@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
 /// AQA Dark Ocean Design Tokens & Agency-Grade UI Components
@@ -544,6 +545,353 @@ class AqaSectionHeader extends StatelessWidget {
         ),
         if (trailing != null) trailing!,
       ],
+    );
+  }
+}
+
+/// Data definition for items in the Floating Glassmorphic Dock
+class AqaFloatingDockItem {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final int badgeCount;
+
+  const AqaFloatingDockItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    this.badgeCount = 0,
+  });
+}
+
+/// Ultra-Luxury Floating Glassmorphic Dock Navigation Bar
+/// Inspired by Dynamic Island and Apple Pro Fitness interfaces.
+/// Replaces the generic Material BottomNavigationBar with an elevated,
+/// frosted-glass capsule featuring smooth active pill indicators and micro-glows.
+class AqaFloatingDock extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  final List<AqaFloatingDockItem> items;
+
+  const AqaFloatingDock({
+    super.key,
+    required this.currentIndex,
+    required this.onTap,
+    required this.items,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14.0, 0, 14.0, 10.0),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32.0),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20.0, sigmaY: 20.0),
+            child: Container(
+              height: 66.0,
+              padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 6.0),
+              decoration: BoxDecoration(
+                color: const Color(0xE0060B18),
+                borderRadius: BorderRadius.circular(32.0),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  width: 1.0,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x66000000),
+                    blurRadius: 28.0,
+                    spreadRadius: 2.0,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: List.generate(items.length, (index) {
+                  final item = items[index];
+                  final isSelected = currentIndex == index;
+                  return Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onTap(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        decoration: BoxDecoration(
+                          gradient: isSelected
+                              ? LinearGradient(
+                                  colors: [
+                                    AqaTheme.primarySky.withValues(alpha: 0.22),
+                                    AqaTheme.accentTeal.withValues(alpha: 0.12),
+                                  ],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                )
+                              : null,
+                          borderRadius: BorderRadius.circular(24.0),
+                          border: isSelected
+                              ? Border.all(
+                                  color: AqaTheme.accentTeal.withValues(alpha: 0.40),
+                                  width: 1.0,
+                                )
+                              : Border.all(color: Colors.transparent),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                AnimatedScale(
+                                  scale: isSelected ? 1.08 : 1.0,
+                                  duration: const Duration(milliseconds: 200),
+                                  child: Icon(
+                                    isSelected ? item.activeIcon : item.icon,
+                                    size: isSelected ? 22.0 : 20.0,
+                                    color: isSelected
+                                        ? AqaTheme.accentTeal
+                                        : AqaTheme.textLightMuted,
+                                  ),
+                                ),
+                                if (item.badgeCount > 0)
+                                  Positioned(
+                                    top: -4,
+                                    right: -8,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4.5,
+                                        vertical: 1.0,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AqaTheme.statusWarning,
+                                        borderRadius: BorderRadius.circular(999),
+                                        boxShadow: const [
+                                          BoxShadow(
+                                            color: Color(0x66F59E0B),
+                                            blurRadius: 6.0,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Text(
+                                        '${item.badgeCount}',
+                                        style: const TextStyle(
+                                          color: Color(0xFF030712),
+                                          fontSize: 9.0,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 3.0),
+                            Text(
+                              item.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : AqaTheme.textLightMuted,
+                                fontSize: 10.0,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Luxury Segmented Pill Switcher (No Material Native Defaults)
+class AqaSegmentedControl<T> extends StatelessWidget {
+  final List<T> values;
+  final List<String> labels;
+  final T selectedValue;
+  final ValueChanged<T> onValueChanged;
+  final EdgeInsetsGeometry padding;
+
+  const AqaSegmentedControl({
+    super.key,
+    required this.values,
+    required this.labels,
+    required this.selectedValue,
+    required this.onValueChanged,
+    this.padding = const EdgeInsets.all(4.0),
+  }) : assert(values.length == labels.length);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: const Color(0xFF090F1E),
+        borderRadius: BorderRadius.circular(999.0),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: List.generate(values.length, (idx) {
+          final val = values[idx];
+          final isSelected = val == selectedValue;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onValueChanged(val),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                padding: const EdgeInsets.symmetric(vertical: 9.0),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: isSelected
+                      ? const LinearGradient(
+                          colors: [Color(0xFF0EA5E9), Color(0xFF00F2FF)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(999.0),
+                  boxShadow: isSelected
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x3300F2FF),
+                            blurRadius: 10.0,
+                            offset: Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  labels[idx],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isSelected ? const Color(0xFF030712) : const Color(0xFF94A3B8),
+                    fontSize: 12.0,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// Animated Status Indicator Dot with subtle ambient pulse
+class AqaPulseIndicator extends StatelessWidget {
+  final Color color;
+  final double size;
+
+  const AqaPulseIndicator({
+    super.key,
+    required this.color,
+    this.size = 8.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color,
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.65),
+            blurRadius: size * 1.5,
+            spreadRadius: 1.0,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tactile Binary Attendance Toggle Switch (Strictly PRESENT vs ABSENT)
+/// Provides >= 52px touch target with high-contrast emerald/crimson feedback.
+class AqaBinaryAttendanceToggle extends StatelessWidget {
+  final bool isPresent;
+  final VoidCallback onToggle;
+  final String presentLabel;
+  final String absentLabel;
+  final bool readOnly;
+
+  const AqaBinaryAttendanceToggle({
+    super.key,
+    required this.isPresent,
+    required this.onToggle,
+    this.presentLabel = 'Present',
+    this.absentLabel = 'Absent',
+    this.readOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = isPresent ? AqaTheme.statusSuccess : AqaTheme.statusDanger;
+
+    return GestureDetector(
+      onTap: readOnly ? null : onToggle,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        height: 48.0,
+        padding: const EdgeInsets.symmetric(horizontal: 14.0),
+        decoration: BoxDecoration(
+          color: isPresent
+              ? const Color(0xFF08221B)
+              : const Color(0xFF240E14),
+          borderRadius: BorderRadius.circular(999.0),
+          border: Border.all(
+            color: activeColor.withValues(alpha: isPresent ? 0.70 : 0.60),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: activeColor.withValues(alpha: 0.22),
+              blurRadius: 12.0,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AqaPulseIndicator(color: activeColor, size: 8.0),
+            const SizedBox(width: 8.0),
+            Text(
+              isPresent ? presentLabel.toUpperCase() : absentLabel.toUpperCase(),
+              style: TextStyle(
+                color: activeColor,
+                fontSize: 12.0,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(width: 8.0),
+            Icon(
+              isPresent ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              size: 18.0,
+              color: activeColor,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -52,13 +52,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
       appBar: AppBar(
-        title: Text(
-          i18n.locale == 'ar'
-              ? 'بطاقة الفوج والسباحين'
-              : i18n.locale == 'en'
-                  ? 'Group Roster & Sessions'
-                  : 'Fiche du Groupe & Effectifs',
-        ),
+        title: Text(i18n.t('groups.detail_title')),
         actions: [
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 14.0),
@@ -128,11 +122,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         const SizedBox(width: 8.0),
                         Expanded(
                           child: Text(
-                            i18n.locale == 'ar'
-                                ? 'وضع المساعد: متاح للاطلاع على القوائم وسجلات الحضور فقط.'
-                                : i18n.locale == 'en'
-                                    ? 'Assistant Mode: Read-only access to rosters and presence records.'
-                                    : 'Mode Assistant: Consultation uniquement des effectifs et presences.',
+                            i18n.t('common.view_only'),
                             style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
                           ),
                         ),
@@ -238,18 +228,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                     unselectedLabelColor: AqaTheme.textLightMuted,
                     tabs: [
                       Tab(
-                        text: i18n.locale == 'ar'
-                            ? 'السباحين (${membersList.length})'
-                            : i18n.locale == 'en'
-                                ? 'Swimmers (${membersList.length})'
-                                : 'Nageurs (${membersList.length})',
+                        text: i18n.t('groups.tab_swimmers', {'count': membersList.length}),
                       ),
                       Tab(
-                        text: i18n.locale == 'ar'
-                            ? 'الحصص (${upcomingList.length})'
-                            : i18n.locale == 'en'
-                                ? 'Sessions (${upcomingList.length})'
-                                : 'Seances (${upcomingList.length})',
+                        text: i18n.t('groups.tab_sessions', {'count': upcomingList.length}),
                       ),
                     ],
                   ),
@@ -264,11 +246,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                       membersList.isEmpty
                           ? Center(
                               child: Text(
-                                i18n.locale == 'ar'
-                                    ? 'لا يوجد سباحين مسجلين في هذا الفوج'
-                                    : i18n.locale == 'en'
-                                        ? 'No swimmers registered in this group'
-                                        : 'Aucun nageur inscrit dans ce groupe',
+                                i18n.t('common.empty'),
                                 style: const TextStyle(color: AqaTheme.textMuted),
                               ),
                             )
@@ -288,11 +266,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                       upcomingList.isEmpty
                           ? Center(
                               child: Text(
-                                i18n.locale == 'ar'
-                                    ? 'لا توجد حصص مبرمجة لهذا الفوج'
-                                    : i18n.locale == 'en'
-                                        ? 'No sessions scheduled for this group'
-                                        : 'Aucune seance planifiee pour ce groupe',
+                                i18n.t('sessions.empty_day'),
                                 style: const TextStyle(color: AqaTheme.textMuted),
                               ),
                             )
@@ -392,7 +366,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                 Row(
                   children: [
                     Text(
-                      '${i18n.locale == 'ar' ? 'المواظبة' : 'Assiduite'}: ${member.attendanceRate}%',
+                      i18n.t('attendance.rate', {'rate': member.attendanceRate}),
                       style: TextStyle(
                         color: member.attendanceRate >= 75
                             ? AqaTheme.statusSuccess
@@ -403,13 +377,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                     ),
                     const Text(' • ', style: TextStyle(color: AqaTheme.textLightMuted)),
                     Text(
-                      '${i18n.locale == 'ar' ? 'حاضر' : 'Pres'}: ${member.totalPresences} | ${i18n.locale == 'ar' ? 'غائب' : 'Abs'}: ${member.totalAbsences}',
+                      '${i18n.t('attendance.present')}: ${member.totalPresences} | ${i18n.t('attendance.absent')}: ${member.totalAbsences}',
                       style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.0),
                     ),
                     if (member.reviewCount > 0) ...[
                       const Text(' • ', style: TextStyle(color: AqaTheme.textLightMuted)),
                       Text(
-                        '${member.reviewCount} ${i18n.locale == 'ar' ? 'تقييم' : 'Eval.'}',
+                        i18n.t('suivi.eval_count', {'count': member.reviewCount}),
                         style: const TextStyle(
                           color: AqaTheme.accentTeal,
                           fontSize: 11.0,
@@ -465,7 +439,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
           ),
           if (!isViewOnly) ...[
             AqaIslandButton(
-              label: i18n.locale == 'ar' ? 'تسجيل سريع' : 'Log 3 Etapes',
+              label: i18n.t('sessions.log_3_steps'),
               icon: Icons.checklist_rounded,
               compact: true,
               secondary: true,
@@ -481,8 +455,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
           ],
           AqaIslandButton(
             label: isViewOnly
-                ? (i18n.locale == 'ar' ? 'عرض' : 'Voir')
-                : (i18n.locale == 'ar' ? 'ورقة الحضور' : 'Feuille'),
+                ? i18n.t('sessions.view_btn')
+                : i18n.t('sessions.sheet_btn'),
             icon: Icons.assignment_outlined,
             compact: true,
             onPressed: () {

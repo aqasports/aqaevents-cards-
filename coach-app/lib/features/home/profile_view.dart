@@ -15,7 +15,7 @@ class ProfileView extends ConsumerWidget {
     final i18n = ref.watch(i18nProvider);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 110.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

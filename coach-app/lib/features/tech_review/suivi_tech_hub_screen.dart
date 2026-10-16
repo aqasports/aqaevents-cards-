@@ -100,7 +100,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
               final requinCount = allSwimmers.where((s) => s.stageKey == 'requin').length;
 
               return ListView(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 32.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
                 children: [
                   // 1. Hero Section Header
                   AqaSectionHeader(
@@ -113,51 +113,57 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   // 2. 4 Stage Mascots Strip (Elephant, Crocodile, Dauphin, Requin)
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
                     child: Row(
                       children: [
                         _buildStageMascotCard(
                           stageKey: 'ALL',
-                          label: 'Tous les Paliers',
+                          label: i18n.t('suivi.filter_all'),
                           asset: 'elephant.png',
                           count: allSwimmers.length,
                           color: AqaTheme.accentTeal,
                           isSelected: _selectedStageFilter == 'ALL',
+                          i18n: i18n,
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
                           stageKey: 'elephant',
-                          label: 'Palier 1 - Elephant',
+                          label: '1. ${i18n.t('suivi.stage_elephant')}',
                           asset: 'elephant.png',
                           count: elephantCount,
                           color: const Color(0xFF38BDF8),
                           isSelected: _selectedStageFilter == 'elephant',
+                          i18n: i18n,
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
                           stageKey: 'crocodile',
-                          label: 'Palier 2 - Crocodile',
+                          label: '2. ${i18n.t('suivi.stage_crocodile')}',
                           asset: 'Crocodile.png',
                           count: crocodileCount,
                           color: const Color(0xFF10B981),
                           isSelected: _selectedStageFilter == 'crocodile',
+                          i18n: i18n,
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
                           stageKey: 'dauphin',
-                          label: 'Palier 3 - Dauphin',
+                          label: '3. ${i18n.t('suivi.stage_dauphin')}',
                           asset: 'Dauphin.png',
                           count: dauphinCount,
                           color: const Color(0xFF00F2FF),
                           isSelected: _selectedStageFilter == 'dauphin',
+                          i18n: i18n,
                         ),
                         const SizedBox(width: 8.0),
                         _buildStageMascotCard(
                           stageKey: 'requin',
-                          label: 'Palier 4 - Requin',
+                          label: '4. ${i18n.t('suivi.stage_requin')}',
                           asset: 'Requin.png',
                           count: requinCount,
                           color: const Color(0xFFF59E0B),
                           isSelected: _selectedStageFilter == 'requin',
+                          i18n: i18n,
                         ),
                       ],
                     ),
@@ -174,7 +180,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                           onChanged: (v) => setState(() => _searchQuery = v.trim()),
                           style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
                           decoration: InputDecoration(
-                            hintText: 'Rechercher un nageur, badge, matricule...',
+                            hintText: i18n.t('suivi.search_hint'),
                             prefixIcon: const Icon(Icons.search_rounded, color: AqaTheme.accentTeal),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
                             suffixIcon: _searchQuery.isNotEmpty
@@ -189,6 +195,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                           const SizedBox(height: 10.0),
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
                             child: Row(
                               children: groupOptions.map((cat) {
                                 final isSelected = _selectedGroupFilter == cat;
@@ -223,7 +230,11 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${filtered.length} Nageur${filtered.length > 1 ? 's' : ''} dans le perimetre',
+                        i18n.locale == 'ar'
+                            ? '${filtered.length} سباح في النطاق'
+                            : i18n.locale == 'en'
+                                ? '${filtered.length} Swimmer(s) in scope'
+                                : '${filtered.length} Nageur(s) dans le perimetre',
                         style: const TextStyle(
                           color: AqaTheme.textMuted,
                           fontSize: 12.0,
@@ -237,9 +248,9 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                           borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
                           border: Border.all(color: AqaTheme.borderTeal),
                         ),
-                        child: const Text(
-                          '15 BADGES OFFICIELS',
-                          style: TextStyle(
+                        child: Text(
+                          i18n.t('suivi.badges_title').toUpperCase(),
+                          style: const TextStyle(
                             color: AqaTheme.accentTeal,
                             fontSize: 9.5,
                             fontWeight: FontWeight.w800,
@@ -259,21 +270,25 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                         children: [
                           const Icon(Icons.search_off_rounded, color: AqaTheme.textLightMuted, size: 40.0),
                           const SizedBox(height: 12.0),
-                          const Text(
-                            'Aucun nageur ne correspond aux filtres.',
-                            style: TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
+                          Text(
+                            i18n.t('suivi.no_swimmers_found'),
+                            style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 6.0),
-                          const Text(
-                            'Modifiez votre recherche ou selectionnez un autre palier pedagogique.',
+                          Text(
+                            i18n.locale == 'ar'
+                                ? 'قم بتعديل معايير البحث أو اختيار palier بيداغوجي آخر.'
+                                : i18n.locale == 'en'
+                                    ? 'Modify your search or select another pedagogical stage.'
+                                    : 'Modifiez votre recherche ou selectionnez un autre palier pedagogique.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                            style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
                           ),
                         ],
                       ),
                     )
                   else
-                    ...filtered.map((swimmer) => _buildSwimmerSuiviCard(context, swimmer, isAssistant: isAssistant)),
+                    ...filtered.map((swimmer) => _buildSwimmerSuiviCard(context, swimmer, i18n: i18n, isAssistant: isAssistant)),
                 ],
               );
             },
@@ -290,6 +305,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
     required int count,
     required Color color,
     required bool isSelected,
+    required AppI18n i18n,
   }) {
     return InkWell(
       onTap: () => setState(() => _selectedStageFilter = stageKey),
@@ -346,7 +362,11 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   ),
                 ),
                 Text(
-                  '$count nageurs',
+                  i18n.locale == 'ar'
+                      ? '$count سباح'
+                      : i18n.locale == 'en'
+                          ? '$count swimmers'
+                          : '$count nageurs',
                   style: const TextStyle(
                     color: AqaTheme.textMuted,
                     fontSize: 10.0,
@@ -364,6 +384,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
   Widget _buildSwimmerSuiviCard(
     BuildContext context,
     SwimMemberModel swimmer, {
+    required AppI18n i18n,
     required bool isAssistant,
   }) {
     final rateColor = swimmer.attendanceRate >= 80
@@ -531,7 +552,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                     const Icon(Icons.military_tech_outlined, size: 14.0, color: AqaTheme.accentTeal),
                     const SizedBox(width: 4.0),
                     Text(
-                      'Badge : ${swimmer.badgeLabel}',
+                      '${i18n.t('suivi.badge_awarded')} : ${swimmer.badgeLabel}',
                       style: const TextStyle(
                         color: AqaTheme.textPrimary,
                         fontSize: 11.5,
@@ -545,7 +566,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                     const Icon(Icons.history_rounded, size: 14.0, color: AqaTheme.textLightMuted),
                     const SizedBox(width: 4.0),
                     Text(
-                      '${swimmer.reviewCount} eval${swimmer.reviewCount > 1 ? 's' : ''}',
+                      i18n.t('suivi.eval_count', {'count': swimmer.reviewCount}),
                       style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.0),
                     ),
                   ],
@@ -555,7 +576,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                     Icon(Icons.check_circle_rounded, size: 14.0, color: rateColor),
                     const SizedBox(width: 4.0),
                     Text(
-                      '${swimmer.attendanceRate}% present',
+                      '${swimmer.attendanceRate}% ${i18n.t('attendance.present')}',
                       style: TextStyle(
                         color: rateColor,
                         fontSize: 11.0,
@@ -585,9 +606,9 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                     context.push('/members/${swimmer.id}');
                   },
                   icon: const Icon(Icons.radar_rounded, size: 15.0, color: AqaTheme.accentTeal),
-                  label: const Text(
-                    'Dossier & Radar',
-                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                  label: Text(
+                    i18n.t('suivi.btn_dossier'),
+                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -604,9 +625,9 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                       context.push('/members/${swimmer.id}/review-form');
                     },
                     icon: const Icon(Icons.rate_review_rounded, size: 15.0),
-                    label: const Text(
-                      'Evaluer',
-                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                    label: Text(
+                      i18n.t('suivi.btn_eval'),
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
                     ),
                   ),
                 ),

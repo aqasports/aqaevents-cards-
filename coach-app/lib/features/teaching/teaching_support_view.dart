@@ -210,7 +210,7 @@ class TeachingSupportView extends ConsumerWidget {
 
     return AqaAmbientBackground(
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+        padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 100.0),
         children: [
           // Hero Banner
           AqaDoubleBezelCard(

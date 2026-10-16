@@ -110,7 +110,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
               data.appConfig['announcement']?.toString().trim() ?? '';
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 28.0),
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0),
             children: [
               // 0. Live Admin Broadcast Banner from AQA Swim Command Center
               if (adminAnnouncement.isNotEmpty) ...[
@@ -259,6 +259,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
               // 4. Date Selector Strip (7-Day Interactive Filter)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
                 child: Row(
                   children: [
                     _buildDateFilterChip(
@@ -278,7 +279,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                             padding: const EdgeInsets.only(right: 8.0),
                             child: _buildDateFilterChip(
                               keyId: d,
-                              label: _formatDayShort(d),
+                              label: _formatDayShort(d, i18n),
                             ),
                           ),
                         ),
@@ -490,28 +491,59 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
     required String label,
   }) {
     final isSelected = _selectedDateFilter == keyId;
-    return ChoiceChip(
-      label: Text(label, style: const TextStyle(fontSize: 12.0)),
-      selected: isSelected,
-      onSelected: (_) => setState(() => _selectedDateFilter = keyId),
-      selectedColor: AqaTheme.primarySky,
-      backgroundColor: AqaTheme.surfaceDark,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : AqaTheme.textMuted,
-        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-      ),
-      side: BorderSide(
-        color: isSelected ? AqaTheme.accentTeal : AqaTheme.borderSubtle,
+    return GestureDetector(
+      onTap: () => setState(() => _selectedDateFilter = keyId),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 8.0),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? const LinearGradient(
+                  colors: [Color(0xFF0EA5E9), Color(0xFF00F2FF)],
+                )
+              : null,
+          color: isSelected ? null : const Color(0xFF090F1E),
+          borderRadius: BorderRadius.circular(999.0),
+          border: Border.all(
+            color: isSelected
+                ? AqaTheme.accentTeal
+                : Colors.white.withValues(alpha: 0.10),
+            width: 1.0,
+          ),
+          boxShadow: isSelected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x3300F2FF),
+                    blurRadius: 10.0,
+                    offset: Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? const Color(0xFF030712) : const Color(0xFF94A3B8),
+            fontSize: 12.0,
+            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
 
-  String _formatDayShort(String isoDate) {
+  String _formatDayShort(String isoDate, AppI18n i18n) {
     if (isoDate.length < 10) return isoDate;
     final dt = DateTime.tryParse(isoDate.substring(0, 10));
     if (dt == null) return isoDate;
-    const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-    final dName = days[(dt.weekday - 1) % 7];
+    const daysFr = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+    const daysEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const daysAr = ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'];
+    final idx = (dt.weekday - 1) % 7;
+    final dName = i18n.locale == 'ar'
+        ? daysAr[idx]
+        : (i18n.locale == 'en' ? daysEn[idx] : daysFr[idx]);
     final dayNum = dt.day.toString().padLeft(2, '0');
     final monthNum = dt.month.toString().padLeft(2, '0');
     return '$dName $dayNum/$monthNum';
@@ -559,7 +591,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                     child: Text(
                       isToday
                           ? i18n.t('sessions.today_badge')
-                          : _formatDayShort(session.sessionDate),
+                          : _formatDayShort(session.sessionDate, i18n),
                       style: TextStyle(
                         color: isToday
                             ? AqaTheme.accentTeal
@@ -752,9 +784,10 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                   ),
                   const SizedBox(width: 6.0),
                   Text(
-                    session.totalMembers > 0
-                        ? '${session.attendanceCount} / ${session.totalMembers} ${i18n.t('sessions.present_count')}'
-                        : '${session.attendanceCount} ${i18n.t('sessions.present_count')}',
+                    i18n.t('sessions.present_count', {
+                      'present': session.attendanceCount,
+                      'total': session.totalMembers > 0 ? session.totalMembers : session.attendanceCount,
+                    }),
                     style: const TextStyle(
                       color: AqaTheme.textMuted,
                       fontSize: 12.0,

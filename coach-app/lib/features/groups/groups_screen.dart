@@ -80,55 +80,73 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
             final totalSwimmers = filtered.fold<int>(0, (acc, g) => acc + g.activeMembersCount);
 
             return ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+              padding: const EdgeInsets.fromLTRB(16.0, 14.0, 16.0, 110.0),
               children: [
                 // Search Input with Double Bezel styling
                 TextField(
                   onChanged: (val) => setState(() => _searchQuery = val.trim()),
                   style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
                   decoration: InputDecoration(
-                    hintText: i18n.locale == 'ar'
-                        ? 'البحث عن فوج بالاسم، الفئة أو المسبح...'
-                        : i18n.locale == 'en'
-                            ? 'Search groups by name, category, or pool...'
-                            : 'Rechercher un groupe par nom, categorie ou bassin...',
-                    prefixIcon: const Icon(Icons.search_rounded, color: AqaTheme.textLightMuted, size: 20.0),
+                    hintText: i18n.t('groups.search_hint'),
+                    prefixIcon: const Icon(Icons.search_rounded, color: AqaTheme.accentTeal, size: 20.0),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, color: AqaTheme.textLightMuted, size: 18.0),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                          )
+                        : null,
                   ),
                 ),
                 const SizedBox(height: 12.0),
 
-                // Categories Filter
+                // Luxury Categories Filter Pills
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
                   child: Row(
                     children: categories.map((cat) {
                       final isSelected = _selectedCategory == cat;
-                      final catLabel = cat == 'ALL'
-                          ? (i18n.locale == 'ar'
-                              ? 'جميع الأفواج'
-                              : i18n.locale == 'en'
-                                  ? 'ALL GROUPS'
-                                  : 'TOUS LES GROUPES')
-                          : cat;
+                      final catLabel = cat == 'ALL' ? i18n.t('common.all_sectors') : cat;
                       return Padding(
                         padding: const EdgeInsets.only(right: 8.0),
-                        child: FilterChip(
-                          label: Text(
-                            catLabel,
-                            style: const TextStyle(fontSize: 11.0),
-                          ),
-                          selected: isSelected,
-                          onSelected: (_) {
-                            setState(() => _selectedCategory = cat);
-                          },
-                          selectedColor: AqaTheme.primarySky.withValues(alpha: 0.3),
-                          backgroundColor: AqaTheme.surfaceDark,
-                          labelStyle: TextStyle(
-                            color: isSelected ? AqaTheme.accentTeal : AqaTheme.textMuted,
-                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                          ),
-                          side: BorderSide(
-                            color: isSelected ? AqaTheme.accentTeal : AqaTheme.borderSubtle,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedCategory = cat),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 7.5),
+                            decoration: BoxDecoration(
+                              gradient: isSelected
+                                  ? const LinearGradient(
+                                      colors: [Color(0xFF0EA5E9), Color(0xFF00F2FF)],
+                                    )
+                                  : null,
+                              color: isSelected ? null : const Color(0xFF090F1E),
+                              borderRadius: BorderRadius.circular(999.0),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AqaTheme.accentTeal
+                                    : Colors.white.withValues(alpha: 0.10),
+                                width: 1.0,
+                              ),
+                              boxShadow: isSelected
+                                  ? const [
+                                      BoxShadow(
+                                        color: Color(0x3300F2FF),
+                                        blurRadius: 8.0,
+                                        offset: Offset(0, 2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Text(
+                              catLabel,
+                              style: TextStyle(
+                                color: isSelected ? const Color(0xFF030712) : const Color(0xFF94A3B8),
+                                fontSize: 11.5,
+                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              ),
+                            ),
                           ),
                         ),
                       );
@@ -142,11 +160,10 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      i18n.locale == 'ar'
-                          ? '${filtered.length} أفواج • $totalSwimmers سباح'
-                          : i18n.locale == 'en'
-                              ? '${filtered.length} Group${filtered.length > 1 ? 's' : ''} • $totalSwimmers Swimmers'
-                              : '${filtered.length} Groupe${filtered.length > 1 ? 's' : ''} • $totalSwimmers Nageurs',
+                      i18n.t('groups.count_summary', {
+                        'count': filtered.length,
+                        'swimmers': totalSwimmers,
+                      }),
                       style: const TextStyle(
                         color: AqaTheme.textMuted,
                         fontSize: 12.0,
@@ -162,7 +179,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                           border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.5)),
                         ),
                         child: Text(
-                          i18n.locale == 'ar' ? 'إشراف عام' : 'SUPERVISION GLOBALE',
+                          i18n.t('auth.role_head_sub').toUpperCase(),
                           style: const TextStyle(
                             color: AqaTheme.statusWarning,
                             fontSize: 10.0,
@@ -178,13 +195,24 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                   AqaDoubleBezelCard(
                     padding: const EdgeInsets.all(32.0),
                     child: Center(
-                      child: Text(
-                        i18n.locale == 'ar'
-                            ? 'لا توجد أفواج مطابقة لمعايير البحث'
-                            : i18n.locale == 'en'
-                                ? 'No groups found matching filter criteria.'
-                                : 'Aucun groupe ne correspond aux filtres selectionnes.',
-                        style: const TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.groups_outlined, color: AqaTheme.textLightMuted, size: 36.0),
+                          const SizedBox(height: 10.0),
+                          Text(
+                            i18n.t('groups.no_groups_found'),
+                            style: const TextStyle(
+                              color: AqaTheme.textPrimary,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4.0),
+                          Text(
+                            i18n.t('groups.no_groups_sub'),
+                            style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                          ),
+                        ],
                       ),
                     ),
                   )
@@ -309,6 +337,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                         color: AqaTheme.textPrimary,
                         fontSize: 12.0,
                         fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
                       ),
                     ),
                   ],
@@ -331,7 +360,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
           border: Border.all(color: AqaTheme.borderSubtle),
         ),
         child: Text(
-          i18n.locale == 'ar' ? 'مساعد (عرض فقط)' : 'ASSISTANT (LECTURE)',
+          i18n.t('common.view_only'),
           style: const TextStyle(color: AqaTheme.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700),
         ),
       );
@@ -344,9 +373,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
           borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
           border: Border.all(color: AqaTheme.statusWarning),
         ),
-        child: const Text(
-          'HEAD COACH',
-          style: TextStyle(
+        child: Text(
+          i18n.t('auth.role_head_coach').toUpperCase(),
+          style: const TextStyle(
             color: AqaTheme.statusWarning,
             fontSize: 9.5,
             fontWeight: FontWeight.w800,
@@ -361,9 +390,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
         border: Border.all(color: AqaTheme.primarySky),
       ),
-      child: const Text(
-        'COACH',
-        style: TextStyle(color: AqaTheme.primarySky, fontSize: 9.5, fontWeight: FontWeight.w800),
+      child: Text(
+        i18n.t('auth.role_coach').toUpperCase(),
+        style: const TextStyle(color: AqaTheme.primarySky, fontSize: 9.5, fontWeight: FontWeight.w800),
       ),
     );
   }
