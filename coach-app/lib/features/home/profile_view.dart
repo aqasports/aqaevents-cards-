@@ -17,36 +17,51 @@ class ProfileView extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Profile Card
+          // Profile Hero Card
           Container(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(22.0),
             decoration: BoxDecoration(
-              color: AqaTheme.surfaceDark,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0F172A), Color(0xFF0A243E)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
-              border: Border.all(color: AqaTheme.borderSubtle),
+              border: Border.all(color: AqaTheme.accentTeal.withValues(alpha: 0.3)),
               boxShadow: AqaTheme.cardShadow,
             ),
             child: Column(
               children: [
+                SizedBox(
+                  height: 36.0,
+                  child: Image.asset(
+                    'assets/images/aqa_logo_white.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+                const SizedBox(height: 16.0),
                 CircleAvatar(
                   radius: 36.0,
                   backgroundColor: AqaTheme.surfaceSecondary,
                   child: Text(
-                    (user?.name.isNotEmpty ?? false) ? user!.name.substring(0, 1).toUpperCase() : 'C',
+                    (user?.name.isNotEmpty ?? false)
+                        ? user!.name.substring(0, 1).toUpperCase()
+                        : 'C',
                     style: const TextStyle(
                       color: AqaTheme.accentTeal,
                       fontSize: 28.0,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
                 const SizedBox(height: 12.0),
                 Text(
-                  user?.name ?? 'Coach Name',
+                  user?.name ?? 'Coach AQA',
                   style: const TextStyle(
                     color: AqaTheme.textPrimary,
                     fontSize: 18.0,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4.0),
@@ -84,10 +99,43 @@ class ProfileView extends ConsumerWidget {
                               ? AqaTheme.textMuted
                               : AqaTheme.primarySky,
                       fontSize: 11.0,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                     ),
                   ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16.0),
+
+          // Permissions Card
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: AqaTheme.surfaceDark,
+              borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
+              border: Border.all(color: AqaTheme.borderSubtle),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Droits & Perimetre d\'Acces',
+                  style: TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8.0),
+                Text(
+                  user?.isHeadCoach == true
+                      ? 'Head Coach: Supervision de tous les secteurs (Enfants, Adultes Homme/Femme, Apnee), gestion des remplacements, feuilles de presence, evaluations techniques et attribution des badges.'
+                      : user?.isAssistant == true
+                          ? 'Assistant Coach: Acces en lecture seule aux groupes assignes, consultation des effectifs et fiches techniques nageurs.'
+                          : 'Coach Titulaire: Acces complet a vos groupes et seances en remplacement (appel, logger 3 etapes, notation seance et suivi d\'evolution).',
+                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5, height: 1.45),
                 ),
               ],
             ),
@@ -103,19 +151,29 @@ class ProfileView extends ConsumerWidget {
             ),
             child: Column(
               children: [
-                _buildInfoTile('Coach ID', user?.coachId ?? 'N/A', Icons.badge_outlined),
-                const Divider(),
-                _buildInfoTile('Phone', user?.phone ?? 'Not set', Icons.phone_outlined),
-                const Divider(),
-                _buildInfoTile('Primary Pool', user?.primaryPool ?? 'All pools', Icons.water_outlined),
+                _buildInfoTile('Identifiant Coach', user?.coachId ?? 'N/A', Icons.badge_outlined),
                 const Divider(),
                 _buildInfoTile(
-                  'Specialties',
-                  user?.specialties.isNotEmpty == true ? user!.specialties.join(', ') : 'General Coaching',
+                  'Telephone',
+                  user?.phone ?? 'Non renseigne',
+                  Icons.phone_outlined,
+                ),
+                const Divider(),
+                _buildInfoTile(
+                  'Bassin Principal',
+                  user?.primaryPool ?? 'Tous les bassins AQA',
+                  Icons.water_outlined,
+                ),
+                const Divider(),
+                _buildInfoTile(
+                  'Specialites',
+                  user?.specialties.isNotEmpty == true
+                      ? user!.specialties.join(', ')
+                      : 'Enseignement & Entrainement AQA Swim',
                   Icons.sports_outlined,
                 ),
                 const Divider(),
-                _buildInfoTile('Server URL', ApiEndpoints.baseUrl, Icons.cloud_outlined),
+                _buildInfoTile('Serveur Cloud AQA', ApiEndpoints.baseUrl, Icons.cloud_outlined),
               ],
             ),
           ),
@@ -133,15 +191,18 @@ class ProfileView extends ConsumerWidget {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   backgroundColor: AqaTheme.surfaceDark,
-                  title: const Text('Sign Out', style: TextStyle(color: AqaTheme.textPrimary)),
+                  title: const Text(
+                    'Deconnexion',
+                    style: TextStyle(color: AqaTheme.textPrimary),
+                  ),
                   content: const Text(
-                    'Are you sure you want to sign out of AQA Coaches Workspace?',
+                    'Voulez-vous vraiment vous deconnecter de l\'application AQA Coaches?',
                     style: TextStyle(color: AqaTheme.textMuted),
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Cancel', style: TextStyle(color: AqaTheme.textMuted)),
+                      child: const Text('Annuler', style: TextStyle(color: AqaTheme.textMuted)),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: AqaTheme.statusDanger),
@@ -149,20 +210,20 @@ class ProfileView extends ConsumerWidget {
                         Navigator.pop(ctx);
                         ref.read(authStateProvider.notifier).logout();
                       },
-                      child: const Text('Sign Out'),
+                      child: const Text('Se Deconnecter'),
                     ),
                   ],
                 ),
               );
             },
             icon: const Icon(Icons.logout, size: 18.0),
-            label: const Text('Sign Out of Account'),
+            label: const Text('Se Deconnecter du Compte'),
           ),
           const SizedBox(height: 24.0),
 
           const Center(
             child: Text(
-              'AQA Coaches Workspace • v1.0.0 (Build 1)',
+              'AQA Swim Coaches Pro • v2.0.0 Production',
               style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.0),
             ),
           ),
@@ -182,11 +243,18 @@ class ProfileView extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.0)),
+                Text(
+                  label,
+                  style: const TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.0),
+                ),
                 const SizedBox(height: 2.0),
                 Text(
                   value,
-                  style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),

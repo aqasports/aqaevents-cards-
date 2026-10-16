@@ -29,9 +29,17 @@ vi.mock("@/lib/prisma", () => ({
     },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: "audit_123" }),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     coach: {
       findUnique: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    coachAbsence: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    swimCoachAbsence: {
       findMany: vi.fn().mockResolvedValue([]),
     },
     swimGroup: {
@@ -40,9 +48,11 @@ vi.mock("@/lib/prisma", () => ({
     },
     swimGroupStaff: {
       findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
     },
     swimSession: {
       findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     swimReplacement: {

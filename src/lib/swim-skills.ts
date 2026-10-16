@@ -95,6 +95,87 @@ export const SKILL_SCORE_LABELS: Record<number, string> = {
   4: "Maitrise",
 };
 
+export interface SwimProgressionBadge {
+  key: string;
+  label: string;
+  assetName: string;
+  minScoreAvg: number;
+  description: string;
+}
+
+export const SWIM_PROGRESSION_BADGES: SwimProgressionBadge[] = [
+  {
+    key: "starter",
+    label: "Starter",
+    assetName: "starter.png",
+    minScoreAvg: 1.0,
+    description: "Premiere immersion et decouverte du milieu aquatique",
+  },
+  {
+    key: "beginner",
+    label: "Beginner",
+    assetName: "beginner.png",
+    minScoreAvg: 1.4,
+    description: "Familiarisation, respiration de base et equilibre assiste",
+  },
+  {
+    key: "floater",
+    label: "Floater",
+    assetName: "floater.png",
+    minScoreAvg: 1.8,
+    description: "Autonomie en flottaison ventrale et dorsale sans appui",
+  },
+  {
+    key: "dauphin",
+    label: "Dauphin",
+    assetName: "dauphin.png",
+    minScoreAvg: 2.2,
+    description: "Glisse hydrodynamique, coulees et propulsion ondulation",
+  },
+  {
+    key: "crawler",
+    label: "Crawler",
+    assetName: "crawler.png",
+    minScoreAvg: 2.5,
+    description: "Coordination complete du crawl avec respiration laterale",
+  },
+  {
+    key: "brasseur",
+    label: "Brasseur",
+    assetName: "brasseur.png",
+    minScoreAvg: 2.8,
+    description: "Maitrise du ciseau et de la synchronisation de brasse",
+  },
+  {
+    key: "butterfly",
+    label: "Butterfly",
+    assetName: "butterfly.png",
+    minScoreAvg: 3.1,
+    description: "Propulsion papillon, puissance et rythme subaquatique",
+  },
+  {
+    key: "requin",
+    label: "Requin",
+    assetName: "requin.png",
+    minScoreAvg: 3.4,
+    description: "Perfectionnement multi-nages, virages culbutes et vitesse",
+  },
+  {
+    key: "orca",
+    label: "Orca",
+    assetName: "orca.png",
+    minScoreAvg: 3.7,
+    description: "Excellence technique, endurance longue distance et chrono",
+  },
+  {
+    key: "full_swimmer",
+    label: "Full Swimmer",
+    assetName: "full_swimmer.png",
+    minScoreAvg: 3.9,
+    description: "Maitrise integrale 4 nages et autonomie haute performance AQA",
+  },
+];
+
 export function getSkillsForCategory(category: string): CategorySkillCatalog {
   const normCat = category.toLowerCase().trim();
   return (
@@ -104,3 +185,4 @@ export function getSkillsForCategory(category: string): CategorySkillCatalog {
     }
   );
 }
+

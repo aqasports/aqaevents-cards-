@@ -14,13 +14,14 @@ class ReplacementsScreen extends ConsumerStatefulWidget {
   ConsumerState<ReplacementsScreen> createState() => _ReplacementsScreenState();
 }
 
-class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with SingleTickerProviderStateMixin {
+class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -45,7 +46,9 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: accept ? AqaTheme.statusSuccess : AqaTheme.statusWarning,
-            content: Text(accept ? 'Replacement accepted' : 'Replacement declined'),
+            content: Text(
+              accept ? 'Remplacement accepte et seance assignee.' : 'Demande de remplacement refusee.',
+            ),
           ),
         );
         ref.invalidate(bootstrapProvider);
@@ -55,7 +58,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AqaTheme.statusDanger,
-            content: Text('Failed to update replacement: $e'),
+            content: Text('Impossible de mettre a jour le remplacement: $e'),
           ),
         );
       }
@@ -68,19 +71,22 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AqaTheme.surfaceDark,
-        title: const Text('Decline Request', style: TextStyle(color: AqaTheme.textPrimary)),
+        title: const Text(
+          'Decliner le Remplacement',
+          style: TextStyle(color: AqaTheme.textPrimary, fontSize: 16.0, fontWeight: FontWeight.w700),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Optionally provide a reason for declining this replacement coverage:',
+              'Indiquez optionnellement le motif du refus:',
               style: TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
             ),
             const SizedBox(height: 12.0),
             TextField(
               controller: reasonController,
-              decoration: const InputDecoration(hintText: 'e.g. Schedule conflict'),
+              decoration: const InputDecoration(hintText: 'ex: Conflit d\'horaire'),
               style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0),
             ),
           ],
@@ -88,7 +94,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AqaTheme.textMuted)),
+            child: const Text('Annuler', style: TextStyle(color: AqaTheme.textMuted)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AqaTheme.statusDanger),
@@ -96,7 +102,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
               Navigator.pop(ctx);
               _respond(replacementId, false, declineReason: reasonController.text.trim());
             },
-            child: const Text('Decline'),
+            child: const Text('Confirmer le Refus'),
           ),
         ],
       ),
@@ -114,23 +120,27 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
           child: CircularProgressIndicator(color: AqaTheme.accentTeal),
         ),
         error: (err, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: AqaTheme.statusDanger, size: 40.0),
-              const SizedBox(height: 12.0),
-              Text('Error: $err', style: const TextStyle(color: AqaTheme.textMuted)),
-              const SizedBox(height: 16.0),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(bootstrapProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: AqaTheme.statusDanger, size: 40.0),
+                const SizedBox(height: 12.0),
+                Text('Erreur: $err', style: const TextStyle(color: AqaTheme.textMuted)),
+                const SizedBox(height: 16.0),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(bootstrapProvider),
+                  child: const Text('Reessayer'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (data) {
           final pending = data.pendingRequests;
           final active = data.activeReplacements;
+          final absences = data.myAbsences;
 
           return Column(
             children: [
@@ -144,9 +154,23 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Coach Replacements',
-                      style: TextStyle(color: AqaTheme.textPrimary, fontSize: 16.0, fontWeight: FontWeight.w700),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Remplacements & Absences',
+                          style: TextStyle(
+                            color: AqaTheme.textPrimary,
+                            fontSize: 16.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        SizedBox(height: 2.0),
+                        Text(
+                          'Continuité pedagogique des groupes AQA',
+                          style: TextStyle(color: AqaTheme.textMuted, fontSize: 11.5),
+                        ),
+                      ],
                     ),
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
@@ -157,7 +181,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                         context.push('/absences/new');
                       },
                       icon: const Icon(Icons.event_busy_outlined, size: 16.0),
-                      label: const Text('Declare Absence'),
+                      label: const Text('Declarer Absence'),
                     ),
                   ],
                 ),
@@ -171,9 +195,11 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                   indicatorColor: AqaTheme.accentTeal,
                   labelColor: AqaTheme.accentTeal,
                   unselectedLabelColor: AqaTheme.textLightMuted,
+                  labelStyle: const TextStyle(fontSize: 12.0, fontWeight: FontWeight.w700),
                   tabs: [
-                    Tab(text: 'Requests (${pending.length})'),
-                    Tab(text: 'Active / Coverage (${active.length})'),
+                    Tab(text: 'Demandes (${pending.length})'),
+                    Tab(text: 'Couvertures (${active.length})'),
+                    Tab(text: 'Absences (${absences.length})'),
                   ],
                 ),
               ),
@@ -187,7 +213,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                     pending.isEmpty
                         ? const Center(
                             child: Text(
-                              'No pending replacement requests',
+                              'Aucune demande de remplacement en attente',
                               style: TextStyle(color: AqaTheme.textMuted),
                             ),
                           )
@@ -205,7 +231,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                     active.isEmpty
                         ? const Center(
                             child: Text(
-                              'No active replacement assignments',
+                              'Aucun remplacement confirme actuellement',
                               style: TextStyle(color: AqaTheme.textMuted),
                             ),
                           )
@@ -216,6 +242,24 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                             itemBuilder: (ctx, idx) {
                               final rep = active[idx];
                               return _buildActiveCard(rep);
+                            },
+                          ),
+
+                    // Declared absences
+                    absences.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Aucune absence declaree sur la periode',
+                              style: TextStyle(color: AqaTheme.textMuted),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.all(16.0),
+                            itemCount: absences.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10.0),
+                            itemBuilder: (ctx, idx) {
+                              final abs = absences[idx];
+                              return _buildAbsenceCard(abs);
                             },
                           ),
                   ],
@@ -229,7 +273,8 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
   }
 
   Widget _buildPendingCard(ReplacementModel rep) {
-    final dateStr = rep.sessionDate.length >= 10 ? rep.sessionDate.substring(0, 10) : rep.sessionDate;
+    final dateStr =
+        rep.sessionDate.length >= 10 ? rep.sessionDate.substring(0, 10) : rep.sessionDate;
 
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -244,9 +289,15 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Request from ${rep.originalCoachName}',
-                style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
+              Expanded(
+                child: Text(
+                  'Demande de ${rep.originalCoachName}',
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
@@ -255,8 +306,12 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                   borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
                 ),
                 child: const Text(
-                  'PENDING',
-                  style: TextStyle(color: AqaTheme.statusWarning, fontSize: 10.0, fontWeight: FontWeight.w700),
+                  'EN ATTENTE',
+                  style: TextStyle(
+                    color: AqaTheme.statusWarning,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ],
@@ -264,7 +319,11 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
           const SizedBox(height: 8.0),
           Text(
             '${rep.groupName} (${rep.category.toUpperCase()})',
-            style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 13.0, fontWeight: FontWeight.w600),
+            style: const TextStyle(
+              color: AqaTheme.accentTeal,
+              fontSize: 13.0,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 2.0),
           Text(
@@ -274,8 +333,12 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
           if (rep.reason != null && rep.reason!.isNotEmpty) ...[
             const SizedBox(height: 6.0),
             Text(
-              'Reason: ${rep.reason}',
-              style: const TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0, fontStyle: FontStyle.italic),
+              'Motif: ${rep.reason}',
+              style: const TextStyle(
+                color: AqaTheme.textLightMuted,
+                fontSize: 12.0,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
           const SizedBox(height: 14.0),
@@ -288,7 +351,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                     side: const BorderSide(color: AqaTheme.statusDanger),
                   ),
                   onPressed: () => _showDeclineDialog(rep.id),
-                  child: const Text('Decline'),
+                  child: const Text('Refuser'),
                 ),
               ),
               const SizedBox(width: 12.0),
@@ -296,7 +359,7 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AqaTheme.statusSuccess),
                   onPressed: () => _respond(rep.id, true),
-                  child: const Text('Accept Coverage'),
+                  child: const Text('Accepter'),
                 ),
               ),
             ],
@@ -307,7 +370,89 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
   }
 
   Widget _buildActiveCard(ReplacementModel rep) {
-    final dateStr = rep.sessionDate.length >= 10 ? rep.sessionDate.substring(0, 10) : rep.sessionDate;
+    final dateStr =
+        rep.sessionDate.length >= 10 ? rep.sessionDate.substring(0, 10) : rep.sessionDate;
+
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: AqaTheme.surfaceDark,
+        borderRadius: BorderRadius.circular(AqaTheme.radiusLg),
+        border: Border.all(color: AqaTheme.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  rep.groupName,
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 14.0,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
+                decoration: BoxDecoration(
+                  color: AqaTheme.statusSuccessBg,
+                  borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                ),
+                child: const Text(
+                  'CONFIRME',
+                  style: TextStyle(
+                    color: AqaTheme.statusSuccess,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4.0),
+          Text(
+            'Titulaire: ${rep.originalCoachName} -> Remplacant: ${rep.replacementCoachName}',
+            style: const TextStyle(
+              color: AqaTheme.primarySky,
+              fontSize: 12.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4.0),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Date: $dateStr • ${rep.startTime} - ${rep.endTime} • ${rep.pool}',
+                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                ),
+              ),
+              if (rep.sessionId.isNotEmpty)
+                TextButton.icon(
+                  onPressed: () => context.push('/sessions/${rep.sessionId}'),
+                  icon: const Icon(Icons.fact_check_outlined, size: 15.0),
+                  label: const Text('Feuille', style: TextStyle(fontSize: 12.0)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAbsenceCard(Map<String, dynamic> abs) {
+    final startsAt = abs['startsAt']?.toString() ?? '';
+    final endsAt = abs['endsAt']?.toString() ?? '';
+    final startStr = startsAt.length >= 10 ? startsAt.substring(0, 10) : startsAt;
+    final endStr = endsAt.length >= 10 ? endsAt.substring(0, 10) : endsAt;
+    final reason = abs['reason']?.toString().toUpperCase() ?? 'ABSENCE';
+    final status = abs['status']?.toString().toUpperCase() ?? 'OPEN';
+    final notes = abs['notes']?.toString() ?? '';
 
     return Container(
       padding: const EdgeInsets.all(16.0),
@@ -323,32 +468,37 @@ class _ReplacementsScreenState extends ConsumerState<ReplacementsScreen> with Si
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                rep.groupName,
-                style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
+                'Du $startStr au $endStr',
+                style: const TextStyle(
+                  color: AqaTheme.textPrimary,
+                  fontSize: 14.0,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
                 decoration: BoxDecoration(
-                  color: AqaTheme.statusSuccessBg,
+                  color: AqaTheme.statusInfoBg,
                   borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
                 ),
-                child: const Text(
-                  'CONFIRMED',
-                  style: TextStyle(color: AqaTheme.statusSuccess, fontSize: 10.0, fontWeight: FontWeight.w700),
+                child: Text(
+                   '$reason • $status',
+                  style: const TextStyle(
+                    color: AqaTheme.primarySky,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4.0),
-          Text(
-            'Assigned Replacement Coach: ${rep.replacementCoachName}',
-            style: const TextStyle(color: AqaTheme.primarySky, fontSize: 12.0, fontWeight: FontWeight.w500),
-          ),
-          const SizedBox(height: 2.0),
-          Text(
-            'Date: $dateStr • ${rep.startTime} - ${rep.endTime} • ${rep.pool}',
-            style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
-          ),
+          if (notes.isNotEmpty) ...[
+            const SizedBox(height: 6.0),
+            Text(
+              notes,
+              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+            ),
+          ],
         ],
       ),
     );

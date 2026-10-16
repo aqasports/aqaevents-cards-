@@ -15,6 +15,9 @@ class ApiClient {
   static const String keyRefreshToken = 'aqa_coach_refresh_token';
   static const String keyCoachData = 'aqa_coach_user_data';
 
+  String? _memoryAccessToken;
+  String? _memoryRefreshToken;
+
   bool _isRefreshing = false;
   final List<Completer<String?>> _refreshCompleters = [];
   void Function()? onUnauthorized;
@@ -22,8 +25,8 @@ class ApiClient {
   ApiClient._internal() {
     _dio.options = BaseOptions(
       baseUrl: ApiEndpoints.baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 20),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -33,13 +36,17 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // Always ensure the latest baseUrl is used
           options.baseUrl = ApiEndpoints.baseUrl;
 
-          // Exclude auth routes from bearer injection
           final path = options.path;
           if (!path.contains('/auth/login') && !path.contains('/auth/refresh')) {
-            final token = await _storage.read(key: keyAccessToken);
+            String? token = _memoryAccessToken;
+            if (token == null || token.isEmpty) {
+              try {
+                token = await _storage.read(key: keyAccessToken);
+                _memoryAccessToken = token;
+              } catch (_) {}
+            }
             if (token != null && token.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $token';
             }
@@ -50,9 +57,8 @@ class ApiClient {
           if (error.response?.statusCode == 401 &&
               !error.requestOptions.path.contains('/auth/login') &&
               !error.requestOptions.path.contains('/auth/refresh')) {
-            // Attempt token refresh
             final newToken = await _attemptRefreshToken();
-            if (newToken != null) {
+            if (newToken != null && newToken.isNotEmpty) {
               final opts = error.requestOptions;
               opts.headers['Authorization'] = 'Bearer $newToken';
               opts.baseUrl = ApiEndpoints.baseUrl;
@@ -61,8 +67,11 @@ class ApiClient {
                 final response = await _dio.fetch(opts);
                 return handler.resolve(response);
               } catch (e) {
+                await clearTokens();
                 return handler.next(error);
               }
+            } else {
+              await clearTokens();
             }
           }
           return handler.next(error);
@@ -84,16 +93,26 @@ class ApiClient {
     _isRefreshing = true;
 
     try {
-      final refreshToken = await _storage.read(key: keyRefreshToken);
+      String? refreshToken = _memoryRefreshToken;
       if (refreshToken == null || refreshToken.isEmpty) {
+        try {
+          refreshToken = await _storage.read(key: keyRefreshToken);
+        } catch (_) {}
+      }
+
+      if (refreshToken == null || refreshToken.isEmpty) {
+        await clearTokens();
         _flushRefreshCompleters(null);
         return null;
       }
 
-      final refreshDio = Dio(BaseOptions(
-        baseUrl: ApiEndpoints.baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-      ));
+      final refreshDio = Dio(
+        BaseOptions(
+          baseUrl: ApiEndpoints.baseUrl,
+          connectTimeout: const Duration(seconds: 12),
+          receiveTimeout: const Duration(seconds: 12),
+        ),
+      );
 
       final response = await refreshDio.post(
         ApiEndpoints.refresh,
@@ -101,14 +120,21 @@ class ApiClient {
       );
 
       if (response.statusCode == 200 && response.data != null) {
-        final newAccess = response.data['token'] as String?;
+        final newAccess =
+            (response.data['token'] ?? response.data['accessToken']) as String?;
         final newRefresh = response.data['refreshToken'] as String?;
 
-        if (newAccess != null) {
-          await _storage.write(key: keyAccessToken, value: newAccess);
-          if (newRefresh != null) {
-            await _storage.write(key: keyRefreshToken, value: newRefresh);
+        if (newAccess != null && newAccess.isNotEmpty) {
+          _memoryAccessToken = newAccess;
+          if (newRefresh != null && newRefresh.isNotEmpty) {
+            _memoryRefreshToken = newRefresh;
           }
+          try {
+            await _storage.write(key: keyAccessToken, value: newAccess);
+            if (newRefresh != null && newRefresh.isNotEmpty) {
+              await _storage.write(key: keyRefreshToken, value: newRefresh);
+            }
+          } catch (_) {}
           _flushRefreshCompleters(newAccess);
           return newAccess;
         }
@@ -138,20 +164,27 @@ class ApiClient {
     required String refreshToken,
     String? coachJson,
   }) async {
-    await _storage.write(key: keyAccessToken, value: accessToken);
-    await _storage.write(key: keyRefreshToken, value: refreshToken);
-    if (coachJson != null) {
-      await _storage.write(key: keyCoachData, value: coachJson);
-    }
+    _memoryAccessToken = accessToken;
+    _memoryRefreshToken = refreshToken;
+    try {
+      await _storage.write(key: keyAccessToken, value: accessToken);
+      await _storage.write(key: keyRefreshToken, value: refreshToken);
+      if (coachJson != null) {
+        await _storage.write(key: keyCoachData, value: coachJson);
+      }
+    } catch (_) {}
   }
 
   Future<void> clearTokens() async {
-    await _storage.delete(key: keyAccessToken);
-    await _storage.delete(key: keyRefreshToken);
-    await _storage.delete(key: keyCoachData);
+    _memoryAccessToken = null;
+    _memoryRefreshToken = null;
+    try {
+      await _storage.delete(key: keyAccessToken);
+      await _storage.delete(key: keyRefreshToken);
+      await _storage.delete(key: keyCoachData);
+    } catch (_) {}
     onUnauthorized?.call();
   }
 }
 
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
-

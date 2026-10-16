@@ -31,34 +31,45 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
           child: CircularProgressIndicator(color: AqaTheme.accentTeal),
         ),
         error: (err, stack) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: AqaTheme.statusDanger, size: 40.0),
-              const SizedBox(height: 12.0),
-              Text(
-                'Failed to load groups: $err',
-                style: const TextStyle(color: AqaTheme.textMuted),
-              ),
-              const SizedBox(height: 16.0),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(bootstrapProvider),
-                child: const Text('Retry'),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, color: AqaTheme.statusDanger, size: 40.0),
+                const SizedBox(height: 12.0),
+                Text(
+                  'Impossible de charger les groupes: $err',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: AqaTheme.textMuted),
+                ),
+                const SizedBox(height: 16.0),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(bootstrapProvider),
+                  child: const Text('Reessayer'),
+                ),
+              ],
+            ),
           ),
         ),
         data: (data) {
           final allGroups = data.groups;
-          final categories = {'ALL', ...allGroups.map((g) => g.category.toUpperCase()).where((c) => c.isNotEmpty)};
+          final categories = {
+            'ALL',
+            ...allGroups.map((g) => g.category.toUpperCase()).where((c) => c.isNotEmpty),
+          };
 
           final filtered = allGroups.where((g) {
-            final matchesCat = _selectedCategory == 'ALL' || g.category.toUpperCase() == _selectedCategory;
+            final matchesCat =
+                _selectedCategory == 'ALL' || g.category.toUpperCase() == _selectedCategory;
             final matchesQuery = _searchQuery.isEmpty ||
                 g.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                g.pool.toLowerCase().contains(_searchQuery.toLowerCase());
+                g.pool.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                g.category.toLowerCase().contains(_searchQuery.toLowerCase());
             return matchesCat && matchesQuery;
           }).toList();
+
+          final totalSwimmers = filtered.fold<int>(0, (acc, g) => acc + g.activeMembersCount);
 
           return ListView(
             padding: const EdgeInsets.all(16.0),
@@ -68,7 +79,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 onChanged: (val) => setState(() => _searchQuery = val.trim()),
                 style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0),
                 decoration: const InputDecoration(
-                  hintText: 'Search groups by name or pool...',
+                  hintText: 'Rechercher un groupe par nom, categorie ou bassin...',
                   prefixIcon: Icon(Icons.search, color: AqaTheme.textLightMuted, size: 20.0),
                 ),
               ),
@@ -83,9 +94,12 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: FilterChip(
-                        label: Text(cat, style: const TextStyle(fontSize: 12.0)),
+                        label: Text(
+                          cat == 'ALL' ? 'TOUS LES SECTEURS' : cat,
+                          style: const TextStyle(fontSize: 11.0),
+                        ),
                         selected: isSelected,
-                        onSelected: (val) {
+                        onSelected: (_) {
                           setState(() => _selectedCategory = cat);
                         },
                         selectedColor: AqaTheme.primarySky,
@@ -104,28 +118,33 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
               ),
               const SizedBox(height: 16.0),
 
-              // Summary
+              // Summary row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${filtered.length} Group${filtered.length > 1 ? 's' : ''}',
+                    '${filtered.length} Groupe${filtered.length > 1 ? 's' : ''} • $totalSwimmers Nageurs',
                     style: const TextStyle(
                       color: AqaTheme.textMuted,
-                      fontSize: 13.0,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   if (data.coach.isHeadCoach)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 2.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
                       decoration: BoxDecoration(
                         color: AqaTheme.statusWarningBg,
                         borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                        border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.5)),
                       ),
                       child: const Text(
-                        'ALL SECTORS ACCESS',
-                        style: TextStyle(color: AqaTheme.statusWarning, fontSize: 10.0, fontWeight: FontWeight.w700),
+                        'SUPERVISION GLOBALE',
+                        style: TextStyle(
+                          color: AqaTheme.statusWarning,
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                 ],
@@ -142,7 +161,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                   ),
                   child: const Center(
                     child: Text(
-                      'No swimming groups found matching filters.',
+                      'Aucun groupe ne correspond aux filtres selectionnes.',
                       style: TextStyle(color: AqaTheme.textMuted, fontSize: 13.0),
                     ),
                   ),
@@ -157,6 +176,10 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
   }
 
   Widget _buildGroupCard(BuildContext context, SwimGroupModel group) {
+    final fillRatio = group.capacity > 0
+        ? (group.activeMembersCount / group.capacity).clamp(0.0, 1.0)
+        : 0.0;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       decoration: BoxDecoration(
@@ -186,7 +209,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                         style: const TextStyle(
                           color: AqaTheme.textPrimary,
                           fontSize: 16.0,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w800,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -198,42 +221,81 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 const SizedBox(height: 6.0),
                 Row(
                   children: [
-                    Text(
-                      group.category.toUpperCase(),
-                      style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 12.0, fontWeight: FontWeight.w600),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                      decoration: BoxDecoration(
+                        color: AqaTheme.accentTeal.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(4.0),
+                      ),
+                      child: Text(
+                        group.category.toUpperCase(),
+                        style: const TextStyle(
+                          color: AqaTheme.accentTeal,
+                          fontSize: 10.0,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                     if (group.pool.isNotEmpty) ...[
-                      const Text(' • ', style: TextStyle(color: AqaTheme.textLightMuted)),
-                      Text(group.pool, style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0)),
+                      const SizedBox(width: 8.0),
+                      const Icon(Icons.pool_outlined, size: 13.0, color: AqaTheme.textLightMuted),
+                      const SizedBox(width: 4.0),
+                      Expanded(
+                        child: Text(
+                          group.pool,
+                          style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 10.0),
-                const Divider(),
+                const SizedBox(height: 12.0),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4.0),
+                  child: LinearProgressIndicator(
+                    value: fillRatio,
+                    minHeight: 5.0,
+                    backgroundColor: AqaTheme.surfaceSecondary,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      fillRatio >= 0.9 ? AqaTheme.statusWarning : AqaTheme.primarySky,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 10.0),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_month_outlined, color: AqaTheme.textLightMuted, size: 16.0),
-                        const SizedBox(width: 6.0),
-                        Text(
-                          group.scheduleDays.join(', '),
-                          style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
-                        ),
-                      ],
+                    Expanded(
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.calendar_month_outlined,
+                            color: AqaTheme.textLightMuted,
+                            size: 15.0,
+                          ),
+                          const SizedBox(width: 6.0),
+                          Expanded(
+                            child: Text(
+                              '${group.scheduleDays.join(', ')} • ${group.startTime}-${group.endTime}',
+                              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.5),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 8.0),
                     Row(
                       children: [
-                        const Icon(Icons.people_outline, color: AqaTheme.textLightMuted, size: 16.0),
-                        const SizedBox(width: 6.0),
+                        const Icon(Icons.people_outline, color: AqaTheme.accentTeal, size: 15.0),
+                        const SizedBox(width: 4.0),
                         Text(
                           '${group.activeMembersCount} / ${group.capacity}',
                           style: const TextStyle(
                             color: AqaTheme.textPrimary,
                             fontSize: 12.0,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -258,8 +320,8 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
           border: Border.all(color: AqaTheme.borderSubtle),
         ),
         child: const Text(
-          'ASSISTANT (VIEW)',
-          style: TextStyle(color: AqaTheme.textMuted, fontSize: 10.0, fontWeight: FontWeight.w700),
+          'ASSISTANT (LECTURE)',
+          style: TextStyle(color: AqaTheme.textMuted, fontSize: 9.5, fontWeight: FontWeight.w700),
         ),
       );
     }
@@ -273,7 +335,11 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         ),
         child: const Text(
           'HEAD COACH',
-          style: TextStyle(color: AqaTheme.statusWarning, fontSize: 10.0, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: AqaTheme.statusWarning,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       );
     }
@@ -286,7 +352,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
       ),
       child: const Text(
         'COACH',
-        style: TextStyle(color: AqaTheme.primarySky, fontSize: 10.0, fontWeight: FontWeight.w700),
+        style: TextStyle(color: AqaTheme.primarySky, fontSize: 9.5, fontWeight: FontWeight.w700),
       ),
     );
   }

@@ -8,13 +8,25 @@ import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Accept",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 const reviewSchema = z.object({
   kind: z.enum(["assessment", "observation"]).default("assessment"),
-  sessionId: z.string().optional(),
+  sessionId: z.string().optional().nullable(),
   skills: z
     .array(
       z.object({
-        key: z.string(),
+        key: z.string().optional(),
+        skillKey: z.string().optional(),
+        label: z.string().optional(),
         score: z.number().int().min(1).max(4),
       })
     )
@@ -28,10 +40,13 @@ const reviewSchema = z.object({
       })
     )
     .optional(),
-  strengths: z.string().optional(),
-  improvements: z.string().optional(),
-  nextGoals: z.string().optional(),
-  recommendedLevel: z.string().optional(),
+  strengths: z.string().optional().nullable(),
+  evaluatorNotes: z.string().optional().nullable(),
+  improvements: z.string().optional().nullable(),
+  nextGoals: z.string().optional().nullable(),
+  recommendedLevel: z.string().optional().nullable(),
+  overallLevel: z.string().optional().nullable(),
+  badgeKey: z.string().optional().nullable(),
 });
 
 export async function POST(
@@ -44,11 +59,14 @@ export async function POST(
   const { id: memberId } = await params;
 
   try {
-    const authCheck = await canManageTechReview({ coachId: coach.id, role }, memberId);
+    const authCheck = await canManageTechReview(
+      { coachId: coach.id, role, coachName: coach.name },
+      memberId
+    );
     if (!authCheck.allowed) {
       return NextResponse.json(
         { error: authCheck.reason || "Forbidden" },
-        { status: 403 }
+        { status: 403, headers: corsHeaders }
       );
     }
 
@@ -58,9 +76,26 @@ export async function POST(
     if (!parsed.success) {
       return NextResponse.json(
         { error: "Invalid review format." },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
+
+    const normalizedSkills = parsed.data.skills
+      ? parsed.data.skills.map((s) => ({
+          key: s.key || s.skillKey || "skill",
+          skillKey: s.skillKey || s.key || "skill",
+          label: s.label,
+          score: s.score,
+        }))
+      : null;
+
+    const finalStrengths =
+      parsed.data.strengths || parsed.data.evaluatorNotes || null;
+    const finalRecommendedLevel =
+      parsed.data.recommendedLevel ||
+      parsed.data.overallLevel ||
+      parsed.data.badgeKey ||
+      null;
 
     const review = await prisma.swimTechReview.create({
       data: {
@@ -68,12 +103,14 @@ export async function POST(
         coachId: coach.id,
         sessionId: parsed.data.sessionId || null,
         kind: parsed.data.kind,
-        skills: parsed.data.skills ? JSON.stringify(parsed.data.skills) : null,
-        metrics: parsed.data.metrics ? JSON.stringify(parsed.data.metrics) : null,
-        strengths: parsed.data.strengths || null,
+        skills: normalizedSkills ? JSON.stringify(normalizedSkills) : null,
+        metrics: parsed.data.metrics
+          ? JSON.stringify(parsed.data.metrics)
+          : null,
+        strengths: finalStrengths,
         improvements: parsed.data.improvements || null,
         nextGoals: parsed.data.nextGoals || null,
-        recommendedLevel: parsed.data.recommendedLevel || null,
+        recommendedLevel: finalRecommendedLevel,
         status: "final",
       },
     });
@@ -85,12 +122,16 @@ export async function POST(
       JSON.stringify({ coachId: coach.id, reviewId: review.id })
     );
 
-    return NextResponse.json({ success: true, review });
+    return NextResponse.json(
+      { success: true, review },
+      { headers: corsHeaders }
+    );
   } catch (err) {
     logger.error("POST /api/coach/members/[id]/reviews error:", err);
     return NextResponse.json(
       { error: "Failed to record technical review." },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
+

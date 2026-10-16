@@ -18,6 +18,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 1));
   String _reason = 'Personal';
+  String? _selectedSubstituteCoachId;
   final TextEditingController _notesController = TextEditingController();
   bool _isSubmitting = false;
 
@@ -76,15 +77,21 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
           'startDate': _dateFormat.format(_startDate),
           'endDate': _dateFormat.format(_endDate),
           'reason': _reason,
+          if (_selectedSubstituteCoachId != null && _selectedSubstituteCoachId!.isNotEmpty)
+            'substituteCoachId': _selectedSubstituteCoachId,
           'notes': _notesController.text.trim(),
         },
       );
 
       if (response.statusCode == 200 && mounted) {
+        final createdCount =
+            (response.data is Map ? response.data['replacementsCreated'] : null) ?? 0;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             backgroundColor: AqaTheme.statusSuccess,
-            content: Text('Absence recorded. Eligible replacement candidates notified.'),
+            content: Text(
+              'Absence declaree avec succes ($createdCount seance(s) en demande de couverture).',
+            ),
           ),
         );
         ref.invalidate(bootstrapProvider);
@@ -95,7 +102,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: AqaTheme.statusDanger,
-            content: Text('Failed to declare absence: $e'),
+            content: Text('Impossible de declarer l\'absence: $e'),
           ),
         );
       }
@@ -106,10 +113,16 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bootstrapAsync = ref.watch(bootstrapProvider);
+    final currentCoachId = bootstrapAsync.valueOrNull?.coach.coachId ?? '';
+    final colleagues = (bootstrapAsync.valueOrNull?.allCoaches ?? [])
+        .where((c) => c['id'] != currentCoachId && c['role'] != 'assistant')
+        .toList();
+
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
       appBar: AppBar(
-        title: const Text('Declare Absence'),
+        title: const Text('Declarer une Absence'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -127,8 +140,12 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Absence Schedule',
-                    style: TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
+                    'Periode d\'Absence',
+                    style: TextStyle(
+                      color: AqaTheme.textPrimary,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 12.0),
                   Row(
@@ -137,15 +154,28 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Start Date', style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0)),
+                            const Text(
+                              'Date de Debut',
+                              style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0),
+                            ),
                             const SizedBox(height: 6.0),
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 12.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10.0,
+                                  vertical: 12.0,
+                                ),
                               ),
                               onPressed: _pickStartDate,
-                              icon: const Icon(Icons.calendar_today, size: 16.0, color: AqaTheme.accentTeal),
-                              label: Text(_dateFormat.format(_startDate), style: const TextStyle(fontSize: 12.0)),
+                              icon: const Icon(
+                                Icons.calendar_today,
+                                size: 16.0,
+                                color: AqaTheme.accentTeal,
+                              ),
+                              label: Text(
+                                _dateFormat.format(_startDate),
+                                style: const TextStyle(fontSize: 12.0),
+                              ),
                             ),
                           ],
                         ),
@@ -155,15 +185,28 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('End Date', style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0)),
+                            const Text(
+                              'Date de Fin',
+                              style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 12.0),
+                            ),
                             const SizedBox(height: 6.0),
                             OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 12.0),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10.0,
+                                  vertical: 12.0,
+                                ),
                               ),
                               onPressed: _pickEndDate,
-                              icon: const Icon(Icons.calendar_today, size: 16.0, color: AqaTheme.accentTeal),
-                              label: Text(_dateFormat.format(_endDate), style: const TextStyle(fontSize: 12.0)),
+                              icon: const Icon(
+                                Icons.calendar_today,
+                                size: 16.0,
+                                color: AqaTheme.accentTeal,
+                              ),
+                              label: Text(
+                                _dateFormat.format(_endDate),
+                                style: const TextStyle(fontSize: 12.0),
+                              ),
                             ),
                           ],
                         ),
@@ -175,7 +218,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
             ),
             const SizedBox(height: 16.0),
 
-            // Reason Section
+            // Substitute & Reason Section
             Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
@@ -187,28 +230,81 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Reason for Absence',
-                    style: TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
+                    'Coach Remplacant Souhaite',
+                    style: TextStyle(
+                      color: AqaTheme.textPrimary,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(height: 12.0),
-                  DropdownButtonFormField<String>(
-                    initialValue: _reason,
+                  const SizedBox(height: 6.0),
+                  const Text(
+                    'Choisissez un collegue ou laissez en diffusion ouverte au Head Coach.',
+                    style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 11.5),
+                  ),
+                  const SizedBox(height: 10.0),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _selectedSubstituteCoachId,
                     dropdownColor: AqaTheme.surfaceSecondary,
-                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0),
+                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
                     decoration: const InputDecoration(
                       contentPadding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
                     ),
-                    items: ['Personal', 'Sickness', 'Competition', 'Training / Seminar', 'Other']
-                        .map((r) => DropdownMenuItem(value: r, child: Text(r)))
-                        .toList(),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Diffusion a tous les coachs eligibles / Head Coach'),
+                      ),
+                      ...colleagues.map(
+                        (c) => DropdownMenuItem<String?>(
+                          value: c['id'] as String?,
+                          child: Text('${c['name']} (${(c['role'] ?? 'coach').toString().toUpperCase()})'),
+                        ),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      setState(() => _selectedSubstituteCoachId = val);
+                    },
+                  ),
+                  const SizedBox(height: 16.0),
+                  const Text(
+                    'Motif de l\'Absence',
+                    style: TextStyle(
+                      color: AqaTheme.textPrimary,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10.0),
+                  DropdownButtonFormField<String>(
+                    initialValue: _reason,
+                    dropdownColor: AqaTheme.surfaceSecondary,
+                    style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Personal', child: Text('Personnel')),
+                      DropdownMenuItem(value: 'Sickness', child: Text('Maladie / Medical')),
+                      DropdownMenuItem(value: 'Competition', child: Text('Competition Officielle')),
+                      DropdownMenuItem(
+                        value: 'Training / Seminar',
+                        child: Text('Formation / Stage AQA'),
+                      ),
+                      DropdownMenuItem(value: 'Other', child: Text('Autre motif')),
+                    ],
                     onChanged: (val) {
                       if (val != null) setState(() => _reason = val);
                     },
                   ),
                   const SizedBox(height: 16.0),
                   const Text(
-                    'Additional Details',
-                    style: TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
+                    'Consignes Pedagogiques pour le Remplacant',
+                    style: TextStyle(
+                      color: AqaTheme.textPrimary,
+                      fontSize: 14.0,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 8.0),
                   TextField(
@@ -216,7 +312,8 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                     maxLines: 3,
                     style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
                     decoration: const InputDecoration(
-                      hintText: 'Notes for administration or replacement coaches...',
+                      hintText:
+                          'Programme prevu pour les groupes, points d\'attention sur certains nageurs...',
                     ),
                   ),
                 ],
@@ -224,18 +321,19 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
             ),
             const SizedBox(height: 24.0),
 
-            ElevatedButton(
+            ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14.0),
+                padding: const EdgeInsets.symmetric(vertical: 15.0),
               ),
               onPressed: _isSubmitting ? null : _submit,
-              child: _isSubmitting
+              icon: _isSubmitting
                   ? const SizedBox(
-                      height: 20.0,
-                      width: 20.0,
+                      height: 18.0,
+                      width: 18.0,
                       child: CircularProgressIndicator(strokeWidth: 2.0, color: Colors.white),
                     )
-                  : const Text('Submit Absence & Request Coverage'),
+                  : const Icon(Icons.send_rounded, size: 18.0),
+              label: const Text('Envoyer la Declaration & Demander Couverture'),
             ),
           ],
         ),

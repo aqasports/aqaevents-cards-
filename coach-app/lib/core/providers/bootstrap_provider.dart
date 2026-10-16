@@ -10,20 +10,30 @@ import '../sync/offline_sync_manager.dart';
 
 class BootstrapData {
   final CoachUser coach;
+  final List<Map<String, dynamic>> allCoaches;
   final List<SwimGroupModel> groups;
+  final List<SwimSessionModel> allSessions;
   final List<SwimSessionModel> todaySessions;
   final List<ReplacementModel> activeReplacements;
   final List<ReplacementModel> pendingRequests;
+  final List<Map<String, dynamic>> myAbsences;
   final Map<String, dynamic> skillsCatalog;
+  final List<Map<String, dynamic>> progressionBadges;
+  final String todayDate;
   final String serverTime;
 
   const BootstrapData({
     required this.coach,
+    this.allCoaches = const [],
     required this.groups,
+    this.allSessions = const [],
     required this.todaySessions,
     required this.activeReplacements,
     required this.pendingRequests,
+    this.myAbsences = const [],
     required this.skillsCatalog,
+    this.progressionBadges = const [],
+    this.todayDate = '',
     required this.serverTime,
   });
 
@@ -36,29 +46,69 @@ class BootstrapData {
             .toList() ??
         const [];
 
-    final sessionsList = (json['todaySessions'] as List<dynamic>?)
+    final allSessionsList = (json['sessions'] as List<dynamic>?)
+            ?.map((e) => SwimSessionModel.fromJson(e as Map<String, dynamic>))
+            .toList() ??
+        const [];
+
+    final todaySessionsRaw = (json['todaySessions'] as List<dynamic>?) ??
+        (json['sessions'] as List<dynamic>?);
+
+    final sessionsList = todaySessionsRaw
             ?.map((e) => SwimSessionModel.fromJson(e as Map<String, dynamic>))
             .toList() ??
         const [];
 
     final activeReps = (json['activeReplacements'] as List<dynamic>?)
-            ?.map((e) => ReplacementModel.fromJson(e as Map<String, dynamic>, currentCoachId: currentCoachId))
+            ?.map((e) => ReplacementModel.fromJson(
+                  e as Map<String, dynamic>,
+                  currentCoachId: currentCoachId,
+                ))
             .toList() ??
         const [];
 
-    final pendingReps = (json['pendingRequests'] as List<dynamic>?)
-            ?.map((e) => ReplacementModel.fromJson(e as Map<String, dynamic>, currentCoachId: currentCoachId))
+    final pendingRaw = (json['pendingRequests'] as List<dynamic>?) ??
+        (json['pendingReplacements'] as List<dynamic>?);
+
+    final pendingReps = pendingRaw
+            ?.map((e) => ReplacementModel.fromJson(
+                  e as Map<String, dynamic>,
+                  currentCoachId: currentCoachId,
+                ))
             .toList() ??
         const [];
+
+    final coachesList = (json['allCoaches'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        const [];
+
+    final absencesList = (json['myAbsences'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        const [];
+
+    final badgesList = (json['progressionBadges'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        const [];
+
+    final todayStr = json['todayDate'] as String? ??
+        DateTime.now().toIso8601String().substring(0, 10);
 
     return BootstrapData(
       coach: coach,
+      allCoaches: coachesList,
       groups: groupsList,
+      allSessions: allSessionsList.isNotEmpty ? allSessionsList : sessionsList,
       todaySessions: sessionsList,
       activeReplacements: activeReps,
       pendingRequests: pendingReps,
+      myAbsences: absencesList,
       skillsCatalog: (json['skillsCatalog'] as Map<String, dynamic>?) ?? const {},
-      serverTime: json['serverTime'] as String? ?? '',
+      progressionBadges: badgesList,
+      todayDate: todayStr,
+      serverTime: json['serverTime'] as String? ?? todayStr,
     );
   }
 }
@@ -87,3 +137,4 @@ final bootstrapProvider = FutureProvider.autoDispose<BootstrapData>((ref) async 
     throw Exception('Failed to load coach bootstrap data');
   }
 });
+

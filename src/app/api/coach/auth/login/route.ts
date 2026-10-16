@@ -155,6 +155,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         token: sessionTokens.accessToken,
+        accessToken: sessionTokens.accessToken,
         refreshToken: sessionTokens.refreshToken,
         expiresIn: sessionTokens.expiresIn,
         coach: {

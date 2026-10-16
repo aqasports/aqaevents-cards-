@@ -5,6 +5,7 @@ import '../../core/providers/bootstrap_provider.dart';
 import '../../core/theme/aqa_theme.dart';
 import '../groups/groups_screen.dart';
 import '../replacements/replacements_screen.dart';
+import '../teaching/teaching_support_view.dart';
 import 'today_sessions_view.dart';
 import 'profile_view.dart';
 
@@ -30,43 +31,96 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       const TodaySessionsView(),
       const GroupsScreen(),
       const ReplacementsScreen(),
+      const TeachingSupportView(),
       const ProfileView(),
     ];
+
+    final isHead = user?.isHeadCoach == true;
+    final isAssistant = user?.isAssistant == true;
+    final roleBadgeColor = isHead
+        ? AqaTheme.statusWarning
+        : isAssistant
+            ? AqaTheme.textMuted
+            : AqaTheme.accentTeal;
 
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
       appBar: AppBar(
+        toolbarHeight: 64.0,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6.0),
+              width: 38.0,
+              height: 38.0,
+              padding: const EdgeInsets.all(5.0),
               decoration: BoxDecoration(
                 color: AqaTheme.surfaceSecondary,
-                borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                border: Border.all(color: AqaTheme.borderSubtle),
+                borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
+                border: Border.all(color: AqaTheme.borderTeal),
               ),
-              child: const Icon(Icons.pool, color: AqaTheme.accentTeal, size: 18.0),
+              child: Image.asset(
+                'assets/images/aqa_mark.png',
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                  Icons.pool,
+                  color: AqaTheme.accentTeal,
+                  size: 20.0,
+                ),
+              ),
             ),
-            const SizedBox(width: 10.0),
+            const SizedBox(width: 12.0),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    user?.name ?? 'Coach Workspace',
-                    style: const TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 15.0,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          user?.name ?? 'Portail Coach AQA',
+                          style: const TextStyle(
+                            color: AqaTheme.textPrimary,
+                            fontSize: 15.0,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8.0),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7.0,
+                          vertical: 2.0,
+                        ),
+                        decoration: BoxDecoration(
+                          color: roleBadgeColor.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                          border: Border.all(color: roleBadgeColor),
+                        ),
+                        child: Text(
+                          (user?.roleDisplay ?? 'Coach').toUpperCase(),
+                          style: TextStyle(
+                            color: roleBadgeColor,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 2.0),
                   Text(
-                    user != null ? '${user.roleDisplay} • AQA Swim' : 'AQA Swim',
+                    isHead
+                        ? 'Supervision Globale • Tous Secteurs AQA Swim'
+                        : isAssistant
+                            ? 'Mode Assistant • Consultation Groupes Assignes'
+                            : 'Suivi Presences, Evolutions & Seances AQA Swim',
                     style: const TextStyle(
                       color: AqaTheme.textMuted,
                       fontSize: 11.0,
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -75,8 +129,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AqaTheme.textMuted),
-            tooltip: 'Refresh data',
+            icon: const Icon(Icons.refresh, color: AqaTheme.accentTeal),
+            tooltip: 'Actualiser les donnees',
             onPressed: () {
               ref.invalidate(bootstrapProvider);
             },
@@ -98,14 +152,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onTap: (index) => setState(() => _currentIndex = index),
           items: [
             const BottomNavigationBarItem(
-              icon: Icon(Icons.today_outlined),
-              activeIcon: Icon(Icons.today),
-              label: 'Today',
+              icon: Icon(Icons.event_note_outlined),
+              activeIcon: Icon(Icons.event_note),
+              label: 'Seances',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.groups_outlined),
               activeIcon: Icon(Icons.groups),
-              label: 'Groups',
+              label: 'Groupes',
             ),
             BottomNavigationBarItem(
               icon: Badge(
@@ -122,12 +176,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 textColor: Colors.black,
                 child: const Icon(Icons.swap_horiz),
               ),
-              label: 'Replacements',
+              label: 'Remplacements',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.menu_book_outlined),
+              activeIcon: Icon(Icons.menu_book),
+              label: 'Support AQA',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               activeIcon: Icon(Icons.person),
-              label: 'Profile',
+              label: 'Profil',
             ),
           ],
         ),

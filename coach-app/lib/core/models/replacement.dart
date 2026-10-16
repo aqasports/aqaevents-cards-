@@ -12,7 +12,7 @@ class ReplacementModel {
   final String originalCoachName;
   final String replacementCoachId;
   final String replacementCoachName;
-  final String status; // REQUESTED | ACCEPTED | DECLINED | CANCELLED
+  final String status; // PROPOSED | REQUESTED | ACCEPTED | DECLINED | ASSIGNED
   final String? reason;
   final String? declineReason;
   final bool isIncomingRequest;
@@ -37,36 +37,51 @@ class ReplacementModel {
     this.isIncomingRequest = false,
   });
 
-  bool get isPending => status == 'REQUESTED';
-  bool get isAccepted => status == 'ACCEPTED';
+  bool get isPending =>
+      status == 'REQUESTED' || status == 'PROPOSED' || status == 'PENDING';
+  bool get isAccepted => status == 'ACCEPTED' || status == 'ASSIGNED';
   bool get isDeclined => status == 'DECLINED';
 
   factory ReplacementModel.fromJson(Map<String, dynamic> json, {String? currentCoachId}) {
     final sessionData = json['session'] as Map<String, dynamic>?;
     final groupData = sessionData?['group'] as Map<String, dynamic>?;
     final origCoachData = json['originalCoach'] as Map<String, dynamic>?;
-    final repCoachData = json['replacementCoach'] as Map<String, dynamic>?;
+    final repCoachData = (json['substituteCoach'] ?? json['replacementCoach']) as Map<String, dynamic>?;
 
-    final repCoachId = json['replacementCoachId'] as String? ?? (repCoachData?['id'] as String? ?? '');
+    final repCoachId = json['substituteCoachId'] as String? ??
+        (json['replacementCoachId'] as String? ?? (repCoachData?['id'] as String? ?? ''));
+
+    final startStr = json['startTime'] as String? ??
+        (sessionData?['startTime'] as String? ?? (groupData?['startTime'] as String? ?? '18:00'));
+    final endStr = json['endTime'] as String? ??
+        (sessionData?['endTime'] as String? ?? (groupData?['endTime'] as String? ?? '19:00'));
+    final poolStr = json['pool'] as String? ??
+        (json['location'] as String? ??
+            (sessionData?['location'] as String? ?? (groupData?['pool'] as String? ?? 'Piscine AQA')));
+
+    final rawStatus = (json['status'] as String? ?? 'PROPOSED').toUpperCase();
 
     return ReplacementModel(
       id: json['id'] as String? ?? '',
       absenceId: json['absenceId'] as String? ?? '',
       sessionId: json['sessionId'] as String? ?? (sessionData?['id'] as String? ?? ''),
-      sessionDate: sessionData?['sessionDate'] as String? ?? (json['sessionDate'] as String? ?? ''),
-      startTime: sessionData?['startTime'] as String? ?? (groupData?['startTime'] as String? ?? ''),
-      endTime: sessionData?['endTime'] as String? ?? (groupData?['endTime'] as String? ?? ''),
-      groupName: groupData?['name'] as String? ?? (json['groupName'] as String? ?? 'Group'),
-      category: groupData?['category'] as String? ?? (json['category'] as String? ?? ''),
-      pool: groupData?['pool'] as String? ?? (json['pool'] as String? ?? ''),
+      sessionDate: json['sessionDate'] as String? ?? (sessionData?['sessionDate'] as String? ?? ''),
+      startTime: startStr,
+      endTime: endStr,
+      groupName: json['groupName'] as String? ?? (groupData?['name'] as String? ?? 'Groupe AQA'),
+      category: json['category'] as String? ?? (groupData?['category'] as String? ?? ''),
+      pool: poolStr,
       originalCoachId: json['originalCoachId'] as String? ?? (origCoachData?['id'] as String? ?? ''),
-      originalCoachName: origCoachData?['name'] as String? ?? (json['originalCoachName'] as String? ?? 'Coach'),
+      originalCoachName: json['originalCoachName'] as String? ??
+          (origCoachData?['name'] as String? ?? 'Coach AQA'),
       replacementCoachId: repCoachId,
-      replacementCoachName: repCoachData?['name'] as String? ?? (json['replacementCoachName'] as String? ?? 'Coach'),
-      status: json['status'] as String? ?? 'REQUESTED',
-      reason: json['reason'] as String?,
+      replacementCoachName: json['substituteCoachName'] as String? ??
+          (json['replacementCoachName'] as String? ?? (repCoachData?['name'] as String? ?? 'Equipe AQA')),
+      status: rawStatus,
+      reason: json['note'] as String? ?? (json['reason'] as String?),
       declineReason: json['declineReason'] as String?,
-      isIncomingRequest: currentCoachId != null && repCoachId == currentCoachId,
+      isIncomingRequest: (json['isIncomingForMe'] as bool?) ??
+          (currentCoachId != null && (repCoachId.isEmpty || repCoachId == currentCoachId)),
     );
   }
 
@@ -91,3 +106,4 @@ class ReplacementModel {
     };
   }
 }
+
