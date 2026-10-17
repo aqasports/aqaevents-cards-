@@ -41,14 +41,22 @@ export async function GET(req: NextRequest) {
       coachName: coach.name,
     });
 
-    // 2. Materialize sessions for the upcoming 7 days on-demand
+    // 2. Materialize sessions for the upcoming 7 days on-demand (fast gate)
     const now = new Date();
     const today = toMidnightUTC(now);
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
 
     if (groupIds.length > 0) {
-      await ensureSessions(groupIds, today, nextWeek);
+      const existingCount = await prisma.swimSession.count({
+        where: {
+          groupId: { in: groupIds },
+          sessionDate: { gte: today, lte: nextWeek },
+        },
+      });
+      if (existingCount === 0) {
+        await ensureSessions(groupIds, today, nextWeek);
+      }
     }
 
     // 3. Fetch groups, sessions, replacements, absences, active coaches, and swimmers in parallel
@@ -190,14 +198,17 @@ export async function GET(req: NextRequest) {
 
     // 4. Hydrate session ratings stored in AuditLog
     const sessionIds = sessions.map((s) => s.id);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const ratingLogs =
       sessionIds.length > 0
         ? await prisma.auditLog.findMany({
             where: {
               action: "COACH_SESSION_RATING",
               target: { in: sessionIds },
+              createdAt: { gte: thirtyDaysAgo },
             },
             orderBy: { createdAt: "desc" },
+            take: sessionIds.length * 2,
           })
         : [];
 

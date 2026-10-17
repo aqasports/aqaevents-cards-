@@ -91,13 +91,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
-  void _fillDemo(String email) {
-    setState(() {
-      _emailController.text = email;
-      _passwordController.text = 'AqaDemo2026!';
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
@@ -394,72 +387,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16.0),
-
-                          // Quick Role Profiles
-                          AqaDoubleBezelCard(
-                            outerRadius: 18.0,
-                            padding: const EdgeInsets.all(14.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.shield_outlined,
-                                      color: AqaTheme.accentTeal,
-                                      size: 15.0,
-                                    ),
-                                    const SizedBox(width: 6.0),
-                                    Expanded(
-                                      child: Text(
-                                        i18n.t('auth.quick_roles'),
-                                        style: const TextStyle(
-                                          color: AqaTheme.textMuted,
-                                          fontSize: 10.0,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.7,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10.0),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildRoleQuickButton(
-                                        title: i18n.t('auth.head_coach'),
-                                        subtitle: i18n.t('auth.head_coach_desc'),
-                                        color: AqaTheme.statusWarning,
-                                        email: 'headcoach@aqasports.pro',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8.0),
-                                    Expanded(
-                                      child: _buildRoleQuickButton(
-                                        title: i18n.t('auth.coach'),
-                                        subtitle: i18n.t('auth.coach_desc'),
-                                        color: AqaTheme.primarySky,
-                                        email: 'coach@aqasports.pro',
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8.0),
-                                    Expanded(
-                                      child: _buildRoleQuickButton(
-                                        title: i18n.t('auth.assistant'),
-                                        subtitle: i18n.t('auth.assistant_desc'),
-                                        color: AqaTheme.accentTeal,
-                                        email: 'assistant@aqasports.pro',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12.0),
+                          const SizedBox(height: 18.0),
 
                           Align(
                             alignment: Alignment.center,
@@ -485,57 +413,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleQuickButton({
-    required String title,
-    required String subtitle,
-    required Color color,
-    required String email,
-  }) {
-    final isSelected = _emailController.text.trim() == email;
-    return InkWell(
-      borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-      onTap: () => _fillDemo(email),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 6.0),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? color.withValues(alpha: 0.18)
-              : const Color(0xFF0A1224),
-          borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-          border: Border.all(
-            color: isSelected ? color : AqaTheme.borderSubtle,
-            width: isSelected ? 1.4 : 1.0,
-          ),
-        ),
-        child: Column(
-          children: [
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 2.0),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AqaTheme.textMuted,
-                fontSize: 9.5,
               ),
             ),
           ],

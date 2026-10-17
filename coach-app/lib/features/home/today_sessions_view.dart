@@ -63,7 +63,11 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                 ),
                 const SizedBox(height: 8.0),
                 Text(
-                  err.toString(),
+                  err.toString().toLowerCase().contains('timeout')
+                      ? i18n.t('common.timeout_error')
+                      : err.toString().toLowerCase().contains('connection') || err.toString().toLowerCase().contains('network')
+                          ? i18n.t('common.network_error')
+                          : err.toString(),
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5),
                 ),
