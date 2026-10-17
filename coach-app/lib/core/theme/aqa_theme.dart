@@ -93,7 +93,7 @@ class AqaTheme {
         onSecondary: bgDark,
         onSurface: textPrimary,
       ),
-      fontFamily: 'Inter',
+      fontFamily: 'Roboto',
       appBarTheme: const AppBarTheme(
         backgroundColor: Color(0xE6080E1E),
         foregroundColor: textPrimary,

@@ -13,7 +13,12 @@ class ApiEndpoints {
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_prefBaseUrlKey);
-    if (saved != null && saved.trim().isNotEmpty && !saved.contains('events.aqasports.pro')) {
+    if (saved != null &&
+        saved.trim().isNotEmpty &&
+        !saved.contains('localhost') &&
+        !saved.contains('127.0.0.1') &&
+        !saved.contains('10.0.2.2') &&
+        !saved.contains('events.aqasports.pro')) {
       _currentBaseUrl = saved.trim();
     } else {
       _currentBaseUrl = defaultBaseUrl;
