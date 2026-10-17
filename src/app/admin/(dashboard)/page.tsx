@@ -11,7 +11,7 @@ export default async function AdminDashboardPage() {
     const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfThisYear = new Date(now.getFullYear(), 0, 1);
 
-    // 1. Fetch Basic Counts and Aggregates
+    // 1. Fetch Basic Counts and Aggregates across all 3 AQA ERP Filieres
     const [
       clientCount,
       activeClientCardsCount,
@@ -21,10 +21,18 @@ export default async function AdminDashboardPage() {
       revenueTodayAggregate,
       revenueThisMonthAggregate,
       revenueThisYearAggregate,
-      totalRevenueAggregate,
       newClientsThisMonth,
       inactiveCardsCount,
       creditRate,
+      // Filiere 1: AQA Sports Academy (AQA Swim)
+      swimMembersCount,
+      swimPendingLeadsCount,
+      swimActiveGroupsCount,
+      swimPaymentsAggregate,
+      // Filiere 3: AQA Store
+      storeProductsCount,
+      swimGearArticlesCount,
+      swimGearSales,
     ] = await Promise.all([
       prisma.client.count(),
       prisma.card.count({
@@ -60,10 +68,6 @@ export default async function AdminDashboardPage() {
         where: { status: "paid", paidAt: { gte: startOfThisYear } },
         _sum: { amount: true },
       }),
-      prisma.invoice.aggregate({
-        where: { status: "paid" },
-        _sum: { amount: true },
-      }),
       prisma.client.count({
         where: { createdAt: { gte: startOfThisMonth } },
       }),
@@ -76,6 +80,15 @@ export default async function AdminDashboardPage() {
         },
       }),
       getCreditRate(),
+      prisma.swimMember.count(),
+      prisma.swimLead.count({ where: { status: "pending" } }),
+      prisma.swimGroup.count({ where: { active: true } }),
+      prisma.swimPayment.aggregate({ _sum: { amount: true } }),
+      prisma.product.count({ where: { active: true } }),
+      prisma.swimEquipmentArticle.count({ where: { active: true } }),
+      prisma.swimEquipmentSale.findMany({
+        select: { sellPrice: true, quantity: true },
+      }),
     ]);
 
     const creditsSold = Number((totalCreditsSold._sum.delta ?? 0).toFixed(2));
@@ -85,6 +98,16 @@ export default async function AdminDashboardPage() {
     const revenueToday = revenueTodayAggregate._sum.amount ?? 0;
     const revenueThisMonth = revenueThisMonthAggregate._sum.amount ?? 0;
     const revenueThisYear = revenueThisYearAggregate._sum.amount ?? 0;
+
+    const swimRevenueTotal = swimPaymentsAggregate._sum.amount ?? 0;
+
+    let swimGearUnitsSold = 0;
+    let swimGearRevenue = 0;
+    for (const sale of swimGearSales) {
+      const qty = sale.quantity ?? 1;
+      swimGearUnitsSold += qty;
+      swimGearRevenue += sale.sellPrice * qty;
+    }
 
     // 2. Compute Activities metrics
     const popularActivities = await prisma.redemption.groupBy({
@@ -224,8 +247,6 @@ export default async function AdminDashboardPage() {
         creditsUsed={creditsUsed}
         lowBalance={serializedLowBalance}
         recentRedemptions={serializedRecentRedemptions}
-        
-        // New Executive Props
         revenueToday={revenueToday}
         revenueThisMonth={revenueThisMonth}
         revenueThisYear={revenueThisYear}
@@ -237,6 +258,14 @@ export default async function AdminDashboardPage() {
         returningClientsCount={returningClientsCount}
         soldCreditRevenue={soldCreditRevenue}
         creditRate={creditRate}
+        swimMembersCount={swimMembersCount}
+        swimPendingLeadsCount={swimPendingLeadsCount}
+        swimActiveGroupsCount={swimActiveGroupsCount}
+        swimRevenueTotal={swimRevenueTotal}
+        storeProductsCount={storeProductsCount}
+        swimGearArticlesCount={swimGearArticlesCount}
+        swimGearUnitsSold={swimGearUnitsSold}
+        swimGearRevenue={swimGearRevenue}
       />
     );
   } catch (error) {
@@ -262,6 +291,14 @@ export default async function AdminDashboardPage() {
         returningClientsCount={0}
         soldCreditRevenue={0}
         creditRate={1900}
+        swimMembersCount={0}
+        swimPendingLeadsCount={0}
+        swimActiveGroupsCount={0}
+        swimRevenueTotal={0}
+        storeProductsCount={0}
+        swimGearArticlesCount={0}
+        swimGearUnitsSold={0}
+        swimGearRevenue={0}
       />
     );
   }

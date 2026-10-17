@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader, StatCard, Card, Badge, Button, Input } from "@/components/admin/ui";
 import dynamic from "next/dynamic";
 import { CallsErrorBoundary } from "@/components/admin/swim/calls/CallsErrorBoundary";
@@ -162,8 +162,9 @@ interface SwimCardItem {
   } | null;
 }
 
-export default function SwimOverviewPage() {
+function SwimOverviewPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool">("confirmed");
   const [loading, setLoading] = useState(true);
 
@@ -174,26 +175,25 @@ export default function SwimOverviewPage() {
 
   // Sync tab from URL search param if present (e.g. ?tab=calls)
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get("tab");
-      if (
-        tabParam === "confirmed" ||
-        tabParam === "leads" ||
-        tabParam === "groups" ||
-        tabParam === "calendar" ||
-        tabParam === "cards" ||
-        tabParam === "sectors" ||
-        tabParam === "calls" ||
-        tabParam === "payments" ||
-        tabParam === "backups" ||
-        tabParam === "equipment" ||
-        tabParam === "pool"
-      ) {
-        setActiveTab(tabParam);
-      }
+    const tabParam = searchParams?.get("tab");
+    if (
+      tabParam === "confirmed" ||
+      tabParam === "leads" ||
+      tabParam === "groups" ||
+      tabParam === "calendar" ||
+      tabParam === "cards" ||
+      tabParam === "sectors" ||
+      tabParam === "calls" ||
+      tabParam === "payments" ||
+      tabParam === "backups" ||
+      tabParam === "equipment" ||
+      tabParam === "pool"
+    ) {
+      setActiveTab(tabParam);
+    } else if (!tabParam) {
+      setActiveTab("confirmed");
     }
-  }, []);
+  }, [searchParams]);
 
   // Data States
   const [members, setMembers] = useState<SwimMember[]>([]);
@@ -930,10 +930,32 @@ export default function SwimOverviewPage() {
   return (
     <div className="space-y-6">
       {/* Top Header & Operational Stats (Hidden from all printouts & PDFs) */}
-      <div className="print:hidden space-y-6">
+      <div className="print:hidden space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-500/20 bg-sky-500/5 px-3.5 py-2">
+          <div className="flex items-center gap-2 text-xs">
+            <Link href="/admin" className="font-bold text-slate-400 hover:text-white transition-colors">
+              AQA ERP
+            </Link>
+            <span className="text-slate-600">/</span>
+            <Link href="/admin/academy" className="font-bold text-sky-400 hover:text-sky-300 transition-colors">
+              1. AQA Sports Academy
+            </Link>
+            <span className="text-slate-600">/</span>
+            <span className="font-extrabold text-[var(--accent)]">AQA Swim</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/admin/academy"
+              className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+            >
+              Academy Hub →
+            </Link>
+          </div>
+        </div>
+
         <PageHeader
           title="AQA Swim Inscription Manager"
-          description="Comprehensive operational hub for managing swim inscriptions, confirmed client profiles, solid groups, and PVC pass cards."
+          description="1. AQA Sports Academy · Comprehensive operational hub for managing swim inscriptions, confirmed swimmer profiles, solid groups, and PVC pass cards."
           action={
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -3391,5 +3413,21 @@ export default function SwimOverviewPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function SwimOverviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-sm text-[var(--muted)] animate-pulse">
+            Loading AQA Swim Workspace...
+          </div>
+        </div>
+      }
+    >
+      <SwimOverviewPageInner />
+    </Suspense>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useRef, useCallback } from "react";
+import Link from "next/link";
 import { fetchWithRetry } from "@/lib/fetch-utils";
 import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 import {
@@ -457,10 +458,38 @@ export default function ProductsPage() {
   const archivedProducts = products.filter((p) => !p.active);
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-purple-500/20 bg-purple-500/5 px-3.5 py-2">
+        <div className="flex items-center gap-2 text-xs">
+          <Link href="/admin" className="font-bold text-slate-400 hover:text-white transition-colors">
+            AQA ERP
+          </Link>
+          <span className="text-slate-600">/</span>
+          <Link href="/admin/store" className="font-bold text-purple-400 hover:text-purple-300 transition-colors">
+            3. AQA Store
+          </Link>
+          <span className="text-slate-600">/</span>
+          <span className="font-extrabold text-[var(--foreground)]">Store Products & POS</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/admin/store?tab=swim-gear"
+            className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors"
+          >
+            Swim Gear Boutique →
+          </Link>
+          <Link
+            href="/admin/store"
+            className="text-[11px] font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+          >
+            AQA Store Hub →
+          </Link>
+        </div>
+      </div>
+
       <PageHeader
-        title="Products & Gear"
-        description="Manage equipment, sportswear, and accessories. Toggle 'Advertise' to display them on the client storefront."
+        title="AQA Store · Products & POS"
+        description="3. AQA Store · Manage retail products, sportswear, POS sales cart, and storefront advertising."
       />
 
       {/* View Mode Tabs */}

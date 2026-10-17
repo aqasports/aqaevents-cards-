@@ -14,10 +14,10 @@ function getMetadataBase(): URL {
 
 export const metadata: Metadata = {
   title: {
-    default: "AQA Event Card",
-    template: "%s · AQA Event Card",
+    default: "AQA ERP",
+    template: "%s · AQA ERP",
   },
-  description: "AQA Sports outdoor activity event card system — balance checking and admin management.",
+  description: "AQA ERP — Enterprise Resource Planning for 1. AQA Sports Academy (AQA Swim), 2. AQA Events, and 3. AQA Store.",
   metadataBase: getMetadataBase(),
 };
 

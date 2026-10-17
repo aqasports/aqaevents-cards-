@@ -49,16 +49,16 @@ function LoginForm() {
         {/* Logo block */}
         <div className="mb-8 text-center flex flex-col items-center">
           <img
-            src="/image/logoevents.png"
-            alt="AQA Events Logo"
-            className="h-16 w-auto object-contain mb-4 filter drop-shadow-[0_0_15px_rgba(0,242,255,0.25)] hover:scale-105 transition-transform duration-300 cursor-pointer"
+            src="/aqa-logo.png"
+            alt="AQA ERP Logo"
+            className="h-12 w-auto object-contain mb-4 filter drop-shadow-[0_0_15px_rgba(0,242,255,0.25)] hover:scale-105 transition-transform duration-300 cursor-pointer"
           />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--primary)]">
-            AQA Sports
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)]">
+            AQA ERP
           </p>
-          <h1 className="mt-1.5 text-2xl font-bold text-[var(--foreground)] tracking-tight">Admin Portal</h1>
-          <p className="mt-1 text-sm text-[var(--muted)]">
-            Sign in to manage clients and event cards
+          <h1 className="mt-1.5 text-2xl font-bold text-[var(--foreground)] tracking-tight">Enterprise Portal</h1>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            1. AQA Sports Academy (Swim) · 2. AQA Events · 3. AQA Store
           </p>
         </div>
 
@@ -91,7 +91,7 @@ function LoginForm() {
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--muted)]">
-          AQA Sports · Event Card Management System
+          AQA ERP · Sports Academy · Events · Store
         </p>
       </div>
     </div>
