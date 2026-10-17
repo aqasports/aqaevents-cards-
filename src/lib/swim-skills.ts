@@ -81,17 +81,84 @@ export interface SwimProgressionBadge {
   description: string;
 }
 
+export type StrokeBarKey =
+  | "basics"
+  | "crawl"
+  | "backstroke"
+  | "breaststroke"
+  | "butterfly";
+
+export interface SwimmerStrokeBars {
+  basics: number;
+  crawl: number;
+  backstroke: number;
+  breaststroke: number;
+  butterfly: number;
+}
+
+export interface StrokeBarDefinition {
+  key: StrokeBarKey;
+  order: number;
+  labelFr: string;
+  labelEn: string;
+  labelAr: string;
+  techHintFr: string;
+  techHintEn: string;
+  techHintAr: string;
+  eliteHintFr: string;
+  eliteHintEn: string;
+  eliteHintAr: string;
+}
+
+export interface AqaHonorBadgeDefinition {
+  key: "swimmer_of_the_month" | "swimmer_of_the_year";
+  periodType: "month" | "year";
+  label: string;
+  labelFr: string;
+  labelEn: string;
+  labelAr: string;
+  asset: string;
+  descriptionFr: string;
+  descriptionEn: string;
+  descriptionAr: string;
+}
+
 export interface SuiviReviewMeta {
   awardedBadgeKey: string | null;
   recommendedLevel: string | null;
   chrono25mFreestyle: number | null;
   chrono50mFreestyle: number | null;
   maxDistanceMeters: number | null;
+  bars: SwimmerStrokeBars;
+  lastTouchedBar: StrokeBarKey;
+  sessionVolumeMeters: number | null;
+  observation: string | null;
+  record50m: number | null;
+  recordApnea: number | null;
+  weightKg: number | null;
+  heightCm: number | null;
+  wordFromCoach: string | null;
+  honorRequestType: "swimmer_of_the_month" | "swimmer_of_the_year" | null;
+}
+
+export interface SwimmerCumulativeBilan {
+  bars: SwimmerStrokeBars;
+  lastTouchedBar: StrokeBarKey;
+  totalDistanceMeters: number;
+  lastSessionVolumeMeters: number | null;
+  record50m: number | null;
+  recordApnea: number | null;
+  weightKg: number | null;
+  heightCm: number | null;
+  wordFromCoach: string | null;
+  latestObservation: string | null;
 }
 
 export interface SwimmerSuiviProgressionResult {
   avgSkillScore: number;
   categoryAverages: Record<string, number>;
+  bars: SwimmerStrokeBars;
+  lastTouchedBar: StrokeBarKey;
   badgeKey: string;
   badgeLabel: string;
   badgeLabelEn: string;
@@ -105,6 +172,107 @@ export interface SwimmerSuiviProgressionResult {
   unlockedBadges: string[];
   meta: SuiviReviewMeta;
 }
+
+export const AQA_STROKE_BAR_DEFS: StrokeBarDefinition[] = [
+  {
+    key: "basics",
+    order: 1,
+    labelFr: "1. Basics",
+    labelEn: "1. Basics",
+    labelAr: "1. الأساسيات (Basics)",
+    techHintFr: "0-100% : Immersion, respiration aquatique, flottaison & glisse",
+    techHintEn: "0-100%: Immersion, breathing, buoyancy & streamline glide",
+    techHintAr: "0-100%: الغمر، التنفس المائي، الطفو والانزلاق",
+    eliteHintFr: "100-200% : Maitrise subaquatique, gainage & hydrodynamisme elite",
+    eliteHintEn: "100-200%: Underwater control, core stability & elite streamline",
+    eliteHintAr: "100-200%: التحكم تحت الماء، ثبات الجذع والانسيابية العالية",
+  },
+  {
+    key: "crawl",
+    order: 2,
+    labelFr: "2. Crawl",
+    labelEn: "2. Crawl",
+    labelAr: "2. السباحة الحرة (Crawl)",
+    techHintFr: "0-100% : Alignement, battements, prise d'appui & respiration bilaterale",
+    techHintEn: "0-100%: Body alignment, flutter kick, catch & bilateral breathing",
+    techHintAr: "0-100%: الاستقامة، ضربات الأرجل، السحب والتنفس الجانبي",
+    eliteHintFr: "100-200% : Endurance aerobie, vitesse sprint, force & virages culbutes",
+    eliteHintEn: "100-200%: Endurance, sprint speed, strength & flip turns",
+    eliteHintAr: "100-200%: التحمل، السرعة، القوة ودوران الشقلبة",
+  },
+  {
+    key: "backstroke",
+    order: 3,
+    labelFr: "3. Back (Dos)",
+    labelEn: "3. Back",
+    labelAr: "3. سباحة الظهر (Back)",
+    techHintFr: "0-100% : Posture dorsale, battements continus & roulis d'epaules",
+    techHintEn: "0-100%: Dorsal posture, continuous kick & shoulder roll",
+    techHintAr: "0-100%: وضعية الظهر، ضربات الأرجل المستمرة ودوران الكتفين",
+    eliteHintFr: "100-200% : Coulee dorsale, cadence de course, vitesse & endurance",
+    eliteHintEn: "100-200%: Underwater dolphin breakout, race tempo, speed & endurance",
+    eliteHintAr: "100-200%: الانزلاق الخلفي، إيقاع السباق، السرعة والتحمل",
+  },
+  {
+    key: "breaststroke",
+    order: 4,
+    labelFr: "4. Breast (Brasse)",
+    labelEn: "4. Breast",
+    labelAr: "4. سباحة الصدر (Breast)",
+    techHintFr: "0-100% : Ciseau symetrique, traction simultanee & synchronisation glisse",
+    techHintEn: "0-100%: Symmetrical whip kick, pull & glide coordination",
+    techHintAr: "0-100%: ضربة الصدر المتماثلة، السحب والتناسق مع الانزلاق",
+    eliteHintFr: "100-200% : Puissance de traction, coulee subaquatique & vitesse",
+    eliteHintEn: "100-200%: Pull power, underwater pullout, strength & speed",
+    eliteHintAr: "100-200%: قوة السحب، الشدة تحت الماء والسرعة التنافسية",
+  },
+  {
+    key: "butterfly",
+    order: 5,
+    labelFr: "5. Butterfly (Papillon)",
+    labelEn: "5. Butterfly",
+    labelAr: "5. سباحة الفراشة (Butterfly)",
+    techHintFr: "0-100% : Ondulation du bassin, retour aerien des bras & rythme 2 temps",
+    techHintEn: "0-100%: Hip undulation, dual arm recovery & 2-beat rhythm",
+    techHintAr: "0-100%: تموج الحوض، رجوع الذراعين المتزامن وإيقاع الضربتين",
+    eliteHintFr: "100-200% : Puissance explosive, endurance papillon, vitesse & departs",
+    eliteHintEn: "100-200%: Explosive power, butterfly endurance, speed & race starts",
+    eliteHintAr: "100-200%: القوة الانفجارية، تحمل الفراشة، السرعة والانطلاقات",
+  },
+];
+
+export const AQA_HONOR_BADGES: AqaHonorBadgeDefinition[] = [
+  {
+    key: "swimmer_of_the_month",
+    periodType: "month",
+    label: "Swimmer of the Month",
+    labelFr: "Swimmer of the Month (Nageur du Mois)",
+    labelEn: "Swimmer of the Month",
+    labelAr: "سباح الشهر (Swimmer of the Month)",
+    asset: "full_swimmer.png",
+    descriptionFr:
+      "Nomination officielle envoyee a l'ERP AQA pour elire le Nageur du Mois parmi les propositions des coachs.",
+    descriptionEn:
+      "Official nomination sent to AQA ERP to elect the Swimmer of the Month among coach proposals.",
+    descriptionAr:
+      "ترشيح رسمي يرسل إلى نظام AQA ERP لاختيار سباح الشهر بعد مقارنة مقترحات المدربين.",
+  },
+  {
+    key: "swimmer_of_the_year",
+    periodType: "year",
+    label: "Swimmer of the Year",
+    labelFr: "Swimmer of the Year (Nageur de l'Annee)",
+    labelEn: "Swimmer of the Year",
+    labelAr: "سباح السنة (Swimmer of the Year)",
+    asset: "tsunami.png",
+    descriptionFr:
+      "Nomination officielle envoyee a l'ERP AQA pour elire le Nageur de l'Annee parmi les propositions des coachs.",
+    descriptionEn:
+      "Official nomination sent to AQA ERP to elect the Swimmer of the Year among coach proposals.",
+    descriptionAr:
+      "ترشيح رسمي يرسل إلى نظام AQA ERP لاختيار سباح السنة بعد مقارنة مقترحات المدربين.",
+  },
+];
 
 export const AQA_SUIVI_STAGES: AqaSuiviStage[] = [
   {
@@ -1164,6 +1332,32 @@ function toFiniteNumberOrNull(val: unknown): number | null {
   return Number.isFinite(num) && num > 0 ? num : null;
 }
 
+function clampBarPct(val: unknown, fallback = 0): number {
+  if (val === null || val === undefined || val === "") return fallback;
+  const num = Number(val);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(0, Math.min(200, Math.round(num)));
+}
+
+function normalizeStrokeBarKey(val: unknown): StrokeBarKey {
+  const s = typeof val === "string" ? val.trim().toLowerCase() : "";
+  if (s === "crawl" || s === "freestyle") return "crawl";
+  if (s === "backstroke" || s === "back" || s === "dos") return "backstroke";
+  if (s === "breaststroke" || s === "breast" || s === "brasse") return "breaststroke";
+  if (s === "butterfly" || s === "butterfly_starts" || s === "papillon") return "butterfly";
+  return "basics";
+}
+
+function barPctToFiveScale(pct: number): number {
+  const clamped = Math.max(0, Math.min(200, pct));
+  return Number((1.0 + (clamped / 200.0) * 4.0).toFixed(1));
+}
+
+function fiveScaleToBarPct(score: number): number {
+  const clamped = Math.max(1, Math.min(5, score));
+  return Math.round(((clamped - 1.0) / 4.0) * 200);
+}
+
 export function computeSwimmerSuiviProgression(
   latestSkillsJson: Record<string, unknown> | Array<unknown> | string | null | undefined,
   reviewCount = 0
@@ -1176,12 +1370,30 @@ export function computeSwimmerSuiviProgression(
     butterfly_starts: 1.0,
   };
 
+  const defaultBars: SwimmerStrokeBars = {
+    basics: 0,
+    crawl: 0,
+    backstroke: 0,
+    breaststroke: 0,
+    butterfly: 0,
+  };
+
   const meta: SuiviReviewMeta = {
     awardedBadgeKey: null,
     recommendedLevel: null,
     chrono25mFreestyle: null,
     chrono50mFreestyle: null,
     maxDistanceMeters: null,
+    bars: { ...defaultBars },
+    lastTouchedBar: "basics",
+    sessionVolumeMeters: null,
+    observation: null,
+    record50m: null,
+    recordApnea: null,
+    weightKg: null,
+    heightCm: null,
+    wordFromCoach: null,
+    honorRequestType: null,
   };
 
   let parsed: unknown = latestSkillsJson;
@@ -1192,6 +1404,19 @@ export function computeSwimmerSuiviProgression(
       parsed = null;
     }
   }
+
+  let hasExplicitBars = false;
+
+  const parseBarsObject = (rawBars: Record<string, unknown>) => {
+    hasExplicitBars = true;
+    meta.bars = {
+      basics: clampBarPct(rawBars.basics ?? rawBars.water_comfort, 0),
+      crawl: clampBarPct(rawBars.crawl ?? rawBars.freestyle, 0),
+      backstroke: clampBarPct(rawBars.backstroke ?? rawBars.back, 0),
+      breaststroke: clampBarPct(rawBars.breaststroke ?? rawBars.breast, 0),
+      butterfly: clampBarPct(rawBars.butterfly ?? rawBars.butterfly_starts, 0),
+    };
+  };
 
   const domainScores: Record<BiomechanicalDomain["key"], number[]> = {
     water_comfort: [],
@@ -1222,8 +1447,22 @@ export function computeSwimmerSuiviProgression(
     }
   } else if (parsed && typeof parsed === "object") {
     const obj = parsed as Record<string, unknown>;
+
+    if (obj.bars && typeof obj.bars === "object" && !Array.isArray(obj.bars)) {
+      parseBarsObject(obj.bars as Record<string, unknown>);
+    }
+    if (typeof obj.lastTouchedBar === "string") {
+      meta.lastTouchedBar = normalizeStrokeBarKey(obj.lastTouchedBar);
+    }
+
     if (obj._meta && typeof obj._meta === "object") {
       const m = obj._meta as Record<string, unknown>;
+      if (m.bars && typeof m.bars === "object" && !Array.isArray(m.bars)) {
+        parseBarsObject(m.bars as Record<string, unknown>);
+      }
+      if (typeof m.lastTouchedBar === "string") {
+        meta.lastTouchedBar = normalizeStrokeBarKey(m.lastTouchedBar);
+      }
       if (typeof m.awardedBadgeKey === "string" && m.awardedBadgeKey.trim().length > 0) {
         meta.awardedBadgeKey = m.awardedBadgeKey.trim().toLowerCase();
       }
@@ -1234,11 +1473,32 @@ export function computeSwimmerSuiviProgression(
         m.chrono25mFreestyle ?? m.time25mSec ?? m.time_25m_free
       );
       meta.chrono50mFreestyle = toFiniteNumberOrNull(
-        m.chrono50mFreestyle ?? m.time50mSec ?? m.time_50m_free
+        m.chrono50mFreestyle ?? m.record50m ?? m.time50mSec ?? m.time_50m_free
       );
       meta.maxDistanceMeters = toFiniteNumberOrNull(
-        m.maxDistanceMeters ?? m.maxDistanceM ?? m.continuous_distance
+        m.maxDistanceMeters ?? m.sessionVolumeMeters ?? m.maxDistanceM ?? m.continuous_distance
       );
+      meta.sessionVolumeMeters = toFiniteNumberOrNull(
+        m.sessionVolumeMeters ?? m.volume ?? m.maxDistanceMeters
+      );
+      meta.record50m = toFiniteNumberOrNull(
+        m.record50m ?? m.chrono50mFreestyle ?? m.time50mSec
+      );
+      meta.recordApnea = toFiniteNumberOrNull(m.recordApnea ?? m.apneaRecord);
+      meta.weightKg = toFiniteNumberOrNull(m.weightKg ?? m.weight);
+      meta.heightCm = toFiniteNumberOrNull(m.heightCm ?? m.tall ?? m.height);
+      if (typeof m.observation === "string" && m.observation.trim().length > 0) {
+        meta.observation = m.observation.trim();
+      }
+      if (typeof m.wordFromCoach === "string" && m.wordFromCoach.trim().length > 0) {
+        meta.wordFromCoach = m.wordFromCoach.trim();
+      }
+      if (
+        m.honorRequestType === "swimmer_of_the_month" ||
+        m.honorRequestType === "swimmer_of_the_year"
+      ) {
+        meta.honorRequestType = m.honorRequestType;
+      }
     }
 
     if (Array.isArray(obj.skills)) {
@@ -1251,7 +1511,15 @@ export function computeSwimmerSuiviProgression(
       }
     } else {
       for (const [key, value] of Object.entries(obj)) {
-        if (key === "_meta" || key === "skills" || key === "metrics") continue;
+        if (
+          key === "_meta" ||
+          key === "skills" ||
+          key === "metrics" ||
+          key === "bars" ||
+          key === "lastTouchedBar"
+        ) {
+          continue;
+        }
         if (typeof value === "number" || typeof value === "string") {
           pushScore(key, value);
         } else if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -1276,22 +1544,56 @@ export function computeSwimmerSuiviProgression(
     }
   }
 
-  const rawAvg =
-    allScores.length > 0
-      ? allScores.reduce((acc, v) => acc + v, 0) / allScores.length
-      : reviewCount > 0
-      ? 1.0
-      : 0.0;
-  const avgSkillScore = Number(rawAvg.toFixed(1));
-
   const categoryAverages: Record<string, number> = { ...defaultDomainAverages };
-  for (const domain of AQA_BIOMECHANICAL_DOMAINS) {
-    const arr = domainScores[domain.key];
-    if (arr.length > 0) {
-      const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
-      categoryAverages[domain.key] = Number(avg.toFixed(1));
-    } else {
-      categoryAverages[domain.key] = avgSkillScore > 0 ? avgSkillScore : 1.0;
+  let avgSkillScore = 1.0;
+
+  if (hasExplicitBars) {
+    categoryAverages.water_comfort = barPctToFiveScale(meta.bars.basics);
+    categoryAverages.freestyle = barPctToFiveScale(meta.bars.crawl);
+    categoryAverages.backstroke = barPctToFiveScale(meta.bars.backstroke);
+    categoryAverages.breaststroke = barPctToFiveScale(meta.bars.breaststroke);
+    categoryAverages.butterfly_starts = barPctToFiveScale(meta.bars.butterfly);
+
+    const barValues = [
+      meta.bars.basics,
+      meta.bars.crawl,
+      meta.bars.backstroke,
+      meta.bars.breaststroke,
+      meta.bars.butterfly,
+    ];
+    const activeVals = barValues.filter((v) => v > 0);
+    const meanPct =
+      activeVals.length > 0
+        ? activeVals.reduce((a, b) => a + b, 0) / 5.0
+        : 0;
+    avgSkillScore = barPctToFiveScale(meanPct);
+  } else {
+    const rawAvg =
+      allScores.length > 0
+        ? allScores.reduce((acc, v) => acc + v, 0) / allScores.length
+        : reviewCount > 0
+        ? 1.0
+        : 0.0;
+    avgSkillScore = Number(rawAvg.toFixed(1));
+
+    for (const domain of AQA_BIOMECHANICAL_DOMAINS) {
+      const arr = domainScores[domain.key];
+      if (arr.length > 0) {
+        const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+        categoryAverages[domain.key] = Number(avg.toFixed(1));
+      } else {
+        categoryAverages[domain.key] = avgSkillScore > 0 ? avgSkillScore : 1.0;
+      }
+    }
+
+    if (allScores.length > 0) {
+      meta.bars = {
+        basics: fiveScaleToBarPct(categoryAverages.water_comfort),
+        crawl: fiveScaleToBarPct(categoryAverages.freestyle),
+        backstroke: fiveScaleToBarPct(categoryAverages.backstroke),
+        breaststroke: fiveScaleToBarPct(categoryAverages.breaststroke),
+        butterfly: fiveScaleToBarPct(categoryAverages.butterfly_starts),
+      };
     }
   }
 
@@ -1312,6 +1614,12 @@ export function computeSwimmerSuiviProgression(
       )
     : undefined;
 
+  const explicitHonor = meta.awardedBadgeKey
+    ? AQA_HONOR_BADGES.find(
+        (h) => h.key.toLowerCase() === meta.awardedBadgeKey?.toLowerCase()
+      )
+    : undefined;
+
   const activeBadge = explicitBadge || autoBadge;
   const maxUnlockedOrder = Math.max(autoBadge.order, activeBadge.order);
 
@@ -1324,7 +1632,29 @@ export function computeSwimmerSuiviProgression(
 
   let activeStage =
     AQA_SUIVI_STAGES.find((s) => s.key === activeBadge.stageKey) || AQA_SUIVI_STAGES[0];
-  if (!explicitBadge && avgSkillScore > 0) {
+
+  if (hasExplicitBars) {
+    const b = meta.bars;
+    if (
+      b.basics > 100 ||
+      b.crawl > 100 ||
+      b.backstroke > 100 ||
+      b.breaststroke > 100 ||
+      b.butterfly > 100
+    ) {
+      activeStage = AQA_SUIVI_STAGES[5]; // Elite
+    } else if (b.butterfly > 0) {
+      activeStage = AQA_SUIVI_STAGES[4]; // Butterfly
+    } else if (b.breaststroke > 0) {
+      activeStage = AQA_SUIVI_STAGES[3]; // Breaststroke
+    } else if (b.backstroke > 0) {
+      activeStage = AQA_SUIVI_STAGES[2]; // Backstroke
+    } else if (b.crawl > 0) {
+      activeStage = AQA_SUIVI_STAGES[1]; // Crawl
+    } else {
+      activeStage = AQA_SUIVI_STAGES[0]; // Basics
+    }
+  } else if (!explicitBadge && avgSkillScore > 0) {
     for (const st of AQA_SUIVI_STAGES) {
       if (avgSkillScore >= st.minAvgScore) {
         activeStage = st;
@@ -1335,11 +1665,13 @@ export function computeSwimmerSuiviProgression(
   return {
     avgSkillScore,
     categoryAverages,
-    badgeKey: activeBadge.key,
-    badgeLabel: activeBadge.labelFr,
-    badgeLabelEn: activeBadge.labelEn,
-    badgeLabelAr: activeBadge.labelAr,
-    badgeAsset: activeBadge.asset,
+    bars: meta.bars,
+    lastTouchedBar: meta.lastTouchedBar,
+    badgeKey: explicitHonor ? explicitHonor.key : activeBadge.key,
+    badgeLabel: explicitHonor ? explicitHonor.labelFr : activeBadge.labelFr,
+    badgeLabelEn: explicitHonor ? explicitHonor.labelEn : activeBadge.labelEn,
+    badgeLabelAr: explicitHonor ? explicitHonor.labelAr : activeBadge.labelAr,
+    badgeAsset: explicitHonor ? explicitHonor.asset : activeBadge.asset,
     stageKey: activeStage.key,
     stageLabel: activeStage.labelFr,
     stageLabelEn: activeStage.labelEn,
@@ -1347,5 +1679,89 @@ export function computeSwimmerSuiviProgression(
     stageAsset: activeStage.asset,
     unlockedBadges,
     meta,
+  };
+}
+
+/**
+ * Aggregates cumulative volume (totalDistanceMeters) and persistent swimmer records/physical data
+ * across all reviews (ordered newest first).
+ */
+export function aggregateSwimmerCumulativeBilan(
+  reviewsNewestFirst: Array<{
+    skills?: unknown;
+    metrics?: unknown;
+    strengths?: string | null;
+  }>
+): SwimmerCumulativeBilan {
+  let totalDistanceMeters = 0;
+  let lastSessionVolumeMeters: number | null = null;
+  let record50m: number | null = null;
+  let recordApnea: number | null = null;
+  let weightKg: number | null = null;
+  let heightCm: number | null = null;
+  let wordFromCoach: string | null = null;
+  let latestObservation: string | null = null;
+
+  let latestBars: SwimmerStrokeBars = {
+    basics: 0,
+    crawl: 0,
+    backstroke: 0,
+    breaststroke: 0,
+    butterfly: 0,
+  };
+  let latestLastTouchedBar: StrokeBarKey = "basics";
+  let barsFound = false;
+
+  for (let i = 0; i < reviewsNewestFirst.length; i++) {
+    const rev = reviewsNewestFirst[i];
+    const prog = computeSwimmerSuiviProgression(rev.skills as string | Record<string, unknown> | null, 1);
+
+    if (!barsFound && (i === 0 || Object.values(prog.bars).some((v) => v > 0))) {
+      latestBars = { ...prog.bars };
+      latestLastTouchedBar = prog.lastTouchedBar;
+      if (Object.values(prog.bars).some((v) => v > 0)) {
+        barsFound = true;
+      }
+    }
+
+    const vol = prog.meta.sessionVolumeMeters;
+    if (vol && vol > 0) {
+      totalDistanceMeters += Math.round(vol);
+      if (lastSessionVolumeMeters === null) {
+        lastSessionVolumeMeters = Math.round(vol);
+      }
+    }
+
+    if (record50m === null && prog.meta.record50m !== null) {
+      record50m = prog.meta.record50m;
+    }
+    if (recordApnea === null && prog.meta.recordApnea !== null) {
+      recordApnea = prog.meta.recordApnea;
+    }
+    if (weightKg === null && prog.meta.weightKg !== null) {
+      weightKg = prog.meta.weightKg;
+    }
+    if (heightCm === null && prog.meta.heightCm !== null) {
+      heightCm = prog.meta.heightCm;
+    }
+    if (wordFromCoach === null && prog.meta.wordFromCoach !== null) {
+      wordFromCoach = prog.meta.wordFromCoach;
+    }
+    if (latestObservation === null) {
+      latestObservation = prog.meta.observation || rev.strengths || null;
+    }
+  }
+
+  return {
+    bars: latestBars,
+    lastTouchedBar: latestLastTouchedBar,
+    totalDistanceMeters,
+    lastSessionVolumeMeters,
+    record50m,
+    recordApnea,
+    weightKg,
+    heightCm,
+    wordFromCoach,
+    latestObservation,
   };
 }

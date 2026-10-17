@@ -99,6 +99,50 @@ interface SwimmerSuiviItem {
   stageKey: string;
   stageLabel: string;
   stageAsset: string;
+  bars?: {
+    basics: number;
+    crawl: number;
+    backstroke: number;
+    breaststroke: number;
+    butterfly: number;
+  };
+  lastTouchedBar?: string;
+  totalDistanceMeters?: number;
+  record50m?: number | null;
+  recordApnea?: number | null;
+  weightKg?: number | null;
+  heightCm?: number | null;
+  wordFromCoach?: string | null;
+}
+
+interface HonorNominationItem {
+  id: string;
+  honorType: "swimmer_of_the_month" | "swimmer_of_the_year";
+  periodKey: string;
+  memberId: string;
+  memberName: string;
+  swimId: string;
+  groupName: string;
+  coachId: string;
+  coachName: string;
+  note: string | null;
+  bars: Record<string, number> | null;
+  totalDistanceMeters: number;
+  record50m: number | null;
+  recordApnea: number | null;
+  wordFromCoach: string | null;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+interface HonorLockStatus {
+  monthPeriod: string;
+  yearPeriod: string;
+  swimmerOfTheMonthLocked: boolean;
+  swimmerOfTheMonthWinner: HonorNominationItem | null;
+  swimmerOfTheYearLocked: boolean;
+  swimmerOfTheYearWinner: HonorNominationItem | null;
 }
 
 interface AppConfig {
@@ -120,6 +164,7 @@ export function SwimCoachingDesk() {
     pendingAbsencesCount: 0,
     pendingReplacementsCount: 0,
     totalSwimmersCount: 0,
+    pendingHonorsCount: 0,
   });
   const [coaches, setCoaches] = useState<CoachItem[]>([]);
   const [groups, setGroups] = useState<GroupItem[]>([]);
@@ -127,6 +172,8 @@ export function SwimCoachingDesk() {
   const [replacements, setReplacements] = useState<ReplacementItem[]>([]);
   const [recentSessions, setRecentSessions] = useState<SessionFeedItem[]>([]);
   const [swimmers, setSwimmers] = useState<SwimmerSuiviItem[]>([]);
+  const [honorLockStatus, setHonorLockStatus] = useState<HonorLockStatus | null>(null);
+  const [honorNominations, setHonorNominations] = useState<HonorNominationItem[]>([]);
   const [appConfig, setAppConfig] = useState<AppConfig>({
     enabled: true,
     announcement: "",
@@ -174,6 +221,8 @@ export function SwimCoachingDesk() {
       setReplacements(data.replacements);
       setRecentSessions(data.recentSessions || []);
       setSwimmers(data.swimmers || []);
+      setHonorLockStatus(data.honorLockStatus || null);
+      setHonorNominations(data.honorNominations || []);
       if (data.appConfig) {
         setAppConfig(data.appConfig);
         setAppEnabledDraft(data.appConfig.enabled);
@@ -342,6 +391,29 @@ export function SwimCoachingDesk() {
     }
   }
 
+  // Decide Swimmer of the Month / Swimmer of the Year nomination
+  async function handleDecideHonorNomination(
+    requestId: string,
+    decision: "approved" | "rejected"
+  ) {
+    try {
+      const res = await fetch("/api/admin/swim/coaching", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "DECIDE_HONOR_NOMINATION",
+          requestId,
+          decision,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to process honor nomination");
+      await fetchData();
+    } catch (err: any) {
+      alert(err?.message || "Error processing honor nomination.");
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
@@ -421,13 +493,18 @@ export function SwimCoachingDesk() {
         </button>
         <button
           onClick={() => setActiveTab("suivi")}
-          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors ${
+          className={`px-4 py-2.5 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors flex items-center gap-2 ${
             activeTab === "suivi"
               ? "border-[var(--primary)] text-[var(--primary)]"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          4. Suivi Technique & Badges AQA
+          <span>4. Suivi Technique, Bilan & Badges AQA</span>
+          {kpis.pendingHonorsCount > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              {kpis.pendingHonorsCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("replacements")}
@@ -671,7 +748,6 @@ export function SwimCoachingDesk() {
                         {s.ratingStars ? (
                           <div className="flex items-center gap-1 font-mono text-amber-400 font-bold">
                             <span>{s.ratingStars} / 5</span>
-                            <span className="text-xs text-amber-500/70">★</span>
                           </div>
                         ) : (
                           <span className="text-slate-500 italic">Non notée</span>
@@ -689,77 +765,300 @@ export function SwimCoachingDesk() {
         </div>
       )}
 
-      {/* TAB 4: Suivi Technique & Badges AQA */}
+      {/* TAB 4: Suivi Technique, Bilan & Badges AQA */}
       {!loading && activeTab === "suivi" && (
-        <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
-          <div className="p-4 border-b border-white/10 flex justify-between items-center">
-            <div>
-              <h3 className="text-sm font-semibold text-white">Suivi Technique & Progression Badges</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Attribution des 4 Mascottes Paliers et 15 Badges AQA Pro avec calcul de la moyenne technique (1.0 à 5.0).
-              </p>
+        <div className="space-y-6">
+          {/* Swimmer of the Month & Swimmer of the Year Nominations Comparison Panel */}
+          <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
+            <div className="p-4 border-b border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">
+                  Comparatif & Election : Nageur du Mois & Nageur de l&apos;Année
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Les coachs proposent leurs candidats depuis l&apos;étape Bilan. Dès que la direction accepte un lauréat, ce badge est verrouillé pour tous les autres coachs jusqu&apos;au mois ou à l&apos;année suivante.
+                </p>
+              </div>
+              {honorLockStatus && (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <div
+                    className={`px-3 py-1.5 rounded-lg border font-medium ${
+                      honorLockStatus.swimmerOfTheMonthLocked
+                        ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                        : "bg-slate-800/80 border-white/10 text-slate-300"
+                    }`}
+                  >
+                    <span className="font-mono font-bold mr-1">
+                      Mois {honorLockStatus.monthPeriod}:
+                    </span>
+                    {honorLockStatus.swimmerOfTheMonthLocked &&
+                    honorLockStatus.swimmerOfTheMonthWinner
+                      ? `Elu: ${honorLockStatus.swimmerOfTheMonthWinner.memberName} (Verrouillé)`
+                      : "Ouvert aux nominations"}
+                  </div>
+                  <div
+                    className={`px-3 py-1.5 rounded-lg border font-medium ${
+                      honorLockStatus.swimmerOfTheYearLocked
+                        ? "bg-amber-950/60 border-amber-500/40 text-amber-300"
+                        : "bg-slate-800/80 border-white/10 text-slate-300"
+                    }`}
+                  >
+                    <span className="font-mono font-bold mr-1">
+                      Année {honorLockStatus.yearPeriod}:
+                    </span>
+                    {honorLockStatus.swimmerOfTheYearLocked &&
+                    honorLockStatus.swimmerOfTheYearWinner
+                      ? `Elu: ${honorLockStatus.swimmerOfTheYearWinner.memberName} (Verrouillé)`
+                      : "Ouvert aux nominations"}
+                  </div>
+                </div>
+              )}
             </div>
-            <span className="text-xs text-slate-400">{swimmers.length} nageurs</span>
+
+            {honorNominations.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">
+                Aucune demande de nomination Nageur du Mois / Nageur de l&apos;Année soumise par les coachs pour le moment.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-800/60 text-slate-400 border-b border-white/10">
+                    <tr>
+                      <th className="p-3">Distinction & Période</th>
+                      <th className="p-3">Candidat Nageur</th>
+                      <th className="p-3">Proposé par</th>
+                      <th className="p-3">Barres 0-200%</th>
+                      <th className="p-3">Distance Cumulée & Records</th>
+                      <th className="p-3">Mot du Coach / Argumentaire</th>
+                      <th className="p-3">Statut</th>
+                      <th className="p-3 text-right">Décision ERP</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {honorNominations.map((nom) => {
+                      const isMonth = nom.honorType === "swimmer_of_the_month";
+                      const isPeriodLocked = isMonth
+                        ? honorLockStatus?.swimmerOfTheMonthLocked &&
+                          honorLockStatus?.monthPeriod === nom.periodKey
+                        : honorLockStatus?.swimmerOfTheYearLocked &&
+                          honorLockStatus?.yearPeriod === nom.periodKey;
+
+                      return (
+                        <tr key={nom.id} className="hover:bg-white/[0.02]">
+                          <td className="p-3">
+                            <span
+                              className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                isMonth
+                                  ? "bg-cyan-950 text-cyan-300 border-cyan-800/50"
+                                  : "bg-amber-950 text-amber-300 border-amber-800/50"
+                              }`}
+                            >
+                              {isMonth ? "NAGEUR DU MOIS" : "NAGEUR DE L'ANNEE"}
+                            </span>
+                            <div className="text-[11px] font-mono text-slate-400 mt-1">
+                              Période: {nom.periodKey}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <div className="font-semibold text-white">{nom.memberName}</div>
+                            <div className="text-[11px] text-slate-400">
+                              {nom.groupName} • <span className="font-mono">{nom.swimId}</span>
+                            </div>
+                          </td>
+                          <td className="p-3 font-medium text-sky-400">{nom.coachName}</td>
+                          <td className="p-3">
+                            {nom.bars ? (
+                              <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
+                                  Bas: {nom.bars.basics ?? 0}%
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-sky-300">
+                                  Crw: {nom.bars.crawl ?? 0}%
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-teal-300">
+                                  Dos: {nom.bars.backstroke ?? 0}%
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-indigo-300">
+                                  Brs: {nom.bars.breaststroke ?? 0}%
+                                </span>
+                                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300">
+                                  Pap: {nom.bars.butterfly ?? 0}%
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500">-</span>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono text-[11px] text-slate-300">
+                            <div className="text-teal-400 font-bold">
+                              {nom.totalDistanceMeters || 0} m cumulés
+                            </div>
+                            <div className="text-slate-400">
+                              50m: {nom.record50m ? `${nom.record50m}s` : "-"} | Apnée:{" "}
+                              {nom.recordApnea ? `${nom.recordApnea}s` : "-"}
+                            </div>
+                          </td>
+                          <td className="p-3 text-slate-300 max-w-xs">
+                            {nom.wordFromCoach || nom.note || "-"}
+                          </td>
+                          <td className="p-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                nom.status === "approved"
+                                  ? "bg-emerald-950 text-emerald-300 border-emerald-800/40"
+                                  : nom.status === "rejected"
+                                  ? "bg-red-950 text-red-300 border-red-800/40"
+                                  : "bg-amber-950 text-amber-300 border-amber-800/40"
+                              }`}
+                            >
+                              {nom.status === "approved"
+                                ? "ELU & VERROUILLE"
+                                : nom.status === "rejected"
+                                ? "REFUSE"
+                                : "EN ATTENTE"}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            {nom.status === "pending" && !isPeriodLocked && (
+                              <div className="flex justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => handleDecideHonorNomination(nom.id, "rejected")}
+                                >
+                                  Refuser
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleDecideHonorNomination(nom.id, "approved")}
+                                >
+                                  Accepter & Elire
+                                </Button>
+                              </div>
+                            )}
+                            {nom.status === "pending" && isPeriodLocked && (
+                              <span className="text-[11px] text-slate-500 italic">
+                                Période déjà attribuée
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800/60 text-slate-400 border-b border-white/10">
-                <tr>
-                  <th className="p-3">Nageur</th>
-                  <th className="p-3">Groupe</th>
-                  <th className="p-3">Palier Mascotte</th>
-                  <th className="p-3">Badge Actuel</th>
-                  <th className="p-3">Moyenne Score</th>
-                  <th className="p-3">Assiduité Binaire</th>
-                  <th className="p-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {swimmers.map((m) => (
-                  <tr key={m.id} className="hover:bg-white/[0.02]">
-                    <td className="p-3">
-                      <div className="font-semibold text-white">{m.fullName}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">{m.swimId}</div>
-                    </td>
-                    <td className="p-3 text-slate-300">{m.groupName}</td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-teal-300 border border-teal-800/40">
-                        {m.stageLabel}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800/50">
-                        {m.badgeLabel}
-                      </span>
-                    </td>
-                    <td className="p-3 font-mono font-bold text-teal-400">
-                      {m.avgSkillScore.toFixed(2)} / 5.00
-                    </td>
-                    <td className="p-3">
-                      <span
-                        className={`font-mono font-bold ${
-                          m.attendanceRate >= 75 ? "text-emerald-400" : "text-amber-400"
-                        }`}
-                      >
-                        {m.attendanceRate}%
-                      </span>
-                      <span className="text-slate-500 text-[11px] ml-1">
-                        ({m.totalPresences}P / {m.totalAbsences}A)
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleOpenAwardBadge(m)}
-                      >
-                        Attribuer Badge
-                      </Button>
-                    </td>
+
+          {/* Swimmers Suivi & Bilan Table */}
+          <div className="rounded-xl bg-slate-900 border border-white/10 overflow-hidden">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-semibold text-white">
+                  Suivi Technique (5 Barres 0-200%), Bilan Physique & Badges AQA
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  0% à 100% : Evaluation Technique • 100% à 200% : Développement Elite (Endurance, Vitesse, Force) • Volume cumulé pour l&apos;App Membre AQA.
+                </p>
+              </div>
+              <span className="text-xs text-slate-400">{swimmers.length} nageurs</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-800/60 text-slate-400 border-b border-white/10">
+                  <tr>
+                    <th className="p-3">Nageur</th>
+                    <th className="p-3">Groupe & Etape</th>
+                    <th className="p-3">5 Barres Progression (0-200%)</th>
+                    <th className="p-3">Volume Cumulé</th>
+                    <th className="p-3">Records & Physique</th>
+                    <th className="p-3">Badge & Mot du Coach</th>
+                    <th className="p-3">Assiduité</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {swimmers.map((m) => (
+                    <tr key={m.id} className="hover:bg-white/[0.02]">
+                      <td className="p-3">
+                        <div className="font-semibold text-white">{m.fullName}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{m.swimId}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="text-slate-200 font-medium">{m.groupName}</div>
+                        <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-teal-300 border border-teal-800/40">
+                          {m.stageLabel}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex flex-wrap gap-1 font-mono text-[10px]">
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-white/5">
+                            1.Bas: {m.bars?.basics ?? 0}%
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-sky-300 border border-white/5">
+                            2.Crw: {m.bars?.crawl ?? 0}%
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-teal-300 border border-white/5">
+                            3.Dos: {m.bars?.backstroke ?? 0}%
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-indigo-300 border border-white/5">
+                            4.Brs: {m.bars?.breaststroke ?? 0}%
+                          </span>
+                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-white/5">
+                            5.Pap: {m.bars?.butterfly ?? 0}%
+                          </span>
+                        </div>
+                      </td>
+                      <td className="p-3 font-mono font-bold text-teal-400">
+                        {m.totalDistanceMeters ?? 0} m
+                      </td>
+                      <td className="p-3 font-mono text-[11px] text-slate-300">
+                        <div>
+                          50m: {m.record50m ? `${m.record50m}s` : "-"} | Apnée:{" "}
+                          {m.recordApnea ? `${m.recordApnea}s` : "-"}
+                        </div>
+                        <div className="text-slate-400">
+                          Poids: {m.weightKg ? `${m.weightKg}kg` : "-"} | Taille:{" "}
+                          {m.heightCm ? `${m.heightCm}cm` : "-"}
+                        </div>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800/50">
+                          {m.badgeLabel}
+                        </span>
+                        {m.wordFromCoach && (
+                          <div className="text-[11px] text-slate-400 mt-1 max-w-xs truncate">
+                            &ldquo;{m.wordFromCoach}&rdquo;
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <span
+                          className={`font-mono font-bold ${
+                            m.attendanceRate >= 75 ? "text-emerald-400" : "text-amber-400"
+                          }`}
+                        >
+                          {m.attendanceRate}%
+                        </span>
+                        <span className="text-slate-500 text-[11px] ml-1">
+                          ({m.totalPresences}P / {m.totalAbsences}A)
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleOpenAwardBadge(m)}
+                        >
+                          Attribuer Badge
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -1099,27 +1398,27 @@ export function SwimCoachingDesk() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1 font-medium">Sélectionner le Badge AQA (15 Badges)</label>
+                <label className="block text-slate-400 mb-1 font-medium">Sélectionner le Badge AQA (15 Badges Officiels)</label>
                 <select
                   value={selectedBadgeKey}
                   onChange={(e) => setSelectedBadgeKey(e.target.value)}
                   className="w-full bg-slate-800 border border-white/10 rounded-lg p-2 text-white"
                 >
-                  <option value="starter">1. Starter (Elephant)</option>
-                  <option value="beginner">2. Beginner (Elephant)</option>
-                  <option value="floater">3. Floater (Elephant)</option>
-                  <option value="leaf">4. Leaf Glider (Crocodile)</option>
-                  <option value="dolphin">5. Dolphin (Crocodile)</option>
-                  <option value="crawler">6. Crawler (Crocodile)</option>
-                  <option value="brasseur">7. Brasseur (Dauphin)</option>
-                  <option value="butterfly">8. Butterfly (Dauphin)</option>
-                  <option value="shark">9. Shark (Dauphin)</option>
-                  <option value="orca">10. Orca (Dauphin)</option>
-                  <option value="whale">11. Whale Endurance (Requin)</option>
-                  <option value="kraken">12. Kraken Power (Requin)</option>
-                  <option value="mosasaurus">13. Mosasaurus Elite (Requin)</option>
-                  <option value="tsunami">14. Tsunami Master (Requin)</option>
-                  <option value="full_swimmer">15. Full Swimmer AQA Pro (Requin)</option>
+                  <option value="starter">1. Starter (1 - Basics)</option>
+                  <option value="beginner">2. Beginner (1 - Basics)</option>
+                  <option value="floater">3. Floater (1 - Basics)</option>
+                  <option value="crawler">4. Crawler (2 - Crawl)</option>
+                  <option value="leaf">5. Leaf (3 - Backstroke)</option>
+                  <option value="brasseur">6. Brasseur (4 - Breaststroke)</option>
+                  <option value="butterfly">7. Butterfly (5 - Butterfly)</option>
+                  <option value="full_swimmer">8. Full swimmer (6 - Elite)</option>
+                  <option value="dolphin">9. Dolphin (6 - Elite)</option>
+                  <option value="shark">10. Shark (6 - Elite)</option>
+                  <option value="orca">11. Orca (6 - Elite)</option>
+                  <option value="whale">12. Whale (6 - Elite)</option>
+                  <option value="kraken">13. Kraken (6 - Elite)</option>
+                  <option value="mosasaurus">14. Mosasaurus (6 - Elite)</option>
+                  <option value="tsunami">15. Tsunami (6 - Elite)</option>
                 </select>
               </div>
 

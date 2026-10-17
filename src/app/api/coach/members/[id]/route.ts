@@ -4,12 +4,16 @@ import { requireCoachSession } from "@/lib/coach-auth";
 import { canManageTechReview } from "@/lib/coach-rbac";
 import {
   AQA_BIOMECHANICAL_DOMAINS,
+  AQA_HONOR_BADGES,
+  AQA_STROKE_BAR_DEFS,
   AQA_SUIVI_BADGES,
   AQA_SUIVI_STAGES,
+  aggregateSwimmerCumulativeBilan,
   computeSwimmerSuiviProgression,
   getSkillsForCategory,
   SWIM_SKILLS_CATALOG_V1,
 } from "@/lib/swim-skills";
+import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -56,28 +60,31 @@ export async function GET(
   const { id: memberId } = await params;
 
   try {
-    const member = await prisma.swimMember.findUnique({
-      where: { id: memberId },
-      include: {
-        card: { select: { cardCode: true, status: true } },
-        group: { select: { id: true, name: true, category: true, level: true } },
-        attendances: {
-          take: 50,
-          orderBy: { markedAt: "desc" },
-          include: {
-            session: {
-              select: { sessionDate: true, startTime: true },
+    const [member, honorLockStatus] = await Promise.all([
+      prisma.swimMember.findUnique({
+        where: { id: memberId },
+        include: {
+          card: { select: { cardCode: true, status: true } },
+          group: { select: { id: true, name: true, category: true, level: true } },
+          attendances: {
+            take: 50,
+            orderBy: { markedAt: "desc" },
+            include: {
+              session: {
+                select: { sessionDate: true, startTime: true },
+              },
+            },
+          },
+          techReviews: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              coach: { select: { id: true, name: true } },
             },
           },
         },
-        techReviews: {
-          orderBy: { createdAt: "desc" },
-          include: {
-            coach: { select: { id: true, name: true } },
-          },
-        },
-      },
-    });
+      }),
+      getCurrentHonorLockStatus(),
+    ]);
 
     if (!member) {
       return NextResponse.json(
@@ -140,17 +147,17 @@ export async function GET(
                 unit: "s",
               });
             }
-            if (Number(mObj.time50mSec || mObj.chrono50mFreestyle) > 0) {
+            if (Number(mObj.time50mSec || mObj.chrono50mFreestyle || mObj.record50m) > 0) {
               rawMetrics.push({
                 key: "chrono50mFreestyle",
-                value: Number(mObj.time50mSec || mObj.chrono50mFreestyle),
+                value: Number(mObj.time50mSec || mObj.chrono50mFreestyle || mObj.record50m),
                 unit: "s",
               });
             }
-            if (Number(mObj.maxDistanceM || mObj.maxDistanceMeters) > 0) {
+            if (Number(mObj.maxDistanceM || mObj.maxDistanceMeters || mObj.sessionVolumeMeters) > 0) {
               rawMetrics.push({
                 key: "maxDistanceMeters",
-                value: Number(mObj.maxDistanceM || mObj.maxDistanceMeters),
+                value: Number(mObj.maxDistanceM || mObj.maxDistanceMeters || mObj.sessionVolumeMeters),
                 unit: "m",
               });
             }
@@ -191,6 +198,14 @@ export async function GET(
             skillsJsonRecord._meta = v;
             continue;
           }
+          if (k === "bars" && v && typeof v === "object") {
+            skillsJsonRecord.bars = v;
+            continue;
+          }
+          if (k === "lastTouchedBar" && typeof v === "string") {
+            skillsJsonRecord.lastTouchedBar = v;
+            continue;
+          }
           if (typeof v === "number" || typeof v === "string") {
             const score = Math.max(1, Math.min(5, Number(v) || 1));
             const label = skillLabelMap.get(k) || k;
@@ -213,7 +228,6 @@ export async function GET(
         }
       }
 
-      // Ensure _meta is enriched with recommendedLevel or metrics if not already set
       const existingMeta =
         skillsJsonRecord._meta && typeof skillsJsonRecord._meta === "object"
           ? (skillsJsonRecord._meta as Record<string, unknown>)
@@ -237,6 +251,7 @@ export async function GET(
         : undefined;
 
       skillsJsonRecord._meta = {
+        ...existingMeta,
         awardedBadgeKey:
           existingMeta.awardedBadgeKey || matchedBadgeFromRecommended?.key || null,
         recommendedLevel: existingMeta.recommendedLevel || r.recommendedLevel || null,
@@ -245,10 +260,12 @@ export async function GET(
           findMetricVal(["chrono25mFreestyle", "time25mSec", "time_25m_free"]),
         chrono50mFreestyle:
           existingMeta.chrono50mFreestyle ??
-          findMetricVal(["chrono50mFreestyle", "time50mSec", "time_50m_free"]),
+          existingMeta.record50m ??
+          findMetricVal(["chrono50mFreestyle", "record50m", "time50mSec", "time_50m_free"]),
         maxDistanceMeters:
           existingMeta.maxDistanceMeters ??
-          findMetricVal(["maxDistanceMeters", "maxDistanceM", "continuous_distance"]),
+          existingMeta.sessionVolumeMeters ??
+          findMetricVal(["maxDistanceMeters", "sessionVolumeMeters", "maxDistanceM", "continuous_distance"]),
       };
 
       const revProg = computeSwimmerSuiviProgression(skillsJsonRecord, 1);
@@ -258,7 +275,7 @@ export async function GET(
         revProg.badgeLabel ||
         member.level ||
         "Starter";
-      const evaluatorNotes = r.strengths || "";
+      const evaluatorNotes = revProg.meta.observation || r.strengths || "";
 
       return {
         id: r.id,
@@ -269,6 +286,8 @@ export async function GET(
         kind: r.kind,
         skills: normalizedSkillsList,
         skillsJson: skillsJsonRecord,
+        bars: revProg.bars,
+        lastTouchedBar: revProg.lastTouchedBar,
         categoryAverages: revProg.categoryAverages,
         avgSkillScore: revProg.avgSkillScore,
         badgeKey: revProg.badgeKey,
@@ -294,6 +313,14 @@ export async function GET(
     const progression = computeSwimmerSuiviProgression(
       latestSkillsJson,
       shapedReviews.length
+    );
+
+    const cumulativeBilan = aggregateSwimmerCumulativeBilan(
+      shapedReviews.map((r) => ({
+        skills: r.skillsJson,
+        metrics: r.metrics,
+        strengths: r.strengths,
+      }))
     );
 
     // Combine unlocked badges across all historical reviews as well
@@ -324,6 +351,20 @@ export async function GET(
       shapedReviews[0]?.recommendedLevel ||
       member.level;
 
+    const mergedLatestMeta = {
+      ...progression.meta,
+      bars: cumulativeBilan.bars,
+      lastTouchedBar: cumulativeBilan.lastTouchedBar,
+      totalDistanceMeters: cumulativeBilan.totalDistanceMeters,
+      lastSessionVolumeMeters: cumulativeBilan.lastSessionVolumeMeters,
+      record50m: cumulativeBilan.record50m,
+      recordApnea: cumulativeBilan.recordApnea,
+      weightKg: cumulativeBilan.weightKg,
+      heightCm: cumulativeBilan.heightCm,
+      wordFromCoach: cumulativeBilan.wordFromCoach,
+      observation: cumulativeBilan.latestObservation,
+    };
+
     return NextResponse.json(
       {
         member: {
@@ -348,6 +389,16 @@ export async function GET(
           reviewCount: shapedReviews.length,
           avgSkillScore: progression.avgSkillScore,
           categoryAverages: progression.categoryAverages,
+          bars: cumulativeBilan.bars,
+          lastTouchedBar: cumulativeBilan.lastTouchedBar,
+          totalDistanceMeters: cumulativeBilan.totalDistanceMeters,
+          lastSessionVolumeMeters: cumulativeBilan.lastSessionVolumeMeters,
+          record50m: cumulativeBilan.record50m,
+          recordApnea: cumulativeBilan.recordApnea,
+          weightKg: cumulativeBilan.weightKg,
+          heightCm: cumulativeBilan.heightCm,
+          wordFromCoach: cumulativeBilan.wordFromCoach,
+          latestObservation: cumulativeBilan.latestObservation,
           badgeKey: progression.badgeKey,
           badgeLabel: progression.badgeLabel,
           badgeLabelEn: progression.badgeLabelEn,
@@ -359,8 +410,15 @@ export async function GET(
           stageLabelAr: progression.stageLabelAr,
           stageAsset: progression.stageAsset,
           unlockedBadges,
-          latestMeta: progression.meta,
+          latestMeta: mergedLatestMeta,
         },
+        bars: cumulativeBilan.bars,
+        lastTouchedBar: cumulativeBilan.lastTouchedBar,
+        totalDistanceMeters: cumulativeBilan.totalDistanceMeters,
+        bilan: cumulativeBilan,
+        honorLockStatus,
+        honorBadges: AQA_HONOR_BADGES,
+        strokeBarDefs: AQA_STROKE_BAR_DEFS,
         stageKey: progression.stageKey,
         stageLabel: progression.stageLabel,
         stageAsset: progression.stageAsset,
@@ -369,7 +427,7 @@ export async function GET(
         badgeAsset: progression.badgeAsset,
         unlockedBadges,
         categoryAverages: progression.categoryAverages,
-        latestMeta: progression.meta,
+        latestMeta: mergedLatestMeta,
         currentGroup: member.group
           ? {
               id: member.group.id,

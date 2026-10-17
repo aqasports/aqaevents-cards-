@@ -6,10 +6,17 @@ import { logAdminAction } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 import { getFlag, setFlag } from "@/lib/feature-flags";
 import {
+  AQA_HONOR_BADGES,
+  AQA_STROKE_BAR_DEFS,
   AQA_SUIVI_BADGES,
   AQA_SUIVI_STAGES,
+  aggregateSwimmerCumulativeBilan,
   computeSwimmerSuiviProgression,
 } from "@/lib/swim-skills";
+import {
+  decideHonorNominationByAdmin,
+  listHonorNominationsForAdmin,
+} from "@/lib/swim-honors";
 
 export const dynamic = "force-dynamic";
 
@@ -129,10 +136,11 @@ export async function GET(req: NextRequest) {
         },
         techReviews: {
           orderBy: { createdAt: "desc" },
-          take: 1,
+          take: 25,
           select: {
             skills: true,
             recommendedLevel: true,
+            strengths: true,
             createdAt: true,
           },
         },
@@ -160,12 +168,17 @@ export async function GET(req: NextRequest) {
       reminderMinutes: parseInt(settingsMap.get("coach_app_reminder_minutes") || "10", 10),
     };
 
-    // 8. Compute KPIs
+    // 8. Fetch Honor Nominations (Swimmer of the Month & Swimmer of the Year)
+    const { lockStatus: honorLockStatus, nominations: honorNominations } =
+      await listHonorNominationsForAdmin();
+
+    // 9. Compute KPIs
     const totalStaffCount = coaches.length;
     const coachesWithApp = coaches.filter((c) => c.account?.loginEnabled).length;
     const pendingAbsencesCount = absences.filter((a) => a.status === "pending").length;
     const pendingReplacementsCount = replacements.filter((r) => r.status === "proposed").length;
     const totalSwimmersCount = swimmers.length;
+    const pendingHonorsCount = honorNominations.filter((n) => n.status === "pending").length;
 
     return NextResponse.json({
       kpis: {
@@ -174,6 +187,7 @@ export async function GET(req: NextRequest) {
         pendingAbsencesCount,
         pendingReplacementsCount,
         totalSwimmersCount,
+        pendingHonorsCount,
       },
       appConfig,
       coaches: coaches.map((c) => ({
@@ -273,6 +287,7 @@ export async function GET(req: NextRequest) {
           latestRev?.skills || null,
           m.techReviews.length
         );
+        const bilan = aggregateSwimmerCumulativeBilan(m.techReviews);
 
         return {
           id: m.id,
@@ -293,8 +308,20 @@ export async function GET(req: NextRequest) {
           stageKey: prog.stageKey,
           stageLabel: prog.stageLabel,
           stageAsset: prog.stageAsset,
+          bars: bilan.bars,
+          lastTouchedBar: bilan.lastTouchedBar,
+          totalDistanceMeters: bilan.totalDistanceMeters,
+          record50m: bilan.record50m,
+          recordApnea: bilan.recordApnea,
+          weightKg: bilan.weightKg,
+          heightCm: bilan.heightCm,
+          wordFromCoach: bilan.wordFromCoach,
         };
       }),
+      honorLockStatus,
+      honorNominations,
+      honorBadges: AQA_HONOR_BADGES,
+      strokeBarDefs: AQA_STROKE_BAR_DEFS,
       suiviStages: AQA_SUIVI_STAGES,
       suiviBadges: AQA_SUIVI_BADGES,
     });
@@ -325,6 +352,11 @@ const adminCoachingActionSchema = z.discriminatedUnion("action", [
     badgeKey: z.string(),
     recommendedLevel: z.string().optional(),
     notes: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("DECIDE_HONOR_NOMINATION"),
+    requestId: z.string(),
+    decision: z.enum(["approved", "rejected"]),
   }),
 ]);
 
@@ -403,6 +435,27 @@ export async function POST(req: NextRequest) {
       );
 
       return NextResponse.json({ success: true, status: payload.status });
+    }
+
+    if (payload.action === "DECIDE_HONOR_NOMINATION") {
+      try {
+        const result = await decideHonorNominationByAdmin({
+          requestId: payload.requestId,
+          decision: payload.decision,
+          adminId: session.user.id,
+        });
+
+        return NextResponse.json({
+          success: result.success,
+          status: payload.decision,
+          message: result.message,
+        });
+      } catch (err) {
+        return NextResponse.json(
+          { error: err instanceof Error ? err.message : "Erreur lors de la decision" },
+          { status: 400 }
+        );
+      }
     }
 
     if (payload.action === "AWARD_SWIMMER_BADGE") {

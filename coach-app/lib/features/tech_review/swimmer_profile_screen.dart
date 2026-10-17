@@ -95,7 +95,6 @@ class SwimmerProfileScreen extends ConsumerWidget {
             final stageLabel = member['stageLabel'] as String? ?? '1. Basics';
             final stageAsset = member['stageAsset'] as String? ?? 'elephant.png';
             final stageKey = member['stageKey'] as String? ?? 'basics';
-            final avgSkillScore = (member['avgSkillScore'] as num?)?.toDouble() ?? 1.0;
 
             int stageOrder(String k) {
               final l = k.toLowerCase();
@@ -111,6 +110,18 @@ class SwimmerProfileScreen extends ConsumerWidget {
 
             final categoryAverages = (data['categoryAverages'] as Map<String, dynamic>?) ?? {};
             final latestMeta = (data['latestMeta'] as Map<String, dynamic>?) ?? {};
+            final rawBars = (member['bars'] as Map<String, dynamic>?) ??
+                (data['bars'] as Map<String, dynamic>?) ??
+                {};
+            final totalDistanceMeters = (member['totalDistanceMeters'] as num?)?.toInt() ??
+                (data['totalDistanceMeters'] as num?)?.toInt() ??
+                0;
+            final record50m = member['record50m'] ?? latestMeta['record50m'] ?? latestMeta['chrono50mFreestyle'];
+            final recordApnea = member['recordApnea'] ?? latestMeta['recordApnea'];
+            final weightKg = member['weightKg'] ?? latestMeta['weightKg'];
+            final heightCm = member['heightCm'] ?? latestMeta['heightCm'];
+            final wordFromCoach = (member['wordFromCoach'] as String?) ??
+                (latestMeta['wordFromCoach'] as String?);
 
             // Strictly Binary Attendance (Present vs Absent only)
             final presentCount = (attendanceSummary['present'] as num?)?.toInt() ??
@@ -266,7 +277,7 @@ class SwimmerProfileScreen extends ConsumerWidget {
                       const Divider(),
                       const SizedBox(height: 12.0),
 
-                      // Strictly Binary Attendance & Score KPI Strip
+                      // Strictly Binary Attendance & Cumulative Volume KPI Strip
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
@@ -289,10 +300,10 @@ class SwimmerProfileScreen extends ConsumerWidget {
                             icon: Icons.pie_chart_outline_rounded,
                           ),
                           _buildStatMetric(
-                            label: 'Score Moyen',
-                            value: '${avgSkillScore.toStringAsFixed(1)} / 5',
+                            label: 'Volume Total',
+                            value: '$totalDistanceMeters m',
                             color: AqaTheme.accentTeal,
-                            icon: Icons.speed_rounded,
+                            icon: Icons.straighten_rounded,
                           ),
                         ],
                       ),
@@ -328,7 +339,47 @@ class SwimmerProfileScreen extends ConsumerWidget {
                   ),
                 const SizedBox(height: 18.0),
 
-                // 2. 5-Axis Biomechanical Radar / Spider Chart
+                // Word from your Coach Card (if present)
+                if (wordFromCoach != null && wordFromCoach.trim().isNotEmpty) ...[
+                  AqaDoubleBezelCard(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.record_voice_over_rounded, color: AqaTheme.accentTeal, size: 18.0),
+                            const SizedBox(width: 8.0),
+                            Text(
+                              i18n.locale == 'ar'
+                                  ? 'كلمة من مدربك (Word from your Coach)'
+                                  : i18n.locale == 'en'
+                                      ? 'Word from your Coach'
+                                      : 'Mot de votre Coach',
+                              style: const TextStyle(
+                                color: AqaTheme.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8.0),
+                        Text(
+                          wordFromCoach,
+                          style: const TextStyle(
+                            color: AqaTheme.textPrimary,
+                            fontSize: 13.0,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18.0),
+                ],
+
+                // 2. 5 Stroke Progress Bars (0% - 200%) & Biomechanical Radar
                 AqaDoubleBezelCard(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -338,7 +389,11 @@ class SwimmerProfileScreen extends ConsumerWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            i18n.t('suivi.radar_title'),
+                            i18n.locale == 'ar'
+                                ? 'أشرطة التقدم الخمسة (0% - 200%)'
+                                : i18n.locale == 'en'
+                                    ? '5 Swim Progress Bars (0% - 200%)'
+                                    : '5 Barres de Progression (0% - 200%)',
                             style: const TextStyle(
                               color: AqaTheme.textPrimary,
                               fontSize: 14.5,
@@ -352,10 +407,10 @@ class SwimmerProfileScreen extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(6.0),
                             ),
                             child: const Text(
-                              '5 DOMAINES AQA',
+                              '0-100% TECH | 100-200% ELITE',
                               style: TextStyle(
                                 color: AqaTheme.accentTeal,
-                                fontSize: 9.5,
+                                fontSize: 9.0,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -367,8 +422,8 @@ class SwimmerProfileScreen extends ConsumerWidget {
                       // Radar Chart Canvas
                       Center(
                         child: SizedBox(
-                          width: 250.0,
-                          height: 250.0,
+                          width: 240.0,
+                          height: 240.0,
                           child: CustomPaint(
                             painter: _BiomechanicalRadarPainter(
                               scores: [
@@ -378,25 +433,101 @@ class SwimmerProfileScreen extends ConsumerWidget {
                                 (categoryAverages['breaststroke'] as num?)?.toDouble() ?? 1.0,
                                 (categoryAverages['butterfly_starts'] as num?)?.toDouble() ?? 1.0,
                               ],
-                              labels: const ['AISANCE', 'CRAWL', 'DOS', 'BRASSE', 'PAP & VIR.'],
+                              labels: const ['BASICS', 'CRAWL', 'BACK', 'BREAST', 'BUTTERFLY'],
                             ),
                           ),
                         ),
                       ),
                       const SizedBox(height: 14.0),
 
-                      // Domain Breakdown Progress Bars
-                      _buildDomainBar('Aisance & Equilibre', (categoryAverages['water_comfort'] as num?)?.toDouble() ?? 1.0),
-                      _buildDomainBar('Crawl (Nage Libre)', (categoryAverages['freestyle'] as num?)?.toDouble() ?? 1.0),
-                      _buildDomainBar('Dos Crawle', (categoryAverages['backstroke'] as num?)?.toDouble() ?? 1.0),
-                      _buildDomainBar('Brasse', (categoryAverages['breaststroke'] as num?)?.toDouble() ?? 1.0),
-                      _buildDomainBar('Papillon, Departs & Virages', (categoryAverages['butterfly_starts'] as num?)?.toDouble() ?? 1.0),
+                      // 5 Stroke Progress Bars (0% to 200%)
+                      _buildStrokeBar200('1 - Basics', (rawBars['basics'] as num?)?.toDouble() ?? 0.0),
+                      _buildStrokeBar200('2 - Crawl', (rawBars['crawl'] as num?)?.toDouble() ?? 0.0),
+                      _buildStrokeBar200('3 - Backstroke', (rawBars['backstroke'] as num?)?.toDouble() ?? 0.0),
+                      _buildStrokeBar200('4 - Breaststroke (Brasse)', (rawBars['breaststroke'] as num?)?.toDouble() ?? 0.0),
+                      _buildStrokeBar200('5 - Butterfly', (rawBars['butterfly'] as num?)?.toDouble() ?? 0.0),
                     ],
                   ),
                 ),
                 const SizedBox(height: 18.0),
 
-                // 3. 4-Stage Pedagogical Pathway Roadmap
+                // 3. Stored Records (50m, Apnea) & Physical Data (Weight, Tall) + Cumulative Volume
+                AqaDoubleBezelCard(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        i18n.locale == 'ar'
+                            ? 'الحصيلة، الأرقام القياسية والبيانات الجسدية'
+                            : i18n.locale == 'en'
+                                ? 'Bilan: Cumulative Volume, Records & Physical Data'
+                                : 'Bilan : Volume Cumule, Records & Donnees Physiques',
+                        style: const TextStyle(
+                          color: AqaTheme.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12.0),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMetricTile(
+                              'Volume Cumule',
+                              '$totalDistanceMeters m',
+                              Icons.straighten_rounded,
+                              AqaTheme.accentTeal,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          Expanded(
+                            child: _buildMetricTile(
+                              'Record 50m',
+                              record50m != null ? '$record50m s' : '-',
+                              Icons.timer_outlined,
+                              AqaTheme.primarySky,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          Expanded(
+                            child: _buildMetricTile(
+                              'Record Apnee',
+                              recordApnea != null ? '$recordApnea s/m' : '-',
+                              Icons.air_rounded,
+                              AqaTheme.statusSuccess,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8.0),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMetricTile(
+                              'Poids (Weight)',
+                              weightKg != null ? '$weightKg kg' : '-',
+                              Icons.monitor_weight_outlined,
+                              AqaTheme.primarySky,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          Expanded(
+                            child: _buildMetricTile(
+                              'Taille (Tall)',
+                              heightCm != null ? '$heightCm cm' : '-',
+                              Icons.height_rounded,
+                              AqaTheme.accentTeal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18.0),
+
+                // 4. 6-Stage Pedagogical Pathway Roadmap
                 AqaDoubleBezelCard(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -435,7 +566,7 @@ class SwimmerProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 18.0),
 
-                // 4. 15 Official AQA Suivi Badges Trophy Grid
+                // 5. 15 Official AQA Suivi Badges Trophy Grid
                 if (earnedBadges.isNotEmpty) ...[
                   AqaDoubleBezelCard(
                     padding: const EdgeInsets.all(16.0),
@@ -479,7 +610,6 @@ class SwimmerProfileScreen extends ConsumerWidget {
                             final unlocked = b['unlocked'] as bool? ?? false;
                             final asset = b['asset'] as String? ?? b['assetName'] as String? ?? 'starter.png';
                             final label = b['labelFr'] as String? ?? b['label'] as String? ?? '';
-                            final minScore = (b['minScore'] as num?)?.toDouble() ?? 1.0;
 
                             return Container(
                               padding: const EdgeInsets.all(8.0),
@@ -523,78 +653,10 @@ class SwimmerProfileScreen extends ConsumerWidget {
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                  Text(
-                                    '>= ${minScore.toStringAsFixed(1)}',
-                                    style: TextStyle(
-                                      color: unlocked ? AqaTheme.accentTeal : AqaTheme.textLightMuted,
-                                      fontSize: 8.5,
-                                      fontFamily: 'monospace',
-                                    ),
-                                  ),
                                 ],
                               ),
                             );
                           },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 18.0),
-                ],
-
-                // 5. Timed Sprints & Aquatic Metrics (if present in latest review)
-                if (latestMeta.isNotEmpty &&
-                    (latestMeta['chrono25mFreestyle'] != null ||
-                        latestMeta['chrono50mFreestyle'] != null ||
-                        latestMeta['maxDistanceMeters'] != null)) ...[
-                  AqaDoubleBezelCard(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          i18n.t('suivi.metrics_title'),
-                          style: const TextStyle(
-                            color: AqaTheme.textPrimary,
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 12.0),
-                        Row(
-                          children: [
-                            if (latestMeta['chrono25mFreestyle'] != null)
-                              Expanded(
-                                child: _buildMetricTile(
-                                  'Chrono 25m Crawl',
-                                  '${latestMeta['chrono25mFreestyle']} s',
-                                  Icons.timer_outlined,
-                                  AqaTheme.accentTeal,
-                                ),
-                              ),
-                            if (latestMeta['chrono50mFreestyle'] != null) ...[
-                              const SizedBox(width: 8.0),
-                              Expanded(
-                                child: _buildMetricTile(
-                                  'Chrono 50m Crawl',
-                                  '${latestMeta['chrono50mFreestyle']} s',
-                                  Icons.timer,
-                                  AqaTheme.primarySky,
-                                ),
-                              ),
-                            ],
-                            if (latestMeta['maxDistanceMeters'] != null) ...[
-                              const SizedBox(width: 8.0),
-                              Expanded(
-                                child: _buildMetricTile(
-                                  'Distance Continue',
-                                  '${latestMeta['maxDistanceMeters']} m',
-                                  Icons.straighten_rounded,
-                                  AqaTheme.statusSuccess,
-                                ),
-                              ),
-                            ],
-                          ],
                         ),
                       ],
                     ),
@@ -673,31 +735,48 @@ class SwimmerProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildDomainBar(String label, double score) {
-    final pct = (score / 5.0).clamp(0.0, 1.0);
+  Widget _buildStrokeBar200(String label, double pctValue) {
+    final clamped = pctValue.clamp(0.0, 200.0);
+    final pctInt = clamped.round();
+    final isElite = clamped > 100.0;
+    final activeColor = isElite ? AqaTheme.statusWarning : AqaTheme.accentTeal;
+    final ratio = (clamped / 200.0).clamp(0.0, 1.0);
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.only(bottom: 10.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 11.5, fontWeight: FontWeight.w700)),
               Text(
-                '${score.toStringAsFixed(1)} / 5.0',
-                style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 11.0, fontFamily: 'monospace', fontWeight: FontWeight.w700),
+                label,
+                style: const TextStyle(
+                  color: AqaTheme.textPrimary,
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                isElite ? '$pctInt% (Elite)' : '$pctInt% (Tech)',
+                style: TextStyle(
+                  color: activeColor,
+                  fontSize: 11.5,
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 4.0),
+          const SizedBox(height: 5.0),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4.0),
+            borderRadius: BorderRadius.circular(5.0),
             child: LinearProgressIndicator(
-              value: pct,
-              minHeight: 5.0,
+              value: ratio,
+              minHeight: 6.5,
               backgroundColor: AqaTheme.surfaceSecondary,
-              valueColor: const AlwaysStoppedAnimation<Color>(AqaTheme.accentTeal),
+              valueColor: AlwaysStoppedAnimation<Color>(activeColor),
             ),
           ),
         ],
@@ -777,6 +856,9 @@ class SwimmerProfileScreen extends ConsumerWidget {
 
   Widget _buildReviewCard(TechReviewModel rev) {
     final dateStr = rev.createdAt.length >= 10 ? rev.createdAt.substring(0, 10) : rev.createdAt;
+    final rawBars = rev.skills['bars'] as Map<String, dynamic>?;
+    final rawMeta = rev.skills['_meta'] as Map<String, dynamic>?;
+    final sessionVol = rawMeta != null ? (rawMeta['sessionVolumeMeters'] as num?)?.toInt() : null;
 
     return AqaDoubleBezelCard(
       margin: const EdgeInsets.only(bottom: 12.0),
@@ -788,17 +870,37 @@ class SwimmerProfileScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(dateStr, style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 13.0, fontWeight: FontWeight.w800)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-                decoration: BoxDecoration(
-                  color: AqaTheme.statusInfoBg,
-                  borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                  border: Border.all(color: AqaTheme.primarySky),
-                ),
-                child: Text(
-                  rev.overallLevel.toUpperCase(),
-                  style: const TextStyle(color: AqaTheme.primarySky, fontSize: 10.0, fontWeight: FontWeight.w800),
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (sessionVol != null && sessionVol > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: AqaTheme.accentTeal.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                        border: Border.all(color: AqaTheme.borderTeal),
+                      ),
+                      child: Text(
+                        '+$sessionVol m',
+                        style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 10.0, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    const SizedBox(width: 6.0),
+                  ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.statusInfoBg,
+                      borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
+                      border: Border.all(color: AqaTheme.primarySky),
+                    ),
+                    child: Text(
+                      rev.overallLevel.toUpperCase(),
+                      style: const TextStyle(color: AqaTheme.primarySky, fontSize: 10.0, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -816,22 +918,23 @@ class SwimmerProfileScreen extends ConsumerWidget {
               child: Text(rev.evaluatorNotes!, style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 12.0)),
             ),
           ],
-          if (rev.skills.isNotEmpty) ...[
+          if (rawBars != null && rawBars.isNotEmpty) ...[
             const SizedBox(height: 10.0),
             Wrap(
               spacing: 6.0,
               runSpacing: 4.0,
-              children: rev.skills.entries.map((entry) {
-                final val = entry.value;
-                final score = val is Map ? (val['score'] ?? 0) : val;
-                final label = val is Map && val['label'] != null ? val['label'].toString() : entry.key;
+              children: rawBars.entries.map((entry) {
+                final pct = (entry.value as num?)?.round() ?? 0;
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.0),
                   decoration: BoxDecoration(
                     color: AqaTheme.surfaceSecondary,
                     borderRadius: BorderRadius.circular(6.0),
                   ),
-                  child: Text('$label : $score/5', style: const TextStyle(color: AqaTheme.textMuted, fontSize: 10.5)),
+                  child: Text(
+                    '${entry.key}: $pct%',
+                    style: const TextStyle(color: AqaTheme.textMuted, fontSize: 10.5, fontWeight: FontWeight.w700),
+                  ),
                 );
               }).toList(),
             ),

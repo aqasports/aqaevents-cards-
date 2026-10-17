@@ -25,6 +25,14 @@ class SwimMemberModel {
   final String stageLabel;
   final String stageAsset;
   final List<String> unlockedBadges;
+  final Map<String, int> bars;
+  final String lastTouchedBar;
+  final int totalDistanceMeters;
+  final double? record50m;
+  final double? recordApnea;
+  final double? weightKg;
+  final double? heightCm;
+  final String? wordFromCoach;
 
   const SwimMemberModel({
     required this.id,
@@ -53,10 +61,32 @@ class SwimMemberModel {
     this.stageLabel = '1. Basics',
     this.stageAsset = 'elephant.png',
     this.unlockedBadges = const ['starter'],
+    this.bars = const {
+      'basics': 0,
+      'crawl': 0,
+      'backstroke': 0,
+      'breaststroke': 0,
+      'butterfly': 0,
+    },
+    this.lastTouchedBar = 'basics',
+    this.totalDistanceMeters = 0,
+    this.record50m,
+    this.recordApnea,
+    this.weightKg,
+    this.heightCm,
+    this.wordFromCoach,
   });
 
   factory SwimMemberModel.fromJson(Map<String, dynamic> json) {
     final rawUnlocked = json['unlockedBadges'] as List<dynamic>? ?? const ['starter'];
+    final rawBars = json['bars'] as Map<String, dynamic>?;
+    final parsedBars = <String, int>{
+      'basics': (rawBars?['basics'] as num?)?.toInt() ?? 0,
+      'crawl': (rawBars?['crawl'] as num?)?.toInt() ?? 0,
+      'backstroke': (rawBars?['backstroke'] as num?)?.toInt() ?? 0,
+      'breaststroke': (rawBars?['breaststroke'] as num?)?.toInt() ?? 0,
+      'butterfly': (rawBars?['butterfly'] as num?)?.toInt() ?? 0,
+    };
     return SwimMemberModel(
       id: json['id'] as String? ?? (json['memberId'] as String? ?? ''),
       swimId: json['swimId'] as String? ?? '',
@@ -84,6 +114,14 @@ class SwimMemberModel {
       stageLabel: json['stageLabel'] as String? ?? '1. Basics',
       stageAsset: json['stageAsset'] as String? ?? 'elephant.png',
       unlockedBadges: rawUnlocked.map((e) => e.toString()).toList(),
+      bars: parsedBars,
+      lastTouchedBar: json['lastTouchedBar'] as String? ?? 'basics',
+      totalDistanceMeters: (json['totalDistanceMeters'] as num?)?.toInt() ?? 0,
+      record50m: (json['record50m'] as num?)?.toDouble(),
+      recordApnea: (json['recordApnea'] as num?)?.toDouble(),
+      weightKg: (json['weightKg'] as num?)?.toDouble(),
+      heightCm: (json['heightCm'] as num?)?.toDouble(),
+      wordFromCoach: json['wordFromCoach'] as String?,
     );
   }
 
@@ -115,6 +153,14 @@ class SwimMemberModel {
       'stageLabel': stageLabel,
       'stageAsset': stageAsset,
       'unlockedBadges': unlockedBadges,
+      'bars': bars,
+      'lastTouchedBar': lastTouchedBar,
+      'totalDistanceMeters': totalDistanceMeters,
+      'record50m': record50m,
+      'recordApnea': recordApnea,
+      'weightKg': weightKg,
+      'heightCm': heightCm,
+      'wordFromCoach': wordFromCoach,
     };
   }
 }

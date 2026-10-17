@@ -12,8 +12,12 @@ import {
   SWIM_SKILLS_CATALOG_V1,
   AQA_SUIVI_BADGES,
   AQA_SUIVI_STAGES,
+  AQA_HONOR_BADGES,
+  AQA_STROKE_BAR_DEFS,
+  aggregateSwimmerCumulativeBilan,
   computeSwimmerSuiviProgression,
 } from "@/lib/swim-skills";
+import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
 import { getFlag } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
 
@@ -177,9 +181,11 @@ export async function GET(req: NextRequest) {
                 },
                 techReviews: {
                   orderBy: { createdAt: "desc" },
-                  take: 1,
+                  take: 25,
                   select: {
                     skills: true,
+                    metrics: true,
+                    strengths: true,
                     recommendedLevel: true,
                     createdAt: true,
                   },
@@ -385,7 +391,7 @@ export async function GET(req: NextRequest) {
       .filter((r) => r.status !== "proposed" || r.originalCoachId === coach.id)
       .map(shapeReplacement);
 
-    // Shape all swimmers with Suivi progression and binary attendance counts
+    // Shape all swimmers with Suivi progression, 5-bar model, cumulative volume, and binary attendance counts
     const shapedSwimmers = rawSwimmers.map((m) => {
       const presences = m.attendances.filter(
         (a) => a.status === "present" || a.status === "late"
@@ -401,6 +407,7 @@ export async function GET(req: NextRequest) {
         latestRev?.skills || null,
         m.techReviews.length
       );
+      const cumulative = aggregateSwimmerCumulativeBilan(m.techReviews);
 
       return {
         id: m.id,
@@ -420,6 +427,14 @@ export async function GET(req: NextRequest) {
         attendanceRate,
         reviewCount: m.techReviews.length,
         avgSkillScore: prog.avgSkillScore,
+        bars: cumulative.bars,
+        lastTouchedBar: cumulative.lastTouchedBar,
+        totalDistanceMeters: cumulative.totalDistanceMeters,
+        record50m: cumulative.record50m,
+        recordApnea: cumulative.recordApnea,
+        weightKg: cumulative.weightKg,
+        heightCm: cumulative.heightCm,
+        wordFromCoach: cumulative.wordFromCoach,
         badgeKey: prog.badgeKey,
         badgeLabel: prog.badgeLabel,
         badgeAsset: prog.badgeAsset,
@@ -430,12 +445,15 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // App command settings from AQA Swim Admin
+    // App command settings from AQA Swim Admin + Honor Lock Status
     const settingsMap = new Map<string, string>();
     for (const s of rawSettings) {
       settingsMap.set(s.key, s.value);
     }
-    const isAppEnabled = await getFlag("coach_app_enabled", true);
+    const [isAppEnabled, honorLockStatus] = await Promise.all([
+      getFlag("coach_app_enabled", true),
+      getCurrentHonorLockStatus(),
+    ]);
     const appConfig = {
       enabled: isAppEnabled,
       announcement: settingsMap.get("coach_app_announcement") || "",
@@ -480,6 +498,9 @@ export async function GET(req: NextRequest) {
         })),
         skillsCatalog: SWIM_SKILLS_CATALOG_V1,
         progressionBadges: AQA_SUIVI_BADGES,
+        honorBadges: AQA_HONOR_BADGES,
+        strokeBarDefs: AQA_STROKE_BAR_DEFS,
+        honorLockStatus,
         suiviStages: AQA_SUIVI_STAGES,
         appConfig,
         todayDate: todayStr,

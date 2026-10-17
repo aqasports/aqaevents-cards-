@@ -597,47 +597,67 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                 ),
               ),
 
-              // Score Chip
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10.0,
-                  vertical: 5.5,
-                ),
-                decoration: BoxDecoration(
-                  color: AqaTheme.surfaceRecessed,
-                  borderRadius: BorderRadius.circular(9.0),
-                  border: Border.all(color: AqaTheme.borderSubtle),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      swimmer.avgSkillScore > 0
-                          ? '${swimmer.avgSkillScore}'
-                          : '1.0',
-                      style: const TextStyle(
-                        color: AqaTheme.textPrimary,
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        fontFeatures: AqaTheme.tabularNums,
+              // Active Bar Percentage Chip (0% - 200%)
+              Builder(
+                builder: (_) {
+                  final activeBarKey = swimmer.lastTouchedBar;
+                  final activePct = swimmer.bars[activeBarKey] ?? 0;
+                  final isElite = activePct > 100;
+                  final barShortLabel = activeBarKey == 'crawl'
+                      ? 'CRAWL'
+                      : activeBarKey == 'backstroke'
+                          ? 'BACK'
+                          : activeBarKey == 'breaststroke'
+                              ? 'BREAST'
+                              : activeBarKey == 'butterfly'
+                                  ? 'FLY'
+                                  : 'BASICS';
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10.0,
+                      vertical: 5.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.surfaceRecessed,
+                      borderRadius: BorderRadius.circular(9.0),
+                      border: Border.all(
+                        color: isElite
+                            ? AqaTheme.statusWarning.withValues(alpha: 0.45)
+                            : AqaTheme.borderSubtle,
                       ),
                     ),
-                    const Text(
-                      '/ 5.0',
-                      style: TextStyle(
-                        color: AqaTheme.textLightMuted,
-                        fontSize: 9.0,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: AqaTheme.tabularNums,
-                      ),
+                    child: Column(
+                      children: [
+                        Text(
+                          '$activePct%',
+                          style: TextStyle(
+                            color: isElite
+                                ? AqaTheme.statusWarning
+                                : AqaTheme.accentTeal,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w800,
+                            fontFeatures: AqaTheme.tabularNums,
+                          ),
+                        ),
+                        Text(
+                          barShortLabel,
+                          style: const TextStyle(
+                            color: AqaTheme.textLightMuted,
+                            fontSize: 9.0,
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: AqaTheme.tabularNums,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ],
           ),
           const SizedBox(height: 12.0),
 
-          // KPI Strip: Badge Title • Evaluations • Binary Attendance Rate
+          // KPI Strip: Badge Title • Cumulative Distance • Binary Attendance Rate
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 11.0,
@@ -660,7 +680,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                     ),
                     const SizedBox(width: 4.5),
                     Text(
-                      '${i18n.t('suivi.badge_awarded')} : ${swimmer.badgeLabel}',
+                      swimmer.badgeLabel,
                       style: const TextStyle(
                         color: AqaTheme.textSecondary,
                         fontSize: 11.5,
@@ -672,16 +692,17 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                 Row(
                   children: [
                     const Icon(
-                      Icons.history_rounded,
+                      Icons.straighten_rounded,
                       size: 13.5,
-                      color: AqaTheme.textLightMuted,
+                      color: AqaTheme.primarySkyHover,
                     ),
                     const SizedBox(width: 4.0),
                     Text(
-                      i18n.t('suivi.eval_count', {'count': swimmer.reviewCount}),
+                      '${swimmer.totalDistanceMeters} m',
                       style: const TextStyle(
                         color: AqaTheme.textMuted,
                         fontSize: 11.0,
+                        fontWeight: FontWeight.w700,
                         fontFeatures: AqaTheme.tabularNums,
                       ),
                     ),

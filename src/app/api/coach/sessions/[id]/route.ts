@@ -4,6 +4,11 @@ import { requireCoachSession } from "@/lib/coach-auth";
 import { canViewSession } from "@/lib/coach-rbac";
 import { getGroupRoster } from "@/lib/swim-roster";
 import { computeEndTime, extractGroupScheduleMeta } from "@/lib/swim-sessions";
+import {
+  aggregateSwimmerCumulativeBilan,
+  computeSwimmerSuiviProgression,
+} from "@/lib/swim-skills";
+import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +60,7 @@ export async function GET(
       );
     }
 
-    const [roster, ratingLog, otherSwimmers] = await Promise.all([
+    const [roster, ratingLog, otherSwimmers, honorLockStatus] = await Promise.all([
       getGroupRoster(session.groupId),
       prisma.auditLog.findFirst({
         where: {
@@ -79,6 +84,7 @@ export async function GET(
         orderBy: { fullName: "asc" },
         take: 150,
       }),
+      getCurrentHonorLockStatus(),
     ]);
 
     let sessionRating: Record<string, unknown> | null = null;
@@ -98,9 +104,54 @@ export async function GET(
     const normalizeBinaryStatus = (raw?: string | null) =>
       raw?.toLowerCase() === "absent" ? "absent" : "present";
 
+    // Fetch reviews for all roster + attendance members in one query to hydrate bars & stored Bilan
+    const allMemberIds = Array.from(
+      new Set([
+        ...roster.map((m) => m.id),
+        ...session.attendances.map((a) => a.memberId),
+      ])
+    );
+
+    const memberReviews =
+      allMemberIds.length > 0
+        ? await prisma.swimTechReview.findMany({
+            where: { memberId: { in: allMemberIds } },
+            orderBy: { createdAt: "desc" },
+            select: {
+              memberId: true,
+              skills: true,
+              metrics: true,
+              strengths: true,
+              recommendedLevel: true,
+            },
+          })
+        : [];
+
+    const reviewsByMemberId = new Map<
+      string,
+      Array<{
+        skills: string | null;
+        metrics: string | null;
+        strengths: string | null;
+        recommendedLevel: string | null;
+      }>
+    >();
+    for (const r of memberReviews) {
+      const list = reviewsByMemberId.get(r.memberId) || [];
+      list.push(r);
+      reviewsByMemberId.set(r.memberId, list);
+    }
+
     const shapedMembers = roster.map((m) => {
       const att = attendanceByMemberId.get(m.id);
       const binStatus = normalizeBinaryStatus(att?.status);
+      const revs = reviewsByMemberId.get(m.id) || [];
+      const cumulative = aggregateSwimmerCumulativeBilan(revs);
+      const prog = computeSwimmerSuiviProgression(
+        revs[0]?.skills || null,
+        revs.length
+      );
+
       return {
         id: m.id,
         memberId: m.id,
@@ -108,7 +159,17 @@ export async function GET(
         fullName: m.fullName,
         phone: role === "assistant" ? null : m.phone,
         category: m.category,
-        level: m.level,
+        level: revs[0]?.recommendedLevel || m.level || prog.badgeLabel,
+        badgeKey: prog.badgeKey,
+        badgeLabel: prog.badgeLabel,
+        bars: cumulative.bars,
+        lastTouchedBar: cumulative.lastTouchedBar,
+        totalDistanceMeters: cumulative.totalDistanceMeters,
+        record50m: cumulative.record50m,
+        recordApnea: cumulative.recordApnea,
+        weightKg: cumulative.weightKg,
+        heightCm: cumulative.heightCm,
+        wordFromCoach: cumulative.wordFromCoach,
         cardCode: m.cardCode,
         paymentStatus: m.paymentStatus,
         status: binStatus,
@@ -138,6 +199,13 @@ export async function GET(
         });
         if (guestMember) {
           const binStatus = normalizeBinaryStatus(att.status);
+          const revs = reviewsByMemberId.get(guestMember.id) || [];
+          const cumulative = aggregateSwimmerCumulativeBilan(revs);
+          const prog = computeSwimmerSuiviProgression(
+            revs[0]?.skills || null,
+            revs.length
+          );
+
           shapedMembers.push({
             id: guestMember.id,
             memberId: guestMember.id,
@@ -145,7 +213,17 @@ export async function GET(
             fullName: guestMember.fullName,
             phone: role === "assistant" ? null : guestMember.phone,
             category: guestMember.category,
-            level: guestMember.level,
+            level: revs[0]?.recommendedLevel || guestMember.level || prog.badgeLabel,
+            badgeKey: prog.badgeKey,
+            badgeLabel: prog.badgeLabel,
+            bars: cumulative.bars,
+            lastTouchedBar: cumulative.lastTouchedBar,
+            totalDistanceMeters: cumulative.totalDistanceMeters,
+            record50m: cumulative.record50m,
+            recordApnea: cumulative.recordApnea,
+            weightKg: cumulative.weightKg,
+            heightCm: cumulative.heightCm,
+            wordFromCoach: cumulative.wordFromCoach,
             cardCode: null,
             paymentStatus: "paid",
             status: binStatus,
@@ -214,6 +292,7 @@ export async function GET(
         }),
         clubSwimmers,
         sessionRating,
+        honorLockStatus,
         isViewOnly,
         canEdit: !isViewOnly,
       },

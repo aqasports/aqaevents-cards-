@@ -18,13 +18,36 @@ class TechReviewFormScreen extends ConsumerStatefulWidget {
   ConsumerState<TechReviewFormScreen> createState() => _TechReviewFormScreenState();
 }
 
+class _AqaStrokeBarDef {
+  final String key;
+  final int order;
+  final String labelFr;
+  final String labelEn;
+  final String labelAr;
+  final String asset;
+
+  const _AqaStrokeBarDef({
+    required this.key,
+    required this.order,
+    required this.labelFr,
+    required this.labelEn,
+    required this.labelAr,
+    required this.asset,
+  });
+
+  String labelFor(String locale) {
+    if (locale == 'ar') return labelAr;
+    if (locale == 'en') return labelEn;
+    return labelFr;
+  }
+}
+
 class _AqaBadgeDef {
   final String key;
   final String label;
   final String labelEn;
   final String labelAr;
   final String asset;
-  final double minScore;
   final String stageKey;
 
   const _AqaBadgeDef({
@@ -33,511 +56,342 @@ class _AqaBadgeDef {
     required this.labelEn,
     required this.labelAr,
     required this.asset,
-    required this.minScore,
     required this.stageKey,
   });
-}
 
-class _AqaSkillDef {
-  final String key;
-  final String domainKey;
-  final String labelFr;
-  final String labelEn;
-  final String labelAr;
-
-  const _AqaSkillDef({
-    required this.key,
-    required this.domainKey,
-    required this.labelFr,
-    required this.labelEn,
-    required this.labelAr,
-  });
-}
-
-class _AqaDomainDef {
-  final String key;
-  final String labelFr;
-  final String labelEn;
-  final String labelAr;
-  final List<_AqaSkillDef> skills;
-
-  const _AqaDomainDef({
-    required this.key,
-    required this.labelFr,
-    required this.labelEn,
-    required this.labelAr,
-    required this.skills,
-  });
+  String labelFor(String locale) {
+    if (locale == 'ar') return labelAr;
+    if (locale == 'en') return labelEn;
+    return label;
+  }
 }
 
 class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
+  static const List<_AqaStrokeBarDef> _strokeBars = [
+    _AqaStrokeBarDef(
+      key: 'basics',
+      order: 1,
+      labelFr: '1 - Basics',
+      labelEn: '1 - Basics',
+      labelAr: '1 - الأساسيات (Basics)',
+      asset: 'elephant.png',
+    ),
+    _AqaStrokeBarDef(
+      key: 'crawl',
+      order: 2,
+      labelFr: '2 - Crawl',
+      labelEn: '2 - Crawl',
+      labelAr: '2 - الكراول (Crawl)',
+      asset: 'crawler.png',
+    ),
+    _AqaStrokeBarDef(
+      key: 'backstroke',
+      order: 3,
+      labelFr: '3 - Backstroke',
+      labelEn: '3 - Backstroke',
+      labelAr: '3 - سباحة الظهر (Backstroke)',
+      asset: 'leaf.png',
+    ),
+    _AqaStrokeBarDef(
+      key: 'breaststroke',
+      order: 4,
+      labelFr: '4 - Breaststroke (Brasse)',
+      labelEn: '4 - Breaststroke (Brasse)',
+      labelAr: '4 - سباحة الصدر (Brasse)',
+      asset: 'brasseur.png',
+    ),
+    _AqaStrokeBarDef(
+      key: 'butterfly',
+      order: 5,
+      labelFr: '5 - Butterfly',
+      labelEn: '5 - Butterfly',
+      labelAr: '5 - الفراشة (Butterfly)',
+      asset: 'butterfly.png',
+    ),
+  ];
+
   static const List<_AqaBadgeDef> _officialBadges = [
     _AqaBadgeDef(
       key: 'starter',
       label: 'Starter',
       labelEn: 'Starter',
-      labelAr: 'المبتدئ الأول',
+      labelAr: 'Starter',
       asset: 'starter.png',
-      minScore: 1.0,
       stageKey: 'basics',
     ),
     _AqaBadgeDef(
       key: 'beginner',
       label: 'Beginner',
       labelEn: 'Beginner',
-      labelAr: 'مبتدئ مائي',
+      labelAr: 'Beginner',
       asset: 'beginner.png',
-      minScore: 1.25,
       stageKey: 'basics',
     ),
     _AqaBadgeDef(
       key: 'floater',
       label: 'Floater',
       labelEn: 'Floater',
-      labelAr: 'الطفو المتوازن',
+      labelAr: 'Floater',
       asset: 'floater.png',
-      minScore: 1.5,
       stageKey: 'basics',
     ),
     _AqaBadgeDef(
       key: 'crawler',
       label: 'Crawler',
       labelEn: 'Crawler',
-      labelAr: 'سباح الكراول',
+      labelAr: 'Crawler',
       asset: 'crawler.png',
-      minScore: 1.75,
       stageKey: 'crawl',
     ),
     _AqaBadgeDef(
       key: 'leaf',
       label: 'Leaf',
-      labelEn: 'Leaf (Backstroke Master)',
-      labelAr: 'ليف (إتقان سباحة الظهر)',
+      labelEn: 'Leaf',
+      labelAr: 'Leaf',
       asset: 'leaf.png',
-      minScore: 2.0,
       stageKey: 'backstroke',
     ),
     _AqaBadgeDef(
       key: 'brasseur',
       label: 'Brasseur',
-      labelEn: 'Breaststroker',
-      labelAr: 'سباح الصدر',
+      labelEn: 'Brasseur',
+      labelAr: 'Brasseur',
       asset: 'brasseur.png',
-      minScore: 2.25,
       stageKey: 'breaststroke',
     ),
     _AqaBadgeDef(
       key: 'butterfly',
       label: 'Butterfly',
       labelEn: 'Butterfly',
-      labelAr: 'سباح الفراشة',
+      labelAr: 'Butterfly',
       asset: 'butterfly.png',
-      minScore: 2.5,
       stageKey: 'butterfly',
     ),
     _AqaBadgeDef(
       key: 'full_swimmer',
-      label: 'Full Swimmer AQA Pro',
-      labelEn: 'Full Swimmer AQA Pro',
-      labelAr: 'السباح الكامل AQA Pro',
+      label: 'Full swimmer',
+      labelEn: 'Full swimmer',
+      labelAr: 'Full swimmer',
       asset: 'full_swimmer.png',
-      minScore: 2.8,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'dolphin',
       label: 'Dolphin',
       labelEn: 'Dolphin',
-      labelAr: 'الدلفين',
+      labelAr: 'Dolphin',
       asset: 'dolphin.png',
-      minScore: 3.1,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'shark',
       label: 'Shark',
       labelEn: 'Shark',
-      labelAr: 'القرش',
+      labelAr: 'Shark',
       asset: 'shark.png',
-      minScore: 3.4,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'orca',
       label: 'Orca',
       labelEn: 'Orca',
-      labelAr: 'الأوركا',
+      labelAr: 'Orca',
       asset: 'orca.png',
-      minScore: 3.7,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'whale',
-      label: 'Whale Endurance',
-      labelEn: 'Whale Endurance',
-      labelAr: 'تحمل الحوت',
+      label: 'Whale',
+      labelEn: 'Whale',
+      labelAr: 'Whale',
       asset: 'whale.png',
-      minScore: 4.0,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'kraken',
-      label: 'Kraken Power',
-      labelEn: 'Kraken Power',
-      labelAr: 'قوة الكراكن',
+      label: 'Kraken',
+      labelEn: 'Kraken',
+      labelAr: 'Kraken',
       asset: 'kraken.png',
-      minScore: 4.3,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'mosasaurus',
-      label: 'Mosasaurus Elite',
-      labelEn: 'Mosasaurus Elite',
-      labelAr: 'نخبة الموزاصور',
+      label: 'Mosasaurus',
+      labelEn: 'Mosasaurus',
+      labelAr: 'Mosasaurus',
       asset: 'mosasaurus.png',
-      minScore: 4.6,
       stageKey: 'elite',
     ),
     _AqaBadgeDef(
       key: 'tsunami',
-      label: 'Tsunami Master',
-      labelEn: 'Tsunami Master',
-      labelAr: 'سيد التسونامي',
+      label: 'Tsunami',
+      labelEn: 'Tsunami',
+      labelAr: 'Tsunami',
       asset: 'tsunami.png',
-      minScore: 4.85,
       stageKey: 'elite',
     ),
   ];
 
-  static const List<_AqaDomainDef> _domains = [
-    _AqaDomainDef(
-      key: 'water_comfort',
-      labelFr: 'Aisance & Equilibre',
-      labelEn: 'Water Comfort & Buoyancy',
-      labelAr: 'التأقلم والتوازن المائي',
-      skills: [
-        _AqaSkillDef(
-          key: 'immersion_breathing',
-          domainKey: 'water_comfort',
-          labelFr: 'Immersion & expiration subaquatique',
-          labelEn: 'Facial immersion & underwater exhale',
-          labelAr: 'غمر الوجه والزفير تحت الماء',
-        ),
-        _AqaSkillDef(
-          key: 'star_float',
-          domainKey: 'water_comfort',
-          labelFr: 'Flottaison ventrale & dorsale (etoile)',
-          labelEn: 'Ventral & dorsal star buoyancy',
-          labelAr: 'الطفو البطني والظهري المتوازن',
-        ),
-        _AqaSkillDef(
-          key: 'streamline_glide',
-          domainKey: 'water_comfort',
-          labelFr: 'Coulee ventrale hydrodynamique',
-          labelEn: 'Hydrodynamic streamline glide',
-          labelAr: 'الانزلاق الانسيابي تحت الماء',
-        ),
-        _AqaSkillDef(
-          key: 'deep_water_safety',
-          domainKey: 'water_comfort',
-          labelFr: 'Entree, maintien & retour securise',
-          labelEn: 'Safe entry, treading & wall return',
-          labelAr: 'الدخول الآمن والبقاء والعودة للحافة',
-        ),
-      ],
-    ),
-    _AqaDomainDef(
-      key: 'freestyle',
-      labelFr: 'Crawl (Nage Libre)',
-      labelEn: 'Freestyle (Front Crawl)',
-      labelAr: 'السباحة الحرة (كراول)',
-      skills: [
-        _AqaSkillDef(
-          key: 'freestyle_body_position',
-          domainKey: 'freestyle',
-          labelFr: 'Alignement horizontal & gainage',
-          labelEn: 'Horizontal body alignment & core',
-          labelAr: 'الاستقامة الأفقية وثبات الجذع',
-        ),
-        _AqaSkillDef(
-          key: 'freestyle_flutter_kick',
-          domainKey: 'freestyle',
-          labelFr: 'Battements de jambes continus',
-          labelEn: 'Continuous rhythmic flutter kick',
-          labelAr: 'ضربات الأرجل المستمرة والمنتظمة',
-        ),
-        _AqaSkillDef(
-          key: 'freestyle_catch_pull',
-          domainKey: 'freestyle',
-          labelFr: 'Prise d\'appui & traction subaquatique',
-          labelEn: 'High-elbow catch & underwater pull',
-          labelAr: 'مسك الماء والدفع الفعال بالذراعين',
-        ),
-        _AqaSkillDef(
-          key: 'freestyle_bilateral_breathing',
-          domainKey: 'freestyle',
-          labelFr: 'Respiration laterale bilaterale',
-          labelEn: 'Bilateral side breathing rhythm',
-          labelAr: 'التنفس الجانبي الثنائي المتناسق',
-        ),
-      ],
-    ),
-    _AqaDomainDef(
-      key: 'backstroke',
-      labelFr: 'Dos Crawle',
-      labelEn: 'Backstroke',
-      labelAr: 'سباحة الظهر',
-      skills: [
-        _AqaSkillDef(
-          key: 'backstroke_horizontal_body',
-          domainKey: 'backstroke',
-          labelFr: 'Corps horizontal & nuque relachee',
-          labelEn: 'Horizontal posture & relaxed neck',
-          labelAr: 'الاستقامة الأفقية واسترخاء العنق',
-        ),
-        _AqaSkillDef(
-          key: 'backstroke_kick_regularity',
-          domainKey: 'backstroke',
-          labelFr: 'Battements dorsaux sous surface',
-          labelEn: 'Sub-surface dorsal flutter kick',
-          labelAr: 'ضربات الأرجل الخلفية تحت السطح',
-        ),
-        _AqaSkillDef(
-          key: 'backstroke_arm_cycle',
-          domainKey: 'backstroke',
-          labelFr: 'Cycle de bras continu & roulis d\'epaules',
-          labelEn: 'Continuous arm cycle & shoulder roll',
-          labelAr: 'دوران الذراعين المتواصل مع حركة الكتفين',
-        ),
-        _AqaSkillDef(
-          key: 'backstroke_directional_vision',
-          domainKey: 'backstroke',
-          labelFr: 'Trajectoire rectiligne & reperes visuels',
-          labelEn: 'Straight navigation & visual landmarks',
-          labelAr: 'المسار المستقيم ونقاط الاستدلال البصرية',
-        ),
-      ],
-    ),
-    _AqaDomainDef(
-      key: 'breaststroke',
-      labelFr: 'Brasse',
-      labelEn: 'Breaststroke',
-      labelAr: 'سباحة الصدر',
-      skills: [
-        _AqaSkillDef(
-          key: 'breaststroke_whip_kick',
-          domainKey: 'breaststroke',
-          labelFr: 'Ciseau symetrique avec pieds en flexion',
-          labelEn: 'Symmetrical whip kick & flexed feet',
-          labelAr: 'ضربة الصدر المتماثلة مع ثني القدمين',
-        ),
-        _AqaSkillDef(
-          key: 'breaststroke_arm_sweep',
-          domainKey: 'breaststroke',
-          labelFr: 'Traction en coeur & retour sous menton',
-          labelEn: 'Heart-shaped arm sweep & chin recovery',
-          labelAr: 'سحب الذراعين الدائري والعودة تحت الذقن',
-        ),
-        _AqaSkillDef(
-          key: 'breaststroke_glide_phase',
-          domainKey: 'breaststroke',
-          labelFr: 'Phase de glisse hydrodynamique (1-2s)',
-          labelEn: 'Streamline glide phase (1-2s)',
-          labelAr: 'مرحلة الانزلاق الانسيابي (1-2 ثانية)',
-        ),
-        _AqaSkillDef(
-          key: 'breaststroke_timing',
-          domainKey: 'breaststroke',
-          labelFr: 'Synchronisation bras-respiration-jambes-glisse',
-          labelEn: 'Pull-breathe-kick-glide coordination',
-          labelAr: 'تناسق الذراعين-التنفس-الأرجل-الانزلاق',
-        ),
-      ],
-    ),
-    _AqaDomainDef(
-      key: 'butterfly_starts',
-      labelFr: 'Papillon, Virages & Departs',
-      labelEn: 'Butterfly, Turns & Starts',
-      labelAr: 'الفراشة، الدورانات والانطلاقات',
-      skills: [
-        _AqaSkillDef(
-          key: 'butterfly_undulation',
-          domainKey: 'butterfly_starts',
-          labelFr: 'Ondulation fluide depuis le bassin',
-          labelEn: 'Fluid hip-driven dolphin undulation',
-          labelAr: 'التموج الانسيابي المنطلق من الحوض',
-        ),
-        _AqaSkillDef(
-          key: 'butterfly_stroke_recovery',
-          domainKey: 'butterfly_starts',
-          labelFr: 'Retour aerien rasant des deux bras',
-          labelEn: 'Low forward double arm recovery',
-          labelAr: 'الرجوع الهوائي المنخفض للذراعين معاً',
-        ),
-        _AqaSkillDef(
-          key: 'flip_turns_touch',
-          domainKey: 'butterfly_starts',
-          labelFr: 'Virages culbutes & virages de brasse',
-          labelEn: 'Flip turns & legal breaststroke touches',
-          labelAr: 'دوران الشقلبة ولمس حائط الصدر القانوني',
-        ),
-        _AqaSkillDef(
-          key: 'dive_start_breakout',
-          domainKey: 'butterfly_starts',
-          labelFr: 'Depart plonge du plot & reprise de nage',
-          labelEn: 'Block dive start & underwater breakout',
-          labelAr: 'الانطلاق من منصة القفز والانتقال للسباحة',
-        ),
-      ],
-    ),
-  ];
+  // Step 0 = Evaluation (Progress bars only, no badges/stars)
+  // Step 1 = Bilan (Volume, Observation, Stored Records, Physical Data, Badge Choose, Honor Request, Word from Coach)
+  int _currentStep = 0;
 
-  String _selectedBadgeKey = 'starter';
-  bool _manualBadgeOverride = false;
+  final Map<String, double> _bars = {
+    'basics': 0,
+    'crawl': 0,
+    'backstroke': 0,
+    'breaststroke': 0,
+    'butterfly': 0,
+  };
 
-  final TextEditingController _strengthsController = TextEditingController();
-  final TextEditingController _improvementsController = TextEditingController();
-  final TextEditingController _goalsController = TextEditingController();
-  final TextEditingController _time25mController = TextEditingController();
-  final TextEditingController _time50mController = TextEditingController();
-  final TextEditingController _maxDistanceController = TextEditingController();
-  final TextEditingController _recommendedLevelController = TextEditingController();
+  String _lastTouchedBar = 'basics';
+  bool _showAllFiveBars = false;
 
-  final Map<String, int> _skillScores = {};
+  // Bilan controllers & state
+  final TextEditingController _volumeController = TextEditingController();
+  final TextEditingController _observationController = TextEditingController();
+  final TextEditingController _record50mController = TextEditingController();
+  final TextEditingController _recordApneaController = TextEditingController();
+  final TextEditingController _weightKgController = TextEditingController();
+  final TextEditingController _heightCmController = TextEditingController();
+  final TextEditingController _wordFromCoachController = TextEditingController();
 
-  bool _catalogPopulated = false;
+  bool _recordsUnlockedForEdit = false;
+  int _storedTotalDistanceMeters = 0;
+
+  String? _selectedBadgeKey;
+  String? _selectedHonorRequestType; // 'swimmer_of_the_month' | 'swimmer_of_the_year' | null
+
+  bool _monthHonorLocked = false;
+  String? _monthHonorWinnerName;
+  bool _yearHonorLocked = false;
+  String? _yearHonorWinnerName;
+
+  bool _populated = false;
   bool _isSubmitting = false;
 
   @override
-  void initState() {
-    super.initState();
-    for (final domain in _domains) {
-      for (final skill in domain.skills) {
-        _skillScores[skill.key] = 2;
-      }
-    }
-  }
-
-  @override
   void dispose() {
-    _strengthsController.dispose();
-    _improvementsController.dispose();
-    _goalsController.dispose();
-    _time25mController.dispose();
-    _time50mController.dispose();
-    _maxDistanceController.dispose();
-    _recommendedLevelController.dispose();
+    _volumeController.dispose();
+    _observationController.dispose();
+    _record50mController.dispose();
+    _recordApneaController.dispose();
+    _weightKgController.dispose();
+    _heightCmController.dispose();
+    _wordFromCoachController.dispose();
     super.dispose();
   }
 
-  double get _currentOverallAverage {
-    if (_skillScores.isEmpty) return 1.0;
-    final sum = _skillScores.values.fold(0, (acc, v) => acc + v);
-    return sum / _skillScores.length;
+  /// Volume is only available in Crawl or other stroke bars after Basics has 1% or above.
+  /// No volume for a Basic-level swimmer.
+  bool get _isVolumeAllowed {
+    final basicsPct = _bars['basics'] ?? 0;
+    if (basicsPct < 1) return false;
+    final hasOtherStrokeProgress = (_bars['crawl'] ?? 0) > 0 ||
+        (_bars['backstroke'] ?? 0) > 0 ||
+        (_bars['breaststroke'] ?? 0) > 0 ||
+        (_bars['butterfly'] ?? 0) > 0;
+    return _lastTouchedBar != 'basics' || hasOtherStrokeProgress;
   }
 
-  _AqaBadgeDef get _computedBadge {
-    final avg = _currentOverallAverage;
-    _AqaBadgeDef matched = _officialBadges.first;
-    for (final b in _officialBadges) {
-      if (avg >= b.minScore) {
-        matched = b;
-      }
-    }
-    return matched;
-  }
-
-  _AqaBadgeDef get _activeBadge {
-    if (_manualBadgeOverride) {
-      return _officialBadges.firstWhere(
-        (b) => b.key == _selectedBadgeKey,
-        orElse: () => _computedBadge,
-      );
-    }
-    return _computedBadge;
-  }
-
-  void _populateCatalogIfNeeded(Map<String, dynamic> profileData) {
-    if (_catalogPopulated) return;
+  void _populateIfNeeded(Map<String, dynamic> profileData) {
+    if (_populated) return;
 
     final member = profileData['member'] as Map<String, dynamic>?;
     if (member != null) {
+      final rawBars = member['bars'] as Map<String, dynamic>?;
+      if (rawBars != null) {
+        for (final def in _strokeBars) {
+          final v = rawBars[def.key];
+          if (v is num) {
+            _bars[def.key] = v.toDouble().clamp(0.0, 200.0);
+          }
+        }
+      }
+      final lt = member['lastTouchedBar'] as String?;
+      if (lt != null && _bars.containsKey(lt)) {
+        _lastTouchedBar = lt;
+      }
+
+      _storedTotalDistanceMeters = (member['totalDistanceMeters'] as num?)?.toInt() ?? 0;
+
+      final r50 = member['record50m'];
+      if (r50 is num && r50 > 0) {
+        _record50mController.text = r50.toString();
+      }
+      final rApnea = member['recordApnea'];
+      if (rApnea is num && rApnea > 0) {
+        _recordApneaController.text = rApnea.toString();
+      }
+      final wKg = member['weightKg'];
+      if (wKg is num && wKg > 0) {
+        _weightKgController.text = wKg.toString();
+      }
+      final hCm = member['heightCm'];
+      if (hCm is num && hCm > 0) {
+        _heightCmController.text = hCm.toString();
+      }
+      final wCoach = member['wordFromCoach'] as String?;
+      if (wCoach != null && wCoach.isNotEmpty) {
+        _wordFromCoachController.text = wCoach;
+      }
       final bKey = member['badgeKey'] as String?;
       if (bKey != null && bKey.isNotEmpty) {
         _selectedBadgeKey = bKey;
-        _manualBadgeOverride = true;
-      }
-      final lvl = member['level'] as String?;
-      if (lvl != null && lvl.isNotEmpty) {
-        _recommendedLevelController.text = lvl;
       }
     }
 
-    final reviews = (profileData['reviews'] as List<dynamic>?) ?? [];
-    if (reviews.isNotEmpty && reviews.first is Map<String, dynamic>) {
-      final latest = reviews.first as Map<String, dynamic>;
-      final skillsJson = latest['skillsJson'] as Map<String, dynamic>?;
-      if (skillsJson != null) {
-        for (final entry in skillsJson.entries) {
-          if (entry.key != '_meta' && entry.value is num) {
-            _skillScores[entry.key] = (entry.value as num).toInt();
-          }
-        }
-        final meta = skillsJson['_meta'] as Map<String, dynamic>?;
-        if (meta != null) {
-          final c25 = meta['chrono25mFreestyle'];
-          final c50 = meta['chrono50mFreestyle'];
-          final dist = meta['maxDistanceMeters'];
-          final recLvl = meta['recommendedLevel'];
-          if (c25 != null && _time25mController.text.isEmpty) {
-            _time25mController.text = c25.toString();
-          }
-          if (c50 != null && _time50mController.text.isEmpty) {
-            _time50mController.text = c50.toString();
-          }
-          if (dist != null && _maxDistanceController.text.isEmpty) {
-            _maxDistanceController.text = dist.toString();
-          }
-          if (recLvl != null && recLvl.toString().isNotEmpty && _recommendedLevelController.text.isEmpty) {
-            _recommendedLevelController.text = recLvl.toString();
-          }
-        }
-      }
+    final lockStatus = profileData['honorLockStatus'] as Map<String, dynamic>?;
+    if (lockStatus != null) {
+      _monthHonorLocked = lockStatus['swimmerOfTheMonthLocked'] == true;
+      final mWinner = lockStatus['swimmerOfTheMonthWinner'] as Map<String, dynamic>?;
+      _monthHonorWinnerName = mWinner?['memberName'] as String?;
+
+      _yearHonorLocked = lockStatus['swimmerOfTheYearLocked'] == true;
+      final yWinner = lockStatus['swimmerOfTheYearWinner'] as Map<String, dynamic>?;
+      _yearHonorWinnerName = yWinner?['memberName'] as String?;
     }
 
-    _catalogPopulated = true;
+    _populated = true;
   }
 
   Future<void> _submit() async {
     if (_isSubmitting) return;
-
     setState(() => _isSubmitting = true);
 
-    final activeBadge = _activeBadge;
     final clientMutationId = '${DateTime.now().millisecondsSinceEpoch}-${widget.memberId}';
+    final sessionVol = _isVolumeAllowed ? int.tryParse(_volumeController.text.trim()) : 0;
+    final rec50 = double.tryParse(_record50mController.text.trim());
+    final recApnea = double.tryParse(_recordApneaController.text.trim());
+    final weight = double.tryParse(_weightKgController.text.trim());
+    final height = double.tryParse(_heightCmController.text.trim());
+    final obs = _observationController.text.trim();
+    final wordCoach = _wordFromCoachController.text.trim();
 
-    final t25 = double.tryParse(_time25mController.text.trim());
-    final t50 = double.tryParse(_time50mController.text.trim());
-    final dist = int.tryParse(_maxDistanceController.text.trim());
-    final recLvl = _recommendedLevelController.text.trim();
+    final barsRounded = <String, int>{
+      for (final entry in _bars.entries) entry.key: entry.value.round().clamp(0, 200),
+    };
 
-    final skillsMap = <String, dynamic>{..._skillScores};
+    final selectedBadgeDef = _selectedBadgeKey != null
+        ? _officialBadges.where((b) => b.key == _selectedBadgeKey).firstOrNull
+        : null;
 
-    final payload = {
+    final payload = <String, dynamic>{
       'clientMutationId': clientMutationId,
       'memberId': widget.memberId,
-      'skillsJson': skillsMap,
-      'awardedBadgeKey': activeBadge.key,
-      'recommendedLevel': recLvl.isNotEmpty ? recLvl : activeBadge.label,
-      'chrono25mFreestyle': t25,
-      'chrono50mFreestyle': t50,
-      'maxDistanceMeters': dist,
-      'generalNotes': _strengthsController.text.trim().isNotEmpty
-          ? _strengthsController.text.trim()
-          : null,
-      'strengths': _strengthsController.text.trim(),
-      'improvements': _improvementsController.text.trim(),
-      'nextGoals': _goalsController.text.trim(),
+      'bars': barsRounded,
+      'lastTouchedBar': _lastTouchedBar,
+      if (selectedBadgeDef != null) 'awardedBadgeKey': selectedBadgeDef.key,
+      if (selectedBadgeDef != null) 'recommendedLevel': selectedBadgeDef.label,
+      if (sessionVol != null && sessionVol > 0) 'sessionVolumeMeters': sessionVol,
+      if (obs.isNotEmpty) 'observation': obs,
+      if (rec50 != null && rec50 > 0) 'record50m': rec50,
+      if (recApnea != null && recApnea > 0) 'recordApnea': recApnea,
+      if (weight != null && weight > 0) 'weightKg': weight,
+      if (height != null && height > 0) 'heightCm': height,
+      if (wordCoach.isNotEmpty) 'wordFromCoach': wordCoach,
+      if (_selectedHonorRequestType != null) 'honorRequestType': _selectedHonorRequestType,
     };
 
     final client = ref.read(apiClientProvider);
@@ -555,10 +409,10 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
             backgroundColor: AqaTheme.statusSuccess,
             content: Text(
               i18n.locale == 'ar'
-                  ? 'تم حفظ التقييم الفني وشارة التقدم بنجاح.'
+                  ? 'تم حفظ التقييم والحصيلة بنجاح.'
                   : i18n.locale == 'en'
-                      ? 'Technical review and badge saved successfully.'
-                      : 'Evaluation technique et badge enregistres avec succes.',
+                      ? 'Evaluation and Bilan saved successfully.'
+                      : 'Evaluation et Bilan enregistres avec succes.',
             ),
           ),
         );
@@ -586,7 +440,7 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
               i18n.locale == 'ar'
                   ? 'وضع غير متصل: تم حفظ التقييم للمزامنة التلقائية.'
                   : i18n.locale == 'en'
-                      ? 'Offline mode: review queued for background sync.'
+                      ? 'Offline mode: evaluation queued for sync.'
                       : 'Mode hors-ligne: Evaluation enregistree pour synchronisation.',
             ),
           ),
@@ -601,43 +455,24 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(swimmerProfileProvider(widget.memberId));
-    profileAsync.whenData(_populateCatalogIfNeeded);
+    profileAsync.whenData(_populateIfNeeded);
     final i18n = ref.watch(i18nProvider);
-    final activeBadge = _activeBadge;
-    final overallAvg = _currentOverallAverage;
-
-    String stageAssetForBadge(String stageKey) {
-      switch (stageKey) {
-        case 'basics':
-        case 'elephant':
-          return 'elephant.png';
-        case 'crawl':
-        case 'crocodile':
-          return 'crawler.png';
-        case 'backstroke':
-        case 'dauphin':
-          return 'leaf.png';
-        case 'breaststroke':
-          return 'brasseur.png';
-        case 'butterfly':
-          return 'butterfly.png';
-        case 'elite':
-        case 'requin':
-          return 'requin.png';
-        default:
-          return 'elephant.png';
-      }
-    }
 
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
       appBar: AppBar(
         title: Text(
-          i18n.locale == 'ar'
-              ? 'تقييم فني وشارات AQA'
-              : i18n.locale == 'en'
-                  ? 'AQA Technical Review & Badges'
-                  : 'Evaluation Technique & Badges AQA',
+          _currentStep == 0
+              ? (i18n.locale == 'ar'
+                  ? '1. التقييم الفني (0% - 200%)'
+                  : i18n.locale == 'en'
+                      ? '1. Swim Evaluation (0% - 200%)'
+                      : '1. Evaluation Nage (0% - 200%)')
+              : (i18n.locale == 'ar'
+                  ? '2. حصيلة السباح والشارات (Bilan)'
+                  : i18n.locale == 'en'
+                      ? '2. Swimmer Bilan & Honors'
+                      : '2. Bilan Nageur & Distinctions'),
         ),
         actions: const [
           Padding(
@@ -648,544 +483,1128 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
         ],
       ),
       body: AqaAmbientBackground(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+        child: Column(
+          children: [
+            // 2-Step Header Strip (1. Evaluation -> 2. Bilan)
+            Container(
+              padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 12.0),
+              decoration: const BoxDecoration(
+                color: AqaTheme.surfaceDark,
+                border: Border(bottom: BorderSide(color: AqaTheme.borderSubtle)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildStepSelectorPill(
+                      index: 0,
+                      label: i18n.locale == 'ar'
+                          ? '1. التقييم (أشرطة التقدم)'
+                          : i18n.locale == 'en'
+                              ? '1. Evaluation (Progress Bars)'
+                              : '1. Evaluation (Barres 0-200%)',
+                    ),
+                  ),
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: _buildStepSelectorPill(
+                      index: 1,
+                      label: i18n.locale == 'ar'
+                          ? '2. الحصيلة والشارات (Bilan)'
+                          : i18n.locale == 'en'
+                              ? '2. Bilan & Badges'
+                              : '2. Bilan & Badges',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+                child: _currentStep == 0
+                    ? _buildStep1EvaluationBarsOnly(i18n)
+                    : _buildStep2Bilan(i18n),
+              ),
+            ),
+
+            // Bottom Action Bar
+            Container(
+              padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 16.0),
+              decoration: const BoxDecoration(
+                color: AqaTheme.surfaceDark,
+                border: Border(top: BorderSide(color: AqaTheme.borderSubtle)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    if (_currentStep == 1) ...[
+                      OutlinedButton.icon(
+                        onPressed: () => setState(() => _currentStep = 0),
+                        icon: const Icon(Icons.arrow_back_rounded, size: 16.0),
+                        label: Text(
+                          i18n.locale == 'ar'
+                              ? 'رجوع للتقييم'
+                              : i18n.locale == 'en'
+                                  ? 'Back'
+                                  : 'Retour Evaluation',
+                        ),
+                      ),
+                      const SizedBox(width: 10.0),
+                    ],
+                    Expanded(
+                      child: _currentStep == 0
+                          ? AqaIslandButton(
+                              label: i18n.locale == 'ar'
+                                  ? 'التالي: الحصيلة (Bilan)'
+                                  : i18n.locale == 'en'
+                                      ? 'Next: Swimmer Bilan'
+                                      : 'Suivant : Etape Bilan',
+                              icon: Icons.arrow_forward_rounded,
+                              onPressed: () => setState(() => _currentStep = 1),
+                            )
+                          : AqaIslandButton(
+                              label: _isSubmitting
+                                  ? i18n.t('common.saving')
+                                  : (i18n.locale == 'ar'
+                                      ? 'تأكيد وحفظ التقييم والحصيلة'
+                                      : i18n.locale == 'en'
+                                          ? 'Validate Evaluation & Bilan'
+                                          : 'Valider Evaluation & Bilan'),
+                              icon: Icons.check_circle_outline_rounded,
+                              loading: _isSubmitting,
+                              color: AqaTheme.statusSuccess,
+                              textColor: Colors.white,
+                              onPressed: _submit,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepSelectorPill({required int index, required String label}) {
+    final active = _currentStep == index;
+    return InkWell(
+      onTap: () => setState(() => _currentStep = index),
+      borderRadius: BorderRadius.circular(12.0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 10.0),
+        decoration: BoxDecoration(
+          color: active
+              ? AqaTheme.accentTeal.withValues(alpha: 0.14)
+              : const Color(0xFF080E1E),
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: active ? AqaTheme.accentTeal : AqaTheme.borderSubtle,
+            width: active ? 1.5 : 1.0,
+          ),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: active ? AqaTheme.accentTeal : AqaTheme.textMuted,
+            fontSize: 12.0,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// STEP 1: Evaluation — ONLY progress bars (0% to 200%). NO badges, NO stars.
+  /// Shows the last touched progress bar by default, with a button to show all 5 progress bars.
+  Widget _buildStep1EvaluationBarsOnly(AppI18n i18n) {
+    final visibleBars = _showAllFiveBars
+        ? _strokeBars
+        : _strokeBars.where((b) => b.key == _lastTouchedBar).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Scale Legend & Show All 5 Toggle Card
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Live Live Progression Header (Double Bezel)
-              AqaDoubleBezelCard(
-                glowEffect: true,
-                padding: const EdgeInsets.all(16.0),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          i18n.locale == 'ar'
+                              ? 'تقييم السباحة بالتمرير (0% إلى 200%)'
+                              : i18n.locale == 'en'
+                                  ? 'Slide Progress Bar (0% to 200%)'
+                                  : 'Evaluation par glissement (0% a 200%)',
+                          style: const TextStyle(
+                            color: AqaTheme.textPrimary,
+                            fontSize: 15.0,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        Text(
+                          i18n.locale == 'ar'
+                              ? '0% - 100%: تقييم تقني • 100% - 200%: تطوير النخبة (التحمل، السرعة، القوة)'
+                              : i18n.locale == 'en'
+                                  ? '0% - 100%: Technical Evaluation • 100% - 200%: Elite Development (Endurance, Speed, Strength)'
+                                  : '0% - 100% : Evaluation Technique • 100% - 200% : Elite (Endurance, Vitesse, Force)',
+                          style: const TextStyle(
+                            color: AqaTheme.textMuted,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14.0),
+
+              // Toggle Button: Show Last Touched Bar vs Show All 5 Progress Bars
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _showAllFiveBars = !_showAllFiveBars;
+                    });
+                  },
+                  icon: Icon(
+                    _showAllFiveBars ? Icons.unfold_less_rounded : Icons.tune_rounded,
+                    size: 18.0,
+                    color: AqaTheme.accentTeal,
+                  ),
+                  label: Text(
+                    _showAllFiveBars
+                        ? (i18n.locale == 'ar'
+                            ? 'إظهار آخر شريط تم لمسه فقط'
+                            : i18n.locale == 'en'
+                                ? 'Show Last Touched Progress Bar Only'
+                                : 'Afficher uniquement la derniere barre touchee')
+                        : (i18n.locale == 'ar'
+                            ? 'إظهار جميع أشرطة التقدم الخمسة (5 أشرطة)'
+                            : i18n.locale == 'en'
+                                ? 'Show All 5 Progress Bars'
+                                : 'Afficher les 5 barres de progression'),
+                    style: const TextStyle(
+                      color: AqaTheme.accentTeal,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+
+              if (!_showAllFiveBars) ...[
+                const SizedBox(height: 12.0),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _strokeBars.map((def) {
+                      final isCurrent = def.key == _lastTouchedBar;
+                      final val = (_bars[def.key] ?? 0).round();
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(10.0),
+                          onTap: () => setState(() => _lastTouchedBar = def.key),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10.0,
+                              vertical: 7.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isCurrent
+                                  ? AqaTheme.primarySky.withValues(alpha: 0.18)
+                                  : const Color(0xFF080E1E),
+                              borderRadius: BorderRadius.circular(10.0),
+                              border: Border.all(
+                                color: isCurrent
+                                    ? AqaTheme.primarySky
+                                    : AqaTheme.borderSubtle,
+                              ),
+                            ),
+                            child: Text(
+                              '${def.labelFor(i18n.locale)} ($val%)',
+                              style: TextStyle(
+                                color: isCurrent
+                                    ? AqaTheme.textPrimary
+                                    : AqaTheme.textMuted,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14.0),
+
+        // Progress Bar Cards (Either Last-Touched or All 5)
+        ...visibleBars.map((def) => _buildInteractiveStrokeBarCard(def, i18n)),
+      ],
+    );
+  }
+
+  Widget _buildInteractiveStrokeBarCard(_AqaStrokeBarDef def, AppI18n i18n) {
+    final currentVal = (_bars[def.key] ?? 0.0).clamp(0.0, 200.0);
+    final pctInt = currentVal.round();
+    final isEliteZone = currentVal > 100.0;
+    final isLastTouched = _lastTouchedBar == def.key;
+
+    final activeColor = isEliteZone ? AqaTheme.statusWarning : AqaTheme.accentTeal;
+    final zoneLabel = isEliteZone
+        ? (i18n.locale == 'ar'
+            ? 'تطوير النخبة (تحمل، سرعة، قوة)'
+            : i18n.locale == 'en'
+                ? 'Elite Development (Endurance, Speed, Strength)'
+                : 'Developpement Elite (Endurance, Vitesse, Force)')
+        : (i18n.locale == 'ar'
+            ? 'تقييم تقني (0% - 100%)'
+            : i18n.locale == 'en'
+                ? 'Technical Evaluation (0% - 100%)'
+                : 'Evaluation Technique (0% - 100%)');
+
+    return AqaDoubleBezelCard(
+      margin: const EdgeInsets.only(bottom: 12.0),
+      glowEffect: isLastTouched,
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        // Mascot stage icon
-                        Container(
-                          width: 54.0,
-                          height: 54.0,
-                          padding: const EdgeInsets.all(6.0),
-                          decoration: BoxDecoration(
-                            color: AqaTheme.surfaceSecondary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: AqaTheme.accentTeal.withValues(alpha: 0.6)),
-                          ),
-                          child: Image.asset(
-                            'assets/images/badges/${stageAssetForBadge(activeBadge.stageKey)}',
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.pool_rounded,
-                              color: AqaTheme.accentTeal,
-                              size: 26.0,
-                            ),
+                        Text(
+                          def.labelFor(i18n.locale),
+                          style: const TextStyle(
+                            color: AqaTheme.textPrimary,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(width: 14.0),
-                        // Badge Artwork
-                        Container(
-                          width: 58.0,
-                          height: 58.0,
-                          padding: const EdgeInsets.all(6.0),
-                          decoration: BoxDecoration(
-                            color: AqaTheme.surfaceSecondary,
-                            borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                            border: Border.all(color: AqaTheme.primarySky, width: 1.5),
-                          ),
-                          child: Image.asset(
-                            'assets/images/badges/${activeBadge.asset}',
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.workspace_premium_rounded,
-                              color: AqaTheme.accentTeal,
-                              size: 30.0,
+                        if (isLastTouched) ...[
+                          const SizedBox(width: 8.0),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7.0,
+                              vertical: 2.0,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AqaTheme.accentTeal.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: AqaTheme.borderTeal),
+                            ),
+                            child: Text(
+                              i18n.locale == 'ar'
+                                  ? 'نشط'
+                                  : i18n.locale == 'en'
+                                      ? 'LAST TOUCHED'
+                                      : 'DERNIERE TOUCHEE',
+                              style: const TextStyle(
+                                color: AqaTheme.accentTeal,
+                                fontSize: 9.0,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3.0),
+                    Text(
+                      zoneLabel,
+                      style: TextStyle(
+                        color: activeColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
+                decoration: BoxDecoration(
+                  color: activeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(color: activeColor),
+                ),
+                child: Text(
+                  '$pctInt%',
+                  style: TextStyle(
+                    color: activeColor,
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14.0),
+
+          // Visual 2-Zone Progress Bar (0-100% Technical | 100-200% Elite)
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final fullWidth = constraints.maxWidth;
+              final techFillRatio = (currentVal.clamp(0.0, 100.0)) / 200.0;
+              final eliteFillRatio = ((currentVal - 100.0).clamp(0.0, 100.0)) / 200.0;
+
+              return Column(
+                children: [
+                  Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      Container(
+                        height: 14.0,
+                        width: fullWidth,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF070C18),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: AqaTheme.borderSubtle),
                         ),
-                        const SizedBox(width: 14.0),
-                        Expanded(
+                      ),
+                      Row(
+                        children: [
+                          if (techFillRatio > 0)
+                            Container(
+                              height: 14.0,
+                              width: fullWidth * techFillRatio,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [AqaTheme.primarySky, AqaTheme.accentTeal],
+                                ),
+                                borderRadius: BorderRadius.horizontal(
+                                  left: const Radius.circular(999),
+                                  right: eliteFillRatio > 0
+                                      ? Radius.zero
+                                      : const Radius.circular(999),
+                                ),
+                              ),
+                            ),
+                          if (eliteFillRatio > 0)
+                            Container(
+                              height: 14.0,
+                              width: fullWidth * eliteFillRatio,
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [AqaTheme.accentTeal, AqaTheme.statusWarning],
+                                ),
+                                borderRadius: BorderRadius.horizontal(
+                                  right: Radius.circular(999),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      // 100% Midpoint Divider Marker
+                      Positioned(
+                        left: fullWidth * 0.5 - 1.0,
+                        child: Container(
+                          width: 2.0,
+                          height: 18.0,
+                          color: Colors.white.withValues(alpha: 0.65),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4.0),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '0%',
+                        style: TextStyle(
+                          color: AqaTheme.textLightMuted,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        i18n.locale == 'ar'
+                            ? '100% (تقني مكتمل)'
+                            : i18n.locale == 'en'
+                                ? '100% (Technical Complete)'
+                                : '100% (Technique acquise)',
+                        style: const TextStyle(
+                          color: AqaTheme.accentTeal,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Text(
+                        '200% (Elite)',
+                        style: TextStyle(
+                          color: AqaTheme.statusWarning,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+
+          // Interactive Finger Slider (0% to 200%)
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: activeColor,
+              inactiveTrackColor: AqaTheme.surfaceTertiary,
+              thumbColor: activeColor,
+              overlayColor: activeColor.withValues(alpha: 0.18),
+              trackHeight: 6.0,
+            ),
+            child: Slider(
+              value: currentVal,
+              min: 0.0,
+              max: 200.0,
+              divisions: 200,
+              label: '$pctInt%',
+              onChanged: (val) {
+                setState(() {
+                  _bars[def.key] = val.roundToDouble();
+                  _lastTouchedBar = def.key;
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// STEP 2: Bilan (Volume, Observation, Stored Records, Physical Data, Badge Choose, Honor Request, Word from Coach)
+  Widget _buildStep2Bilan(AppI18n i18n) {
+    final sessionVol = int.tryParse(_volumeController.text.trim()) ?? 0;
+    final projectedTotalMeters =
+        _storedTotalDistanceMeters + (_isVolumeAllowed && sessionVol > 0 ? sessionVol : 0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 1. Session Volume (Only visible in Crawl or other bars after Basics >= 1%)
+        if (_isVolumeAllowed) ...[
+          AqaDoubleBezelCard(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: AqaSectionHeader(
+                        title: i18n.locale == 'ar'
+                            ? 'حجم الحصة (المسافة بالمتر)'
+                            : i18n.locale == 'en'
+                                ? 'Session Volume (Distance in Meters)'
+                                : 'Volume de la Seance (Distance en metres)',
+                        subtitle: i18n.locale == 'ar'
+                            ? 'يتم حساب المسافة الإجمالية لتطبيق أعضاء AQA'
+                            : i18n.locale == 'en'
+                                ? 'Cumulative distance tracked for future AQA Member App'
+                                : 'Distance cumulee calculee pour l\'application AQA Member',
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+                      decoration: BoxDecoration(
+                        color: AqaTheme.accentTeal.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10.0),
+                        border: Border.all(color: AqaTheme.borderTeal),
+                      ),
+                      child: Text(
+                        'Total: $projectedTotalMeters m',
+                        style: const TextStyle(
+                          color: AqaTheme.accentTeal,
+                          fontSize: 12.0,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12.0),
+                TextField(
+                  controller: _volumeController,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(color: AqaTheme.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: i18n.locale == 'ar'
+                        ? 'المسافة المقطوعة في هذه الحصة (متر)'
+                        : i18n.locale == 'en'
+                            ? 'Single session distance (meters)'
+                            : 'Distance nagee durant la seance (m)',
+                    hintText: 'Ex: 800',
+                    prefixIcon: const Icon(
+                      Icons.straighten_rounded,
+                      color: AqaTheme.accentTeal,
+                      size: 18.0,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14.0),
+        ],
+
+        // 2. Observation (Optional)
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AqaSectionHeader(
+                title: i18n.locale == 'ar'
+                    ? 'ملاحظة الحصة (اختياري)'
+                    : i18n.locale == 'en'
+                        ? 'Session Observation (Optional)'
+                        : 'Observation (Optionnel)',
+                subtitle: i18n.locale == 'ar'
+                    ? 'ملاحظة تقنية حول أداء السباح اليوم'
+                    : i18n.locale == 'en'
+                        ? 'Optional observation on today\'s session'
+                        : 'Remarque technique facultative sur la seance',
+              ),
+              const SizedBox(height: 10.0),
+              TextField(
+                controller: _observationController,
+                maxLines: 2,
+                style: const TextStyle(color: AqaTheme.textPrimary),
+                decoration: InputDecoration(
+                  hintText: i18n.locale == 'ar'
+                      ? 'أضف ملاحظة اختيارية...'
+                      : i18n.locale == 'en'
+                          ? 'Optional session observation...'
+                          : 'Observation facultative...',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14.0),
+
+        // 3. Stored Records (50m Record, Apnea Record) — Locked by default so not edited in each session
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: AqaSectionHeader(
+                      title: i18n.locale == 'ar'
+                          ? 'الأرقام القياسية المسجلة (50م وانقطاع النفس)'
+                          : i18n.locale == 'en'
+                              ? 'Stored Records (50m & Apnea)'
+                              : 'Records Enregistres (50m & Apnee)',
+                      subtitle: i18n.locale == 'ar'
+                          ? 'محفوظة في ملف السباح (لا تُعدّل في كل حصة إلا عند تحطيم رقم قياسي)'
+                          : i18n.locale == 'en'
+                              ? 'Stored on profile — not edited in each session unless broken'
+                              : 'Stockes dans le profil — ne pas modifier a chaque seance',
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _recordsUnlockedForEdit = !_recordsUnlockedForEdit;
+                      });
+                    },
+                    icon: Icon(
+                      _recordsUnlockedForEdit
+                          ? Icons.lock_open_rounded
+                          : Icons.lock_outline_rounded,
+                      size: 16.0,
+                      color: _recordsUnlockedForEdit
+                          ? AqaTheme.statusWarning
+                          : AqaTheme.accentTeal,
+                    ),
+                    label: Text(
+                      _recordsUnlockedForEdit
+                          ? (i18n.locale == 'ar'
+                              ? 'قفل'
+                              : i18n.locale == 'en'
+                                  ? 'Lock'
+                                  : 'Verrouiller')
+                          : (i18n.locale == 'ar'
+                              ? 'تحديث رقم قياسي'
+                              : i18n.locale == 'en'
+                                  ? 'New Record'
+                                  : 'Nouveau Record'),
+                      style: TextStyle(
+                        color: _recordsUnlockedForEdit
+                            ? AqaTheme.statusWarning
+                            : AqaTheme.accentTeal,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10.0),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _record50mController,
+                      readOnly: !_recordsUnlockedForEdit,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        color: _recordsUnlockedForEdit
+                            ? AqaTheme.textPrimary
+                            : AqaTheme.textMuted,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: i18n.locale == 'ar'
+                            ? 'رقم 50 متر (ثانية)'
+                            : i18n.locale == 'en'
+                                ? '50m Record (s)'
+                                : 'Record 50m (s)',
+                        hintText: 'Ex: 34.5',
+                        prefixIcon: const Icon(
+                          Icons.timer_outlined,
+                          color: AqaTheme.primarySky,
+                          size: 18.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: TextField(
+                      controller: _recordApneaController,
+                      readOnly: !_recordsUnlockedForEdit,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: TextStyle(
+                        color: _recordsUnlockedForEdit
+                            ? AqaTheme.textPrimary
+                            : AqaTheme.textMuted,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: i18n.locale == 'ar'
+                            ? 'رقم انقطاع النفس (ثانية/متر)'
+                            : i18n.locale == 'en'
+                                ? 'Apnea Record (s / m)'
+                                : 'Record Apnee (s / m)',
+                        hintText: 'Ex: 45',
+                        prefixIcon: const Icon(
+                          Icons.air_rounded,
+                          color: AqaTheme.accentTeal,
+                          size: 18.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14.0),
+
+        // 4. Physical Data (Stored: Weight & Tall)
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AqaSectionHeader(
+                title: i18n.locale == 'ar'
+                    ? 'البيانات الجسدية المسجلة (الوزن والطول)'
+                    : i18n.locale == 'en'
+                        ? 'Stored Physical Data (Weight & Tall)'
+                        : 'Donnees Physiques Enregistrees (Poids & Taille)',
+                subtitle: i18n.locale == 'ar'
+                    ? 'محفوظة في ملف السباح لمتابعة النمو'
+                    : i18n.locale == 'en'
+                        ? 'Persisted on the swimmer profile'
+                        : 'Conservees dans le dossier du nageur',
+              ),
+              const SizedBox(height: 10.0),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _weightKgController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(color: AqaTheme.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: i18n.locale == 'ar'
+                            ? 'الوزن (كغ)'
+                            : i18n.locale == 'en'
+                                ? 'Weight (kg)'
+                                : 'Poids (kg)',
+                        hintText: 'Ex: 62',
+                        prefixIcon: const Icon(
+                          Icons.monitor_weight_outlined,
+                          color: AqaTheme.primarySky,
+                          size: 18.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: TextField(
+                      controller: _heightCmController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      style: const TextStyle(color: AqaTheme.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: i18n.locale == 'ar'
+                            ? 'الطول (سم)'
+                            : i18n.locale == 'en'
+                                ? 'Tall / Height (cm)'
+                                : 'Taille (cm)',
+                        hintText: 'Ex: 172',
+                        prefixIcon: const Icon(
+                          Icons.height_rounded,
+                          color: AqaTheme.accentTeal,
+                          size: 18.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14.0),
+
+        // 5. Badge Choose (Horizontal Sliding Toggle Bar of Badges + Swimmer of the Month / Year)
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AqaSectionHeader(
+                title: i18n.locale == 'ar'
+                    ? 'اختيار شارة التكريم (شريط التمرير)'
+                    : i18n.locale == 'en'
+                        ? 'Badge Choose (Slide Toggle Bar)'
+                        : 'Choix du Badge (Barre glissante de distinction)',
+                subtitle: i18n.locale == 'ar'
+                    ? 'مرر واختر شارة لتكريم السباح'
+                    : i18n.locale == 'en'
+                        ? 'Slide across the toggle bar to honor the swimmer'
+                        : 'Glissez sur la barre pour honorer le nageur avec un badge officiel',
+              ),
+              const SizedBox(height: 12.0),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _officialBadges.map((badge) {
+                    final isSelected = _selectedBadgeKey == badge.key;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10.0),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14.0),
+                        onTap: () {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedBadgeKey = null;
+                            } else {
+                              _selectedBadgeKey = badge.key;
+                            }
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          width: 96.0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8.0,
+                            vertical: 10.0,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AqaTheme.primarySky.withValues(alpha: 0.20)
+                                : const Color(0xFF080E1E),
+                            borderRadius: BorderRadius.circular(14.0),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AqaTheme.accentTeal
+                                  : AqaTheme.borderSubtle,
+                              width: isSelected ? 1.8 : 1.0,
+                            ),
+                          ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(
-                                i18n.locale == 'ar'
-                                    ? activeBadge.labelAr
-                                    : i18n.locale == 'en'
-                                        ? activeBadge.labelEn
-                                        : activeBadge.label,
-                                style: const TextStyle(
-                                  color: AqaTheme.textPrimary,
-                                  fontSize: 16.0,
-                                  fontWeight: FontWeight.w800,
+                              SizedBox(
+                                width: 42.0,
+                                height: 42.0,
+                                child: Image.asset(
+                                  'assets/images/badges/${badge.asset}',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => const Icon(
+                                    Icons.workspace_premium_rounded,
+                                    color: AqaTheme.accentTeal,
+                                    size: 28.0,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 4.0),
+                              const SizedBox(height: 6.0),
                               Text(
-                                '${i18n.locale == 'ar' ? 'المعدل العام المباشر' : i18n.locale == 'en' ? 'Live Overall Score' : 'Moyenne Technique'}: ${overallAvg.toStringAsFixed(2)} / 5.00',
-                                style: const TextStyle(
-                                  color: AqaTheme.accentTeal,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 2.0),
-                              Text(
-                                _manualBadgeOverride
-                                    ? (i18n.locale == 'ar'
-                                        ? 'تم التعيين يدوياً بواسطة المدرب'
-                                        : i18n.locale == 'en'
-                                            ? 'Manually selected by coach'
-                                            : 'Attribue manuellement par le coach')
-                                    : (i18n.locale == 'ar'
-                                        ? 'تحديد تلقائي حسب الكفاءات'
-                                        : i18n.locale == 'en'
-                                            ? 'Auto-calculated from skills'
-                                            : 'Calcule automatiquement'),
+                                badge.labelFor(i18n.locale),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  color: _manualBadgeOverride
-                                      ? AqaTheme.statusWarning
-                                      : AqaTheme.textLightMuted,
+                                  color: isSelected
+                                      ? AqaTheme.textPrimary
+                                      : AqaTheme.textMuted,
                                   fontSize: 11.0,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                    if (_manualBadgeOverride) ...[
-                      const SizedBox(height: 12.0),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _manualBadgeOverride = false;
-                              _selectedBadgeKey = _computedBadge.key;
-                            });
-                          },
-                          icon: const Icon(Icons.auto_mode_rounded, size: 16.0, color: AqaTheme.accentTeal),
-                          label: Text(
-                            i18n.locale == 'ar'
-                                ? 'العودة للترقية التلقائية'
-                                : i18n.locale == 'en'
-                                    ? 'Reset to auto-calculated badge'
-                                    : 'Revenir au calcul automatique',
-                            style: const TextStyle(color: AqaTheme.accentTeal, fontSize: 12.0),
-                          ),
-                        ),
                       ),
-                    ],
-                  ],
+                    );
+                  }).toList(),
                 ),
               ),
               const SizedBox(height: 16.0),
 
-              // 15 Official Badges Selector Grid
-              AqaDoubleBezelCard(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AqaSectionHeader(
-                      title: i18n.locale == 'ar'
-                          ? 'شارات التقدم الرسمية (15 شارة)'
-                          : i18n.locale == 'en'
-                              ? 'Official Progression Badges (15 Badges)'
-                              : 'Badges Officiels AQA (15 Badges)',
-                      subtitle: i18n.locale == 'ar'
-                          ? 'المس للتعيين اليدوي لشارة السباح'
-                          : i18n.locale == 'en'
-                              ? 'Tap to manually assign swimmer rank'
-                              : 'Touchez pour attribuer manuellement un rang',
-                    ),
-                    const SizedBox(height: 12.0),
-                    SizedBox(
-                      height: 104.0,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _officialBadges.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8.0),
-                        itemBuilder: (ctx, idx) {
-                          final badge = _officialBadges[idx];
-                          final isSelected = activeBadge.key == badge.key;
-                          final badgeName = i18n.locale == 'ar'
-                              ? badge.labelAr
-                              : i18n.locale == 'en'
-                                  ? badge.labelEn
-                                  : badge.label;
-
-                          return InkWell(
-                            onTap: () {
-                              setState(() {
-                                _manualBadgeOverride = true;
-                                _selectedBadgeKey = badge.key;
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                            child: Container(
-                              width: 86.0,
-                              padding: const EdgeInsets.all(8.0),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AqaTheme.primarySky.withValues(alpha: 0.22)
-                                    : AqaTheme.surfaceSecondary,
-                                borderRadius: BorderRadius.circular(AqaTheme.radiusMd),
-                                border: Border.all(
-                                  color: isSelected ? AqaTheme.accentTeal : AqaTheme.borderSubtle,
-                                  width: isSelected ? 2.0 : 1.0,
-                                ),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: 42.0,
-                                    height: 42.0,
-                                    child: Image.asset(
-                                      'assets/images/badges/${badge.asset}',
-                                      fit: BoxFit.contain,
-                                      errorBuilder: (_, __, ___) => const Icon(
-                                        Icons.workspace_premium,
-                                        color: AqaTheme.accentTeal,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6.0),
-                                  Text(
-                                    badgeName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: isSelected ? AqaTheme.accentTeal : AqaTheme.textPrimary,
-                                      fontSize: 10.5,
-                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2.0),
-                                  Text(
-                                    '>= ${badge.minScore.toStringAsFixed(1)}',
-                                    style: const TextStyle(
-                                      color: AqaTheme.textLightMuted,
-                                      fontSize: 9.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16.0),
-
-              // 5 Biomechanical Domains x 4 Skills (20 Skills)
-              ..._domains.map((domain) {
-                final domainTitle = i18n.locale == 'ar'
-                    ? domain.labelAr
+              // Special Honor Badges: Swimmer of the Month & Swimmer of the Year (ERP Approval Flow)
+              Text(
+                i18n.locale == 'ar'
+                    ? 'ترشيحات خاصة لإدارة AQA ERP (سباح الشهر / سباح السنة)'
                     : i18n.locale == 'en'
-                        ? domain.labelEn
-                        : domain.labelFr;
-
-                // Calculate domain average
-                final domainSkills = domain.skills.map((s) => _skillScores[s.key] ?? 2).toList();
-                final domainAvg = domainSkills.fold(0, (acc, s) => acc + s) / domainSkills.length;
-
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16.0),
-                  child: AqaDoubleBezelCard(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                domainTitle,
-                                style: const TextStyle(
-                                  color: AqaTheme.textPrimary,
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                              decoration: BoxDecoration(
-                                color: AqaTheme.primarySky.withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                                border: Border.all(color: AqaTheme.primarySky.withValues(alpha: 0.4)),
-                              ),
-                              child: Text(
-                                '${domainAvg.toStringAsFixed(1)} / 5.0',
-                                style: const TextStyle(
-                                  color: AqaTheme.accentTeal,
-                                  fontSize: 12.0,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14.0),
-                        ...domain.skills.map((skill) {
-                          final skillLabel = i18n.locale == 'ar'
-                              ? skill.labelAr
-                              : i18n.locale == 'en'
-                                  ? skill.labelEn
-                                  : skill.labelFr;
-                          final currentVal = _skillScores[skill.key] ?? 2;
-
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 14.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        skillLabel,
-                                        style: const TextStyle(
-                                          color: AqaTheme.textPrimary,
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    Text(
-                                      '$currentVal / 5',
-                                      style: const TextStyle(
-                                        color: AqaTheme.accentTeal,
-                                        fontSize: 12.0,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6.0),
-                                Row(
-                                  children: List.generate(5, (i) {
-                                    final val = i + 1;
-                                    final isSelected = currentVal == val;
-                                    return Expanded(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(right: i < 4 ? 6.0 : 0.0),
-                                        child: InkWell(
-                                          onTap: () {
-                                            setState(() {
-                                              _skillScores[skill.key] = val;
-                                            });
-                                          },
-                                          borderRadius: BorderRadius.circular(8.0),
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(vertical: 8.0),
-                                            decoration: BoxDecoration(
-                                              color: isSelected
-                                                  ? AqaTheme.primarySky.withValues(alpha: 0.25)
-                                                  : AqaTheme.surfaceSecondary,
-                                              borderRadius: BorderRadius.circular(8.0),
-                                              border: Border.all(
-                                                color: isSelected
-                                                    ? AqaTheme.accentTeal
-                                                    : AqaTheme.borderSubtle,
-                                                width: isSelected ? 1.6 : 1.0,
-                                              ),
-                                            ),
-                                            child: Center(
-                                              child: Text(
-                                                '$val',
-                                                style: TextStyle(
-                                                  color: isSelected
-                                                      ? AqaTheme.accentTeal
-                                                      : AqaTheme.textMuted,
-                                                  fontSize: 13.0,
-                                                  fontWeight: isSelected
-                                                      ? FontWeight.w800
-                                                      : FontWeight.w500,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
+                        ? 'Special AQA ERP Nominations (Swimmer of the Month / Year)'
+                        : 'Distinctions Speciales AQA ERP (Nageur du Mois / Nageur de l\'Annee)',
+                style: const TextStyle(
+                  color: AqaTheme.textPrimary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4.0),
+              Text(
+                i18n.locale == 'ar'
+                    ? 'يرسل طلباً لإدارة AQA ERP للمقارنة والاختيار. عند القبول يُقفل حتى الشهر القادم.'
+                    : i18n.locale == 'en'
+                        ? 'Sends a request to AQA ERP to compare candidates. Once accepted by Admin, locked until next month/year.'
+                        : 'Envoie une demande a l\'ERP AQA pour comparer les candidats. Des validation par l\'admin, verrouille jusqu\'au mois suivant.',
+                style: const TextStyle(
+                  color: AqaTheme.textLightMuted,
+                  fontSize: 11.0,
+                ),
+              ),
+              const SizedBox(height: 10.0),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildSpecialHonorToggle(
+                      typeKey: 'swimmer_of_the_month',
+                      title: i18n.locale == 'ar'
+                          ? 'سباح الشهر'
+                          : i18n.locale == 'en'
+                              ? 'Swimmer of the Month'
+                              : 'Nageur du Mois',
+                      locked: _monthHonorLocked,
+                      winnerName: _monthHonorWinnerName,
+                      i18n: i18n,
                     ),
                   ),
-                );
-              }),
-
-              // Chrono & Distance Metrics Card
-              AqaDoubleBezelCard(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AqaSectionHeader(
+                  const SizedBox(width: 10.0),
+                  Expanded(
+                    child: _buildSpecialHonorToggle(
+                      typeKey: 'swimmer_of_the_year',
                       title: i18n.locale == 'ar'
-                          ? 'الأزمنة والمسافات (اختياري)'
+                          ? 'سباح السنة'
                           : i18n.locale == 'en'
-                              ? 'Sprint Chronos & Distance (Optional)'
-                              : 'Chronometrage & Distance (Optionnel)',
-                      subtitle: i18n.locale == 'ar'
-                          ? 'تسجيل الأداء التنافسي والتحمل'
-                          : i18n.locale == 'en'
-                              ? 'Record timed splits and max swim distance'
-                              : 'Enregistrez les performances chronometriques',
+                              ? 'Swimmer of the Year'
+                              : 'Nageur de l\'Annee',
+                      locked: _yearHonorLocked,
+                      winnerName: _yearHonorWinnerName,
+                      i18n: i18n,
                     ),
-                    const SizedBox(height: 12.0),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _time25mController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                            decoration: const InputDecoration(
-                              labelText: '25m (sec)',
-                              hintText: 'ex: 21.5',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        Expanded(
-                          child: TextField(
-                            controller: _time50mController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                            decoration: const InputDecoration(
-                              labelText: '50m (sec)',
-                              hintText: 'ex: 46.2',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8.0),
-                        Expanded(
-                          child: TextField(
-                            controller: _maxDistanceController,
-                            keyboardType: TextInputType.number,
-                            style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                            decoration: const InputDecoration(
-                              labelText: 'Distance (m)',
-                              hintText: 'ex: 300',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12.0),
-                    TextField(
-                      controller: _recommendedLevelController,
-                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                      decoration: InputDecoration(
-                        labelText: i18n.locale == 'ar'
-                            ? 'المستوى أو الفوج المقترح'
-                            : i18n.locale == 'en'
-                                ? 'Recommended Level / Group'
-                                : 'Niveau ou Groupe Recommande',
-                        hintText: 'ex: AQA Dauphins Perfectionnement',
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16.0),
-
-              // Qualitative Feedback
-              AqaDoubleBezelCard(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AqaSectionHeader(
-                      title: i18n.locale == 'ar'
-                          ? 'ملاحظات وتوجيهات المدرب'
-                          : i18n.locale == 'en'
-                              ? 'Coach Pedagogical Assessment'
-                              : 'Bilan Pedagogique du Coach',
-                    ),
-                    const SizedBox(height: 12.0),
-                    TextField(
-                      controller: _strengthsController,
-                      maxLines: 2,
-                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                      decoration: InputDecoration(
-                        labelText: i18n.locale == 'ar'
-                            ? 'نقاط القوة الملاحظة'
-                            : i18n.locale == 'en'
-                                ? 'Observed Strengths'
-                                : 'Points forts observes',
-                        hintText: i18n.locale == 'ar'
-                            ? 'مثال: وضعية هيدروديناميكية ممتازة وثبات في ضربات الأرجل...'
-                            : 'Ex: Excellente position hydrodynamique et battements reguliers...',
-                      ),
-                    ),
-                    const SizedBox(height: 12.0),
-                    TextField(
-                      controller: _improvementsController,
-                      maxLines: 2,
-                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                      decoration: InputDecoration(
-                        labelText: i18n.locale == 'ar'
-                            ? 'محاور التحسين والتطوير'
-                            : i18n.locale == 'en'
-                                ? 'Areas for Improvement'
-                                : 'Axes d\'amelioration',
-                        hintText: i18n.locale == 'ar'
-                            ? 'مثال: التنفس الثنائي في السباحة الحرة وضبط مسار الذراعين...'
-                            : 'Ex: Respiration bilaterale en crawl et reprise de nage...',
-                      ),
-                    ),
-                    const SizedBox(height: 12.0),
-                    TextField(
-                      controller: _goalsController,
-                      maxLines: 2,
-                      style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
-                      decoration: InputDecoration(
-                        labelText: i18n.locale == 'ar'
-                            ? 'أهداف المرحلة القادمة'
-                            : i18n.locale == 'en'
-                                ? 'Next Stage Goals'
-                                : 'Objectifs pour le prochain palier',
-                        hintText: i18n.locale == 'ar'
-                            ? 'مثال: إتقان 50م حرة مستمرة بدون توقف للشارة القادمة...'
-                            : 'Ex: Valider 50m crawl continu pour le badge suivant...',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24.0),
-
-              // Island CTA Save Button
-              AqaIslandButton(
-                label: i18n.locale == 'ar'
-                    ? 'حفظ التقييم وتثبيت الشارة'
-                    : i18n.locale == 'en'
-                        ? 'Save Review & Award Badge'
-                        : 'Enregistrer l\'Evaluation & Valider le Badge',
-                icon: Icons.workspace_premium_rounded,
-                isLoading: _isSubmitting,
-                onPressed: _isSubmitting ? null : _submit,
-              ),
-              const SizedBox(height: 32.0),
             ],
           ),
+        ),
+        const SizedBox(height: 14.0),
+
+        // 6. Word from your Coach (Editable in Bilan step)
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AqaSectionHeader(
+                title: i18n.locale == 'ar'
+                    ? 'كلمة من مدربك (Word from your Coach)'
+                    : i18n.locale == 'en'
+                        ? 'Word from your Coach'
+                        : 'Mot de votre Coach (Word from your Coach)',
+                subtitle: i18n.locale == 'ar'
+                    ? 'رسالة تشجيعية وتوجيهية تظهر في ملف السباح'
+                    : i18n.locale == 'en'
+                        ? 'Personalized message saved on the swimmer profile'
+                        : 'Message personnalise enregistre sur le profil du nageur',
+              ),
+              const SizedBox(height: 10.0),
+              TextField(
+                controller: _wordFromCoachController,
+                maxLines: 3,
+                style: const TextStyle(color: AqaTheme.textPrimary),
+                decoration: InputDecoration(
+                  hintText: i18n.locale == 'ar'
+                      ? 'اكتب كلمة المدرب للسباح...'
+                      : i18n.locale == 'en'
+                          ? 'Write a word from the coach...'
+                          : 'Redigez le mot du coach pour ce nageur...',
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpecialHonorToggle({
+    required String typeKey,
+    required String title,
+    required bool locked,
+    required String? winnerName,
+    required AppI18n i18n,
+  }) {
+    final isSelected = _selectedHonorRequestType == typeKey;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12.0),
+      onTap: locked
+          ? null
+          : () {
+              setState(() {
+                if (isSelected) {
+                  _selectedHonorRequestType = null;
+                } else {
+                  _selectedHonorRequestType = typeKey;
+                }
+              });
+            },
+      child: Container(
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: locked
+              ? AqaTheme.surfaceSecondary.withValues(alpha: 0.45)
+              : isSelected
+                  ? AqaTheme.statusWarning.withValues(alpha: 0.16)
+                  : const Color(0xFF080E1E),
+          borderRadius: BorderRadius.circular(12.0),
+          border: Border.all(
+            color: locked
+                ? AqaTheme.borderSubtle
+                : isSelected
+                    ? AqaTheme.statusWarning
+                    : AqaTheme.borderSubtle,
+            width: isSelected ? 1.6 : 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  locked
+                      ? Icons.lock_rounded
+                      : Icons.workspace_premium_rounded,
+                  size: 16.0,
+                  color: locked
+                      ? AqaTheme.textLightMuted
+                      : isSelected
+                          ? AqaTheme.statusWarning
+                          : AqaTheme.accentTeal,
+                ),
+                const SizedBox(width: 6.0),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: locked ? AqaTheme.textMuted : AqaTheme.textPrimary,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4.0),
+            Text(
+              locked
+                  ? (winnerName != null
+                      ? 'Elu: $winnerName'
+                      : (i18n.locale == 'ar'
+                          ? 'مقفل لهذه الفترة'
+                          : i18n.locale == 'en'
+                              ? 'Locked for period'
+                              : 'Verrouille (deja elu)'))
+                  : isSelected
+                      ? (i18n.locale == 'ar'
+                          ? 'سيتم إرسال الطلب لـ ERP'
+                          : i18n.locale == 'en'
+                              ? 'Request ready for AQA ERP'
+                              : 'Demande prete pour AQA ERP')
+                      : (i18n.locale == 'ar'
+                          ? 'اضغط للترشيح'
+                          : i18n.locale == 'en'
+                              ? 'Tap to nominate'
+                              : 'Toucher pour proposer'),
+              style: TextStyle(
+                color: locked
+                    ? AqaTheme.textLightMuted
+                    : isSelected
+                        ? AqaTheme.statusWarning
+                        : AqaTheme.textMuted,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
