@@ -31,26 +31,34 @@ class ProfileView extends ConsumerWidget {
           padding: const EdgeInsets.all(20.0),
           child: Row(
             children: [
-              Container(
-                width: 60.0,
-                height: 60.0,
-                decoration: BoxDecoration(
-                  color: AqaTheme.surfaceRecessed,
-                  borderRadius: BorderRadius.circular(16.0),
-                  border: Border.all(
-                    color: roleColor.withValues(alpha: 0.40),
-                    width: 1.2,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16.0),
+                child: Container(
+                  width: 64.0,
+                  height: 64.0,
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.circular(16.0),
+                    border: Border.all(
+                      color: roleColor.withValues(alpha: 0.45),
+                      width: 1.2,
+                    ),
                   ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  (user?.name.isNotEmpty ?? false)
-                      ? user!.name.substring(0, 1).toUpperCase()
-                      : 'C',
-                  style: TextStyle(
-                    color: roleColor,
-                    fontSize: 24.0,
-                    fontWeight: FontWeight.w800,
+                  child: Image.asset(
+                    'assets/images/coach_logo.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Center(
+                      child: Text(
+                        (user?.name.isNotEmpty ?? false)
+                            ? user!.name.substring(0, 1).toUpperCase()
+                            : 'C',
+                        style: TextStyle(
+                          color: roleColor,
+                          fontSize: 24.0,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),

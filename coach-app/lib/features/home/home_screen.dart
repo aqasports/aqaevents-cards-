@@ -116,26 +116,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Row(
                         children: [
-                          // Precision Coach Brand Mark
-                          Container(
-                            width: 38.0,
-                            height: 38.0,
-                            padding: const EdgeInsets.all(6.5),
-                            decoration: BoxDecoration(
-                              color: AqaTheme.surfaceRecessed,
-                              borderRadius: BorderRadius.circular(11.0),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                width: 1.0,
+                          // Precision Coach Brand Mark (coach_logo.png)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(11.0),
+                            child: Container(
+                              width: 40.0,
+                              height: 40.0,
+                              decoration: BoxDecoration(
+                                color: Colors.black,
+                                borderRadius: BorderRadius.circular(11.0),
+                                border: Border.all(
+                                  color: AqaTheme.accentTeal.withValues(alpha: 0.35),
+                                  width: 1.0,
+                                ),
                               ),
-                            ),
-                            child: Image.asset(
-                              'assets/images/aqa_mark.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Icon(
-                                Icons.pool_rounded,
-                                color: AqaTheme.accentTeal,
-                                size: 18.0,
+                              child: Image.asset(
+                                'assets/images/coach_logo.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(
+                                  Icons.pool_rounded,
+                                  color: AqaTheme.accentTeal,
+                                  size: 18.0,
+                                ),
                               ),
                             ),
                           ),

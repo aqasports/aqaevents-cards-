@@ -194,28 +194,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 // Brand Lockup inside header
                                 Row(
                                   children: [
-                                    Container(
-                                      width: 44.0,
-                                      height: 44.0,
-                                      padding: const EdgeInsets.all(8.0),
-                                      decoration: BoxDecoration(
-                                        color: AqaTheme.surfaceRecessed,
-                                        borderRadius: BorderRadius.circular(12.0),
-                                        border: Border.all(
-                                          color: AqaTheme.borderMedium,
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(14.0),
+                                      child: Container(
+                                        width: 56.0,
+                                        height: 56.0,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black,
+                                          borderRadius:
+                                              BorderRadius.circular(14.0),
+                                          border: Border.all(
+                                            color: AqaTheme.accentTeal
+                                                .withValues(alpha: 0.35),
+                                          ),
                                         ),
-                                      ),
-                                      child: Image.asset(
-                                        'assets/images/aqa_mark.png',
-                                        fit: BoxFit.contain,
-                                        errorBuilder: (_, __, ___) => const Icon(
-                                          Icons.pool_rounded,
-                                          color: AqaTheme.accentTeal,
-                                          size: 22.0,
+                                        child: Image.asset(
+                                          'assets/images/coach_logo.png',
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              const Icon(
+                                            Icons.pool_rounded,
+                                            color: AqaTheme.accentTeal,
+                                            size: 26.0,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                    const SizedBox(width: 12.0),
+                                    const SizedBox(width: 14.0),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:

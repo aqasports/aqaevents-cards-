@@ -1,11 +1,11 @@
 {
-    "name": "aqa_coaches",
-    "short_name": "aqa_coaches",
+    "name": "AQA Coach",
+    "short_name": "AQA Coach",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#030712",
+    "theme_color": "#030712",
+    "description": "AQA Swim Coaches Pro",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
