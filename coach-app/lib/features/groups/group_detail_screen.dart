@@ -333,7 +333,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
               children: [
                 Row(
                   children: [
-                    Expanded(
+                    Flexible(
                       child: Text(
                         member.fullName,
                         style: const TextStyle(
@@ -344,6 +344,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (member.isNewClient) ...[
+                      const SizedBox(width: 6.0),
+                      const AqaNewClientBadge(compact: true),
+                    ],
+                    const Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
                       decoration: BoxDecoration(

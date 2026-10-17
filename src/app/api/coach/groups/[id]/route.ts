@@ -14,6 +14,10 @@ import {
   AQA_SUIVI_STAGES,
   computeSwimmerSuiviProgression,
 } from "@/lib/swim-skills";
+import {
+  computeIsNewClientSwimmer,
+  getMovedSwimmerIds,
+} from "@/lib/swim-coach-notifications";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -92,7 +96,7 @@ export async function GET(
 
     const memberIds = rawRoster.map((m) => m.id);
 
-    const [memberAttendances, memberReviews] = await Promise.all([
+    const [memberAttendances, memberReviews, movedMemberIds] = await Promise.all([
       memberIds.length > 0
         ? prisma.swimAttendance.findMany({
             where: { memberId: { in: memberIds } },
@@ -112,6 +116,7 @@ export async function GET(
             },
           })
         : Promise.resolve([]),
+      getMovedSwimmerIds(memberIds),
     ]);
 
     const attByMember = new Map<string, { present: number; absent: number; total: number }>();
@@ -132,13 +137,19 @@ export async function GET(
 
     const meta = extractGroupScheduleMeta(group.schedule);
 
-    // Apply privacy filtering per role + enrich with attendance & evolution badge
+    // Apply privacy filtering per role + enrich with attendance, NEW client label & evolution badge
     const shapedRoster = rawRoster.map((m) => {
       const att = attByMember.get(m.id) || { present: 0, absent: 0, total: 0 };
       const revs = reviewsByMember.get(m.id) || [];
       const latestRev = revs[0];
 
       const prog = computeSwimmerSuiviProgression(latestRev?.skills || null, revs.length);
+      const isNewClient = computeIsNewClientSwimmer({
+        memberId: m.id,
+        totalAttendances: att.total,
+        isMultiGroup: m.isMultiGroup,
+        movedMemberIds,
+      });
 
       return {
         id: m.id,
@@ -157,6 +168,7 @@ export async function GET(
         subscriptionStart: m.subscriptionStart,
         subscriptionEnd: m.subscriptionEnd,
         isMultiGroup: m.isMultiGroup,
+        isNewClient,
         totalPresences: att.present,
         totalAbsences: att.absent,
         attendanceRate: att.total > 0 ? Math.round((att.present / att.total) * 100) : 100,

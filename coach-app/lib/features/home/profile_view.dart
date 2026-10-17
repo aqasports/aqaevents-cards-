@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/aqa_theme.dart';
 
 class ProfileView extends ConsumerWidget {
@@ -12,6 +13,8 @@ class ProfileView extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
     final i18n = ref.watch(i18nProvider);
+    final notifSettings = ref.watch(notificationSettingsProvider);
+    final notifNotifier = ref.read(notificationSettingsProvider.notifier);
 
     final isHead = user?.isHeadCoach == true;
     final isAssistant = user?.isAssistant == true;
@@ -178,6 +181,115 @@ class ProfileView extends ConsumerWidget {
         ),
         const SizedBox(height: 14.0),
 
+        // Notification Settings Card (New Client NEW Label, Group Movement, Replacements, Reminders)
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AqaSectionHeader(
+                eyebrow: 'ALERTES & NOTIFICATIONS',
+                title: i18n.locale == 'ar'
+                    ? 'إعدادات الإشعارات'
+                    : i18n.locale == 'en'
+                        ? 'Notification Settings'
+                        : 'Parametres des Notifications',
+              ),
+              const SizedBox(height: 12.0),
+              _buildNotificationToggleRow(
+                icon: Icons.notifications_active_outlined,
+                accentColor: AqaTheme.accentTeal,
+                title: i18n.locale == 'ar'
+                    ? 'تفعيل إشعارات الهاتف'
+                    : i18n.locale == 'en'
+                        ? 'Allow Phone Notifications'
+                        : 'Autoriser les notifications sur le telephone',
+                subtitle: i18n.locale == 'ar'
+                    ? 'تلقي التنبيهات الفورية على جهازك'
+                    : i18n.locale == 'en'
+                        ? 'Receive real-time alerts on your phone'
+                        : 'Recevoir les alertes directement sur votre telephone',
+                value: notifSettings.isAuthorized,
+                onChanged: (val) => notifNotifier.toggleAuthorized(val),
+              ),
+              const Divider(height: 18.0),
+              _buildNotificationToggleRow(
+                icon: Icons.fiber_new_rounded,
+                accentColor: AqaTheme.statusSuccess,
+                badgeTag: 'NEW',
+                title: i18n.locale == 'ar'
+                    ? 'إضافة مشترك جديد إلى الفوج (NEW)'
+                    : i18n.locale == 'en'
+                        ? 'New Client Added to Group (NEW)'
+                        : 'Nouveau client ajoute au groupe (NEW)',
+                subtitle: i18n.locale == 'ar'
+                    ? 'تنبيه وشارة NEW تختفي تلقائيا بعد الحصة الأولى للسباح الجديد'
+                    : i18n.locale == 'en'
+                        ? 'Notification and NEW label that disappears after their first session'
+                        : 'Notification et label NEW qui disparait apres la 1ere seance du nageur',
+                value: notifSettings.notifyNewClient,
+                enabled: notifSettings.isAuthorized,
+                onChanged: (val) => notifNotifier.toggleNewClient(val),
+              ),
+              const Divider(height: 18.0),
+              _buildNotificationToggleRow(
+                icon: Icons.compare_arrows_rounded,
+                accentColor: AqaTheme.primarySkyHover,
+                title: i18n.locale == 'ar'
+                    ? 'حركة تغيير الفوج والتعيين متعدد الأفواج'
+                    : i18n.locale == 'en'
+                        ? 'Group Movement & Multi-Group Assignment'
+                        : 'Mouvement de groupe & Multi-groupe',
+                subtitle: i18n.locale == 'ar'
+                    ? 'إشعار عند نقل سباح أو تعيينه في عدة أفواج (بدون شارة NEW)'
+                    : i18n.locale == 'en'
+                        ? 'Notifies coach on group movement or multi-group assign (no NEW label)'
+                        : 'Notifie le coach lors d\'un transfert ou multi-groupe (sans label NEW)',
+                value: notifSettings.notifyGroupMovement,
+                enabled: notifSettings.isAuthorized,
+                onChanged: (val) => notifNotifier.toggleGroupMovement(val),
+              ),
+              const Divider(height: 18.0),
+              _buildNotificationToggleRow(
+                icon: Icons.swap_horiz_rounded,
+                accentColor: AqaTheme.statusWarning,
+                title: i18n.locale == 'ar'
+                    ? 'طلبات الاستخلاف والتغطية'
+                    : i18n.locale == 'en'
+                        ? 'Coverage & Replacement Requests'
+                        : 'Demandes de couverture & remplacement',
+                subtitle: i18n.locale == 'ar'
+                    ? 'تنبيه عند استلام طلب استخلاف للقبول أو الرفض'
+                    : i18n.locale == 'en'
+                        ? 'Alert when another coach submits a coverage request'
+                        : 'Alerte lorsqu\'un coach soumet une demande de couverture',
+                value: notifSettings.notifyReplacements,
+                enabled: notifSettings.isAuthorized,
+                onChanged: (val) => notifNotifier.toggleReplacements(val),
+              ),
+              const Divider(height: 18.0),
+              _buildNotificationToggleRow(
+                icon: Icons.timer_outlined,
+                accentColor: AqaTheme.accentTeal,
+                title: i18n.locale == 'ar'
+                    ? 'تذكير نهاية الحصة (10 دقائق)'
+                    : i18n.locale == 'en'
+                        ? 'Session End Reminder (10 min)'
+                        : 'Rappel de fin de seance (10 min)',
+                subtitle: i18n.locale == 'ar'
+                    ? 'تذكير قبل 10 دقائق من نهاية الحصة لتسجيل الحضور والتقييم'
+                    : i18n.locale == 'en'
+                        ? 'Reminder 10 min before session end to log attendance and evaluation'
+                        : 'Rappel 10 min avant la fin pour saisir l\'appel et l\'evaluation',
+                value: notifSettings.notifySessionReminder,
+                enabled: notifSettings.isAuthorized,
+                onChanged: (val) => notifNotifier.toggleSessionReminder(val),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14.0),
+
         // Permissions Card
         AqaDoubleBezelCard(
           padding: const EdgeInsets.all(16.0),
@@ -312,6 +424,101 @@ class ProfileView extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildNotificationToggleRow({
+    required IconData icon,
+    required Color accentColor,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+    bool enabled = true,
+    String? badgeTag,
+  }) {
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.55,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 34.0,
+            height: 34.0,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(9.0),
+              border: Border.all(
+                color: accentColor.withValues(alpha: 0.35),
+              ),
+            ),
+            child: Icon(icon, color: accentColor, size: 17.5),
+          ),
+          const SizedBox(width: 12.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: AqaTheme.textPrimary,
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (badgeTag != null) ...[
+                      const SizedBox(width: 6.0),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6.0,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AqaTheme.statusSuccess.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(5.0),
+                          border: Border.all(
+                            color: AqaTheme.statusSuccess.withValues(alpha: 0.55),
+                          ),
+                        ),
+                        child: Text(
+                          badgeTag,
+                          style: const TextStyle(
+                            color: AqaTheme.statusSuccess,
+                            fontSize: 9.0,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2.5),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AqaTheme.textMuted,
+                    fontSize: 11.0,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8.0),
+          Switch.adaptive(
+            value: enabled ? value : false,
+            activeTrackColor: accentColor.withValues(alpha: 0.45),
+            activeThumbColor: accentColor,
+            onChanged: enabled ? onChanged : null,
+          ),
+        ],
+      ),
     );
   }
 

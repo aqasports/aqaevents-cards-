@@ -16,6 +16,7 @@ import {
   getEffectiveSubscriptionStart,
   computeSubscriptionEnd,
 } from "@/lib/swim-subscription";
+import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -328,6 +329,14 @@ export async function PATCH(
       computedSubEnd = computeSubscriptionEnd(computedSubStart, baseDuration);
     }
 
+    const beforeUpdateMember = await prisma.swimMember.findUnique({
+      where: { id },
+      select: { groupId: true, notes: true },
+    });
+    const previousGroupIds = beforeUpdateMember
+      ? decodeMemberGroupIds(beforeUpdateMember.notes, beforeUpdateMember.groupId)
+      : [];
+
     const updated = await prisma.swimMember.update({
       where: { id },
       data: {
@@ -360,6 +369,17 @@ export async function PATCH(
     });
 
     const allGroupIds = decodeMemberGroupIds(updated.notes, updated.groupId);
+    if (groupIds !== undefined || groupId !== undefined) {
+      await recordSwimmerGroupChangeNotification({
+        memberId: updated.id,
+        memberName: updated.fullName,
+        swimId: updated.swimId,
+        previousGroupIds,
+        nextGroupIds: allGroupIds,
+        isNewlyCreatedMember: false,
+        adminId: session.user?.id || null,
+      });
+    }
     let allGroups: Array<{ id: string; active?: boolean; [key: string]: any }> = [];
     if (allGroupIds.length > 0) {
       allGroups = await prisma.swimGroup.findMany({

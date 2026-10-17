@@ -212,14 +212,25 @@ class SwimmerProfileScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  member['fullName'] as String? ?? 'Nageur AQA',
-                                  style: const TextStyle(
-                                    color: AqaTheme.textPrimary,
-                                    fontSize: 18.0,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.4,
-                                  ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        member['fullName'] as String? ?? 'Nageur AQA',
+                                        style: const TextStyle(
+                                          color: AqaTheme.textPrimary,
+                                          fontSize: 18.0,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.4,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (member['isNewClient'] == true) ...[
+                                      const SizedBox(width: 8.0),
+                                      const AqaNewClientBadge(compact: false),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 3.0),
                                 Text(

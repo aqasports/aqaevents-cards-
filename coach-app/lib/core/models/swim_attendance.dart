@@ -10,6 +10,8 @@ class AttendanceRecordModel {
   String? notes;
   bool isGuest;
   String? guestGroupId;
+  bool isNewClient;
+  bool isMultiGroup;
 
   AttendanceRecordModel({
     this.id,
@@ -23,6 +25,8 @@ class AttendanceRecordModel {
     this.notes,
     this.isGuest = false,
     this.guestGroupId,
+    this.isNewClient = false,
+    this.isMultiGroup = false,
   });
 
   bool get isPresent => status.toUpperCase() != 'ABSENT';
@@ -52,6 +56,8 @@ class AttendanceRecordModel {
       notes: json['note'] as String? ?? (json['notes'] as String?),
       isGuest: json['isGuest'] as bool? ?? false,
       guestGroupId: json['guestGroupId'] as String?,
+      isNewClient: json['isNewClient'] as bool? ?? false,
+      isMultiGroup: json['isMultiGroup'] as bool? ?? false,
     );
   }
 

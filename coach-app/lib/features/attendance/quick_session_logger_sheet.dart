@@ -765,13 +765,24 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                 ),
                 const SizedBox(width: 12.0),
                 Expanded(
-                  child: Text(
-                    rec.memberName,
-                    style: const TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 14.0,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          rec.memberName,
+                          style: const TextStyle(
+                            color: AqaTheme.textPrimary,
+                            fontSize: 14.0,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (rec.isNewClient) ...[
+                        const SizedBox(width: 6.0),
+                        const AqaNewClientBadge(compact: true),
+                      ],
+                    ],
                   ),
                 ),
                 Container(
@@ -888,13 +899,24 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        rec.memberName,
-                        style: const TextStyle(
-                          color: AqaTheme.textPrimary,
-                          fontSize: 15.0,
-                          fontWeight: FontWeight.w800,
-                        ),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              rec.memberName,
+                              style: const TextStyle(
+                                color: AqaTheme.textPrimary,
+                                fontSize: 15.0,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (rec.isNewClient) ...[
+                            const SizedBox(width: 6.0),
+                            const AqaNewClientBadge(compact: true),
+                          ],
+                        ],
                       ),
                     ),
                     TextButton.icon(
@@ -1138,13 +1160,22 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                               width: selected ? 1.5 : 1.0,
                             ),
                           ),
-                          child: Text(
-                            rec.memberName,
-                            style: TextStyle(
-                              color: selected ? AqaTheme.accentTeal : AqaTheme.textPrimary,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                rec.memberName,
+                                style: TextStyle(
+                                  color: selected ? AqaTheme.accentTeal : AqaTheme.textPrimary,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              if (rec.isNewClient) ...[
+                                const SizedBox(width: 6.0),
+                                const AqaNewClientBadge(compact: true),
+                              ],
+                            ],
                           ),
                         ),
                       ),

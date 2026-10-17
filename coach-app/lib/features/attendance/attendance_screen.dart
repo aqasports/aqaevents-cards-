@@ -115,6 +115,8 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
         status: rawSt == 'ABSENT' ? 'ABSENT' : 'PRESENT',
         notes: m['note'] as String?,
         isGuest: m['isGuest'] as bool? ?? false,
+        isNewClient: m['isNewClient'] as bool? ?? false,
+        isMultiGroup: m['isMultiGroup'] as bool? ?? false,
       );
     }
 
@@ -780,6 +782,10 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    if (rec.isNewClient) ...[
+                      const SizedBox(width: 6.0),
+                      const AqaNewClientBadge(compact: true),
+                    ],
                     if (rec.isGuest) ...[
                       const SizedBox(width: 6.0),
                       Container(

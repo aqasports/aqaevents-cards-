@@ -11,7 +11,8 @@ import {
   SwimFrequency,
 } from "@/lib/swim-pricing";
 import { parseSwimLeadNotes } from "@/lib/swim-lead-details";
-import { encodeMemberGroupIds, encodeDebtInNotes } from "@/lib/swim-groups";
+import { decodeMemberGroupIds, encodeMemberGroupIds, encodeDebtInNotes } from "@/lib/swim-groups";
+import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -146,6 +147,26 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      const prevExistingGroupIds = decodeMemberGroupIds(
+        existingMember.notes,
+        existingMember.groupId
+      );
+      const nextExistingGroupIds = decodeMemberGroupIds(
+        updatedMember.notes,
+        updatedMember.groupId
+      );
+      if (nextExistingGroupIds.length > 0) {
+        await recordSwimmerGroupChangeNotification({
+          memberId: updatedMember.id,
+          memberName: updatedMember.fullName,
+          swimId: updatedMember.swimId,
+          previousGroupIds: prevExistingGroupIds,
+          nextGroupIds: nextExistingGroupIds,
+          isNewlyCreatedMember: false,
+          adminId: session.user?.id || null,
+        });
+      }
+
       if (issueCard && !existingMember.card) {
         const token = generateSwimToken();
         const code = cardCode?.trim()
@@ -215,6 +236,18 @@ export async function POST(request: NextRequest) {
         notes: finalNotes,
       },
     });
+
+    if (validTargetGroupIds.length > 0) {
+      await recordSwimmerGroupChangeNotification({
+        memberId: member.id,
+        memberName: member.fullName,
+        swimId: member.swimId,
+        previousGroupIds: [],
+        nextGroupIds: validTargetGroupIds,
+        isNewlyCreatedMember: true,
+        adminId: session.user?.id || null,
+      });
+    }
 
     // Optionally link or create card
     if (issueCard) {

@@ -33,6 +33,8 @@ class SwimMemberModel {
   final double? weightKg;
   final double? heightCm;
   final String? wordFromCoach;
+  final bool isNewClient;
+  final bool isMultiGroup;
 
   const SwimMemberModel({
     required this.id,
@@ -75,6 +77,8 @@ class SwimMemberModel {
     this.weightKg,
     this.heightCm,
     this.wordFromCoach,
+    this.isNewClient = false,
+    this.isMultiGroup = false,
   });
 
   factory SwimMemberModel.fromJson(Map<String, dynamic> json) {
@@ -122,6 +126,8 @@ class SwimMemberModel {
       weightKg: (json['weightKg'] as num?)?.toDouble(),
       heightCm: (json['heightCm'] as num?)?.toDouble(),
       wordFromCoach: json['wordFromCoach'] as String?,
+      isNewClient: json['isNewClient'] as bool? ?? false,
+      isMultiGroup: json['isMultiGroup'] as bool? ?? false,
     );
   }
 
@@ -161,6 +167,8 @@ class SwimMemberModel {
       'weightKg': weightKg,
       'heightCm': heightCm,
       'wordFromCoach': wordFromCoach,
+      'isNewClient': isNewClient,
+      'isMultiGroup': isMultiGroup,
     };
   }
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { calculateSwimPrice, resolveMultiGroupFormula } from "@/lib/swim-pricing";
 import { decodeMemberGroupIds, encodeMemberGroupIds } from "@/lib/swim-groups";
+import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -181,6 +182,16 @@ export async function POST(
         card: true,
         payments: { orderBy: { paidAt: "desc" } },
       },
+    });
+
+    await recordSwimmerGroupChangeNotification({
+      memberId: updated.id,
+      memberName: updated.fullName,
+      swimId: updated.swimId,
+      previousGroupIds: currentGroupIds,
+      nextGroupIds,
+      isNewlyCreatedMember: false,
+      adminId: session.user?.id || null,
     });
 
     return NextResponse.json(updated);

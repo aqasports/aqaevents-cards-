@@ -6,6 +6,7 @@ import '../models/coach_user.dart';
 import '../models/swim_group.dart';
 import '../models/swim_session.dart';
 import '../models/replacement.dart';
+import '../services/notification_service.dart';
 import '../sync/offline_sync_manager.dart';
 
 class BootstrapData {
@@ -17,6 +18,7 @@ class BootstrapData {
   final List<SwimSessionModel> todaySessions;
   final List<ReplacementModel> activeReplacements;
   final List<ReplacementModel> pendingRequests;
+  final List<Map<String, dynamic>> coachNotifications;
   final List<Map<String, dynamic>> myAbsences;
   final Map<String, dynamic> skillsCatalog;
   final List<Map<String, dynamic>> progressionBadges;
@@ -34,6 +36,7 @@ class BootstrapData {
     required this.todaySessions,
     required this.activeReplacements,
     required this.pendingRequests,
+    this.coachNotifications = const [],
     this.myAbsences = const [],
     required this.skillsCatalog,
     this.progressionBadges = const [],
@@ -89,6 +92,11 @@ class BootstrapData {
             .toList() ??
         const [];
 
+    final coachNotifsList = (json['coachNotifications'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        const [];
+
     final coachesList = (json['allCoaches'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList() ??
@@ -123,6 +131,7 @@ class BootstrapData {
       todaySessions: sessionsList,
       activeReplacements: activeReps,
       pendingRequests: pendingReps,
+      coachNotifications: coachNotifsList,
       myAbsences: absencesList,
       skillsCatalog: (json['skillsCatalog'] as Map<String, dynamic>?) ?? const {},
       progressionBadges: badgesList,
@@ -153,7 +162,17 @@ final bootstrapProvider = FutureProvider.autoDispose<BootstrapData>((ref) async 
 
   final response = await client.dio.get(ApiEndpoints.bootstrap);
   if (response.statusCode == 200 && response.data != null) {
-    return BootstrapData.fromJson(response.data as Map<String, dynamic>);
+    final data = BootstrapData.fromJson(response.data as Map<String, dynamic>);
+    try {
+      final notifService = ref.read(notificationServiceProvider);
+      await notifService.processBootstrapEvents(
+        coachNotifications: data.coachNotifications,
+        pendingRequests: data.pendingRequests,
+      );
+    } catch (_) {
+      // ignore notification dispatch errors
+    }
+    return data;
   } else {
     throw Exception('Failed to load coach bootstrap data');
   }

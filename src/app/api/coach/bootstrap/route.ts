@@ -18,6 +18,12 @@ import {
   computeSwimmerSuiviProgression,
 } from "@/lib/swim-skills";
 import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
+import { decodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  computeIsNewClientSwimmer,
+  getCoachSwimmerNotifications,
+  getMovedSwimmerIds,
+} from "@/lib/swim-coach-notifications";
 import { getFlag } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
 
@@ -163,7 +169,10 @@ export async function GET(req: NextRequest) {
         groupIds.length > 0
           ? prisma.swimMember.findMany({
               where: {
-                groupId: { in: groupIds },
+                OR: [
+                  { groupId: { in: groupIds } },
+                  { notes: { contains: "[GROUPS:" } },
+                ],
                 groupStatus: { not: "rejected" },
               },
               select: {
@@ -175,6 +184,7 @@ export async function GET(req: NextRequest) {
                 level: true,
                 formula: true,
                 groupId: true,
+                notes: true,
                 group: { select: { id: true, name: true } },
                 attendances: {
                   select: { status: true },
@@ -192,7 +202,7 @@ export async function GET(req: NextRequest) {
                 },
               },
               orderBy: { fullName: "asc" },
-              take: 300,
+              take: 350,
             })
           : Promise.resolve([]),
         prisma.platformSetting.findMany({
@@ -391,8 +401,21 @@ export async function GET(req: NextRequest) {
       .filter((r) => r.status !== "proposed" || r.originalCoachId === coach.id)
       .map(shapeReplacement);
 
-    // Shape all swimmers with Suivi progression, 5-bar model, cumulative volume, and binary attendance counts
-    const shapedSwimmers = rawSwimmers.map((m) => {
+    // Filter rawSwimmers so multi-group candidates belong to at least one of this coach's groupIds
+    const groupIdSet = new Set(groupIds);
+    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+    const scopedRawSwimmers = rawSwimmers.filter((m) => {
+      if (m.groupId && groupIdSet.has(m.groupId)) return true;
+      const assignedIds = decodeMemberGroupIds(m.notes, m.groupId);
+      return assignedIds.some((gid) => groupIdSet.has(gid));
+    });
+
+    const movedMemberIds = await getMovedSwimmerIds(scopedRawSwimmers.map((m) => m.id));
+    const attendanceCountByMemberId = new Map<string, number>();
+    const multiGroupMemberIds = new Set<string>();
+
+    // Shape all swimmers with Suivi progression, 5-bar model, cumulative volume, NEW client status, and binary attendance counts
+    const shapedSwimmers = scopedRawSwimmers.map((m) => {
       const presences = m.attendances.filter(
         (a) => a.status === "present" || a.status === "late"
       ).length;
@@ -402,12 +425,33 @@ export async function GET(req: NextRequest) {
       const totalAtt = presences + absences;
       const attendanceRate = totalAtt > 0 ? Math.round((presences / totalAtt) * 100) : 100;
 
+      const assignedGroupIds = decodeMemberGroupIds(m.notes, m.groupId);
+      const isMultiGroup = assignedGroupIds.length > 1;
+      if (isMultiGroup) {
+        multiGroupMemberIds.add(m.id);
+      }
+      attendanceCountByMemberId.set(m.id, totalAtt);
+
+      const isNewClient = computeIsNewClientSwimmer({
+        memberId: m.id,
+        totalAttendances: totalAtt,
+        isMultiGroup,
+        movedMemberIds,
+      });
+
       const latestRev = m.techReviews[0];
       const prog = computeSwimmerSuiviProgression(
         latestRev?.skills || null,
         m.techReviews.length
       );
       const cumulative = aggregateSwimmerCumulativeBilan(m.techReviews);
+
+      const matchedCoachGroupId =
+        assignedGroupIds.find((gid) => groupIdSet.has(gid)) || m.groupId;
+      const resolvedGroupName =
+        (matchedCoachGroupId && groupNameById.get(matchedCoachGroupId)) ||
+        m.group?.name ||
+        "Groupe AQA";
 
       return {
         id: m.id,
@@ -417,11 +461,13 @@ export async function GET(req: NextRequest) {
         phone: role === "assistant" ? null : m.phone,
         category: m.category,
         level: latestRev?.recommendedLevel || m.level || "Starter",
-        groupId: m.groupId,
-        groupName: m.group?.name || "Groupe AQA",
+        groupId: matchedCoachGroupId,
+        groupName: resolvedGroupName,
         gender: m.category === "femme" ? "female" : "male",
         formula: m.formula,
         active: true,
+        isNewClient,
+        isMultiGroup,
         totalPresences: presences,
         totalAbsences: absences,
         attendanceRate,
@@ -445,14 +491,20 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // App command settings from AQA Swim Admin + Honor Lock Status
+    // App command settings from AQA Swim Admin + Honor Lock Status + Coach Notifications
     const settingsMap = new Map<string, string>();
     for (const s of rawSettings) {
       settingsMap.set(s.key, s.value);
     }
-    const [isAppEnabled, honorLockStatus] = await Promise.all([
+    const [isAppEnabled, honorLockStatus, coachNotifications] = await Promise.all([
       getFlag("coach_app_enabled", true),
       getCurrentHonorLockStatus(),
+      getCoachSwimmerNotifications({
+        groupIds,
+        movedMemberIds,
+        attendanceCountByMemberId,
+        multiGroupMemberIds,
+      }),
     ]);
     const appConfig = {
       enabled: isAppEnabled,
@@ -485,6 +537,7 @@ export async function GET(req: NextRequest) {
         pendingReplacements: pendingRequests,
         pendingRequests,
         activeReplacements,
+        coachNotifications,
         myAbsences: myAbsences.map((a) => ({
           id: a.id,
           coachId: a.coachId,

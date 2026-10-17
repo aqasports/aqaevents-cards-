@@ -9,6 +9,10 @@ import {
   computeSwimmerSuiviProgression,
 } from "@/lib/swim-skills";
 import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
+import {
+  computeIsNewClientSwimmer,
+  getMovedSwimmerIds,
+} from "@/lib/swim-coach-notifications";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -112,20 +116,35 @@ export async function GET(
       ])
     );
 
-    const memberReviews =
+    const [memberReviews, memberAttendances, movedMemberIds] =
       allMemberIds.length > 0
-        ? await prisma.swimTechReview.findMany({
-            where: { memberId: { in: allMemberIds } },
-            orderBy: { createdAt: "desc" },
-            select: {
-              memberId: true,
-              skills: true,
-              metrics: true,
-              strengths: true,
-              recommendedLevel: true,
-            },
-          })
-        : [];
+        ? await Promise.all([
+            prisma.swimTechReview.findMany({
+              where: { memberId: { in: allMemberIds } },
+              orderBy: { createdAt: "desc" },
+              select: {
+                memberId: true,
+                skills: true,
+                metrics: true,
+                strengths: true,
+                recommendedLevel: true,
+              },
+            }),
+            prisma.swimAttendance.findMany({
+              where: { memberId: { in: allMemberIds } },
+              select: { memberId: true },
+            }),
+            getMovedSwimmerIds(allMemberIds),
+          ])
+        : [[], [], new Set<string>()];
+
+    const totalAttCountByMemberId = new Map<string, number>();
+    for (const a of memberAttendances) {
+      totalAttCountByMemberId.set(
+        a.memberId,
+        (totalAttCountByMemberId.get(a.memberId) || 0) + 1
+      );
+    }
 
     const reviewsByMemberId = new Map<
       string,
@@ -151,6 +170,13 @@ export async function GET(
         revs[0]?.skills || null,
         revs.length
       );
+      const totalAtt = totalAttCountByMemberId.get(m.id) || 0;
+      const isNewClient = computeIsNewClientSwimmer({
+        memberId: m.id,
+        totalAttendances: totalAtt,
+        isMultiGroup: m.isMultiGroup,
+        movedMemberIds,
+      });
 
       return {
         id: m.id,
@@ -172,6 +198,8 @@ export async function GET(
         wordFromCoach: cumulative.wordFromCoach,
         cardCode: m.cardCode,
         paymentStatus: m.paymentStatus,
+        isMultiGroup: m.isMultiGroup,
+        isNewClient,
         status: binStatus,
         rawStatus: att ? binStatus : "unmarked",
         isMarked: Boolean(att),
@@ -226,6 +254,8 @@ export async function GET(
             wordFromCoach: cumulative.wordFromCoach,
             cardCode: null,
             paymentStatus: "paid",
+            isMultiGroup: false,
+            isNewClient: false,
             status: binStatus,
             rawStatus: binStatus,
             isMarked: true,

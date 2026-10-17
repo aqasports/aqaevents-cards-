@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { generateSwimId, generateSwimToken, generateSwimCardCode } from "@/lib/swim-id";
 import { computeMemberSubscriptionDates } from "@/lib/swim-subscription";
+import { decodeMemberGroupIds } from "@/lib/swim-groups";
+import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -189,6 +191,19 @@ export async function POST(request: NextRequest) {
           cardCode: code,
           status: "active",
         },
+      });
+    }
+
+    const assignedGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
+    if (assignedGroupIds.length > 0) {
+      await recordSwimmerGroupChangeNotification({
+        memberId: member.id,
+        memberName: member.fullName,
+        swimId: member.swimId,
+        previousGroupIds: [],
+        nextGroupIds: assignedGroupIds,
+        isNewlyCreatedMember: true,
+        adminId: session.user?.id || null,
       });
     }
 

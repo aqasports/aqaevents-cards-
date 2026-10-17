@@ -549,6 +549,10 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (swimmer.isNewClient) ...[
+                          const SizedBox(width: 6.0),
+                          const AqaNewClientBadge(compact: true),
+                        ],
                         const SizedBox(width: 7.0),
                         Container(
                           padding: const EdgeInsets.symmetric(

@@ -26,6 +26,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
   Widget build(BuildContext context) {
     final bootstrapAsync = ref.watch(bootstrapProvider);
     final dismissedSet = ref.watch(dismissedRemindersProvider);
+    final notifSettings = ref.watch(notificationSettingsProvider);
     final i18n = ref.watch(i18nProvider);
 
     return RefreshIndicator(
@@ -178,19 +179,48 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
               // 0b. Notification Authorization Prompt
               _buildNotificationPermissionPrompt(context, i18n),
 
+              // 0c. New Client (NEW) & Group Movement / Multi-Group Notifications
+              ...data.coachNotifications.where((notif) {
+                final id = notif['id']?.toString() ?? '';
+                if (id.isEmpty || notifSettings.dismissedIds.contains(id)) {
+                  return false;
+                }
+                final eventType = notif['eventType']?.toString() ?? 'NEW_CLIENT';
+                if (eventType == 'NEW_CLIENT') {
+                  final stillNew = notif['isNewClientLabelActive'] as bool? ?? false;
+                  return notifSettings.notifyNewClient && stillNew;
+                }
+                if (eventType == 'MOVEMENT') {
+                  return notifSettings.notifyGroupMovement;
+                }
+                return false;
+              }).take(5).map(
+                    (notif) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: _buildCoachSwimmerNotificationCard(
+                        context,
+                        notif,
+                        i18n,
+                      ),
+                    ),
+                  ),
+
               // 1. 10-MINUTE PRE-END SESSION REMINDER & QUICK LOGGER BANNER
-              if (reminderCandidate != null && !data.coach.isAssistant) ...[
+              if (reminderCandidate != null &&
+                  !data.coach.isAssistant &&
+                  notifSettings.notifySessionReminder) ...[
                 _buildTenMinReminderBanner(context, reminderCandidate, i18n),
                 const SizedBox(height: 14.0),
               ],
 
               // 2. Incoming Replacement Requests Cards (Accept / Refuse direct actions)
-              ...data.pendingRequests.where((r) => r.isIncomingRequest).map(
-                    (rep) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12.0),
-                      child: _buildIncomingCoverageCard(context, rep, i18n),
+              if (notifSettings.notifyReplacements)
+                ...data.pendingRequests.where((r) => r.isIncomingRequest).map(
+                      (rep) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12.0),
+                        child: _buildIncomingCoverageCard(context, rep, i18n),
+                      ),
                     ),
-                  ),
 
               // 2b. Outgoing or Non-Incoming Pending Requests Notice
               if (data.pendingRequests.any((r) => !r.isIncomingRequest)) ...[
@@ -1318,7 +1348,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                   AqaIslandButton(
                     label: session.canEdit && !isAssistant && !session.isViewOnly
                         ? i18n.t('sessions.btn_attendance')
-                        : i18n.t('sessions.btn_view'),
+                    : i18n.t('sessions.btn_view'),
                     icon: session.canEdit && !isAssistant && !session.isViewOnly
                         ? Icons.checklist_rounded
                         : Icons.visibility_outlined,
@@ -1330,6 +1360,153 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                 ],
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoachSwimmerNotificationCard(
+    BuildContext context,
+    Map<String, dynamic> notif,
+    AppI18n i18n,
+  ) {
+    final id = notif['id']?.toString() ?? '';
+    final eventType = notif['eventType']?.toString() ?? 'NEW_CLIENT';
+    final isNewClientEvent = eventType == 'NEW_CLIENT';
+    final movementKind = notif['movementKind']?.toString();
+    final isMultiGroup = movementKind == 'multi_group';
+    final memberId = notif['memberId']?.toString() ?? '';
+    final memberName = notif['memberName']?.toString() ?? 'Nageur AQA';
+    final groupName = notif['groupName']?.toString() ?? 'Groupe AQA';
+    final fromGroupName = notif['fromGroupName']?.toString();
+
+    final accentColor = isNewClientEvent
+        ? AqaTheme.statusSuccess
+        : AqaTheme.primarySkyHover;
+
+    final String subtitleText;
+    if (isNewClientEvent) {
+      subtitleText = i18n.locale == 'ar'
+          ? 'مشترك جديد في $groupName • تختفي شارة NEW تلقائيا بعد الحصة الأولى'
+          : i18n.locale == 'en'
+              ? 'New client in $groupName • NEW label disappears after their 1st session'
+              : 'Nouveau client dans $groupName • Le label NEW disparait apres sa 1ere seance';
+    } else if (isMultiGroup) {
+      subtitleText = i18n.locale == 'ar'
+          ? 'تعيين متعدد الأفواج في $groupName'
+          : i18n.locale == 'en'
+              ? 'Multi-group assignment to $groupName'
+              : 'Affectation multi-groupe dans $groupName';
+    } else {
+      subtitleText = fromGroupName != null && fromGroupName.isNotEmpty
+          ? (i18n.locale == 'ar'
+              ? 'نقل فوج: من $fromGroupName إلى $groupName'
+              : i18n.locale == 'en'
+                  ? 'Group movement: from $fromGroupName to $groupName'
+                  : 'Mouvement de groupe : de $fromGroupName vers $groupName')
+          : (i18n.locale == 'ar'
+              ? 'حركة تغيير فوج نحو $groupName'
+              : i18n.locale == 'en'
+                  ? 'Group movement into $groupName'
+                  : 'Mouvement de groupe vers $groupName');
+    }
+
+    return AqaDoubleBezelCard(
+      accentColor: accentColor,
+      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 11.0),
+      onTap: memberId.isNotEmpty
+          ? () => context.push('/members/$memberId')
+          : null,
+      child: Row(
+        children: [
+          Container(
+            width: 36.0,
+            height: 36.0,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10.0),
+              border: Border.all(
+                color: accentColor.withValues(alpha: 0.40),
+              ),
+            ),
+            child: Icon(
+              isNewClientEvent
+                  ? Icons.person_add_alt_1_rounded
+                  : Icons.compare_arrows_rounded,
+              color: accentColor,
+              size: 18.0,
+            ),
+          ),
+          const SizedBox(width: 12.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        memberName,
+                        style: const TextStyle(
+                          color: AqaTheme.textPrimary,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 7.0),
+                    if (isNewClientEvent)
+                      const AqaNewClientBadge(compact: true)
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6.0,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AqaTheme.primarySky.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(5.0),
+                          border: Border.all(
+                            color: AqaTheme.primarySkyHover.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Text(
+                          isMultiGroup ? 'MULTI-GROUPE' : 'MOUVEMENT',
+                          style: const TextStyle(
+                            color: AqaTheme.primarySkyHover,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 3.0),
+                Text(
+                  subtitleText,
+                  style: const TextStyle(
+                    color: AqaTheme.textMuted,
+                    fontSize: 11.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: i18n.t('common.close'),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: AqaTheme.textLightMuted,
+              size: 17.0,
+            ),
+            onPressed: () {
+              ref
+                  .read(notificationSettingsProvider.notifier)
+                  .dismissNotification(id);
+            },
           ),
         ],
       ),

@@ -1120,3 +1120,53 @@ class AqaBinaryAttendanceToggle extends StatelessWidget {
     );
   }
 }
+
+class AqaNewClientBadge extends StatelessWidget {
+  final bool compact;
+
+  const AqaNewClientBadge({super.key, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 5.5 : 7.0,
+        vertical: compact ? 1.5 : 2.0,
+      ),
+      decoration: BoxDecoration(
+        color: AqaTheme.statusSuccess.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(5.0),
+        border: Border.all(
+          color: AqaTheme.statusSuccess.withValues(alpha: 0.65),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AqaTheme.statusSuccess.withValues(alpha: 0.25),
+            blurRadius: 8.0,
+            spreadRadius: 0.0,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const AqaPulseIndicator(
+            color: AqaTheme.statusSuccess,
+            size: 4.5,
+          ),
+          const SizedBox(width: 4.0),
+          Text(
+            'NEW',
+            style: TextStyle(
+              color: AqaTheme.statusSuccess,
+              fontSize: compact ? 8.5 : 9.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

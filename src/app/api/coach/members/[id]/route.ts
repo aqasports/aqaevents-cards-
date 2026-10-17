@@ -14,6 +14,11 @@ import {
   SWIM_SKILLS_CATALOG_V1,
 } from "@/lib/swim-skills";
 import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
+import { decodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  computeIsNewClientSwimmer,
+  getMovedSwimmerIds,
+} from "@/lib/swim-coach-notifications";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -365,6 +370,16 @@ export async function GET(
       observation: cumulativeBilan.latestObservation,
     };
 
+    const movedMemberIds = await getMovedSwimmerIds([member.id]);
+    const assignedGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
+    const isMultiGroup = assignedGroupIds.length > 1;
+    const isNewClient = computeIsNewClientSwimmer({
+      memberId: member.id,
+      totalAttendances: totalAtt,
+      isMultiGroup,
+      movedMemberIds,
+    });
+
     return NextResponse.json(
       {
         member: {
@@ -383,6 +398,8 @@ export async function GET(
           subscriptionStart: member.subscriptionStart,
           subscriptionEnd: member.subscriptionEnd,
           paymentStatus: member.paymentStatus,
+          isNewClient,
+          isMultiGroup,
           totalPresences: presentCount,
           totalAbsences: absentCount,
           attendanceRate,
