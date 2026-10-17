@@ -18,6 +18,7 @@ import { decodeMemberGroupIds } from "@/lib/swim-groups";
 import {
   computeIsNewClientSwimmer,
   getMovedSwimmerIds,
+  getNewClientSwimmerIds,
 } from "@/lib/swim-coach-notifications";
 import { logger } from "@/lib/logger";
 
@@ -370,14 +371,19 @@ export async function GET(
       observation: cumulativeBilan.latestObservation,
     };
 
-    const movedMemberIds = await getMovedSwimmerIds([member.id]);
+    const [movedMemberIds, newClientMemberIds] = await Promise.all([
+      getMovedSwimmerIds([member.id]),
+      getNewClientSwimmerIds([member.id]),
+    ]);
     const assignedGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
     const isMultiGroup = assignedGroupIds.length > 1;
     const isNewClient = computeIsNewClientSwimmer({
       memberId: member.id,
+      level: member.level,
       totalAttendances: totalAtt,
       isMultiGroup,
       movedMemberIds,
+      newClientMemberIds,
     });
 
     return NextResponse.json(

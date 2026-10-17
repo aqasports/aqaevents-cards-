@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
+import { isOldSwimMember } from "@/lib/swim-groups";
 
 export type SwimmerCoachEventType = "NEW_CLIENT" | "MOVEMENT";
 export type SwimmerMovementKind = "transfer" | "multi_group";
@@ -203,20 +204,106 @@ export async function getMovedSwimmerIds(memberIds?: string[]): Promise<Set<stri
 }
 
 /**
+ * Returns the set of memberIds that are genuinely newly added new clients.
+ * Rules:
+ * - Must have an explicit COACH_SWIMMER_NEW_CLIENT event in AuditLog (within active 30-day onboarding window)
+ * - OR must be created within the last 14 days with level new_aqa/beginner (and NOT an old member).
+ * Any member not in this set is an old client and must NEVER receive the NEW label.
+ */
+export async function getNewClientSwimmerIds(memberIds?: string[]): Promise<Set<string>> {
+  if (memberIds && memberIds.length === 0) {
+    return new Set();
+  }
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+
+  const newClientLogs = await prisma.auditLog.findMany({
+    where: {
+      action: "COACH_SWIMMER_NEW_CLIENT",
+      createdAt: { gte: thirtyDaysAgo },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+    select: { details: true },
+  });
+
+  const newClientSet = new Set<string>();
+  const filterSet = memberIds ? new Set(memberIds) : null;
+
+  for (const log of newClientLogs) {
+    if (!log.details) continue;
+    try {
+      const parsed = JSON.parse(log.details) as Record<string, unknown>;
+      const mid = typeof parsed.memberId === "string" ? parsed.memberId : "";
+      if (mid && (!filterSet || filterSet.has(mid))) {
+        newClientSet.add(mid);
+      }
+    } catch {
+      // ignore malformed log
+    }
+  }
+
+  // Also query members created in the last 14 days whose level is NOT an old client
+  const recentNewMembers = await prisma.swimMember.findMany({
+    where: {
+      ...(filterSet ? { id: { in: Array.from(filterSet) } } : {}),
+      createdAt: { gte: fourteenDaysAgo },
+      level: { in: ["new_aqa", "beginner", "New AQA Member", "debutant"] },
+    },
+    select: { id: true, level: true },
+  });
+
+  for (const m of recentNewMembers) {
+    if (!isOldSwimMember(m.level)) {
+      newClientSet.add(m.id);
+    }
+  }
+
+  return newClientSet;
+}
+
+/**
  * Determines whether a swimmer should display the "NEW" label:
- * - Must have 0 session attendances (disappears automatically after the first session)
+ * - NEVER for old clients (level old_aqa, intermediate, advanced, or existing prior members)
+ * - Must be explicitly verified in newClientMemberIds
+ * - Must have 0 session attendances (disappears immediately and permanently after the first session)
  * - Must NOT be a multi-group assignment (!isMultiGroup)
  * - Must NOT have been moved between groups (!movedMemberIds.has(memberId))
  */
 export function computeIsNewClientSwimmer(params: {
   memberId: string;
+  level?: string | null;
   totalAttendances: number;
   isMultiGroup: boolean;
   movedMemberIds: Set<string>;
+  newClientMemberIds: Set<string>;
 }): boolean {
-  if (params.totalAttendances > 0) return false;
-  if (params.isMultiGroup) return false;
-  if (params.movedMemberIds.has(params.memberId)) return false;
+  // 1. Old clients NEVER get the NEW label
+  if (isOldSwimMember(params.level)) {
+    return false;
+  }
+
+  // 2. Swimmer MUST be in the verified new client set (never default to true for unknown/old swimmers!)
+  if (!params.newClientMemberIds.has(params.memberId)) {
+    return false;
+  }
+
+  // 3. Even new clients that already done a session do NOT get the NEW label
+  if (params.totalAttendances > 0) {
+    return false;
+  }
+
+  // 4. Multi-group assignments never get the NEW label
+  if (params.isMultiGroup) {
+    return false;
+  }
+
+  // 5. Group movements / transfers never get the NEW label
+  if (params.movedMemberIds.has(params.memberId)) {
+    return false;
+  }
+
   return true;
 }
 
@@ -228,6 +315,7 @@ export async function getCoachSwimmerNotifications(params: {
   movedMemberIds: Set<string>;
   attendanceCountByMemberId: Map<string, number>;
   multiGroupMemberIds: Set<string>;
+  newClientMemberIds: Set<string>;
 }): Promise<CoachSwimmerNotification[]> {
   if (params.groupIds.length === 0) return [];
 
@@ -271,9 +359,11 @@ export async function getCoachSwimmerNotifications(params: {
         eventType === "NEW_CLIENT" &&
         computeIsNewClientSwimmer({
           memberId,
+          level: typeof d.level === "string" ? d.level : null,
           totalAttendances,
           isMultiGroup,
           movedMemberIds: params.movedMemberIds,
+          newClientMemberIds: params.newClientMemberIds,
         });
 
       notifications.push({

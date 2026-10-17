@@ -17,6 +17,7 @@ import {
 import {
   computeIsNewClientSwimmer,
   getMovedSwimmerIds,
+  getNewClientSwimmerIds,
 } from "@/lib/swim-coach-notifications";
 import { logger } from "@/lib/logger";
 
@@ -96,28 +97,30 @@ export async function GET(
 
     const memberIds = rawRoster.map((m) => m.id);
 
-    const [memberAttendances, memberReviews, movedMemberIds] = await Promise.all([
-      memberIds.length > 0
-        ? prisma.swimAttendance.findMany({
-            where: { memberId: { in: memberIds } },
-            select: { memberId: true, status: true },
-          })
-        : Promise.resolve([]),
-      memberIds.length > 0
-        ? prisma.swimTechReview.findMany({
-            where: { memberId: { in: memberIds } },
-            orderBy: { createdAt: "desc" },
-            select: {
-              id: true,
-              memberId: true,
-              skills: true,
-              recommendedLevel: true,
-              createdAt: true,
-            },
-          })
-        : Promise.resolve([]),
-      getMovedSwimmerIds(memberIds),
-    ]);
+    const [memberAttendances, memberReviews, movedMemberIds, newClientMemberIds] =
+      await Promise.all([
+        memberIds.length > 0
+          ? prisma.swimAttendance.findMany({
+              where: { memberId: { in: memberIds } },
+              select: { memberId: true, status: true },
+            })
+          : Promise.resolve([]),
+        memberIds.length > 0
+          ? prisma.swimTechReview.findMany({
+              where: { memberId: { in: memberIds } },
+              orderBy: { createdAt: "desc" },
+              select: {
+                id: true,
+                memberId: true,
+                skills: true,
+                recommendedLevel: true,
+                createdAt: true,
+              },
+            })
+          : Promise.resolve([]),
+        getMovedSwimmerIds(memberIds),
+        getNewClientSwimmerIds(memberIds),
+      ]);
 
     const attByMember = new Map<string, { present: number; absent: number; total: number }>();
     for (const a of memberAttendances) {
@@ -146,9 +149,11 @@ export async function GET(
       const prog = computeSwimmerSuiviProgression(latestRev?.skills || null, revs.length);
       const isNewClient = computeIsNewClientSwimmer({
         memberId: m.id,
+        level: m.level,
         totalAttendances: att.total,
         isMultiGroup: m.isMultiGroup,
         movedMemberIds,
+        newClientMemberIds,
       });
 
       return {

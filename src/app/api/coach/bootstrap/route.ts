@@ -23,6 +23,7 @@ import {
   computeIsNewClientSwimmer,
   getCoachSwimmerNotifications,
   getMovedSwimmerIds,
+  getNewClientSwimmerIds,
 } from "@/lib/swim-coach-notifications";
 import { getFlag } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
@@ -410,7 +411,11 @@ export async function GET(req: NextRequest) {
       return assignedIds.some((gid) => groupIdSet.has(gid));
     });
 
-    const movedMemberIds = await getMovedSwimmerIds(scopedRawSwimmers.map((m) => m.id));
+    const scopedMemberIds = scopedRawSwimmers.map((m) => m.id);
+    const [movedMemberIds, newClientMemberIds] = await Promise.all([
+      getMovedSwimmerIds(scopedMemberIds),
+      getNewClientSwimmerIds(scopedMemberIds),
+    ]);
     const attendanceCountByMemberId = new Map<string, number>();
     const multiGroupMemberIds = new Set<string>();
 
@@ -434,9 +439,11 @@ export async function GET(req: NextRequest) {
 
       const isNewClient = computeIsNewClientSwimmer({
         memberId: m.id,
+        level: m.level,
         totalAttendances: totalAtt,
         isMultiGroup,
         movedMemberIds,
+        newClientMemberIds,
       });
 
       const latestRev = m.techReviews[0];
@@ -504,6 +511,7 @@ export async function GET(req: NextRequest) {
         movedMemberIds,
         attendanceCountByMemberId,
         multiGroupMemberIds,
+        newClientMemberIds,
       }),
     ]);
     const appConfig = {

@@ -12,6 +12,7 @@ import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
 import {
   computeIsNewClientSwimmer,
   getMovedSwimmerIds,
+  getNewClientSwimmerIds,
 } from "@/lib/swim-coach-notifications";
 import { logger } from "@/lib/logger";
 
@@ -116,7 +117,7 @@ export async function GET(
       ])
     );
 
-    const [memberReviews, memberAttendances, movedMemberIds] =
+    const [memberReviews, memberAttendances, movedMemberIds, newClientMemberIds] =
       allMemberIds.length > 0
         ? await Promise.all([
             prisma.swimTechReview.findMany({
@@ -135,8 +136,9 @@ export async function GET(
               select: { memberId: true },
             }),
             getMovedSwimmerIds(allMemberIds),
+            getNewClientSwimmerIds(allMemberIds),
           ])
-        : [[], [], new Set<string>()];
+        : [[], [], new Set<string>(), new Set<string>()];
 
     const totalAttCountByMemberId = new Map<string, number>();
     for (const a of memberAttendances) {
@@ -173,9 +175,11 @@ export async function GET(
       const totalAtt = totalAttCountByMemberId.get(m.id) || 0;
       const isNewClient = computeIsNewClientSwimmer({
         memberId: m.id,
+        level: m.level,
         totalAttendances: totalAtt,
         isMultiGroup: m.isMultiGroup,
         movedMemberIds,
+        newClientMemberIds,
       });
 
       return {
