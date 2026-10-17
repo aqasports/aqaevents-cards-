@@ -802,12 +802,15 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          def.labelFor(i18n.locale),
-                          style: const TextStyle(
-                            color: AqaTheme.textPrimary,
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w800,
+                        Flexible(
+                          child: Text(
+                            def.labelFor(i18n.locale),
+                            style: const TextStyle(
+                              color: AqaTheme.textPrimary,
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (isLastTouched) ...[

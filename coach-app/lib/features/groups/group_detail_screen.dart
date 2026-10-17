@@ -332,23 +332,31 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Flexible(
-                      child: Text(
-                        member.fullName,
-                        style: const TextStyle(
-                          color: AqaTheme.textPrimary,
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              member.fullName,
+                              style: const TextStyle(
+                                color: AqaTheme.textPrimary,
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (member.isNewClient) ...[
+                            const SizedBox(width: 6.0),
+                            const AqaNewClientBadge(compact: true),
+                          ],
+                        ],
                       ),
                     ),
-                    if (member.isNewClient) ...[
-                      const SizedBox(width: 6.0),
-                      const AqaNewClientBadge(compact: true),
-                    ],
-                    const Spacer(),
+                    const SizedBox(width: 8.0),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
                       decoration: BoxDecoration(
@@ -368,7 +376,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                   ],
                 ),
                 const SizedBox(height: 6.0),
-                Row(
+                Wrap(
+                  spacing: 4.0,
+                  runSpacing: 2.0,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       i18n.t('attendance.rate', {'rate': member.attendanceRate}),
@@ -380,13 +391,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const Text(' • ', style: TextStyle(color: AqaTheme.textLightMuted)),
+                    const Text('•', style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 10.0)),
                     Text(
                       '${i18n.t('attendance.present')}: ${member.totalPresences} | ${i18n.t('attendance.absent')}: ${member.totalAbsences}',
                       style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.0),
                     ),
                     if (member.reviewCount > 0) ...[
-                      const Text(' • ', style: TextStyle(color: AqaTheme.textLightMuted)),
+                      const Text('•', style: TextStyle(color: AqaTheme.textLightMuted, fontSize: 10.0)),
                       Text(
                         i18n.t('suivi.eval_count', {'count': member.reviewCount}),
                         style: const TextStyle(

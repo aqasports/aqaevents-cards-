@@ -290,31 +290,38 @@ class SwimmerProfileScreen extends ConsumerWidget {
 
                       // Strictly Binary Attendance & Cumulative Volume KPI Strip
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildStatMetric(
-                            label: i18n.t('attendance.present'),
-                            value: '$presentCount',
-                            color: AqaTheme.statusSuccess,
-                            icon: Icons.check_circle_rounded,
+                          Expanded(
+                            child: _buildStatMetric(
+                              label: i18n.t('attendance.present'),
+                              value: '$presentCount',
+                              color: AqaTheme.statusSuccess,
+                              icon: Icons.check_circle_rounded,
+                            ),
                           ),
-                          _buildStatMetric(
-                            label: i18n.t('attendance.absent'),
-                            value: '$absentCount',
-                            color: AqaTheme.statusDanger,
-                            icon: Icons.cancel_rounded,
+                          Expanded(
+                            child: _buildStatMetric(
+                              label: i18n.t('attendance.absent'),
+                              value: '$absentCount',
+                              color: AqaTheme.statusDanger,
+                              icon: Icons.cancel_rounded,
+                            ),
                           ),
-                          _buildStatMetric(
-                            label: i18n.t('attendance.rate'),
-                            value: '$attendanceRate%',
-                            color: rateColor,
-                            icon: Icons.pie_chart_outline_rounded,
+                          Expanded(
+                            child: _buildStatMetric(
+                              label: i18n.t('attendance.rate'),
+                              value: '$attendanceRate%',
+                              color: rateColor,
+                              icon: Icons.pie_chart_outline_rounded,
+                            ),
                           ),
-                          _buildStatMetric(
-                            label: 'Volume Total',
-                            value: '$totalDistanceMeters m',
-                            color: AqaTheme.accentTeal,
-                            icon: Icons.straighten_rounded,
+                          Expanded(
+                            child: _buildStatMetric(
+                              label: 'Volume Total',
+                              value: '$totalDistanceMeters m',
+                              color: AqaTheme.accentTeal,
+                              icon: Icons.straighten_rounded,
+                            ),
                           ),
                         ],
                       ),
@@ -725,14 +732,19 @@ class SwimmerProfileScreen extends ConsumerWidget {
     required IconData icon,
   }) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Icon(icon, color: color, size: 16.0),
         const SizedBox(height: 4.0),
         Text(
           value,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: color,
-            fontSize: 15.0,
+            fontSize: 14.0,
             fontWeight: FontWeight.w800,
             fontFamily: 'monospace',
           ),
@@ -740,7 +752,14 @@ class SwimmerProfileScreen extends ConsumerWidget {
         const SizedBox(height: 2.0),
         Text(
           label,
-          style: const TextStyle(color: AqaTheme.textLightMuted, fontSize: 10.5, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AqaTheme.textLightMuted,
+            fontSize: 10.0,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );

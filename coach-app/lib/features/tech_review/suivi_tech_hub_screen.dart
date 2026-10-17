@@ -672,10 +672,14 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
               borderRadius: BorderRadius.circular(9.0),
               border: Border.all(color: AqaTheme.borderSubtle),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              runSpacing: 4.0,
+              spacing: 8.0,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.military_tech_outlined,
@@ -694,6 +698,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   ],
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.straighten_rounded,
@@ -713,6 +718,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   ],
                 ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.check_circle_rounded,

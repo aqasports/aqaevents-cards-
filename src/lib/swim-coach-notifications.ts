@@ -165,6 +165,144 @@ export async function recordSwimmerGroupChangeNotification(params: {
 }
 
 /**
+ * Consolidated single-query loader for Coach Bootstrap.
+ * Replaces 3 sequential full-table scans on AuditLog with a single batched query.
+ */
+export async function loadCoachSwimmerBootstrapData(params: {
+  groupIds: string[];
+  scopedMemberIds: string[];
+  attendanceCountByMemberId: Map<string, number>;
+  multiGroupMemberIds: Set<string>;
+}): Promise<{
+  movedMemberIds: Set<string>;
+  newClientMemberIds: Set<string>;
+  coachNotifications: CoachSwimmerNotification[];
+}> {
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+  const filterSet = params.scopedMemberIds.length > 0 ? new Set(params.scopedMemberIds) : null;
+  const targetGroupSet = new Set(params.groupIds);
+
+  // Single batched query to AuditLog for all coach swimmer events in the last 30 days
+  const [logs, recentNewMembers] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: {
+        action: { in: ["COACH_SWIMMER_NEW_CLIENT", "COACH_SWIMMER_MOVEMENT"] },
+        createdAt: { gte: thirtyDaysAgo },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: {
+        id: true,
+        action: true,
+        target: true,
+        details: true,
+        createdAt: true,
+      },
+    }),
+    params.scopedMemberIds.length > 0
+      ? prisma.swimMember.findMany({
+          where: {
+            id: { in: params.scopedMemberIds },
+            createdAt: { gte: fourteenDaysAgo },
+            level: { in: ["new_aqa", "beginner", "New AQA Member", "debutant"] },
+          },
+          select: { id: true, level: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const movedMemberIds = new Set<string>();
+  const newClientMemberIds = new Set<string>();
+  const rawNotifications: CoachSwimmerNotification[] = [];
+
+  for (const log of logs) {
+    if (!log.details) continue;
+    try {
+      const d = JSON.parse(log.details) as Record<string, unknown>;
+      const mid = typeof d.memberId === "string" ? d.memberId : "";
+      if (!mid) continue;
+
+      if (log.action === "COACH_SWIMMER_MOVEMENT") {
+        if (!filterSet || filterSet.has(mid)) {
+          movedMemberIds.add(mid);
+        }
+      } else if (log.action === "COACH_SWIMMER_NEW_CLIENT") {
+        if (!filterSet || filterSet.has(mid)) {
+          newClientMemberIds.add(mid);
+        }
+      }
+
+      // Check if this log qualifies as a coach notification for the coach's groups
+      const isTargetGroup = log.target ? targetGroupSet.has(log.target) : false;
+      const isRecentEnough = log.createdAt >= fourteenDaysAgo;
+
+      if (isTargetGroup && isRecentEnough && rawNotifications.length < 35) {
+        const eventType: SwimmerCoachEventType =
+          log.action === "COACH_SWIMMER_MOVEMENT" || d.eventType === "MOVEMENT"
+            ? "MOVEMENT"
+            : "NEW_CLIENT";
+
+        const movementKind: SwimmerMovementKind | null =
+          eventType === "MOVEMENT"
+            ? d.movementKind === "multi_group"
+              ? "multi_group"
+              : "transfer"
+            : null;
+
+        const totalAttendances = params.attendanceCountByMemberId.get(mid) ?? 0;
+        const isMultiGroup =
+          params.multiGroupMemberIds.has(mid) || movementKind === "multi_group";
+
+        const isNewClientLabelActive =
+          eventType === "NEW_CLIENT" &&
+          computeIsNewClientSwimmer({
+            memberId: mid,
+            level: typeof d.level === "string" ? d.level : null,
+            totalAttendances,
+            isMultiGroup,
+            movedMemberIds,
+            newClientMemberIds,
+          });
+
+        rawNotifications.push({
+          id: log.id,
+          eventType,
+          movementKind,
+          memberId: mid,
+          memberName: typeof d.memberName === "string" ? d.memberName : "Nageur AQA",
+          swimId: typeof d.swimId === "string" ? d.swimId : "",
+          groupId: typeof d.groupId === "string" ? d.groupId : log.target || "",
+          groupName: typeof d.groupName === "string" ? d.groupName : "Groupe AQA",
+          fromGroupId: typeof d.fromGroupId === "string" ? d.fromGroupId : null,
+          fromGroupName: typeof d.fromGroupName === "string" ? d.fromGroupName : null,
+          allGroupNames: Array.isArray(d.allGroupNames)
+            ? d.allGroupNames.map((x) => String(x))
+            : [],
+          isNewClientLabelActive,
+          createdAt: log.createdAt.toISOString(),
+        });
+      }
+    } catch {
+      // ignore malformed log
+    }
+  }
+
+  // Add recent new members created in the database that are not old swimmers
+  for (const m of recentNewMembers) {
+    if (!isOldSwimMember(m.level)) {
+      newClientMemberIds.add(m.id);
+    }
+  }
+
+  return {
+    movedMemberIds,
+    newClientMemberIds,
+    coachNotifications: rawNotifications,
+  };
+}
+
+/**
  * Returns the set of memberIds that have had any group movement or multi-group assignment.
  * Any member in this set must NEVER display the NEW label.
  */
@@ -173,14 +311,14 @@ export async function getMovedSwimmerIds(memberIds?: string[]): Promise<Set<stri
     return new Set();
   }
 
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const movementLogs = await prisma.auditLog.findMany({
     where: {
       action: "COACH_SWIMMER_MOVEMENT",
-      createdAt: { gte: ninetyDaysAgo },
+      createdAt: { gte: thirtyDaysAgo },
     },
     orderBy: { createdAt: "desc" },
-    take: 400,
+    take: 300,
     select: { details: true },
   });
 
@@ -218,15 +356,25 @@ export async function getNewClientSwimmerIds(memberIds?: string[]): Promise<Set<
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
-  const newClientLogs = await prisma.auditLog.findMany({
-    where: {
-      action: "COACH_SWIMMER_NEW_CLIENT",
-      createdAt: { gte: thirtyDaysAgo },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 500,
-    select: { details: true },
-  });
+  const [newClientLogs, recentNewMembers] = await Promise.all([
+    prisma.auditLog.findMany({
+      where: {
+        action: "COACH_SWIMMER_NEW_CLIENT",
+        createdAt: { gte: thirtyDaysAgo },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: { details: true },
+    }),
+    prisma.swimMember.findMany({
+      where: {
+        ...(memberIds ? { id: { in: memberIds } } : {}),
+        createdAt: { gte: fourteenDaysAgo },
+        level: { in: ["new_aqa", "beginner", "New AQA Member", "debutant"] },
+      },
+      select: { id: true, level: true },
+    }),
+  ]);
 
   const newClientSet = new Set<string>();
   const filterSet = memberIds ? new Set(memberIds) : null;
@@ -243,16 +391,6 @@ export async function getNewClientSwimmerIds(memberIds?: string[]): Promise<Set<
       // ignore malformed log
     }
   }
-
-  // Also query members created in the last 14 days whose level is NOT an old client
-  const recentNewMembers = await prisma.swimMember.findMany({
-    where: {
-      ...(filterSet ? { id: { in: Array.from(filterSet) } } : {}),
-      createdAt: { gte: fourteenDaysAgo },
-      level: { in: ["new_aqa", "beginner", "New AQA Member", "debutant"] },
-    },
-    select: { id: true, level: true },
-  });
 
   for (const m of recentNewMembers) {
     if (!isOldSwimMember(m.level)) {

@@ -811,11 +811,14 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                 Row(
                   children: [
                     if (rec.level != null && rec.level!.isNotEmpty)
-                      Text(
-                        rec.level!,
-                        style: const TextStyle(
-                          color: AqaTheme.textMuted,
-                          fontSize: 11.5,
+                      Flexible(
+                        child: Text(
+                          rec.level!,
+                          style: const TextStyle(
+                            color: AqaTheme.textMuted,
+                            fontSize: 11.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       )
                     else
@@ -830,7 +833,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                         ),
                       ),
                     if (!rec.memberId.startsWith('guest-')) ...[
-                      const SizedBox(width: 10.0),
+                      const SizedBox(width: 8.0),
                       InkWell(
                         onTap: () => context.push('/members/${rec.memberId}'),
                         child: Row(

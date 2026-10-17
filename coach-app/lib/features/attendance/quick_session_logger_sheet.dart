@@ -1019,17 +1019,21 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              barOpt.labelFor(i18n.locale),
-                              style: const TextStyle(
-                                color: AqaTheme.textPrimary,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
+                            Flexible(
+                              child: Text(
+                                barOpt.labelFor(i18n.locale),
+                                style: const TextStyle(
+                                  color: AqaTheme.textPrimary,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 8.0),
                             Text(
                               isElite
-                                  ? '$pctInt% • Elite (Endurance / Vitesse / Force)'
+                                  ? '$pctInt% • Elite'
                                   : '$pctInt% • Technique (0-100%)',
                               style: TextStyle(
                                 color: activeColor,

@@ -21,9 +21,7 @@ import { getCurrentHonorLockStatus } from "@/lib/swim-honors";
 import { decodeMemberGroupIds } from "@/lib/swim-groups";
 import {
   computeIsNewClientSwimmer,
-  getCoachSwimmerNotifications,
-  getMovedSwimmerIds,
-  getNewClientSwimmerIds,
+  loadCoachSwimmerBootstrapData,
 } from "@/lib/swim-coach-notifications";
 import { getFlag } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
@@ -192,7 +190,7 @@ export async function GET(req: NextRequest) {
                 },
                 techReviews: {
                   orderBy: { createdAt: "desc" },
-                  take: 25,
+                  take: 5,
                   select: {
                     skills: true,
                     metrics: true,
@@ -412,12 +410,32 @@ export async function GET(req: NextRequest) {
     });
 
     const scopedMemberIds = scopedRawSwimmers.map((m) => m.id);
-    const [movedMemberIds, newClientMemberIds] = await Promise.all([
-      getMovedSwimmerIds(scopedMemberIds),
-      getNewClientSwimmerIds(scopedMemberIds),
-    ]);
     const attendanceCountByMemberId = new Map<string, number>();
     const multiGroupMemberIds = new Set<string>();
+
+    for (const m of scopedRawSwimmers) {
+      const presences = m.attendances.filter(
+        (a) => a.status === "present" || a.status === "late"
+      ).length;
+      const absences = m.attendances.filter(
+        (a) => a.status === "absent" || a.status === "excused"
+      ).length;
+      attendanceCountByMemberId.set(m.id, presences + absences);
+
+      const assignedGroupIds = decodeMemberGroupIds(m.notes, m.groupId);
+      if (assignedGroupIds.length > 1) {
+        multiGroupMemberIds.add(m.id);
+      }
+    }
+
+    // Consolidated single batched query for AuditLog and new members
+    const { movedMemberIds, newClientMemberIds, coachNotifications } =
+      await loadCoachSwimmerBootstrapData({
+        groupIds,
+        scopedMemberIds,
+        attendanceCountByMemberId,
+        multiGroupMemberIds,
+      });
 
     // Shape all swimmers with Suivi progression, 5-bar model, cumulative volume, NEW client status, and binary attendance counts
     const shapedSwimmers = scopedRawSwimmers.map((m) => {
@@ -432,10 +450,6 @@ export async function GET(req: NextRequest) {
 
       const assignedGroupIds = decodeMemberGroupIds(m.notes, m.groupId);
       const isMultiGroup = assignedGroupIds.length > 1;
-      if (isMultiGroup) {
-        multiGroupMemberIds.add(m.id);
-      }
-      attendanceCountByMemberId.set(m.id, totalAtt);
 
       const isNewClient = computeIsNewClientSwimmer({
         memberId: m.id,
@@ -498,21 +512,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // App command settings from AQA Swim Admin + Honor Lock Status + Coach Notifications
+    // App command settings from AQA Swim Admin + Honor Lock Status
     const settingsMap = new Map<string, string>();
     for (const s of rawSettings) {
       settingsMap.set(s.key, s.value);
     }
-    const [isAppEnabled, honorLockStatus, coachNotifications] = await Promise.all([
+    const [isAppEnabled, honorLockStatus] = await Promise.all([
       getFlag("coach_app_enabled", true),
       getCurrentHonorLockStatus(),
-      getCoachSwimmerNotifications({
-        groupIds,
-        movedMemberIds,
-        attendanceCountByMemberId,
-        multiGroupMemberIds,
-        newClientMemberIds,
-      }),
     ]);
     const appConfig = {
       enabled: isAppEnabled,
