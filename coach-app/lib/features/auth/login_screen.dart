@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
 import '../../core/theme/aqa_theme.dart';
@@ -32,66 +31,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: _passwordController.text,
           );
     }
-  }
-
-  void _showServerSettings(AppI18n i18n) {
-    final serverController = TextEditingController(text: ApiEndpoints.baseUrl);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AqaTheme.surfaceDark,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16.0),
-          side: const BorderSide(color: AqaTheme.borderMedium),
-        ),
-        title: Text(
-          i18n.t('auth.server_title'),
-          style: const TextStyle(
-            color: AqaTheme.textPrimary,
-            fontSize: 16.0,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              i18n.t('auth.server_label', {'url': ApiEndpoints.baseUrl}),
-              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5),
-            ),
-            const SizedBox(height: 12.0),
-            TextField(
-              controller: serverController,
-              decoration: const InputDecoration(
-                hintText: 'https://delightful-torte-bcca6a.netlify.app',
-              ),
-              style: const TextStyle(
-                color: AqaTheme.textPrimary,
-                fontSize: 13.5,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              i18n.t('common.cancel'),
-              style: const TextStyle(color: AqaTheme.textMuted),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await ApiEndpoints.setBaseUrl(serverController.text);
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (mounted) setState(() {});
-            },
-            child: Text(i18n.t('common.save')),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -419,27 +358,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   onPressed: _submit,
                                 ),
                               ],
-                            ),
-                          ),
-                          const SizedBox(height: 16.0),
-
-                          Align(
-                            alignment: Alignment.center,
-                            child: TextButton.icon(
-                              onPressed: () => _showServerSettings(i18n),
-                              icon: const Icon(
-                                Icons.dns_outlined,
-                                color: AqaTheme.textLightMuted,
-                                size: 13.5,
-                              ),
-                              label: Text(
-                                '${i18n.t('common.server')} : ${ApiEndpoints.baseUrl}',
-                                style: const TextStyle(
-                                  color: AqaTheme.textLightMuted,
-                                  fontSize: 11.0,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
                             ),
                           ),
                         ],

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/api/api_endpoints.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
 import '../../core/theme/aqa_theme.dart';
@@ -249,12 +248,6 @@ class ProfileView extends ConsumerWidget {
                     ? user!.specialties.join(', ')
                     : 'Enseignement & Entrainement AQA Swim',
                 Icons.sports_outlined,
-              ),
-              const Divider(),
-              _buildInfoTile(
-                i18n.locale == 'ar' ? 'خادم AQA السحابي' : 'Serveur Cloud AQA',
-                ApiEndpoints.baseUrl,
-                Icons.cloud_outlined,
               ),
             ],
           ),
