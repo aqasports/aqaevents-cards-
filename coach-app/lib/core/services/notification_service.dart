@@ -1,17 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:js_interop' as js;
-import 'dart:js_interop_unsafe';
 import '../models/replacement.dart';
-
-@js.JS('Notification.requestPermission')
-external js.JSPromise<js.JSString> _jsRequestPermission();
-
-@js.JS('Notification')
-extension type _JSNotification._(js.JSObject _) implements js.JSObject {
-  external _JSNotification(js.JSString title, [js.JSObject? options]);
-}
+import 'web_notification_stub.dart'
+    if (dart.library.js_interop) 'web_notification_web.dart' as platform_notif;
 
 class NotificationSettingsState {
   final bool isAuthorized;
@@ -100,15 +92,7 @@ class NotificationService {
     bool granted = false;
 
     if (kIsWeb) {
-      try {
-        final promise = _jsRequestPermission();
-        final resultJs = await promise.toDart;
-        final status = resultJs.toDart;
-        granted = status == 'granted';
-      } catch (e) {
-        debugPrint('Web notification permission error: $e');
-        granted = true;
-      }
+      granted = await platform_notif.requestWebNotificationPermission();
     } else {
       granted = true;
     }
@@ -172,16 +156,11 @@ class NotificationService {
     if (!_isAuthorized) return;
 
     if (kIsWeb) {
-      try {
-        final options = js.JSObject();
-        options.setProperty('body'.toJS, body.toJS);
-        if (tag != null) {
-          options.setProperty('tag'.toJS, tag.toJS);
-        }
-        _JSNotification(title.toJS, options);
-      } catch (e) {
-        debugPrint('Failed to show web notification: $e');
-      }
+      platform_notif.showWebNotification(
+        title: title,
+        body: body,
+        tag: tag,
+      );
     } else {
       debugPrint('Local notification: [$title] $body');
     }
