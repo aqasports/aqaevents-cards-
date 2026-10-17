@@ -410,6 +410,8 @@ model AuditLog {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([target, action])
 }
 
 model NotificationLog {
@@ -827,6 +829,7 @@ model SwimSession {
   @@unique([groupId, sessionDate, startTime])
   @@index([sessionDate])
   @@index([actualCoachId, sessionDate])
+  @@index([groupId, sessionDate])
 }
 
 model SwimAttendance {
