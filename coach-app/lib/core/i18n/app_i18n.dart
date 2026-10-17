@@ -1010,7 +1010,7 @@ final i18nProvider = StateNotifierProvider<I18nNotifier, AppI18n>((ref) {
   return I18nNotifier();
 });
 
-/// Sleek Luxury Double-Bezel Language Switcher Pill (FR | EN | AR)
+/// Precision-Machined Language Switcher (FR | EN | AR)
 class LanguageSwitcherPill extends ConsumerWidget {
   final bool compact;
 
@@ -1026,18 +1026,11 @@ class LanguageSwitcherPill extends ConsumerWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(3.0),
+      padding: const EdgeInsets.all(2.5),
       decoration: BoxDecoration(
-        color: const Color(0xFF090F1E),
-        borderRadius: BorderRadius.circular(999.0),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 8.0,
-            offset: Offset(0, 2),
-          ),
-        ],
+        color: const Color(0xFF070C18),
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1045,38 +1038,32 @@ class LanguageSwitcherPill extends ConsumerWidget {
           final code = item['code']!;
           final isSelected = currentLng == code;
           return GestureDetector(
+            behavior: HitTestBehavior.opaque,
             onTap: () => ref.read(i18nProvider.notifier).changeLanguage(code),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
+              duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
               padding: EdgeInsets.symmetric(
-                horizontal: compact ? 9.0 : 13.0,
-                vertical: compact ? 4.5 : 6.5,
+                horizontal: compact ? 8.5 : 12.0,
+                vertical: compact ? 4.5 : 6.0,
               ),
               decoration: BoxDecoration(
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [Color(0xFF0EA5E9), Color(0xFF00F2FF)],
-                      )
-                    : null,
-                borderRadius: BorderRadius.circular(999.0),
-                boxShadow: isSelected
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x4000F2FF),
-                          blurRadius: 10.0,
-                          offset: Offset(0, 2),
-                        ),
-                      ]
-                    : null,
+                color: isSelected ? const Color(0xFF15223B) : Colors.transparent,
+                borderRadius: BorderRadius.circular(7.5),
+                border: Border.all(
+                  color: isSelected
+                      ? const Color(0xFF0EA5E9).withValues(alpha: 0.45)
+                      : Colors.transparent,
+                  width: 1.0,
+                ),
               ),
               child: Text(
                 item['label']!,
                 style: TextStyle(
-                  color: isSelected ? const Color(0xFF030712) : const Color(0xFF94A3B8),
-                  fontSize: compact ? 10.5 : 12.0,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
+                  color: isSelected ? const Color(0xFFF8FAFC) : const Color(0xFF64748B),
+                  fontSize: compact ? 10.5 : 11.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  letterSpacing: 0.4,
                 ),
               ),
             ),

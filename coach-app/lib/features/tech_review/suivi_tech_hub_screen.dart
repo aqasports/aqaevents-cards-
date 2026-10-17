@@ -14,7 +14,7 @@ class SuiviTechHubScreen extends ConsumerStatefulWidget {
 }
 
 class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
-  String _selectedStageFilter = 'ALL'; // ALL | elephant | crocodile | dauphin | requin
+  String _selectedStageFilter = 'ALL';
   String _selectedGroupFilter = 'ALL';
   String _searchQuery = '';
 
@@ -23,309 +23,382 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
     final bootstrapAsync = ref.watch(bootstrapProvider);
     final i18n = ref.watch(i18nProvider);
 
-    return Scaffold(
-      backgroundColor: AqaTheme.bgDark,
-      body: AqaAmbientBackground(
-        child: RefreshIndicator(
-          color: AqaTheme.accentTeal,
-          backgroundColor: AqaTheme.surfaceDark,
-          onRefresh: () async {
-            ref.invalidate(bootstrapProvider);
-          },
-          child: bootstrapAsync.when(
-            loading: () => const Center(
-              child: CircularProgressIndicator(color: AqaTheme.accentTeal),
-            ),
-            error: (err, stack) => Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: AqaDoubleBezelCard(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error_outline, color: AqaTheme.statusDanger, size: 40.0),
-                      const SizedBox(height: 12.0),
-                      Text(
-                        '${i18n.t('common.error')}: $err',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: AqaTheme.textMuted),
-                      ),
-                      const SizedBox(height: 16.0),
-                      AqaIslandButton(
-                        label: i18n.t('common.retry'),
-                        icon: Icons.refresh_rounded,
-                        compact: true,
-                        onPressed: () => ref.invalidate(bootstrapProvider),
-                      ),
-                    ],
+    return RefreshIndicator(
+      color: AqaTheme.accentTeal,
+      backgroundColor: AqaTheme.surfaceDark,
+      onRefresh: () async {
+        ref.invalidate(bootstrapProvider);
+      },
+      child: bootstrapAsync.when(
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AqaTheme.accentTeal),
+        ),
+        error: (err, stack) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: AqaDoubleBezelCard(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: AqaTheme.statusDanger,
+                    size: 40.0,
                   ),
-                ),
+                  const SizedBox(height: 12.0),
+                  Text(
+                    '${i18n.t('common.error')}: $err',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AqaTheme.textMuted),
+                  ),
+                  const SizedBox(height: 16.0),
+                  AqaIslandButton(
+                    label: i18n.t('common.retry'),
+                    icon: Icons.refresh_rounded,
+                    compact: true,
+                    onPressed: () => ref.invalidate(bootstrapProvider),
+                  ),
+                ],
               ),
             ),
-            data: (data) {
-              final rawSwimmers = data.swimmers;
-              final isAssistant = data.coach.isAssistant;
+          ),
+        ),
+        data: (data) {
+          final rawSwimmers = data.swimmers;
+          final isAssistant = data.coach.isAssistant;
 
-              // Convert to SwimMemberModel instances
-              final allSwimmers = rawSwimmers
-                  .map((s) => SwimMemberModel.fromJson(s))
-                  .toList();
+          final allSwimmers = rawSwimmers
+              .map((s) => SwimMemberModel.fromJson(s))
+              .toList();
 
-              // Unique groups for filtering
-              final groupOptions = {
-                'ALL',
-                ...allSwimmers.map((s) => s.category.toUpperCase()).where((c) => c.isNotEmpty),
-              };
+          final groupOptions = {
+            'ALL',
+            ...allSwimmers
+                .map((s) => s.category.toUpperCase())
+                .where((c) => c.isNotEmpty),
+          };
 
-              String normalizeStage(String sKey) {
-                final l = sKey.toLowerCase();
-                if (l == 'elephant') return 'basics';
-                if (l == 'crocodile') return 'crawl';
-                if (l == 'dauphin') return 'backstroke';
-                if (l == 'requin') return 'elite';
-                return l;
-              }
+          String normalizeStage(String sKey) {
+            final l = sKey.toLowerCase();
+            if (l == 'elephant') return 'basics';
+            if (l == 'crocodile') return 'crawl';
+            if (l == 'dauphin') return 'backstroke';
+            if (l == 'requin') return 'elite';
+            return l;
+          }
 
-              // Filtered list
-              final filtered = allSwimmers.where((s) {
-                final normKey = normalizeStage(s.stageKey);
-                final matchesStage = _selectedStageFilter == 'ALL' ||
-                    normKey == _selectedStageFilter.toLowerCase();
-                final matchesGroup = _selectedGroupFilter == 'ALL' ||
-                    s.category.toUpperCase() == _selectedGroupFilter;
-                final query = _searchQuery.toLowerCase();
-                final matchesQuery = query.isEmpty ||
-                    s.fullName.toLowerCase().contains(query) ||
-                    s.swimId.toLowerCase().contains(query) ||
-                    s.badgeLabel.toLowerCase().contains(query) ||
-                    s.stageLabel.toLowerCase().contains(query);
-                return matchesStage && matchesGroup && matchesQuery;
-              }).toList();
+          final filtered = allSwimmers.where((s) {
+            final normKey = normalizeStage(s.stageKey);
+            final matchesStage = _selectedStageFilter == 'ALL' ||
+                normKey == _selectedStageFilter.toLowerCase();
+            final matchesGroup = _selectedGroupFilter == 'ALL' ||
+                s.category.toUpperCase() == _selectedGroupFilter;
+            final query = _searchQuery.toLowerCase();
+            final matchesQuery = query.isEmpty ||
+                s.fullName.toLowerCase().contains(query) ||
+                s.swimId.toLowerCase().contains(query) ||
+                s.badgeLabel.toLowerCase().contains(query) ||
+                s.stageLabel.toLowerCase().contains(query);
+            return matchesStage && matchesGroup && matchesQuery;
+          }).toList();
 
-              // Stage counts for the 6 pedagogical stages
-              final basicsCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'basics').length;
-              final crawlCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'crawl').length;
-              final backstrokeCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'backstroke').length;
-              final breaststrokeCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'breaststroke').length;
-              final butterflyCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'butterfly').length;
-              final eliteCount = allSwimmers.where((s) => normalizeStage(s.stageKey) == 'elite').length;
+          final basicsCount = allSwimmers
+              .where((s) => normalizeStage(s.stageKey) == 'basics')
+              .length;
+          final crawlCount = allSwimmers
+              .where((s) => normalizeStage(s.stageKey) == 'crawl')
+              .length;
+          final backstrokeCount = allSwimmers
+              .where((s) => normalizeStage(s.stageKey) == 'backstroke')
+              .length;
+          final breaststrokeCount = allSwimmers
+              .where((s) => normalizeStage(s.stageKey) == 'breaststroke')
+              .length;
+          final butterflyCount = allSwimmers
+              .where((s) => normalizeStage(s.stageKey) == 'butterfly')
+              .length;
+          final eliteCount = allSwimmers
+              .where((s) => normalizeStage(s.stageKey) == 'elite')
+              .length;
 
-              return ListView(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 110.0),
-                children: [
-                  // 1. Hero Section Header
-                  AqaSectionHeader(
-                    eyebrow: 'AQA SWIM PEDAGOGIE',
-                    title: i18n.t('suivi.hub_title'),
-                    subtitle: i18n.t('suivi.hub_subtitle'),
-                  ),
-                  const SizedBox(height: 16.0),
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 108.0),
+            children: [
+              // 1. Hero Section Header
+              AqaSectionHeader(
+                eyebrow: 'AQA SWIM PEDAGOGIE',
+                title: i18n.t('suivi.hub_title'),
+                subtitle: i18n.t('suivi.hub_subtitle'),
+              ),
+              const SizedBox(height: 16.0),
 
-                  // 2. 6 Pedagogical Stages Strip (Basics, Crawl, Backstroke, Breaststroke, Butterfly, Elite)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    child: Row(
-                      children: [
-                        _buildStageMascotCard(
-                          stageKey: 'ALL',
-                          label: i18n.t('suivi.filter_all'),
-                          asset: 'elephant.png',
-                          count: allSwimmers.length,
-                          color: AqaTheme.accentTeal,
-                          isSelected: _selectedStageFilter == 'ALL',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'basics',
-                          label: '1. ${i18n.t('suivi.stage_basics')}',
-                          asset: 'elephant.png',
-                          count: basicsCount,
-                          color: const Color(0xFF38BDF8),
-                          isSelected: _selectedStageFilter == 'basics',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'crawl',
-                          label: '2. ${i18n.t('suivi.stage_crawl')}',
-                          asset: 'crawler.png',
-                          count: crawlCount,
-                          color: const Color(0xFF00F2FF),
-                          isSelected: _selectedStageFilter == 'crawl',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'backstroke',
-                          label: '3. ${i18n.t('suivi.stage_backstroke')}',
-                          asset: 'leaf.png',
-                          count: backstrokeCount,
-                          color: const Color(0xFF10B981),
-                          isSelected: _selectedStageFilter == 'backstroke',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'breaststroke',
-                          label: '4. ${i18n.t('suivi.stage_breaststroke')}',
-                          asset: 'brasseur.png',
-                          count: breaststrokeCount,
-                          color: const Color(0xFFF59E0B),
-                          isSelected: _selectedStageFilter == 'breaststroke',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'butterfly',
-                          label: '5. ${i18n.t('suivi.stage_butterfly')}',
-                          asset: 'butterfly.png',
-                          count: butterflyCount,
-                          color: const Color(0xFFA855F7),
-                          isSelected: _selectedStageFilter == 'butterfly',
-                          i18n: i18n,
-                        ),
-                        const SizedBox(width: 8.0),
-                        _buildStageMascotCard(
-                          stageKey: 'elite',
-                          label: '6. ${i18n.t('suivi.stage_elite')}',
-                          asset: 'requin.png',
-                          count: eliteCount,
-                          color: const Color(0xFFEF4444),
-                          isSelected: _selectedStageFilter == 'elite',
-                          i18n: i18n,
-                        ),
-                      ],
+              // 2. 6 Pedagogical Stages Strip
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: [
+                    _buildStageMascotCard(
+                      stageKey: 'ALL',
+                      label: i18n.t('suivi.filter_all'),
+                      asset: 'elephant.png',
+                      count: allSwimmers.length,
+                      color: AqaTheme.accentTeal,
+                      isSelected: _selectedStageFilter == 'ALL',
+                      i18n: i18n,
                     ),
-                  ),
-                  const SizedBox(height: 16.0),
+                    const SizedBox(width: 8.0),
+                    _buildStageMascotCard(
+                      stageKey: 'basics',
+                      label: '1. ${i18n.t('suivi.stage_basics')}',
+                      asset: 'elephant.png',
+                      count: basicsCount,
+                      color: const Color(0xFF38BDF8),
+                      isSelected: _selectedStageFilter == 'basics',
+                      i18n: i18n,
+                    ),
+                    const SizedBox(width: 8.0),
+                    _buildStageMascotCard(
+                      stageKey: 'crawl',
+                      label: '2. ${i18n.t('suivi.stage_crawl')}',
+                      asset: 'crawler.png',
+                      count: crawlCount,
+                      color: const Color(0xFF00F2FF),
+                      isSelected: _selectedStageFilter == 'crawl',
+                      i18n: i18n,
+                    ),
+                    const SizedBox(width: 8.0),
+                    _buildStageMascotCard(
+                      stageKey: 'backstroke',
+                      label: '3. ${i18n.t('suivi.stage_backstroke')}',
+                      asset: 'leaf.png',
+                      count: backstrokeCount,
+                      color: const Color(0xFF10B981),
+                      isSelected: _selectedStageFilter == 'backstroke',
+                      i18n: i18n,
+                    ),
+                    const SizedBox(width: 8.0),
+                    _buildStageMascotCard(
+                      stageKey: 'breaststroke',
+                      label: '4. ${i18n.t('suivi.stage_breaststroke')}',
+                      asset: 'brasseur.png',
+                      count: breaststrokeCount,
+                      color: const Color(0xFFF59E0B),
+                      isSelected: _selectedStageFilter == 'breaststroke',
+                      i18n: i18n,
+                    ),
+                    const SizedBox(width: 8.0),
+                    _buildStageMascotCard(
+                      stageKey: 'butterfly',
+                      label: '5. ${i18n.t('suivi.stage_butterfly')}',
+                      asset: 'butterfly.png',
+                      count: butterflyCount,
+                      color: const Color(0xFFA855F7),
+                      isSelected: _selectedStageFilter == 'butterfly',
+                      i18n: i18n,
+                    ),
+                    const SizedBox(width: 8.0),
+                    _buildStageMascotCard(
+                      stageKey: 'elite',
+                      label: '6. ${i18n.t('suivi.stage_elite')}',
+                      asset: 'requin.png',
+                      count: eliteCount,
+                      color: const Color(0xFFEF4444),
+                      isSelected: _selectedStageFilter == 'elite',
+                      i18n: i18n,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16.0),
 
-                  // 3. Search and Category Filter
-                  AqaDoubleBezelCard(
-                    outerRadius: 18.0,
-                    padding: const EdgeInsets.all(12.0),
-                    child: Column(
-                      children: [
-                        TextField(
-                          onChanged: (v) => setState(() => _searchQuery = v.trim()),
-                          style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.5),
-                          decoration: InputDecoration(
-                            hintText: i18n.t('suivi.search_hint'),
-                            prefixIcon: const Icon(Icons.search_rounded, color: AqaTheme.accentTeal),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-                            suffixIcon: _searchQuery.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, color: AqaTheme.textLightMuted, size: 18.0),
-                                    onPressed: () => setState(() => _searchQuery = ''),
-                                  )
-                                : null,
-                          ),
+              // 3. Search and Category Filter
+              AqaDoubleBezelCard(
+                outerRadius: 14.0,
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  children: [
+                    TextField(
+                      onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                      style: const TextStyle(
+                        color: AqaTheme.textPrimary,
+                        fontSize: 13.5,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: i18n.t('suivi.search_hint'),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: AqaTheme.textMuted,
+                          size: 19.0,
                         ),
-                        if (groupOptions.length > 2) ...[
-                          const SizedBox(height: 10.0),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(),
-                            child: Row(
-                              children: groupOptions.map((cat) {
-                                final isSelected = _selectedGroupFilter == cat;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 6.0),
-                                  child: ChoiceChip(
-                                    label: Text(
-                                      cat == 'ALL' ? i18n.t('common.all_sectors') : cat,
-                                      style: const TextStyle(fontSize: 10.5),
-                                    ),
-                                    selected: isSelected,
-                                    onSelected: (_) => setState(() => _selectedGroupFilter = cat),
-                                    selectedColor: AqaTheme.primarySky,
-                                    backgroundColor: AqaTheme.surfaceSecondary,
-                                    labelStyle: TextStyle(
-                                      color: isSelected ? Colors.white : AqaTheme.textMuted,
-                                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14.0,
+                          vertical: 12.0,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.clear,
+                                  color: AqaTheme.textLightMuted,
+                                  size: 18.0,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _searchQuery = ''),
+                              )
+                            : null,
+                      ),
+                    ),
+                    if (groupOptions.length > 2) ...[
+                      const SizedBox(height: 10.0),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: groupOptions.map((cat) {
+                            final isSelected = _selectedGroupFilter == cat;
+                            final label = cat == 'ALL'
+                                ? i18n.t('common.all_sectors')
+                                : cat;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6.0),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () =>
+                                    setState(() => _selectedGroupFilter = cat),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 11.0,
+                                    vertical: 6.0,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFF13223D)
+                                        : AqaTheme.surfaceRecessed,
+                                    borderRadius: BorderRadius.circular(8.0),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? AqaTheme.primarySkyHover
+                                              .withValues(alpha: 0.45)
+                                          : AqaTheme.borderSubtle,
                                     ),
                                   ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ],
-                      ],
+                                  child: Text(
+                                    label,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? AqaTheme.textPrimary
+                                          : AqaTheme.textMuted,
+                                      fontSize: 11.0,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14.0),
+
+              // Summary Count
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    i18n.locale == 'ar'
+                        ? '${filtered.length} سباح في النطاق'
+                        : i18n.locale == 'en'
+                            ? '${filtered.length} Swimmer(s) in scope'
+                            : '${filtered.length} Nageur(s) dans le perimetre',
+                    style: const TextStyle(
+                      color: AqaTheme.textMuted,
+                      fontSize: 12.0,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: AqaTheme.tabularNums,
                     ),
                   ),
-                  const SizedBox(height: 14.0),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0,
+                      vertical: 3.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AqaTheme.primarySky.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6.0),
+                      border: Border.all(
+                        color: AqaTheme.primarySkyHover.withValues(alpha: 0.30),
+                      ),
+                    ),
+                    child: Text(
+                      i18n.t('suivi.badges_title').toUpperCase(),
+                      style: const TextStyle(
+                        color: AqaTheme.primarySkyHover,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12.0),
 
-                  // Summary Count
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 4. Swimmers List
+              if (filtered.isEmpty)
+                AqaDoubleBezelCard(
+                  padding: const EdgeInsets.all(36.0),
+                  child: Column(
                     children: [
+                      const Icon(
+                        Icons.search_off_rounded,
+                        color: AqaTheme.textLightMuted,
+                        size: 38.0,
+                      ),
+                      const SizedBox(height: 12.0),
                       Text(
-                        i18n.locale == 'ar'
-                            ? '${filtered.length} سباح في النطاق'
-                            : i18n.locale == 'en'
-                                ? '${filtered.length} Swimmer(s) in scope'
-                                : '${filtered.length} Nageur(s) dans le perimetre',
+                        i18n.t('suivi.no_swimmers_found'),
                         style: const TextStyle(
-                          color: AqaTheme.textMuted,
-                          fontSize: 12.0,
+                          color: AqaTheme.textPrimary,
+                          fontSize: 14.0,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 3.0),
-                        decoration: BoxDecoration(
-                          color: AqaTheme.accentTeal.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                          border: Border.all(color: AqaTheme.borderTeal),
-                        ),
-                        child: Text(
-                          i18n.t('suivi.badges_title').toUpperCase(),
-                          style: const TextStyle(
-                            color: AqaTheme.accentTeal,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.5,
-                          ),
+                      const SizedBox(height: 6.0),
+                      Text(
+                        i18n.locale == 'ar'
+                            ? 'قم بتعديل معايير البحث أو اختيار مرحلة بيداغوجية أخرى.'
+                            : i18n.locale == 'en'
+                                ? 'Modify your search or select another pedagogical stage.'
+                                : 'Modifiez votre recherche ou selectionnez un autre palier pedagogique.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AqaTheme.textMuted,
+                          fontSize: 12.0,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12.0),
-
-                  // 4. Swimmers List
-                  if (filtered.isEmpty)
-                    AqaDoubleBezelCard(
-                      padding: const EdgeInsets.all(36.0),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.search_off_rounded, color: AqaTheme.textLightMuted, size: 40.0),
-                          const SizedBox(height: 12.0),
-                          Text(
-                            i18n.t('suivi.no_swimmers_found'),
-                            style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 14.0, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 6.0),
-                          Text(
-                            i18n.locale == 'ar'
-                                ? 'قم بتعديل معايير البحث أو اختيار palier بيداغوجي آخر.'
-                                : i18n.locale == 'en'
-                                    ? 'Modify your search or select another pedagogical stage.'
-                                    : 'Modifiez votre recherche ou selectionnez un autre palier pedagogique.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
-                          ),
-                        ],
-                      ),
-                    )
-                  else
-                    ...filtered.map((swimmer) => _buildSwimmerSuiviCard(context, swimmer, i18n: i18n, isAssistant: isAssistant)),
-                ],
-              );
-            },
-          ),
-        ),
+                )
+              else
+                ...filtered.map(
+                  (swimmer) => _buildSwimmerSuiviCard(
+                    context,
+                    swimmer,
+                    i18n: i18n,
+                    isAssistant: isAssistant,
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -339,48 +412,45 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
     required bool isSelected,
     required AppI18n i18n,
   }) {
-    return InkWell(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _selectedStageFilter = stageKey),
-      borderRadius: BorderRadius.circular(16.0),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 9.0),
         decoration: BoxDecoration(
-          color: isSelected ? color.withValues(alpha: 0.18) : const Color(0xFF090F1E),
-          borderRadius: BorderRadius.circular(16.0),
+          color: isSelected
+              ? const Color(0xFF13223D)
+              : AqaTheme.surfaceRecessed,
+          borderRadius: BorderRadius.circular(12.0),
           border: Border.all(
-            color: isSelected ? color : AqaTheme.borderSubtle,
-            width: isSelected ? 1.6 : 1.0,
+            color: isSelected
+                ? color.withValues(alpha: 0.65)
+                : AqaTheme.borderSubtle,
+            width: 1.0,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.25),
-                    blurRadius: 12.0,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 34.0,
-              height: 34.0,
+              width: 32.0,
+              height: 32.0,
               padding: const EdgeInsets.all(4.0),
               decoration: BoxDecoration(
                 color: AqaTheme.surfaceDark,
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(8.0),
+                border: Border.all(color: color.withValues(alpha: 0.35)),
               ),
               child: Image.asset(
                 'assets/images/badges/$asset',
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Icon(Icons.pets, color: color, size: 16.0),
+                errorBuilder: (_, __, ___) =>
+                    Icon(Icons.pool_rounded, color: color, size: 15.0),
               ),
             ),
-            const SizedBox(width: 8.0),
+            const SizedBox(width: 9.0),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -390,7 +460,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   style: TextStyle(
                     color: isSelected ? color : AqaTheme.textPrimary,
                     fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
@@ -402,7 +472,8 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   style: const TextStyle(
                     color: AqaTheme.textMuted,
                     fontSize: 10.0,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
+                    fontFeatures: AqaTheme.tabularNums,
                   ),
                 ),
               ],
@@ -427,8 +498,8 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
 
     return AqaDoubleBezelCard(
       margin: const EdgeInsets.only(bottom: 12.0),
-      outerRadius: 18.0,
-      padding: const EdgeInsets.all(14.0),
+      outerRadius: 16.0,
+      padding: const EdgeInsets.all(15.0),
       onTap: () {
         context.push('/members/${swimmer.id}');
       },
@@ -437,25 +508,15 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
         children: [
           Row(
             children: [
-              // Badge Icon with Glowing Container
+              // Badge Icon Container
               Container(
-                width: 46.0,
-                height: 46.0,
+                width: 44.0,
+                height: 44.0,
                 padding: const EdgeInsets.all(5.0),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF13203B), Color(0xFF0A1325)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14.0),
-                  border: Border.all(color: AqaTheme.borderTeal),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AqaTheme.accentTeal.withValues(alpha: 0.12),
-                      blurRadius: 10.0,
-                    ),
-                  ],
+                  color: AqaTheme.surfaceRecessed,
+                  borderRadius: BorderRadius.circular(11.0),
+                  border: Border.all(color: AqaTheme.borderSubtle),
                 ),
                 child: Image.asset(
                   'assets/images/badges/${swimmer.badgeAsset}',
@@ -463,7 +524,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   errorBuilder: (_, __, ___) => const Icon(
                     Icons.military_tech_rounded,
                     color: AqaTheme.accentTeal,
-                    size: 24.0,
+                    size: 22.0,
                   ),
                 ),
               ),
@@ -482,24 +543,26 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                             style: const TextStyle(
                               color: AqaTheme.textPrimary,
                               fontSize: 15.0,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                               letterSpacing: -0.2,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 6.0),
+                        const SizedBox(width: 7.0),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.0),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6.0,
+                            vertical: 2.0,
+                          ),
                           decoration: BoxDecoration(
-                            color: AqaTheme.surfaceSecondary,
-                            borderRadius: BorderRadius.circular(4.0),
-                            border: Border.all(color: AqaTheme.borderSubtle),
+                            color: AqaTheme.primarySky.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(5.0),
                           ),
                           child: Text(
                             swimmer.category.toUpperCase(),
                             style: const TextStyle(
-                              color: AqaTheme.primarySky,
+                              color: AqaTheme.primarySkyHover,
                               fontSize: 9.5,
                               fontWeight: FontWeight.w700,
                             ),
@@ -512,18 +575,18 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                       children: [
                         Image.asset(
                           'assets/images/badges/${swimmer.stageAsset}',
-                          width: 14.0,
-                          height: 14.0,
+                          width: 13.0,
+                          height: 13.0,
                           errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                         ),
-                        const SizedBox(width: 4.0),
+                        const SizedBox(width: 4.5),
                         Flexible(
                           child: Text(
                             swimmer.stageLabel,
                             style: const TextStyle(
                               color: AqaTheme.accentTeal,
                               fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -536,21 +599,26 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
 
               // Score Chip
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9.0, vertical: 5.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10.0,
+                  vertical: 5.5,
+                ),
                 decoration: BoxDecoration(
-                  color: AqaTheme.surfaceSecondary,
-                  borderRadius: BorderRadius.circular(10.0),
-                  border: Border.all(color: AqaTheme.borderMedium),
+                  color: AqaTheme.surfaceRecessed,
+                  borderRadius: BorderRadius.circular(9.0),
+                  border: Border.all(color: AqaTheme.borderSubtle),
                 ),
                 child: Column(
                   children: [
                     Text(
-                      swimmer.avgSkillScore > 0 ? '${swimmer.avgSkillScore}' : '1.0',
+                      swimmer.avgSkillScore > 0
+                          ? '${swimmer.avgSkillScore}'
+                          : '1.0',
                       style: const TextStyle(
                         color: AqaTheme.textPrimary,
-                        fontSize: 14.0,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800,
-                        fontFamily: 'monospace',
+                        fontFeatures: AqaTheme.tabularNums,
                       ),
                     ),
                     const Text(
@@ -559,6 +627,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                         color: AqaTheme.textLightMuted,
                         fontSize: 9.0,
                         fontWeight: FontWeight.w600,
+                        fontFeatures: AqaTheme.tabularNums,
                       ),
                     ),
                   ],
@@ -570,10 +639,13 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
 
           // KPI Strip: Badge Title • Evaluations • Binary Attendance Rate
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 11.0,
+              vertical: 8.5,
+            ),
             decoration: BoxDecoration(
-              color: const Color(0xFF070C18),
-              borderRadius: BorderRadius.circular(10.0),
+              color: AqaTheme.surfaceRecessed,
+              borderRadius: BorderRadius.circular(9.0),
               border: Border.all(color: AqaTheme.borderSubtle),
             ),
             child: Row(
@@ -581,39 +653,55 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.military_tech_outlined, size: 14.0, color: AqaTheme.accentTeal),
-                    const SizedBox(width: 4.0),
+                    const Icon(
+                      Icons.military_tech_outlined,
+                      size: 14.0,
+                      color: AqaTheme.accentTeal,
+                    ),
+                    const SizedBox(width: 4.5),
                     Text(
                       '${i18n.t('suivi.badge_awarded')} : ${swimmer.badgeLabel}',
                       style: const TextStyle(
-                        color: AqaTheme.textPrimary,
+                        color: AqaTheme.textSecondary,
                         fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
                 Row(
                   children: [
-                    const Icon(Icons.history_rounded, size: 14.0, color: AqaTheme.textLightMuted),
+                    const Icon(
+                      Icons.history_rounded,
+                      size: 13.5,
+                      color: AqaTheme.textLightMuted,
+                    ),
                     const SizedBox(width: 4.0),
                     Text(
                       i18n.t('suivi.eval_count', {'count': swimmer.reviewCount}),
-                      style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.0),
+                      style: const TextStyle(
+                        color: AqaTheme.textMuted,
+                        fontSize: 11.0,
+                        fontFeatures: AqaTheme.tabularNums,
+                      ),
                     ),
                   ],
                 ),
                 Row(
                   children: [
-                    Icon(Icons.check_circle_rounded, size: 14.0, color: rateColor),
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 13.5,
+                      color: rateColor,
+                    ),
                     const SizedBox(width: 4.0),
                     Text(
                       '${swimmer.attendanceRate}% ${i18n.t('attendance.present')}',
                       style: TextStyle(
                         color: rateColor,
                         fontSize: 11.0,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: 'monospace',
+                        fontWeight: FontWeight.w700,
+                        fontFeatures: AqaTheme.tabularNums,
                       ),
                     ),
                   ],
@@ -627,40 +715,26 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 36.0),
-                    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                    visualDensity: VisualDensity.compact,
-                    side: const BorderSide(color: AqaTheme.borderMedium),
-                  ),
+                child: AqaIslandButton(
+                  label: i18n.t('suivi.btn_dossier'),
+                  icon: Icons.radar_rounded,
+                  compact: true,
+                  secondary: true,
                   onPressed: () {
                     context.push('/members/${swimmer.id}');
                   },
-                  icon: const Icon(Icons.radar_rounded, size: 15.0, color: AqaTheme.accentTeal),
-                  label: Text(
-                    i18n.t('suivi.btn_dossier'),
-                    style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
-                  ),
                 ),
               ),
               if (!isAssistant) ...[
-                const SizedBox(width: 8.0),
+                const SizedBox(width: 10.0),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(0, 36.0),
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-                      visualDensity: VisualDensity.compact,
-                    ),
+                  child: AqaIslandButton(
+                    label: i18n.t('suivi.btn_eval'),
+                    icon: Icons.rate_review_rounded,
+                    compact: true,
                     onPressed: () {
                       context.push('/members/${swimmer.id}/review-form');
                     },
-                    icon: const Icon(Icons.rate_review_rounded, size: 15.0),
-                    label: Text(
-                      i18n.t('suivi.btn_eval'),
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
-                    ),
                   ),
                 ),
               ],

@@ -46,7 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ? AqaTheme.statusWarning
         : isAssistant
             ? AqaTheme.textMuted
-            : AqaTheme.accentTeal;
+            : AqaTheme.primarySkyHover;
 
     final roleSubtitle = isHead
         ? i18n.t('role_banner.head_coach')
@@ -92,134 +92,142 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       backgroundColor: AqaTheme.bgDark,
       extendBody: true,
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(68.0),
+        preferredSize: const Size.fromHeight(64.0),
         child: ClipRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
+            filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xCC050A16),
+                color: const Color(0xE0050914),
                 border: Border(
                   bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: Colors.white.withValues(alpha: 0.07),
                     width: 1.0,
                   ),
                 ),
               ),
               child: SafeArea(
                 bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14.0),
-                  child: Row(
-                    children: [
-                      // Luxury Coach Avatar / Brand Mark
-                      Container(
-                        width: 42.0,
-                        height: 42.0,
-                        padding: const EdgeInsets.all(7.0),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF13203B), Color(0xFF091222)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(13.0),
-                          border: Border.all(
-                            color: AqaTheme.accentTeal.withValues(alpha: 0.50),
-                            width: 1.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AqaTheme.accentTeal.withValues(alpha: 0.16),
-                              blurRadius: 12.0,
-                              spreadRadius: -1.0,
+                child: Align(
+                  alignment: Alignment.center,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: AqaTheme.maxContentWidth),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: Row(
+                        children: [
+                          // Precision Coach Brand Mark
+                          Container(
+                            width: 38.0,
+                            height: 38.0,
+                            padding: const EdgeInsets.all(6.5),
+                            decoration: BoxDecoration(
+                              color: AqaTheme.surfaceRecessed,
+                              borderRadius: BorderRadius.circular(11.0),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                width: 1.0,
+                              ),
                             ),
-                          ],
-                        ),
-                        child: Image.asset(
-                          'assets/images/aqa_mark.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => const Icon(
-                            Icons.pool,
-                            color: AqaTheme.accentTeal,
-                            size: 20.0,
+                            child: Image.asset(
+                              'assets/images/aqa_mark.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.pool_rounded,
+                                color: AqaTheme.accentTeal,
+                                size: 18.0,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 11.0),
-                      // Coach Identity & Role
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                          const SizedBox(width: 11.0),
+                          // Coach Identity & Role
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Flexible(
-                                  child: Text(
-                                    user?.name ?? 'AQA Coach',
-                                    style: const TextStyle(
-                                      color: AqaTheme.textPrimary,
-                                      fontSize: 15.0,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.3,
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        user?.name ?? 'AQA Coach',
+                                        style: const TextStyle(
+                                          color: AqaTheme.textPrimary,
+                                          fontSize: 14.5,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: -0.2,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                    const SizedBox(width: 8.0),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7.0,
+                                        vertical: 2.0,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: roleBadgeColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6.0),
+                                        border: Border.all(
+                                          color: roleBadgeColor.withValues(alpha: 0.35),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            width: 5.0,
+                                            height: 5.0,
+                                            decoration: BoxDecoration(
+                                              color: roleBadgeColor,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4.5),
+                                          Text(
+                                            (user?.roleDisplay ?? 'COACH').toUpperCase(),
+                                            style: TextStyle(
+                                              color: roleBadgeColor,
+                                              fontSize: 9.0,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 7.0),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7.0,
-                                    vertical: 2.5,
+                                const SizedBox(height: 1.5),
+                                Text(
+                                  roleSubtitle,
+                                  style: const TextStyle(
+                                    color: AqaTheme.textLightMuted,
+                                    fontSize: 11.0,
+                                    fontWeight: FontWeight.w500,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: roleBadgeColor.withValues(alpha: 0.16),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: roleBadgeColor.withValues(alpha: 0.70),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    (user?.roleDisplay ?? 'COACH').toUpperCase(),
-                                    style: TextStyle(
-                                      color: roleBadgeColor,
-                                      fontSize: 9.0,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.6,
-                                    ),
-                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 2.0),
-                            Text(
-                              roleSubtitle,
-                              style: const TextStyle(
-                                color: AqaTheme.textMuted,
-                                fontSize: 11.0,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
+                          ),
+                          // Language Selector Pill & Glass Refresh Button
+                          const LanguageSwitcherPill(compact: true),
+                          const SizedBox(width: 8.0),
+                          AqaGlassIconButton(
+                            icon: Icons.refresh_rounded,
+                            tooltip: i18n.t('common.refresh'),
+                            iconColor: AqaTheme.textSecondary,
+                            size: 34.0,
+                            onPressed: () {
+                              ref.invalidate(bootstrapProvider);
+                            },
+                          ),
+                        ],
                       ),
-                      // Language Selector Pill & Sync Action
-                      const LanguageSwitcherPill(compact: true),
-                      const SizedBox(width: 4.0),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.refresh_rounded,
-                          color: AqaTheme.accentTeal,
-                          size: 21.0,
-                        ),
-                        tooltip: i18n.t('common.refresh'),
-                        onPressed: () {
-                          ref.invalidate(bootstrapProvider);
-                        },
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
