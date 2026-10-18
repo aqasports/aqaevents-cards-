@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/replacement.dart';
@@ -44,12 +45,16 @@ class NotificationSettingsState {
 
 class NotificationService {
   static const _prefKeyAuth = 'aqa_coach_notifications_authorized';
+  static const _prefKeyPromptedOnce = 'aqa_coach_notifications_prompted_v2';
   static const _prefKeyNewClient = 'aqa_coach_notify_new_client';
   static const _prefKeyGroupMovement = 'aqa_coach_notify_group_movement';
   static const _prefKeyReplacements = 'aqa_coach_notify_replacements';
   static const _prefKeySessionReminder = 'aqa_coach_notify_session_reminder';
   static const _prefKeySeenIds = 'aqa_coach_seen_notification_ids';
   static const _prefKeyDismissedIds = 'aqa_coach_dismissed_notification_ids';
+
+  static const MethodChannel _nativeChannel =
+      MethodChannel('com.aqasports.aqa_coaches/notifications');
 
   final SharedPreferences _prefs;
   bool _isAuthorized = false;
@@ -87,14 +92,50 @@ class NotificationService {
         dismissedIds: Set.unmodifiable(_dismissedIds),
       );
 
-  /// Requests notification permission from the browser/OS and stores state
+  /// Synchronizes with native Android/iOS OS permission state and automatically
+  /// prompts the user for notification permission on first launch.
+  Future<bool> ensureInitializedAndPromptIfFirstRun() async {
+    if (kIsWeb) return _isAuthorized;
+    try {
+      final osGranted =
+          await _nativeChannel.invokeMethod<bool>('checkPermission') ?? false;
+      final alreadyPrompted = _prefs.getBool(_prefKeyPromptedOnce) ?? false;
+
+      if (!osGranted && !alreadyPrompted) {
+        await _prefs.setBool(_prefKeyPromptedOnce, true);
+        return await requestPermission();
+      }
+
+      if (osGranted && !_prefs.containsKey(_prefKeyAuth)) {
+        _isAuthorized = true;
+        await _prefs.setBool(_prefKeyAuth, true);
+      } else if (!osGranted && _isAuthorized) {
+        _isAuthorized = false;
+        await _prefs.setBool(_prefKeyAuth, false);
+      }
+      return _isAuthorized;
+    } catch (e) {
+      debugPrint('Native notification check failed: $e');
+      return _isAuthorized;
+    }
+  }
+
+  /// Requests notification permission from the browser or native Android/iOS OS
   Future<bool> requestPermission() async {
     bool granted = false;
 
     if (kIsWeb) {
       granted = await platform_notif.requestWebNotificationPermission();
     } else {
-      granted = true;
+      try {
+        await _prefs.setBool(_prefKeyPromptedOnce, true);
+        granted =
+            await _nativeChannel.invokeMethod<bool>('requestPermission') ??
+                false;
+      } catch (e) {
+        debugPrint('Native requestPermission error: $e');
+        granted = false;
+      }
     }
 
     _isAuthorized = granted;
@@ -147,7 +188,7 @@ class NotificationService {
     await _prefs.setStringList(_prefKeySeenIds, _seenIds.toList());
   }
 
-  /// Sends a local notification to the coach's device
+  /// Sends a local notification to the coach's device (Web or Native Android/iOS)
   Future<void> showNotification({
     required String title,
     required String body,
@@ -162,7 +203,15 @@ class NotificationService {
         tag: tag,
       );
     } else {
-      debugPrint('Local notification: [$title] $body');
+      try {
+        await _nativeChannel.invokeMethod('showNotification', {
+          'title': title,
+          'body': body,
+          'tag': tag ?? 'aqa-${DateTime.now().millisecondsSinceEpoch}',
+        });
+      } catch (e) {
+        debugPrint('Native showNotification error: $e');
+      }
     }
   }
 
@@ -178,8 +227,6 @@ class NotificationService {
       final id = notif['id']?.toString() ?? '';
       if (id.isEmpty || _seenIds.contains(id)) continue;
 
-      await _markSeen(id);
-
       final eventType = notif['eventType']?.toString() ?? 'NEW_CLIENT';
       final movementKind = notif['movementKind']?.toString();
       final memberName = notif['memberName']?.toString() ?? 'Nageur AQA';
@@ -187,6 +234,12 @@ class NotificationService {
       final fromGroupName = notif['fromGroupName']?.toString();
 
       if (eventType == 'NEW_CLIENT') {
+        final isNewActive = notif['isNewClientLabelActive'] as bool? ?? false;
+        if (!isNewActive) {
+          await _markSeen(id);
+          continue;
+        }
+        await _markSeen(id);
         if (_notifyNewClient) {
           await showNotification(
             title: 'Nouveau Client [NEW] • $groupName',
@@ -196,6 +249,7 @@ class NotificationService {
           );
         }
       } else if (eventType == 'MOVEMENT') {
+        await _markSeen(id);
         if (_notifyGroupMovement) {
           final isMulti = movementKind == 'multi_group';
           final bodyText = isMulti
@@ -238,7 +292,17 @@ class NotificationSettingsNotifier
   final Ref _ref;
 
   NotificationSettingsNotifier(this._service, this._ref)
-      : super(_service.currentState);
+      : super(_service.currentState) {
+    _syncNativeOnInit();
+  }
+
+  Future<void> _syncNativeOnInit() async {
+    final granted = await _service.ensureInitializedAndPromptIfFirstRun();
+    if (mounted) {
+      state = _service.currentState;
+      _ref.read(notificationPermissionProvider.notifier).state = granted;
+    }
+  }
 
   Future<bool> requestPermission() async {
     final granted = await _service.requestPermission();
@@ -252,6 +316,14 @@ class NotificationSettingsNotifier
     state = _service.currentState;
     _ref.read(notificationPermissionProvider.notifier).state =
         _service.isAuthorized;
+    if (_service.isAuthorized) {
+      await _service.showNotification(
+        title: 'AQA Coaches • Notifications actives',
+        body:
+            'Vous recevrez les alertes de nouveaux clients (NEW), mouvements de groupe et remplacements.',
+        tag: 'aqa-notif-welcome',
+      );
+    }
   }
 
   Future<void> toggleNewClient(bool value) async {

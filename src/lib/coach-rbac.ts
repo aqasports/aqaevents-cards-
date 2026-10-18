@@ -21,47 +21,54 @@ function isCoachNameMatch(groupCoachName: string | null | undefined, coachName: 
  * including SwimGroupStaff assignments, accepted replacements, and legacy SwimGroup.coachName matching.
  */
 export async function resolveCoachGroupIds(ctx: CoachContext): Promise<string[]> {
-  const allActiveGroups = await prisma.swimGroup.findMany({
-    where: { active: true },
-    select: { id: true, coachName: true },
-  });
-
   if (ctx.role === "head_coach") {
-    return allActiveGroups.map((g) => g.id);
-  }
-
-  let coachName = ctx.coachName;
-  if (!coachName) {
-    const coachRecord = await prisma.coach.findUnique({
-      where: { id: ctx.coachId },
-      select: { name: true },
+    const allActive = await prisma.swimGroup.findMany({
+      where: { active: true },
+      select: { id: true },
     });
-    coachName = coachRecord?.name;
+    return allActive.map((g) => g.id);
   }
 
-  const [staffAssignments, replacementAssignments, actualSessionAssignments] = await Promise.all([
-    prisma.swimGroupStaff.findMany({
-      where: {
-        coachId: ctx.coachId,
-        endsOn: null,
-        group: { active: true },
-      },
-      select: { groupId: true },
-    }),
-    prisma.swimReplacement.findMany({
-      where: {
-        substituteCoachId: ctx.coachId,
-        status: { in: ["accepted", "assigned"] },
-      },
-      include: { session: { select: { groupId: true } } },
-    }),
-    prisma.swimSession.findMany({
-      where: {
-        actualCoachId: ctx.coachId,
-      },
-      select: { groupId: true },
-    }),
-  ]);
+  const coachNamePromise = ctx.coachName
+    ? Promise.resolve(ctx.coachName)
+    : prisma.coach
+        .findUnique({
+          where: { id: ctx.coachId },
+          select: { name: true },
+        })
+        .then((c) => c?.name);
+
+  const [allActiveGroups, coachName, staffAssignments, replacementAssignments, actualSessionAssignments] =
+    await Promise.all([
+      prisma.swimGroup.findMany({
+        where: { active: true },
+        select: { id: true, coachName: true },
+      }),
+      coachNamePromise,
+      prisma.swimGroupStaff.findMany({
+        where: {
+          coachId: ctx.coachId,
+          endsOn: null,
+          group: { active: true },
+        },
+        select: { groupId: true },
+        distinct: ["groupId"],
+      }),
+      prisma.swimReplacement.findMany({
+        where: {
+          substituteCoachId: ctx.coachId,
+          status: { in: ["accepted", "assigned"] },
+        },
+        include: { session: { select: { groupId: true } } },
+      }),
+      prisma.swimSession.findMany({
+        where: {
+          actualCoachId: ctx.coachId,
+        },
+        select: { groupId: true },
+        distinct: ["groupId"],
+      }),
+    ]);
 
   const set = new Set<string>();
   staffAssignments.forEach((a) => set.add(a.groupId));

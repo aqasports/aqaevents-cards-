@@ -406,18 +406,22 @@ class SwimmerProfileScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            i18n.locale == 'ar'
-                                ? 'أشرطة التقدم الخمسة (0% - 200%)'
-                                : i18n.locale == 'en'
-                                    ? '5 Swim Progress Bars (0% - 200%)'
-                                    : '5 Barres de Progression (0% - 200%)',
-                            style: const TextStyle(
-                              color: AqaTheme.textPrimary,
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
+                          Expanded(
+                            child: Text(
+                              i18n.locale == 'ar'
+                                  ? 'أشرطة التقدم الخمسة (0% - 200%)'
+                                  : i18n.locale == 'en'
+                                      ? '5 Swim Progress Bars (0% - 200%)'
+                                      : '5 Barres de Progression (0% - 200%)',
+                              style: const TextStyle(
+                                color: AqaTheme.textPrimary,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 8.0),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 2.5),
                             decoration: BoxDecoration(
@@ -440,8 +444,8 @@ class SwimmerProfileScreen extends ConsumerWidget {
                       // Radar Chart Canvas
                       Center(
                         child: SizedBox(
-                          width: 240.0,
-                          height: 240.0,
+                          width: 280.0,
+                          height: 230.0,
                           child: CustomPaint(
                             painter: _BiomechanicalRadarPainter(
                               scores: [
@@ -618,7 +622,7 @@ class SwimmerProfileScreen extends ConsumerWidget {
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 3,
-                            childAspectRatio: 0.95,
+                            mainAxisExtent: 96.0,
                             crossAxisSpacing: 8.0,
                             mainAxisSpacing: 8.0,
                           ),
@@ -815,8 +819,10 @@ class SwimmerProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildRoadmapStage(String stageOrder, String name, String asset, bool reached, bool active) {
-    return Expanded(
+    return SizedBox(
+      width: 68.0,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 38.0,
@@ -845,6 +851,7 @@ class SwimmerProfileScreen extends ConsumerWidget {
             name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: active ? AqaTheme.accentTeal : reached ? AqaTheme.textPrimary : AqaTheme.textLightMuted,
               fontSize: 10.0,
@@ -857,7 +864,10 @@ class SwimmerProfileScreen extends ConsumerWidget {
   }
 
   Widget _buildRoadmapArrow() {
-    return const Icon(Icons.chevron_right_rounded, color: AqaTheme.textLightMuted, size: 16.0);
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 2.0),
+      child: Icon(Icons.chevron_right_rounded, color: AqaTheme.textLightMuted, size: 16.0),
+    );
   }
 
   Widget _buildMetricTile(String label, String value, IconData icon, Color color) {
@@ -985,7 +995,7 @@ class _BiomechanicalRadarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = (math.min(size.width, size.height) / 2) - 30.0;
+    final radius = (math.min(size.width, size.height) / 2) - 34.0;
     const numSides = 5;
     const angleStep = (2 * math.pi) / numSides;
     const startAngle = -math.pi / 2; // top center

@@ -79,7 +79,15 @@ export async function GET(
     const sevenDaysAgo = new Date(today);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    await ensureSessions([groupId], today, nextTwoWeeks);
+    const sessionCount = await prisma.swimSession.count({
+      where: {
+        groupId,
+        sessionDate: { gte: today, lte: nextTwoWeeks },
+      },
+    });
+    if (sessionCount === 0) {
+      await ensureSessions([groupId], today, nextTwoWeeks);
+    }
 
     const [rawRoster, sessions] = await Promise.all([
       getGroupRoster(groupId),

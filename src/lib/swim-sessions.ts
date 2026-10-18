@@ -208,18 +208,30 @@ export async function ensureSessions(
     }
   }
 
-  for (const entry of sessionEntriesToCreate) {
-    await prisma.swimSession.upsert({
-      where: {
-        groupId_sessionDate_startTime: {
-          groupId: entry.groupId,
-          sessionDate: entry.sessionDate,
-          startTime: entry.startTime,
-        },
-      },
-      create: entry,
-      update: {},
-    });
+  if (sessionEntriesToCreate.length > 0) {
+    try {
+      await prisma.swimSession.createMany({
+        data: sessionEntriesToCreate,
+        skipDuplicates: true,
+      });
+    } catch {
+      // Fallback for database engines where skipDuplicates is not supported
+      await Promise.all(
+        sessionEntriesToCreate.map((entry) =>
+          prisma.swimSession.upsert({
+            where: {
+              groupId_sessionDate_startTime: {
+                groupId: entry.groupId,
+                sessionDate: entry.sessionDate,
+                startTime: entry.startTime,
+              },
+            },
+            create: entry,
+            update: {},
+          })
+        )
+      );
+    }
   }
 }
 

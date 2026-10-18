@@ -456,75 +456,83 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12.0),
       child: AqaDoubleBezelCard(
-        padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 12.0),
-        child: Row(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 34.0,
-              height: 34.0,
-              decoration: BoxDecoration(
-                color: AqaTheme.accentTeal.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(9.0),
-                border: Border.all(
-                  color: AqaTheme.accentTeal.withValues(alpha: 0.28),
+            Row(
+              children: [
+                Container(
+                  width: 32.0,
+                  height: 32.0,
+                  decoration: BoxDecoration(
+                    color: AqaTheme.accentTeal.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(
+                      color: AqaTheme.accentTeal.withValues(alpha: 0.28),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.notifications_active_outlined,
+                    color: AqaTheme.accentTeal,
+                    size: 17.0,
+                  ),
                 ),
-              ),
-              child: const Icon(
-                Icons.notifications_active_outlined,
-                color: AqaTheme.accentTeal,
-                size: 18.0,
-              ),
-            ),
-            const SizedBox(width: 12.0),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    i18n.t('notifications.permission_title'),
-                    style: const TextStyle(
-                      color: AqaTheme.textPrimary,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 1.5),
-                  Text(
-                    i18n.t('notifications.permission_desc'),
-                    style: const TextStyle(
-                      color: AqaTheme.textMuted,
-                      fontSize: 11.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10.0),
-            AqaIslandButton(
-              label: i18n.t('notifications.enable_btn'),
-              icon: Icons.check_rounded,
-              compact: true,
-              onPressed: () async {
-                final granted = await ref
-                    .read(notificationServiceProvider)
-                    .requestPermission();
-                ref.read(notificationPermissionProvider.notifier).state =
-                    granted;
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: granted
-                          ? AqaTheme.statusSuccess
-                          : AqaTheme.statusWarning,
-                      content: Text(
-                        granted
-                            ? i18n.t('notifications.enabled_badge')
-                            : i18n.t('notifications.denied_msg'),
+                const SizedBox(width: 10.0),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        i18n.t('notifications.permission_title'),
+                        style: const TextStyle(
+                          color: AqaTheme.textPrimary,
+                          fontSize: 13.0,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                  );
-                }
-              },
+                      const SizedBox(height: 2.0),
+                      Text(
+                        i18n.t('notifications.permission_desc'),
+                        style: const TextStyle(
+                          color: AqaTheme.textMuted,
+                          fontSize: 11.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10.0),
+            Align(
+              alignment: Alignment.centerRight,
+              child: AqaIslandButton(
+                label: i18n.t('notifications.enable_btn'),
+                icon: Icons.check_rounded,
+                compact: true,
+                onPressed: () async {
+                  final granted = await ref
+                      .read(notificationServiceProvider)
+                      .requestPermission();
+                  ref.read(notificationPermissionProvider.notifier).state =
+                      granted;
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: granted
+                            ? AqaTheme.statusSuccess
+                            : AqaTheme.statusWarning,
+                        content: Text(
+                          granted
+                              ? i18n.t('notifications.enabled_badge')
+                              : i18n.t('notifications.denied_msg'),
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -751,46 +759,46 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
   }) {
     return AqaDoubleBezelCard(
       outerRadius: 14.0,
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
-      child: Row(
+      padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 10.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 34.0,
-            height: 34.0,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(9.0),
-              border: Border.all(color: color.withValues(alpha: 0.25)),
-            ),
-            child: Icon(icon, color: color, size: 17.0),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 28.0,
+                height: 28.0,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(7.0),
+                  border: Border.all(color: color.withValues(alpha: 0.25)),
+                ),
+                child: Icon(icon, color: color, size: 15.0),
+              ),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: AqaTheme.textPrimary,
+                  fontSize: 17.5,
+                  fontWeight: FontWeight.w800,
+                  fontFeatures: AqaTheme.tabularNums,
+                  letterSpacing: -0.4,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10.0),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: AqaTheme.textPrimary,
-                    fontSize: 17.0,
-                    fontWeight: FontWeight.w800,
-                    fontFeatures: AqaTheme.tabularNums,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const SizedBox(height: 1.0),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: AqaTheme.textMuted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+          const SizedBox(height: 7.0),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AqaTheme.textMuted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -895,10 +903,14 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Top Row: Date Pill + Tabular Time + Rating + Status
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8.0,
+            runSpacing: 6.0,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -949,6 +961,7 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
                 ],
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   if (rating != null) ...[
                     Container(
@@ -1240,124 +1253,126 @@ class _TodaySessionsViewState extends ConsumerState<TodaySessionsView> {
           const Divider(),
           const SizedBox(height: 12.0),
 
-          // Footer Actions
+          // Footer Actions: Presence Status Row
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 24.0,
-                    height: 24.0,
-                    decoration: BoxDecoration(
-                      color: AqaTheme.statusSuccessBg,
-                      borderRadius: BorderRadius.circular(6.0),
-                    ),
-                    child: const Icon(
-                      Icons.how_to_reg_rounded,
-                      color: AqaTheme.statusSuccess,
-                      size: 14.0,
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  Text(
-                    i18n.t('sessions.present_count', {
-                      'present': session.attendanceCount,
-                      'total': session.totalMembers > 0
-                          ? session.totalMembers
-                          : session.attendanceCount,
-                    }),
-                    style: const TextStyle(
-                      color: AqaTheme.textSecondary,
-                      fontSize: 12.0,
-                      fontWeight: FontWeight.w600,
-                      fontFeatures: AqaTheme.tabularNums,
-                    ),
-                  ),
-                ],
+              Container(
+                width: 24.0,
+                height: 24.0,
+                decoration: BoxDecoration(
+                  color: AqaTheme.statusSuccessBg,
+                  borderRadius: BorderRadius.circular(6.0),
+                ),
+                child: const Icon(
+                  Icons.how_to_reg_rounded,
+                  color: AqaTheme.statusSuccess,
+                  size: 14.0,
+                ),
               ),
-              Row(
-                children: [
-                  if (!isAssistant && session.canEdit && !session.isViewOnly) ...[
-                    AqaIslandButton(
-                      label: session.isEvaluationUnlocked
-                          ? i18n.t('sessions.log_3_steps')
-                          : i18n.t('sessions.eval_locked_badge', {
-                              'time': session.unlockTimeFormatted,
-                            }),
-                      icon: session.isEvaluationUnlocked
-                          ? Icons.bolt_rounded
-                          : Icons.lock_clock_outlined,
-                      compact: true,
-                      secondary: true,
-                      onPressed: () {
-                        if (!session.isEvaluationUnlocked) {
-                          showDialog(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              backgroundColor: AqaTheme.surfaceDark,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16.0),
-                                side: const BorderSide(
-                                  color: AqaTheme.borderMedium,
-                                ),
+              const SizedBox(width: 8.0),
+              Text(
+                i18n.t('sessions.present_count', {
+                  'present': session.attendanceCount,
+                  'total': session.totalMembers > 0
+                      ? session.totalMembers
+                      : session.attendanceCount,
+                }),
+                style: const TextStyle(
+                  color: AqaTheme.textSecondary,
+                  fontSize: 12.0,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: AqaTheme.tabularNums,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10.0),
+
+          // Action Buttons (full-width responsive layout)
+          Row(
+            children: [
+              if (!isAssistant && session.canEdit && !session.isViewOnly) ...[
+                Expanded(
+                  child: AqaIslandButton(
+                    label: session.isEvaluationUnlocked
+                        ? i18n.t('sessions.log_3_steps')
+                        : i18n.t('sessions.eval_locked_badge', {
+                            'time': session.unlockTimeFormatted,
+                          }),
+                    icon: session.isEvaluationUnlocked
+                        ? Icons.bolt_rounded
+                        : Icons.lock_clock_outlined,
+                    compact: true,
+                    secondary: true,
+                    onPressed: () {
+                      if (!session.isEvaluationUnlocked) {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: AqaTheme.surfaceDark,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16.0),
+                              side: const BorderSide(
+                                color: AqaTheme.borderMedium,
                               ),
-                              title: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.lock_clock_outlined,
-                                    color: AqaTheme.statusWarning,
-                                  ),
-                                  const SizedBox(width: 8.0),
-                                  Expanded(
-                                    child: Text(
-                                      i18n.t('sessions.eval_locked_dialog_title'),
-                                      style: const TextStyle(
-                                        color: AqaTheme.textPrimary,
-                                        fontSize: 15.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                            ),
+                            title: Row(
+                              children: [
+                                const Icon(
+                                  Icons.lock_clock_outlined,
+                                  color: AqaTheme.statusWarning,
+                                ),
+                                const SizedBox(width: 8.0),
+                                Expanded(
+                                  child: Text(
+                                    i18n.t('sessions.eval_locked_dialog_title'),
+                                    style: const TextStyle(
+                                      color: AqaTheme.textPrimary,
+                                      fontSize: 15.5,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                ],
-                              ),
-                              content: Text(
-                                i18n.t('sessions.eval_locked_dialog_desc', {
-                                  'time': session.unlockTimeFormatted,
-                                }),
-                                style: const TextStyle(
-                                  color: AqaTheme.textMuted,
-                                  fontSize: 13.0,
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(ctx).pop(),
-                                  child: Text(i18n.t('common.close')),
                                 ),
                               ],
                             ),
-                          );
-                          return;
-                        }
-                        QuickSessionLoggerSheet.show(context, session);
-                      },
-                    ),
-                    const SizedBox(width: 8.0),
-                  ],
-                  AqaIslandButton(
-                    label: session.canEdit && !isAssistant && !session.isViewOnly
-                        ? i18n.t('sessions.btn_attendance')
-                    : i18n.t('sessions.btn_view'),
-                    icon: session.canEdit && !isAssistant && !session.isViewOnly
-                        ? Icons.checklist_rounded
-                        : Icons.visibility_outlined,
-                    compact: true,
-                    onPressed: () {
-                      context.push('/sessions/${session.id}');
+                            content: Text(
+                              i18n.t('sessions.eval_locked_dialog_desc', {
+                                'time': session.unlockTimeFormatted,
+                              }),
+                              style: const TextStyle(
+                                color: AqaTheme.textMuted,
+                                fontSize: 13.0,
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: Text(i18n.t('common.close')),
+                              ),
+                            ],
+                          ),
+                        );
+                        return;
+                      }
+                      QuickSessionLoggerSheet.show(context, session);
                     },
                   ),
-                ],
+                ),
+                const SizedBox(width: 8.0),
+              ],
+              Expanded(
+                child: AqaIslandButton(
+                  label: session.canEdit && !isAssistant && !session.isViewOnly
+                      ? i18n.t('sessions.btn_attendance')
+                      : i18n.t('sessions.btn_view'),
+                  icon: session.canEdit && !isAssistant && !session.isViewOnly
+                      ? Icons.checklist_rounded
+                      : Icons.visibility_outlined,
+                  compact: true,
+                  onPressed: () {
+                    context.push('/sessions/${session.id}');
+                  },
+                ),
               ),
             ],
           ),

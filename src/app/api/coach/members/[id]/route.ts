@@ -66,31 +66,38 @@ export async function GET(
   const { id: memberId } = await params;
 
   try {
-    const [member, honorLockStatus] = await Promise.all([
-      prisma.swimMember.findUnique({
-        where: { id: memberId },
-        include: {
-          card: { select: { cardCode: true, status: true } },
-          group: { select: { id: true, name: true, category: true, level: true } },
-          attendances: {
-            take: 50,
-            orderBy: { markedAt: "desc" },
-            include: {
-              session: {
-                select: { sessionDate: true, startTime: true },
+    const [member, honorLockStatus, editAuth, movedMemberIds, newClientMemberIds] =
+      await Promise.all([
+        prisma.swimMember.findUnique({
+          where: { id: memberId },
+          include: {
+            card: { select: { cardCode: true, status: true } },
+            group: { select: { id: true, name: true, category: true, level: true } },
+            attendances: {
+              take: 50,
+              orderBy: { markedAt: "desc" },
+              include: {
+                session: {
+                  select: { sessionDate: true, startTime: true },
+                },
+              },
+            },
+            techReviews: {
+              orderBy: { createdAt: "desc" },
+              include: {
+                coach: { select: { id: true, name: true } },
               },
             },
           },
-          techReviews: {
-            orderBy: { createdAt: "desc" },
-            include: {
-              coach: { select: { id: true, name: true } },
-            },
-          },
-        },
-      }),
-      getCurrentHonorLockStatus(),
-    ]);
+        }),
+        getCurrentHonorLockStatus(),
+        canManageTechReview(
+          { coachId: coach.id, role, coachName: coach.name },
+          memberId
+        ),
+        getMovedSwimmerIds([memberId]),
+        getNewClientSwimmerIds([memberId]),
+      ]);
 
     if (!member) {
       return NextResponse.json(
@@ -99,10 +106,6 @@ export async function GET(
       );
     }
 
-    const editAuth = await canManageTechReview(
-      { coachId: coach.id, role, coachName: coach.name },
-      memberId
-    );
     const canEdit = editAuth.allowed;
 
     const skillLabelMap = buildSkillLabelLookup(member.category);
@@ -370,11 +373,6 @@ export async function GET(
       wordFromCoach: cumulativeBilan.wordFromCoach,
       observation: cumulativeBilan.latestObservation,
     };
-
-    const [movedMemberIds, newClientMemberIds] = await Promise.all([
-      getMovedSwimmerIds([member.id]),
-      getNewClientSwimmerIds([member.id]),
-    ]);
     const assignedGroupIds = decodeMemberGroupIds(member.notes, member.groupId);
     const isMultiGroup = assignedGroupIds.length > 1;
     const isNewClient = computeIsNewClientSwimmer({

@@ -252,6 +252,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                   ),
                   const SizedBox(height: 8.0),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: selectedClubSwimmerId,
                     dropdownColor: AqaTheme.surfaceSecondary,
                     style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
@@ -769,25 +770,22 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6.0,
+                  runSpacing: 2.0,
                   children: [
-                    Flexible(
-                      child: Text(
-                        rec.memberName,
-                        style: const TextStyle(
-                          color: AqaTheme.textPrimary,
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      rec.memberName,
+                      style: const TextStyle(
+                        color: AqaTheme.textPrimary,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    if (rec.isNewClient) ...[
-                      const SizedBox(width: 6.0),
+                    if (rec.isNewClient)
                       const AqaNewClientBadge(compact: true),
-                    ],
-                    if (rec.isGuest) ...[
-                      const SizedBox(width: 6.0),
+                    if (rec.isGuest)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
                         decoration: BoxDecoration(
@@ -804,7 +802,6 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 3.0),

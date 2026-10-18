@@ -171,20 +171,33 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
                           ],
                         ),
                         const SizedBox(height: 8.0),
-                        Row(
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 6.0,
+                          runSpacing: 4.0,
                           children: [
-                            const Icon(Icons.pool_outlined, color: AqaTheme.accentTeal, size: 15.0),
-                            const SizedBox(width: 6.0),
-                            Text(
-                              group['pool'] as String? ?? 'Bassin Principal',
-                              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.pool_outlined, color: AqaTheme.accentTeal, size: 15.0),
+                                const SizedBox(width: 5.0),
+                                Text(
+                                  group['pool'] as String? ?? 'Bassin Principal',
+                                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                                ),
+                              ],
                             ),
                             const Text(' • ', style: TextStyle(color: AqaTheme.textLightMuted)),
-                            const Icon(Icons.access_time_rounded, color: AqaTheme.textLightMuted, size: 15.0),
-                            const SizedBox(width: 4.0),
-                            Text(
-                              '${group['startTime'] ?? '09:00'} - ${group['endTime'] ?? '10:00'}',
-                              style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.5),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.access_time_rounded, color: AqaTheme.textLightMuted, size: 14.0),
+                                const SizedBox(width: 4.0),
+                                Text(
+                                  '${group['startTime'] ?? '09:00'} - ${group['endTime'] ?? '10:00'}',
+                                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 12.0),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -431,53 +444,64 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen>
 
     return AqaDoubleBezelCard(
       padding: const EdgeInsets.all(14.0),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  dateStr,
-                  style: const TextStyle(
-                    color: AqaTheme.textPrimary,
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateStr,
+                style: const TextStyle(
+                  color: AqaTheme.textPrimary,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                '${session.startTime} - ${session.endTime}',
+                style: const TextStyle(
+                  color: AqaTheme.textMuted,
+                  fontSize: 12.0,
+                  fontFeatures: AqaTheme.tabularNums,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10.0),
+          Row(
+            children: [
+              if (!isViewOnly) ...[
+                Expanded(
+                  child: AqaIslandButton(
+                    label: i18n.t('sessions.log_3_steps'),
+                    icon: Icons.checklist_rounded,
+                    compact: true,
+                    secondary: true,
+                    onPressed: () {
+                      QuickSessionLoggerSheet.show(context, session).then((saved) {
+                        if (saved == true) {
+                          ref.invalidate(groupDetailProvider(widget.groupId));
+                        }
+                      });
+                    },
                   ),
                 ),
-                const SizedBox(height: 3.0),
-                Text(
-                  '${session.startTime} - ${session.endTime}',
-                  style: const TextStyle(color: AqaTheme.textMuted, fontSize: 11.5),
-                ),
+                const SizedBox(width: 8.0),
               ],
-            ),
-          ),
-          if (!isViewOnly) ...[
-            AqaIslandButton(
-              label: i18n.t('sessions.log_3_steps'),
-              icon: Icons.checklist_rounded,
-              compact: true,
-              secondary: true,
-              onPressed: () {
-                QuickSessionLoggerSheet.show(context, session).then((saved) {
-                  if (saved == true) {
-                    ref.invalidate(groupDetailProvider(widget.groupId));
-                  }
-                });
-              },
-            ),
-            const SizedBox(width: 8.0),
-          ],
-          AqaIslandButton(
-            label: isViewOnly
-                ? i18n.t('sessions.view_btn')
-                : i18n.t('sessions.sheet_btn'),
-            icon: Icons.assignment_outlined,
-            compact: true,
-            onPressed: () {
-              context.push('/sessions/${session.id}');
-            },
+              Expanded(
+                child: AqaIslandButton(
+                  label: isViewOnly
+                      ? i18n.t('sessions.view_btn')
+                      : i18n.t('sessions.sheet_btn'),
+                  icon: Icons.assignment_outlined,
+                  compact: true,
+                  onPressed: () {
+                    context.push('/sessions/${session.id}');
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),

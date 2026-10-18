@@ -68,8 +68,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Fetch groups, sessions, replacements, absences, active coaches, and swimmers in parallel
-    const [groups, sessions, allReplacements, myAbsences, allCoaches, rawSwimmers, rawSettings] =
+    // 3. Fetch groups, sessions, replacements, absences, active coaches, swimmers, app flag, and honor status in parallel
+    const [groups, sessions, allReplacements, myAbsences, allCoaches, rawSwimmers, rawSettings, isAppEnabled, honorLockStatus] =
       await Promise.all([
         prisma.swimGroup.findMany({
           where: { id: { in: groupIds } },
@@ -209,6 +209,8 @@ export async function GET(req: NextRequest) {
             key: { startsWith: "coach_app_" },
           },
         }),
+        getFlag("coach_app_enabled", true),
+        getCurrentHonorLockStatus(),
       ]);
 
     // 4. Hydrate session ratings stored in AuditLog
@@ -517,10 +519,6 @@ export async function GET(req: NextRequest) {
     for (const s of rawSettings) {
       settingsMap.set(s.key, s.value);
     }
-    const [isAppEnabled, honorLockStatus] = await Promise.all([
-      getFlag("coach_app_enabled", true),
-      getCurrentHonorLockStatus(),
-    ]);
     const appConfig = {
       enabled: isAppEnabled,
       announcement: settingsMap.get("coach_app_announcement") || "",

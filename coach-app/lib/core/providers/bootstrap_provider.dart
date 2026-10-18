@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../auth/auth_state.dart';
@@ -148,32 +150,88 @@ final syncManagerProvider = Provider<OfflineSyncManager>((ref) {
   return OfflineSyncManager(client);
 });
 
-final bootstrapProvider = FutureProvider.autoDispose<BootstrapData>((ref) async {
-  final authState = ref.watch(authStateProvider);
-  if (!authState.isAuthenticated) {
-    throw Exception('Authentication required');
-  }
+class BootstrapNotifier extends AsyncNotifier<BootstrapData> {
+  static const _cacheKey = 'aqa_coach_bootstrap_cache_v3';
 
-  final client = ref.watch(apiClientProvider);
-  final syncManager = ref.watch(syncManagerProvider);
-
-  // Opportunistic flush of offline outbox
-  await syncManager.flushOutbox();
-
-  final response = await client.dio.get(ApiEndpoints.bootstrap);
-  if (response.statusCode == 200 && response.data != null) {
-    final data = BootstrapData.fromJson(response.data as Map<String, dynamic>);
-    try {
-      final notifService = ref.read(notificationServiceProvider);
-      await notifService.processBootstrapEvents(
-        coachNotifications: data.coachNotifications,
-        pendingRequests: data.pendingRequests,
-      );
-    } catch (_) {
-      // ignore notification dispatch errors
+  @override
+  Future<BootstrapData> build() async {
+    final authState = ref.watch(authStateProvider);
+    if (!authState.isAuthenticated) {
+      throw Exception('Authentication required');
     }
-    return data;
-  } else {
-    throw Exception('Failed to load coach bootstrap data');
+
+    final syncManager = ref.watch(syncManagerProvider);
+
+    // Opportunistic background flush of offline outbox without blocking UI render
+    syncManager.flushOutbox().ignore();
+
+    // Check disk cache first for 0ms instantaneous startup
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedJsonStr = prefs.getString(_cacheKey);
+      if (cachedJsonStr != null && cachedJsonStr.isNotEmpty) {
+        final decoded = jsonDecode(cachedJsonStr) as Map<String, dynamic>;
+        final cachedData = BootstrapData.fromJson(decoded);
+
+        // Schedule background refresh so data stays live without blocking UI
+        Future.microtask(() => _fetchAndCache(background: true));
+
+        return cachedData;
+      }
+    } catch (_) {
+      // cache read failed or invalid, continue to network fetch
+    }
+
+    return _fetchAndCache(background: false);
   }
-});
+
+  Future<BootstrapData> _fetchAndCache({required bool background}) async {
+    final client = ref.read(apiClientProvider);
+    try {
+      final response = await client.dio.get(ApiEndpoints.bootstrap);
+      if (response.statusCode == 200 && response.data != null) {
+        final rawMap = response.data as Map<String, dynamic>;
+        final data = BootstrapData.fromJson(rawMap);
+
+        // Cache to SharedPreferences
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString(_cacheKey, jsonEncode(rawMap));
+        } catch (_) {}
+
+        try {
+          final notifService = ref.read(notificationServiceProvider);
+          await notifService.processBootstrapEvents(
+            coachNotifications: data.coachNotifications,
+            pendingRequests: data.pendingRequests,
+          );
+        } catch (_) {}
+
+        if (background) {
+          state = AsyncData(data);
+        }
+        return data;
+      } else {
+        throw Exception('Failed to load coach bootstrap data');
+      }
+    } catch (err) {
+      if (!background) {
+        rethrow;
+      }
+      return state.value!;
+    }
+  }
+
+  Future<void> refresh() async {
+    state = const AsyncLoading<BootstrapData>().copyWithPrevious(state);
+    try {
+      final fresh = await _fetchAndCache(background: false);
+      state = AsyncData(fresh);
+    } catch (err, st) {
+      state = AsyncError(err, st);
+    }
+  }
+}
+
+final bootstrapProvider =
+    AsyncNotifierProvider<BootstrapNotifier, BootstrapData>(BootstrapNotifier.new);

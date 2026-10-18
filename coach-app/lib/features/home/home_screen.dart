@@ -148,29 +148,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text(
+                                  user?.name ?? 'AQA Coach',
+                                  style: const TextStyle(
+                                    color: AqaTheme.textPrimary,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: -0.2,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2.0),
                                 Row(
                                   children: [
-                                    Flexible(
-                                      child: Text(
-                                        user?.name ?? 'AQA Coach',
-                                        style: const TextStyle(
-                                          color: AqaTheme.textPrimary,
-                                          fontSize: 14.5,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: -0.2,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8.0),
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                        horizontal: 7.0,
-                                        vertical: 2.0,
+                                        horizontal: 6.0,
+                                        vertical: 1.5,
                                       ),
                                       decoration: BoxDecoration(
                                         color: roleBadgeColor.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(6.0),
+                                        borderRadius: BorderRadius.circular(5.0),
                                         border: Border.all(
                                           color: roleBadgeColor.withValues(alpha: 0.35),
                                           width: 1.0,
@@ -180,37 +179,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Container(
-                                            width: 5.0,
-                                            height: 5.0,
+                                            width: 4.5,
+                                            height: 4.5,
                                             decoration: BoxDecoration(
                                               color: roleBadgeColor,
                                               shape: BoxShape.circle,
                                             ),
                                           ),
-                                          const SizedBox(width: 4.5),
+                                          const SizedBox(width: 4.0),
                                           Text(
                                             (user?.roleDisplay ?? 'COACH').toUpperCase(),
                                             style: TextStyle(
                                               color: roleBadgeColor,
-                                              fontSize: 9.0,
+                                              fontSize: 8.5,
                                               fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.5,
+                                              letterSpacing: 0.4,
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
+                                    const SizedBox(width: 6.0),
+                                    Expanded(
+                                      child: Text(
+                                        roleSubtitle,
+                                        style: const TextStyle(
+                                          color: AqaTheme.textLightMuted,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ],
-                                ),
-                                const SizedBox(height: 1.5),
-                                Text(
-                                  roleSubtitle,
-                                  style: const TextStyle(
-                                    color: AqaTheme.textLightMuted,
-                                    fontSize: 11.0,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),

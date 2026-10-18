@@ -260,6 +260,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                     ),
                     const SizedBox(height: 10.0),
                     DropdownButtonFormField<String?>(
+                      isExpanded: true,
                       initialValue: _selectedSubstituteCoachId,
                       dropdownColor: AqaTheme.surfaceSecondary,
                       style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
@@ -273,12 +274,16 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                             i18n.locale == 'ar'
                                 ? 'نشر مفتوح لكافة المدربين المؤهلين / Head Coach'
                                 : 'Diffusion a tous les coachs eligibles / Head Coach',
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         ...colleagues.map(
                           (c) => DropdownMenuItem<String?>(
                             value: c['id'] as String?,
-                            child: Text('${c['name']} (${(c['role'] ?? 'coach').toString().toUpperCase()})'),
+                            child: Text(
+                              '${c['name']} (${(c['role'] ?? 'coach').toString().toUpperCase()})',
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ),
                       ],
@@ -292,6 +297,7 @@ class _RequestAbsenceScreenState extends ConsumerState<RequestAbsenceScreen> {
                     ),
                     const SizedBox(height: 10.0),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _reason,
                       dropdownColor: AqaTheme.surfaceSecondary,
                       style: const TextStyle(color: AqaTheme.textPrimary, fontSize: 13.0),
