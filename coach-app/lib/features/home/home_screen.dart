@@ -9,7 +9,6 @@ import '../../core/services/notification_service.dart';
 import '../../core/theme/aqa_theme.dart';
 import '../groups/groups_screen.dart';
 import '../replacements/replacements_screen.dart';
-import '../teaching/teaching_support_view.dart';
 import '../tech_review/suivi_tech_hub_screen.dart';
 import 'today_sessions_view.dart';
 import 'profile_view.dart';
@@ -63,7 +62,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       GroupsScreen(),
       SuiviTechHubScreen(),
       ReplacementsScreen(),
-      TeachingSupportView(),
       ProfileView(),
     ];
 
@@ -74,12 +72,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : isAssistant
             ? AqaTheme.textMuted
             : AqaTheme.primarySkyHover;
-
-    final roleSubtitle = isHead
-        ? i18n.t('role_banner.head_coach')
-        : isAssistant
-            ? i18n.t('role_banner.assistant')
-            : i18n.t('role_banner.coach');
 
     final dockItems = [
       AqaFloatingDockItem(
@@ -102,11 +94,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         activeIcon: Icons.swap_horiz_rounded,
         label: i18n.t('nav.replacements'),
         badgeCount: pendingCount,
-      ),
-      AqaFloatingDockItem(
-        icon: Icons.menu_book_outlined,
-        activeIcon: Icons.menu_book_rounded,
-        label: i18n.t('nav.support'),
       ),
       AqaFloatingDockItem(
         icon: Icons.person_outline_rounded,
@@ -148,8 +135,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(11.0),
                             child: Container(
-                              width: 40.0,
-                              height: 40.0,
+                              width: 38.0,
+                              height: 38.0,
                               decoration: BoxDecoration(
                                 color: Colors.black,
                                 borderRadius: BorderRadius.circular(11.0),
@@ -181,78 +168,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   user?.name ?? 'AQA Coach',
                                   style: const TextStyle(
                                     color: AqaTheme.textPrimary,
-                                    fontSize: 14.5,
+                                    fontSize: 15.0,
                                     fontWeight: FontWeight.w700,
                                     letterSpacing: -0.2,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 2.0),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6.0,
-                                        vertical: 1.5,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: roleBadgeColor
-                                            .withValues(alpha: 0.12),
-                                        borderRadius:
-                                            BorderRadius.circular(5.0),
-                                        border: Border.all(
-                                          color: roleBadgeColor
-                                              .withValues(alpha: 0.35),
-                                          width: 1.0,
+                                const SizedBox(height: 3.0),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6.0,
+                                    vertical: 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: roleBadgeColor
+                                        .withValues(alpha: 0.12),
+                                    borderRadius:
+                                        BorderRadius.circular(5.0),
+                                    border: Border.all(
+                                      color: roleBadgeColor
+                                          .withValues(alpha: 0.35),
+                                      width: 1.0,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 5.0,
+                                        height: 5.0,
+                                        decoration: BoxDecoration(
+                                          color: roleBadgeColor,
+                                          shape: BoxShape.circle,
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            width: 4.5,
-                                            height: 4.5,
-                                            decoration: BoxDecoration(
-                                              color: roleBadgeColor,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4.0),
-                                          Text(
-                                            (user?.roleDisplay ?? 'COACH')
-                                                .toUpperCase(),
-                                            style: TextStyle(
-                                              color: roleBadgeColor,
-                                              fontSize: 8.5,
-                                              fontWeight: FontWeight.w800,
-                                              letterSpacing: 0.4,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6.0),
-                                    Expanded(
-                                      child: Text(
-                                        roleSubtitle,
-                                        style: const TextStyle(
-                                          color: AqaTheme.textLightMuted,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w500,
+                                      const SizedBox(width: 4.5),
+                                      Text(
+                                        (user?.roleDisplay ?? 'COACH')
+                                            .toUpperCase(),
+                                        style: TextStyle(
+                                          color: roleBadgeColor,
+                                          fontSize: 9.0,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.4,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          // Language Selector Pill
-                          const LanguageSwitcherPill(compact: true),
-                          const SizedBox(width: 8.0),
+                          const SizedBox(width: 12.0),
                           // Notification Bell with Badge Dot
                           Stack(
                             clipBehavior: Clip.none,

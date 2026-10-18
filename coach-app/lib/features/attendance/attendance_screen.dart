@@ -51,41 +51,6 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     super.dispose();
   }
 
-  bool get _isLockedForEvaluation {
-    if (_sessionData == null) return false;
-    final dateStr = _sessionData!['sessionDate'] as String?;
-    final startStr = _sessionData!['startTime'] as String? ?? '18:00';
-    if (dateStr == null) return false;
-    try {
-      final cleanDate = dateStr.split('T')[0];
-      final parts = cleanDate.split('-');
-      final y = int.parse(parts[0]);
-      final m = int.parse(parts[1]);
-      final d = int.parse(parts[2]);
-      final tParts = startStr.split(':');
-      final h = int.parse(tParts[0]);
-      final min = int.parse(tParts.length > 1 ? tParts[1] : '0');
-      final sessionStart = DateTime(y, m, d, h, min);
-      final unlocksAt = sessionStart.add(const Duration(hours: 1));
-      return DateTime.now().isBefore(unlocksAt);
-    } catch (_) {
-      return false;
-    }
-  }
-
-  String get _unlockTimeFormatted {
-    if (_sessionData == null) return '';
-    final startStr = _sessionData!['startTime'] as String? ?? '18:00';
-    try {
-      final tParts = startStr.split(':');
-      final h = (int.parse(tParts[0]) + 1) % 24;
-      final min = tParts.length > 1 ? tParts[1] : '00';
-      return '${h.toString().padLeft(2, '0')}:$min';
-    } catch (_) {
-      return '';
-    }
-  }
-
   void _populateFromData(Map<String, dynamic> data) {
     if (_isInitialized) return;
 
@@ -153,7 +118,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   }
 
   Future<void> _saveAttendance(AppI18n i18n) async {
-    if (_isViewOnly || _isSaving || _isLockedForEvaluation) return;
+    if (_isViewOnly || _isSaving) return;
 
     setState(() => _isSaving = true);
 
@@ -619,54 +584,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_isLockedForEvaluation) ...[
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 10.0),
-                              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-                              decoration: BoxDecoration(
-                                color: AqaTheme.statusWarning.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(AqaTheme.radiusSm),
-                                border: Border.all(color: AqaTheme.statusWarning.withValues(alpha: 0.4)),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.lock_clock_rounded, color: AqaTheme.statusWarning, size: 18.0),
-                                  const SizedBox(width: 8.0),
-                                  Expanded(
-                                    child: Text(
-                                      i18n.locale == 'ar'
-                                          ? 'التقييم مقفل: يفتح بعد ساعة من بداية الحصة (الساعة $_unlockTimeFormatted).'
-                                          : i18n.locale == 'en'
-                                              ? 'Locked: Evaluation opens 1 hour after session start (at $_unlockTimeFormatted).'
-                                              : 'Verrouille : L\'evaluation ouvre 1h apres le debut de la seance (a $_unlockTimeFormatted).',
-                                      style: const TextStyle(
-                                        color: AqaTheme.statusWarning,
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
                           SizedBox(
                             width: double.infinity,
                             child: AqaIslandButton(
-                              label: _isLockedForEvaluation
-                                  ? (i18n.locale == 'ar'
-                                      ? 'مقفلة حتى $_unlockTimeFormatted'
-                                      : i18n.locale == 'en'
-                                          ? 'Locked until $_unlockTimeFormatted'
-                                          : 'Verrouillee jusqu\'a $_unlockTimeFormatted')
-                                  : (_isSaving
-                                      ? i18n.t('common.saving')
-                                      : i18n.t('attendance.save_cta')),
-                              icon: _isLockedForEvaluation
-                                  ? Icons.lock_outline_rounded
-                                  : Icons.check_rounded,
+                              label: _isSaving
+                                  ? i18n.t('common.saving')
+                                  : i18n.t('attendance.save_cta'),
+                              icon: Icons.check_rounded,
                               loading: _isSaving,
-                              onPressed: _isLockedForEvaluation ? null : () => _saveAttendance(i18n),
+                              onPressed: () => _saveAttendance(i18n),
                             ),
                           ),
                         ],
@@ -770,22 +696,26 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 6.0,
-                  runSpacing: 2.0,
+                Row(
                   children: [
-                    Text(
-                      rec.memberName,
-                      style: const TextStyle(
-                        color: AqaTheme.textPrimary,
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
+                    Flexible(
+                      child: Text(
+                        rec.memberName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AqaTheme.textPrimary,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                    if (rec.isNewClient)
+                    if (rec.isNewClient) ...[
+                      const SizedBox(width: 6.0),
                       const AqaNewClientBadge(compact: true),
-                    if (rec.isGuest)
+                    ],
+                    if (rec.isGuest) ...[
+                      const SizedBox(width: 6.0),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
                         decoration: BoxDecoration(
@@ -802,6 +732,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                           ),
                         ),
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 3.0),
@@ -907,7 +838,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 11.0, vertical: 7.0),
+        padding: const EdgeInsets.symmetric(horizontal: 9.0, vertical: 5.5),
         decoration: BoxDecoration(
           color: selected ? activeColor : Colors.transparent,
           borderRadius: BorderRadius.circular(999),
@@ -920,13 +851,16 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                 ]
               : null,
         ),
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            color: selected ? Colors.white : AqaTheme.textLightMuted,
-            fontSize: 10.0,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.4,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: selected ? Colors.white : AqaTheme.textLightMuted,
+              fontSize: 10.0,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
           ),
         ),
       ),

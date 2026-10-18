@@ -915,18 +915,20 @@ class AqaFloatingDock extends StatelessWidget {
                                     const SizedBox(height: 2.5),
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                                      child: Text(
-                                        item.label,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? AqaTheme.textPrimary
-                                              : AqaTheme.textLightMuted,
-                                          fontSize: 9.5,
-                                          fontWeight:
-                                              isSelected ? FontWeight.w700 : FontWeight.w500,
-                                          letterSpacing: -0.2,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          item.label,
+                                          maxLines: 1,
+                                          style: TextStyle(
+                                            color: isSelected
+                                                ? AqaTheme.textPrimary
+                                                : AqaTheme.textLightMuted,
+                                            fontSize: 9.5,
+                                            fontWeight:
+                                                isSelected ? FontWeight.w700 : FontWeight.w500,
+                                            letterSpacing: -0.2,
+                                          ),
                                         ),
                                       ),
                                     ),

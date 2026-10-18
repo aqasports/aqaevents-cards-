@@ -205,7 +205,7 @@ export async function loadCoachSwimmerBootstrapData(params: {
           where: {
             id: { in: params.scopedMemberIds },
             createdAt: { gte: fourteenDaysAgo },
-            level: { in: ["new_aqa", "beginner", "New AQA Member", "debutant"] },
+            level: { in: ["new_aqa", "New AQA Member"] },
           },
           select: { id: true, level: true },
         })
@@ -370,7 +370,7 @@ export async function getNewClientSwimmerIds(memberIds?: string[]): Promise<Set<
       where: {
         ...(memberIds ? { id: { in: memberIds } } : {}),
         createdAt: { gte: fourteenDaysAgo },
-        level: { in: ["new_aqa", "beginner", "New AQA Member", "debutant"] },
+        level: { in: ["new_aqa", "New AQA Member"] },
       },
       select: { id: true, level: true },
     }),

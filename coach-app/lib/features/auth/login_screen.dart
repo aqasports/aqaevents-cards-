@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/aqa_theme.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -16,6 +17,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(notificationServiceProvider)
+          .ensureInitializedAndPromptIfFirstRun();
+    });
+  }
 
   @override
   void dispose() {

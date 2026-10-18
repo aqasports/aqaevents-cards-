@@ -36,6 +36,9 @@ class TeachingSupportView extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AqaTheme.bgDark,
+      appBar: AppBar(
+        title: Text(title),
+      ),
       body: AqaAmbientBackground(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 110.0),

@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -41,12 +43,16 @@ class MainActivity : FlutterActivity() {
                     "requestPermission" -> {
                         requestNotificationPermission(result)
                     }
+                    "openNotificationSettings" -> {
+                        openAppNotificationSettings()
+                        result.success(true)
+                    }
                     "showNotification" -> {
                         val title = call.argument<String>("title") ?: "AQA Coaches"
                         val body = call.argument<String>("body") ?: ""
                         val tag = call.argument<String>("tag") ?: "aqa_notif"
-                        showNativeNotification(title, body, tag)
-                        result.success(true)
+                        val posted = showNativeNotification(title, body, tag)
+                        result.success(posted)
                     }
                     else -> result.notImplemented()
                 }
@@ -68,7 +74,12 @@ class MainActivity : FlutterActivity() {
     private fun requestNotificationPermission(result: MethodChannel.Result) {
         ensureNotificationChannel()
         if (Build.VERSION.SDK_INT >= 33) {
-            if (isNotificationPermissionGranted()) {
+            val granted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (granted) {
                 result.success(true)
                 return
             }
@@ -81,6 +92,21 @@ class MainActivity : FlutterActivity() {
         } else {
             result.success(isNotificationPermissionGranted())
         }
+    }
+
+    private fun openAppNotificationSettings() {
+        try {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                }
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.fromParts("package", packageName, null)
+                }
+            }
+            startActivity(intent)
+        } catch (_: Exception) {}
     }
 
     override fun onRequestPermissionsResult(
@@ -108,7 +134,7 @@ class MainActivity : FlutterActivity() {
                     NOTIFICATION_CHANNEL_NAME,
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
-                    description = "Notifications AQA Coaches (NEW, mouvements et remplacements)"
+                    description = "Notifications AQA Coaches (NEW, mouvements et alertes)"
                     enableLights(true)
                     enableVibration(true)
                     vibrationPattern = longArrayOf(0, 250, 150, 250)
@@ -120,12 +146,12 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun showNativeNotification(title: String, body: String, tag: String) {
+    private fun showNativeNotification(title: String, body: String, tag: String): Boolean {
         ensureNotificationChannel()
 
         val manager = NotificationManagerCompat.from(this)
         if (!manager.areNotificationsEnabled()) {
-            return
+            return false
         }
 
         val launchIntent = Intent(this, MainActivity::class.java).apply {
@@ -138,11 +164,11 @@ class MainActivity : FlutterActivity() {
         }
         val pendingIntent = PendingIntent.getActivity(this, 0, launchIntent, pendingFlags)
 
-        val iconRes = applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
         val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
         val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(iconRes)
+            .setSmallIcon(R.drawable.ic_stat_aqa_notification)
+            .setColor(0xFF00F2FF.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -154,10 +180,11 @@ class MainActivity : FlutterActivity() {
             .setAutoCancel(true)
 
         val notificationId = abs(tag.hashCode())
-        try {
+        return try {
             manager.notify(notificationId, builder.build())
-        } catch (e: SecurityException) {
-            // Android 13 runtime revocation safety
+            true
+        } catch (e: Exception) {
+            false
         }
     }
 }

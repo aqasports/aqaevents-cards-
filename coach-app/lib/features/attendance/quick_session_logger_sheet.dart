@@ -288,21 +288,6 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
   Future<void> _submitQuickLog(AppI18n i18n) async {
     if (_isSaving) return;
 
-    if (!widget.session.isEvaluationUnlocked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: AqaTheme.statusWarning,
-          content: Text(
-            i18n.t(
-              'sessions.eval_locked_dialog_desc',
-              {'time': widget.session.unlockTimeFormatted},
-            ),
-          ),
-        ),
-      );
-      return;
-    }
-
     setState(() => _isSaving = true);
 
     final client = ref.read(apiClientProvider);
@@ -594,37 +579,14 @@ class _QuickSessionLoggerSheetState extends ConsumerState<QuickSessionLoggerShee
                             onPressed: () => setState(() => _currentStep += 1),
                           )
                         : AqaIslandButton(
-                            label: !widget.session.isEvaluationUnlocked
-                                ? i18n.t('sessions.eval_locked_badge', {
-                                    'time': widget.session.unlockTimeFormatted,
-                                  })
-                                : _isSaving
-                                    ? i18n.t('common.saving')
-                                    : i18n.t('quick_logger.finish_cta'),
-                            icon: !widget.session.isEvaluationUnlocked
-                                ? Icons.lock_clock_outlined
-                                : Icons.check_rounded,
+                            label: _isSaving
+                                ? i18n.t('common.saving')
+                                : i18n.t('quick_logger.finish_cta'),
+                            icon: Icons.check_rounded,
                             loading: _isSaving,
-                            color: !widget.session.isEvaluationUnlocked
-                                ? AqaTheme.surfaceSecondary
-                                : AqaTheme.statusSuccess,
-                            textColor: !widget.session.isEvaluationUnlocked
-                                ? AqaTheme.textLightMuted
-                                : Colors.white,
-                            onPressed: !widget.session.isEvaluationUnlocked
-                                ? () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        backgroundColor: AqaTheme.statusWarning,
-                                        content: Text(
-                                          i18n.t('sessions.eval_locked_dialog_desc', {
-                                            'time': widget.session.unlockTimeFormatted,
-                                          }),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                : () => _submitQuickLog(i18n),
+                            color: AqaTheme.statusSuccess,
+                            textColor: Colors.white,
+                            onPressed: () => _submitQuickLog(i18n),
                           ),
                   ),
                 ],

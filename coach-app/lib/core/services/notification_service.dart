@@ -194,28 +194,41 @@ class NotificationService {
     await _prefs.setStringList(_prefKeySeenIds, _seenIds.toList());
   }
 
+  Future<void> openNotificationSettings() async {
+    if (kIsWeb) return;
+    try {
+      await _nativeChannel.invokeMethod('openNotificationSettings');
+    } catch (e) {
+      debugPrint('Native openNotificationSettings error: $e');
+    }
+  }
+
   /// Sends a local notification to the coach's device (Web or Native Android/iOS)
-  Future<void> showNotification({
+  Future<bool> showNotification({
     required String title,
     required String body,
     String? tag,
   }) async {
     if (kIsWeb) {
-      if (!_isAuthorized) return;
+      if (!_isAuthorized) return false;
       platform_notif.showWebNotification(
         title: title,
         body: body,
         tag: tag,
       );
+      return true;
     } else {
       try {
-        await _nativeChannel.invokeMethod('showNotification', {
+        final result =
+            await _nativeChannel.invokeMethod<bool>('showNotification', {
           'title': title,
           'body': body,
           'tag': tag ?? 'aqa-${DateTime.now().millisecondsSinceEpoch}',
         });
+        return result ?? false;
       } catch (e) {
         debugPrint('Native showNotification error: $e');
+        return false;
       }
     }
   }

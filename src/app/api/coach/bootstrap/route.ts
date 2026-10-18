@@ -190,7 +190,7 @@ export async function GET(req: NextRequest) {
                 },
                 techReviews: {
                   orderBy: { createdAt: "desc" },
-                  take: 5,
+                  take: 2,
                   select: {
                     skills: true,
                     metrics: true,

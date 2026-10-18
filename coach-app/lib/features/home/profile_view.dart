@@ -4,6 +4,7 @@ import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/aqa_theme.dart';
+import '../teaching/teaching_support_view.dart';
 
 class ProfileView extends ConsumerWidget {
   const ProfileView({super.key});
@@ -287,43 +288,145 @@ class ProfileView extends ConsumerWidget {
               ),
               const Divider(height: 18.0),
               const SizedBox(height: 4.0),
-              SizedBox(
-                width: double.infinity,
-                child: AqaIslandButton(
-                  label: i18n.locale == 'ar'
-                      ? 'اختبار إشعار على هاتفك'
-                      : i18n.locale == 'en'
-                          ? 'Send Test Notification'
-                          : 'Tester une notification sur mon telephone',
-                  icon: Icons.notification_important_rounded,
-                  compact: true,
-                  secondary: true,
-                  onPressed: () async {
-                    await ref.read(notificationServiceProvider).showNotification(
-                          title: 'AQA Coaches',
-                          body: i18n.locale == 'ar'
-                              ? 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.'
-                              : i18n.locale == 'en'
-                                  ? 'Test alert successfully delivered to your device.'
-                                  : 'Notification de test recue avec succes sur votre appareil.',
-                          tag: 'test-${DateTime.now().millisecondsSinceEpoch}',
-                        );
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: AqaTheme.statusSuccess,
-                          content: Text(
-                            i18n.locale == 'ar'
-                                ? 'تم إرسال إشعار تجريبي'
-                                : i18n.locale == 'en'
-                                    ? 'Test notification dispatched'
-                                    : 'Notification test envoyee a l\'appareil',
-                          ),
-                        ),
-                      );
-                    }
-                  },
+              Row(
+                children: [
+                  Expanded(
+                    child: AqaIslandButton(
+                      label: i18n.locale == 'ar'
+                          ? 'اختبار إشعار'
+                          : i18n.locale == 'en'
+                              ? 'Test Alert'
+                              : 'Tester alerte',
+                      icon: Icons.notification_important_rounded,
+                      compact: true,
+                      secondary: true,
+                      onPressed: () async {
+                        final ok = await ref
+                            .read(notificationServiceProvider)
+                            .showNotification(
+                              title: 'AQA Coaches',
+                              body: i18n.locale == 'ar'
+                                  ? 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.'
+                                  : i18n.locale == 'en'
+                                      ? 'Test alert successfully delivered to your device.'
+                                      : 'Notification de test recue avec succes sur votre appareil.',
+                              tag: 'test-${DateTime.now().millisecondsSinceEpoch}',
+                            );
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: ok
+                                  ? AqaTheme.statusSuccess
+                                  : AqaTheme.statusWarning,
+                              content: Text(
+                                ok
+                                    ? (i18n.locale == 'ar'
+                                        ? 'تم إرسال إشعار تجريبي بنجاح'
+                                        : i18n.locale == 'en'
+                                            ? 'Test alert dispatched successfully'
+                                            : 'Notification test envoyee avec succes')
+                                    : (i18n.locale == 'ar'
+                                        ? 'يرجى التحقق من أذونات الإشعارات في إعدادات الهاتف'
+                                        : i18n.locale == 'en'
+                                            ? 'Please check notification permissions in phone settings'
+                                            : 'Veuillez verifier les autorisations dans les parametres du telephone'),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  Expanded(
+                    child: AqaIslandButton(
+                      label: i18n.locale == 'ar'
+                          ? 'إعدادات الهاتف'
+                          : i18n.locale == 'en'
+                              ? 'OS Settings'
+                              : 'Parametres OS',
+                      icon: Icons.settings_suggest_rounded,
+                      compact: true,
+                      secondary: true,
+                      onPressed: () {
+                        ref
+                            .read(notificationServiceProvider)
+                            .openNotificationSettings();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14.0),
+
+        // Support Pedagogique AQA Card
+        AqaDoubleBezelCard(
+          padding: const EdgeInsets.all(16.0),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const TeachingSupportView(),
+              ),
+            );
+          },
+          child: Row(
+            children: [
+              Container(
+                width: 40.0,
+                height: 40.0,
+                decoration: BoxDecoration(
+                  color: AqaTheme.accentTeal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10.0),
+                  border: Border.all(
+                    color: AqaTheme.accentTeal.withValues(alpha: 0.35),
+                  ),
                 ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: AqaTheme.accentTeal,
+                  size: 20.0,
+                ),
+              ),
+              const SizedBox(width: 14.0),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      i18n.locale == 'ar'
+                          ? 'الدعم البيداغوجي AQA'
+                          : i18n.locale == 'en'
+                              ? 'AQA Teaching Support'
+                              : 'Support Pedagogique AQA',
+                      style: const TextStyle(
+                        color: AqaTheme.textPrimary,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2.0),
+                    Text(
+                      i18n.locale == 'ar'
+                          ? 'الدليل والمقرر الفني ومكتبة التمارين'
+                          : i18n.locale == 'en'
+                              ? 'Technical syllabus, guidelines and drills library'
+                              : 'Cursus technique, directives et bibliotheque d\'exercices',
+                      style: const TextStyle(
+                        color: AqaTheme.textMuted,
+                        fontSize: 11.0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AqaTheme.textLightMuted,
+                size: 20.0,
               ),
             ],
           ),

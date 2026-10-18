@@ -187,7 +187,7 @@ function SwimmerCard({
   barColor: string;
 }) {
   const [open, setOpen] = useState(false);
-  const isNewMember = !isOldSwimMember(swimmer.level);
+  const isNewMember = swimmer.level?.toLowerCase().trim() === "new_aqa";
 
   const borderColor =
     swimmer.paymentStatus === "paid"

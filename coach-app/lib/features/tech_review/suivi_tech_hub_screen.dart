@@ -499,7 +499,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
     return AqaDoubleBezelCard(
       margin: const EdgeInsets.only(bottom: 12.0),
       outerRadius: 16.0,
-      padding: const EdgeInsets.all(15.0),
+      padding: const EdgeInsets.all(14.0),
       onTap: () {
         context.push('/members/${swimmer.id}');
       },
@@ -510,27 +510,27 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
             children: [
               // Badge Icon Container
               Container(
-                width: 44.0,
-                height: 44.0,
-                padding: const EdgeInsets.all(5.0),
+                width: 42.0,
+                height: 42.0,
+                padding: const EdgeInsets.all(4.0),
                 decoration: BoxDecoration(
                   color: AqaTheme.surfaceRecessed,
-                  borderRadius: BorderRadius.circular(11.0),
+                  borderRadius: BorderRadius.circular(10.0),
                   border: Border.all(color: AqaTheme.borderSubtle),
                 ),
                 child: Image.asset(
-                  'assets/images/badges/${swimmer.badgeAsset}',
+                  'assets/images/badges/${swimmer.badgeAsset.isNotEmpty ? swimmer.badgeAsset : swimmer.stageAsset}',
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => const Icon(
                     Icons.military_tech_rounded,
                     color: AqaTheme.accentTeal,
-                    size: 22.0,
+                    size: 20.0,
                   ),
                 ),
               ),
               const SizedBox(width: 12.0),
 
-              // Swimmer Identity & Stage Mascot Pill
+              // Swimmer Identity
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -540,59 +540,54 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                         Flexible(
                           child: Text(
                             swimmer.fullName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AqaTheme.textPrimary,
-                              fontSize: 15.0,
+                              fontSize: 14.5,
                               fontWeight: FontWeight.w700,
                               letterSpacing: -0.2,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (swimmer.isNewClient) ...[
                           const SizedBox(width: 6.0),
                           const AqaNewClientBadge(compact: true),
                         ],
-                        const SizedBox(width: 7.0),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6.0,
-                            vertical: 2.0,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AqaTheme.primarySky.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(5.0),
-                          ),
-                          child: Text(
-                            swimmer.category.toUpperCase(),
-                            style: const TextStyle(
-                              color: AqaTheme.primarySkyHover,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 3.0),
                     Row(
                       children: [
-                        Image.asset(
-                          'assets/images/badges/${swimmer.stageAsset}',
-                          width: 13.0,
-                          height: 13.0,
-                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6.0,
+                            vertical: 1.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AqaTheme.primarySky.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4.0),
+                          ),
+                          child: Text(
+                            swimmer.category.toUpperCase(),
+                            style: const TextStyle(
+                              color: AqaTheme.primarySkyHover,
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 4.5),
+                        const SizedBox(width: 6.0),
                         Flexible(
                           child: Text(
                             swimmer.stageLabel,
-                            style: const TextStyle(
-                              color: AqaTheme.accentTeal,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AqaTheme.textMuted,
+                              fontSize: 11.0,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
@@ -600,90 +595,66 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8.0),
 
-              // Active Bar Percentage Chip (0% - 200%)
-              Builder(
-                builder: (_) {
-                  final activeBarKey = swimmer.lastTouchedBar;
-                  final activePct = swimmer.bars[activeBarKey] ?? 0;
-                  final isElite = activePct > 100;
-                  final barShortLabel = activeBarKey == 'crawl'
-                      ? 'CRAWL'
-                      : activeBarKey == 'backstroke'
-                          ? 'BACK'
-                          : activeBarKey == 'breaststroke'
-                              ? 'BREAST'
-                              : activeBarKey == 'butterfly'
-                                  ? 'FLY'
-                                  : 'BASICS';
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10.0,
-                      vertical: 5.5,
+              // Attendance Pill
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8.0,
+                  vertical: 4.0,
+                ),
+                decoration: BoxDecoration(
+                  color: rateColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(7.0),
+                  border: Border.all(
+                    color: rateColor.withValues(alpha: 0.40),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 11.5,
+                      color: rateColor,
                     ),
-                    decoration: BoxDecoration(
-                      color: AqaTheme.surfaceRecessed,
-                      borderRadius: BorderRadius.circular(9.0),
-                      border: Border.all(
-                        color: isElite
-                            ? AqaTheme.statusWarning.withValues(alpha: 0.45)
-                            : AqaTheme.borderSubtle,
+                    const SizedBox(width: 4.0),
+                    Text(
+                      '${swimmer.attendanceRate}%',
+                      style: TextStyle(
+                        color: rateColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
+                        fontFeatures: AqaTheme.tabularNums,
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        Text(
-                          '$activePct%',
-                          style: TextStyle(
-                            color: isElite
-                                ? AqaTheme.statusWarning
-                                : AqaTheme.accentTeal,
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            fontFeatures: AqaTheme.tabularNums,
-                          ),
-                        ),
-                        Text(
-                          barShortLabel,
-                          style: const TextStyle(
-                            color: AqaTheme.textLightMuted,
-                            fontSize: 9.0,
-                            fontWeight: FontWeight.w700,
-                            fontFeatures: AqaTheme.tabularNums,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12.0),
+          const SizedBox(height: 10.0),
 
-          // KPI Strip: Badge Title • Cumulative Distance • Binary Attendance Rate
+          // Clean Badge & Review Count Pill
           Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: 11.0,
-              vertical: 8.5,
+              horizontal: 10.0,
+              vertical: 6.0,
             ),
             decoration: BoxDecoration(
               color: AqaTheme.surfaceRecessed,
-              borderRadius: BorderRadius.circular(9.0),
+              borderRadius: BorderRadius.circular(8.0),
               border: Border.all(color: AqaTheme.borderSubtle),
             ),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              runSpacing: 4.0,
-              spacing: 8.0,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.military_tech_outlined,
-                      size: 14.0,
+                      size: 13.5,
                       color: AqaTheme.accentTeal,
                     ),
                     const SizedBox(width: 4.5),
@@ -691,56 +662,26 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                       swimmer.badgeLabel,
                       style: const TextStyle(
                         color: AqaTheme.textSecondary,
-                        fontSize: 11.5,
+                        fontSize: 11.0,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.straighten_rounded,
-                      size: 13.5,
-                      color: AqaTheme.primarySkyHover,
+                if (swimmer.totalDistanceMeters > 0)
+                  Text(
+                    '${swimmer.totalDistanceMeters} m',
+                    style: const TextStyle(
+                      color: AqaTheme.textLightMuted,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: AqaTheme.tabularNums,
                     ),
-                    const SizedBox(width: 4.0),
-                    Text(
-                      '${swimmer.totalDistanceMeters} m',
-                      style: const TextStyle(
-                        color: AqaTheme.textMuted,
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: AqaTheme.tabularNums,
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.check_circle_rounded,
-                      size: 13.5,
-                      color: rateColor,
-                    ),
-                    const SizedBox(width: 4.0),
-                    Text(
-                      '${swimmer.attendanceRate}% ${i18n.t('attendance.present')}',
-                      style: TextStyle(
-                        color: rateColor,
-                        fontSize: 11.0,
-                        fontWeight: FontWeight.w700,
-                        fontFeatures: AqaTheme.tabularNums,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
-          const SizedBox(height: 12.0),
+          const SizedBox(height: 10.0),
 
           // Action Buttons: Dossier & Radar / Evaluer
           Row(
@@ -757,7 +698,7 @@ class _SuiviTechHubScreenState extends ConsumerState<SuiviTechHubScreen> {
                 ),
               ),
               if (!isAssistant) ...[
-                const SizedBox(width: 10.0),
+                const SizedBox(width: 8.0),
                 Expanded(
                   child: AqaIslandButton(
                     label: i18n.t('suivi.btn_eval'),

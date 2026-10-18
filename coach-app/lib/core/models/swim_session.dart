@@ -115,12 +115,8 @@ class SwimSessionModel {
     return sdt.add(const Duration(hours: 1));
   }
 
-  /// Never accept evaluating future sessions; only unlocked at least one hour after session start.
-  bool get isEvaluationUnlocked {
-    final unlock = evaluationUnlocksAt;
-    if (unlock == null) return true;
-    return DateTime.now().isAfter(unlock) || DateTime.now().isAtSameMomentAs(unlock);
-  }
+  /// Coaches are always permitted to log attendance and evaluate their sessions.
+  bool get isEvaluationUnlocked => true;
 
   Duration? get timeUntilEvaluationUnlock {
     final unlock = evaluationUnlocksAt;
