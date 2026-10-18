@@ -99,21 +99,14 @@ class NotificationService {
     try {
       final osGranted =
           await _nativeChannel.invokeMethod<bool>('checkPermission') ?? false;
-      final alreadyPrompted = _prefs.getBool(_prefKeyPromptedOnce) ?? false;
 
-      if (!osGranted && !alreadyPrompted) {
-        await _prefs.setBool(_prefKeyPromptedOnce, true);
+      if (!osGranted) {
         return await requestPermission();
       }
 
-      if (osGranted && !_prefs.containsKey(_prefKeyAuth)) {
-        _isAuthorized = true;
-        await _prefs.setBool(_prefKeyAuth, true);
-      } else if (!osGranted && _isAuthorized) {
-        _isAuthorized = false;
-        await _prefs.setBool(_prefKeyAuth, false);
-      }
-      return _isAuthorized;
+      _isAuthorized = true;
+      await _prefs.setBool(_prefKeyAuth, true);
+      return true;
     } catch (e) {
       debugPrint('Native notification check failed: $e');
       return _isAuthorized;
@@ -180,6 +173,19 @@ class NotificationService {
     await _prefs.setStringList(_prefKeyDismissedIds, _dismissedIds.toList());
   }
 
+  Future<void> markAllAsSeen(List<String> ids) async {
+    _seenIds.addAll(ids);
+    _dismissedIds.addAll(ids);
+    if (_dismissedIds.length > 200) {
+      _dismissedIds = _dismissedIds.skip(_dismissedIds.length - 150).toSet();
+    }
+    if (_seenIds.length > 300) {
+      _seenIds = _seenIds.skip(_seenIds.length - 200).toSet();
+    }
+    await _prefs.setStringList(_prefKeySeenIds, _seenIds.toList());
+    await _prefs.setStringList(_prefKeyDismissedIds, _dismissedIds.toList());
+  }
+
   Future<void> _markSeen(String id) async {
     _seenIds.add(id);
     if (_seenIds.length > 300) {
@@ -194,9 +200,8 @@ class NotificationService {
     required String body,
     String? tag,
   }) async {
-    if (!_isAuthorized) return;
-
     if (kIsWeb) {
+      if (!_isAuthorized) return;
       platform_notif.showWebNotification(
         title: title,
         body: body,
@@ -348,6 +353,11 @@ class NotificationSettingsNotifier
 
   Future<void> dismissNotification(String id) async {
     await _service.dismissNotification(id);
+    state = _service.currentState;
+  }
+
+  Future<void> markAllAsSeen(List<String> ids) async {
+    await _service.markAllAsSeen(ids);
     state = _service.currentState;
   }
 }

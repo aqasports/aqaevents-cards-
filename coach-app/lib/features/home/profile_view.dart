@@ -285,6 +285,46 @@ class ProfileView extends ConsumerWidget {
                 enabled: notifSettings.isAuthorized,
                 onChanged: (val) => notifNotifier.toggleSessionReminder(val),
               ),
+              const Divider(height: 18.0),
+              const SizedBox(height: 4.0),
+              SizedBox(
+                width: double.infinity,
+                child: AqaIslandButton(
+                  label: i18n.locale == 'ar'
+                      ? 'اختبار إشعار على هاتفك'
+                      : i18n.locale == 'en'
+                          ? 'Send Test Notification'
+                          : 'Tester une notification sur mon telephone',
+                  icon: Icons.notification_important_rounded,
+                  compact: true,
+                  secondary: true,
+                  onPressed: () async {
+                    await ref.read(notificationServiceProvider).showNotification(
+                          title: 'AQA Coaches',
+                          body: i18n.locale == 'ar'
+                              ? 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.'
+                              : i18n.locale == 'en'
+                                  ? 'Test alert successfully delivered to your device.'
+                                  : 'Notification de test recue avec succes sur votre appareil.',
+                          tag: 'test-${DateTime.now().millisecondsSinceEpoch}',
+                        );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: AqaTheme.statusSuccess,
+                          content: Text(
+                            i18n.locale == 'ar'
+                                ? 'تم إرسال إشعار تجريبي'
+                                : i18n.locale == 'en'
+                                    ? 'Test notification dispatched'
+                                    : 'Notification test envoyee a l\'appareil',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
             ],
           ),
         ),

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
+import '../../core/models/replacement.dart';
 import '../../core/providers/bootstrap_provider.dart';
+import '../../core/services/notification_service.dart';
 import '../../core/theme/aqa_theme.dart';
 import '../groups/groups_screen.dart';
 import '../replacements/replacements_screen.dart';
@@ -23,13 +25,38 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(notificationServiceProvider)
+          .ensureInitializedAndPromptIfFirstRun();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
     final user = authState.user;
     final bootstrapAsync = ref.watch(bootstrapProvider);
     final i18n = ref.watch(i18nProvider);
+    final notifSettings = ref.watch(notificationSettingsProvider);
 
-    final pendingCount = bootstrapAsync.valueOrNull?.pendingRequests.length ?? 0;
+    final bootstrapData = bootstrapAsync.valueOrNull;
+    final pendingCount = bootstrapData?.pendingRequests.length ?? 0;
+
+    final unreadNotifsCount = bootstrapData == null
+        ? 0
+        : bootstrapData.coachNotifications
+            .where((n) =>
+                !notifSettings.dismissedIds.contains(n['id']?.toString() ?? ''))
+            .length;
+
+    final totalBadgeCount = unreadNotifsCount +
+        (bootstrapData?.pendingRequests
+                .where((r) => r.isIncomingRequest)
+                .length ??
+            0);
 
     final pages = const [
       TodaySessionsView(),
@@ -111,12 +138,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 child: Align(
                   alignment: Alignment.center,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: AqaTheme.maxContentWidth),
+                    constraints:
+                        const BoxConstraints(maxWidth: AqaTheme.maxContentWidth),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16.0),
                       child: Row(
                         children: [
-                          // Precision Coach Brand Mark (coach_logo.png)
+                          // Coach Brand Mark
                           ClipRRect(
                             borderRadius: BorderRadius.circular(11.0),
                             child: Container(
@@ -126,7 +154,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 color: Colors.black,
                                 borderRadius: BorderRadius.circular(11.0),
                                 border: Border.all(
-                                  color: AqaTheme.accentTeal.withValues(alpha: 0.35),
+                                  color: AqaTheme.accentTeal
+                                      .withValues(alpha: 0.35),
                                   width: 1.0,
                                 ),
                               ),
@@ -168,10 +197,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                         vertical: 1.5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: roleBadgeColor.withValues(alpha: 0.12),
-                                        borderRadius: BorderRadius.circular(5.0),
+                                        color: roleBadgeColor
+                                            .withValues(alpha: 0.12),
+                                        borderRadius:
+                                            BorderRadius.circular(5.0),
                                         border: Border.all(
-                                          color: roleBadgeColor.withValues(alpha: 0.35),
+                                          color: roleBadgeColor
+                                              .withValues(alpha: 0.35),
                                           width: 1.0,
                                         ),
                                       ),
@@ -188,7 +220,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           ),
                                           const SizedBox(width: 4.0),
                                           Text(
-                                            (user?.roleDisplay ?? 'COACH').toUpperCase(),
+                                            (user?.roleDisplay ?? 'COACH')
+                                                .toUpperCase(),
                                             style: TextStyle(
                                               color: roleBadgeColor,
                                               fontSize: 8.5,
@@ -217,9 +250,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ],
                             ),
                           ),
-                          // Language Selector Pill & Glass Refresh Button
+                          // Language Selector Pill
                           const LanguageSwitcherPill(compact: true),
                           const SizedBox(width: 8.0),
+                          // Notification Bell with Badge Dot
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AqaGlassIconButton(
+                                icon: Icons.notifications_outlined,
+                                tooltip: i18n.locale == 'ar'
+                                    ? 'الإشعارات'
+                                    : 'Notifications',
+                                iconColor: totalBadgeCount > 0
+                                    ? AqaTheme.accentTeal
+                                    : AqaTheme.textSecondary,
+                                size: 34.0,
+                                onPressed: () {
+                                  if (bootstrapData != null) {
+                                    _showNotificationsSheet(
+                                      context,
+                                      bootstrapData,
+                                      notifSettings,
+                                      i18n,
+                                    );
+                                  }
+                                },
+                              ),
+                              if (totalBadgeCount > 0)
+                                Positioned(
+                                  top: 1,
+                                  right: 1,
+                                  child: Container(
+                                    width: 8.0,
+                                    height: 8.0,
+                                    decoration: BoxDecoration(
+                                      color: AqaTheme.accentTeal,
+                                      shape: BoxShape.circle,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AqaTheme.accentTeal
+                                              .withValues(alpha: 0.6),
+                                          blurRadius: 4.0,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 8.0),
+                          // Refresh Button
                           AqaGlassIconButton(
                             icon: Icons.refresh_rounded,
                             tooltip: i18n.t('common.refresh'),
@@ -249,6 +330,434 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: dockItems,
+      ),
+    );
+  }
+
+  void _showNotificationsSheet(
+    BuildContext context,
+    BootstrapData data,
+    NotificationSettingsState notifSettings,
+    AppI18n i18n,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AqaTheme.surfaceDark,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.0)),
+        side: BorderSide(color: AqaTheme.borderMedium),
+      ),
+      builder: (ctx) {
+        return Consumer(
+          builder: (ctx, ref, _) {
+            final currentSettings = ref.watch(notificationSettingsProvider);
+            final notifs = data.coachNotifications.where((n) {
+              final id = n['id']?.toString() ?? '';
+              return id.isNotEmpty && !currentSettings.dismissedIds.contains(id);
+            }).toList();
+
+            final pendingReps = data.pendingRequests
+                .where((r) => r.isIncomingRequest)
+                .toList();
+            final adminAnnouncement =
+                data.appConfig['announcement']?.toString().trim() ?? '';
+
+            return SafeArea(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.82,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16.0,
+                  vertical: 14.0,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 36.0,
+                        height: 4.0,
+                        decoration: BoxDecoration(
+                          color:
+                              AqaTheme.textLightMuted.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(2.0),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14.0),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.notifications_active_outlined,
+                              color: AqaTheme.accentTeal,
+                              size: 20.0,
+                            ),
+                            const SizedBox(width: 8.0),
+                            Text(
+                              i18n.locale == 'ar'
+                                  ? 'مركز الإشعارات'
+                                  : i18n.locale == 'en'
+                                      ? 'Notification Center'
+                                      : 'Centre de Notifications',
+                              style: const TextStyle(
+                                color: AqaTheme.textPrimary,
+                                fontSize: 16.0,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            AqaIslandButton(
+                              label: i18n.locale == 'ar'
+                                  ? 'اختبار'
+                                  : i18n.locale == 'en'
+                                      ? 'Test Alert'
+                                      : 'Tester',
+                              icon: Icons.bolt_rounded,
+                              compact: true,
+                              secondary: true,
+                              onPressed: () async {
+                                await ref
+                                    .read(notificationServiceProvider)
+                                    .showNotification(
+                                      title: 'AQA Coaches',
+                                      body: i18n.locale == 'ar'
+                                          ? 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.'
+                                          : i18n.locale == 'en'
+                                              ? 'Test alert successfully delivered to your device.'
+                                              : 'Notification de test recue avec succes sur votre appareil.',
+                                      tag:
+                                          'test-${DateTime.now().millisecondsSinceEpoch}',
+                                    );
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      backgroundColor: AqaTheme.statusSuccess,
+                                      content: Text(
+                                        i18n.locale == 'ar'
+                                            ? 'تم إرسال إشعار تجريبي'
+                                            : i18n.locale == 'en'
+                                                ? 'Test notification dispatched'
+                                                : 'Notification test envoyee a l\'appareil',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            if (notifs.isNotEmpty) ...[
+                              const SizedBox(width: 6.0),
+                              TextButton(
+                                onPressed: () {
+                                  final allIds = notifs
+                                      .map((n) => n['id'].toString())
+                                      .toList();
+                                  ref
+                                      .read(notificationSettingsProvider.notifier)
+                                      .markAllAsSeen(allIds);
+                                },
+                                child: Text(
+                                  i18n.locale == 'ar'
+                                      ? 'مسح الكل'
+                                      : i18n.locale == 'en'
+                                          ? 'Clear All'
+                                          : 'Tout effacer',
+                                  style: const TextStyle(
+                                    color: AqaTheme.textMuted,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12.0),
+                    const Divider(),
+                    const SizedBox(height: 10.0),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          if (adminAnnouncement.isNotEmpty) ...[
+                            _buildAnnouncementCard(adminAnnouncement),
+                            const SizedBox(height: 10.0),
+                          ],
+                          if (pendingReps.isNotEmpty) ...[
+                            ...pendingReps.map((rep) =>
+                                _buildReplacementItem(ctx, ref, rep, i18n)),
+                            const SizedBox(height: 10.0),
+                          ],
+                          if (notifs.isNotEmpty) ...[
+                            ...notifs.map((n) =>
+                                _buildNotificationItem(ctx, ref, n, i18n)),
+                          ],
+                          if (adminAnnouncement.isEmpty &&
+                              pendingReps.isEmpty &&
+                              notifs.isEmpty)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 36.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: AqaTheme.textLightMuted,
+                                    size: 40.0,
+                                  ),
+                                  const SizedBox(height: 10.0),
+                                  Text(
+                                    i18n.locale == 'ar'
+                                        ? 'لا توجد إشعارات جديدة'
+                                        : i18n.locale == 'en'
+                                            ? 'No new notifications'
+                                            : 'Aucune nouvelle notification',
+                                    style: const TextStyle(
+                                      color: AqaTheme.textPrimary,
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4.0),
+                                  Text(
+                                    i18n.locale == 'ar'
+                                        ? 'جميع التنبيهات ومستجدات الأفواج محدثة'
+                                        : i18n.locale == 'en'
+                                            ? 'All alerts and group updates are up to date'
+                                            : 'Toutes les alertes et mouvements de groupe sont a jour',
+                                    style: const TextStyle(
+                                      color: AqaTheme.textMuted,
+                                      fontSize: 12.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAnnouncementCard(String text) {
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: AqaTheme.primarySky.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(
+          color: AqaTheme.primarySky.withValues(alpha: 0.30),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.campaign_outlined,
+            color: AqaTheme.primarySkyHover,
+            size: 18.0,
+          ),
+          const SizedBox(width: 10.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'DIRECTION AQA SWIM',
+                  style: TextStyle(
+                    color: AqaTheme.primarySkyHover,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2.0),
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReplacementItem(
+    BuildContext context,
+    WidgetRef ref,
+    ReplacementModel rep,
+    AppI18n i18n,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: AqaTheme.statusWarningBg,
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(
+          color: AqaTheme.statusWarning.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.swap_horiz_rounded,
+            color: AqaTheme.statusWarning,
+            size: 20.0,
+          ),
+          const SizedBox(width: 10.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${rep.groupName} • ${rep.startTime}',
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 13.0,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2.0),
+                Text(
+                  '${rep.originalCoachName} sollicite un remplacement (${rep.sessionDate}).',
+                  style: const TextStyle(
+                    color: AqaTheme.textMuted,
+                    fontSize: 11.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationItem(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> notif,
+    AppI18n i18n,
+  ) {
+    final id = notif['id']?.toString() ?? '';
+    final eventType = notif['eventType']?.toString() ?? 'NEW_CLIENT';
+    final isNewClientEvent = eventType == 'NEW_CLIENT';
+    final movementKind = notif['movementKind']?.toString();
+    final isMultiGroup = movementKind == 'multi_group';
+    final memberName = notif['memberName']?.toString() ?? 'Nageur AQA';
+    final groupName = notif['groupName']?.toString() ?? 'Groupe AQA';
+    final fromGroupName = notif['fromGroupName']?.toString();
+
+    final accentColor = isNewClientEvent
+        ? AqaTheme.statusSuccess
+        : (isMultiGroup ? AqaTheme.accentTeal : AqaTheme.primarySkyHover);
+
+    final titleText = isNewClientEvent
+        ? 'Nouveau Membre'
+        : (isMultiGroup ? 'Affectation Multi-Groupe' : 'Mouvement de Groupe');
+
+    final descText = isNewClientEvent
+        ? '$memberName a rejoint $groupName.'
+        : (isMultiGroup
+            ? '$memberName a rejoint $groupName (multi-groupe).'
+            : (fromGroupName != null && fromGroupName.isNotEmpty
+                ? '$memberName transfere de $fromGroupName vers $groupName.'
+                : '$memberName a rejoint $groupName.'));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
+      decoration: BoxDecoration(
+        color: AqaTheme.surfaceRecessed,
+        borderRadius: BorderRadius.circular(10.0),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 28.0,
+            height: 28.0,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(7.0),
+            ),
+            child: Icon(
+              isNewClientEvent
+                  ? Icons.person_add_rounded
+                  : Icons.compare_arrows_rounded,
+              color: accentColor,
+              size: 15.0,
+            ),
+          ),
+          const SizedBox(width: 10.0),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if (isNewClientEvent) ...[
+                      const AqaNewClientBadge(compact: true),
+                      const SizedBox(width: 6.0),
+                    ],
+                    Text(
+                      titleText,
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2.0),
+                Text(
+                  descText,
+                  style: const TextStyle(
+                    color: AqaTheme.textPrimary,
+                    fontSize: 12.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 16.0),
+            color: AqaTheme.textLightMuted,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24.0, minHeight: 24.0),
+            onPressed: () {
+              ref
+                  .read(notificationSettingsProvider.notifier)
+                  .dismissNotification(id);
+            },
+          ),
+        ],
       ),
     );
   }

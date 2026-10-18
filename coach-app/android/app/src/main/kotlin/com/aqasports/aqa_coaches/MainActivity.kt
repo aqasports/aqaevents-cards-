@@ -1,19 +1,22 @@
 package com.aqasports.aqa_coaches
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import kotlin.math.abs
 
 class MainActivity : FlutterActivity() {
     companion object {
@@ -51,7 +54,7 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isNotificationPermissionGranted(): Boolean {
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val manager = NotificationManagerCompat.from(this)
         if (Build.VERSION.SDK_INT >= 33) {
             val granted = ContextCompat.checkSelfPermission(
                 this,
@@ -59,11 +62,7 @@ class MainActivity : FlutterActivity() {
             ) == PackageManager.PERMISSION_GRANTED
             return granted && manager.areNotificationsEnabled()
         }
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            manager.areNotificationsEnabled()
-        } else {
-            true
-        }
+        return manager.areNotificationsEnabled()
     }
 
     private fun requestNotificationPermission(result: MethodChannel.Result) {
@@ -103,13 +102,18 @@ class MainActivity : FlutterActivity() {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val existing = manager.getNotificationChannel(NOTIFICATION_CHANNEL_ID)
             if (existing == null) {
+                val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 val channel = NotificationChannel(
                     NOTIFICATION_CHANNEL_ID,
                     NOTIFICATION_CHANNEL_NAME,
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
-                    description = "Notifications de nouveaux nageurs (NEW), mouvements de groupe et remplacements AQA Swim"
+                    description = "Notifications AQA Coaches (NEW, mouvements et remplacements)"
+                    enableLights(true)
                     enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 250, 150, 250)
+                    setShowBadge(true)
+                    setSound(soundUri, null)
                 }
                 manager.createNotificationChannel(channel)
             }
@@ -117,10 +121,13 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun showNativeNotification(title: String, body: String, tag: String) {
-        if (!isNotificationPermissionGranted()) return
         ensureNotificationChannel()
 
-        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val manager = NotificationManagerCompat.from(this)
+        if (!manager.areNotificationsEnabled()) {
+            return
+        }
+
         val launchIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
@@ -131,22 +138,26 @@ class MainActivity : FlutterActivity() {
         }
         val pendingIntent = PendingIntent.getActivity(this, 0, launchIntent, pendingFlags)
 
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, NOTIFICATION_CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
+        val iconRes = applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.ic_dialog_info
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
-        builder
-            .setSmallIcon(R.mipmap.ic_launcher)
+        val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(iconRes)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setSound(soundUri)
+            .setVibrate(longArrayOf(0, 250, 150, 250))
             .setAutoCancel(true)
 
-        val notificationId = tag.hashCode()
-        manager.notify(notificationId, builder.build())
+        val notificationId = abs(tag.hashCode())
+        try {
+            manager.notify(notificationId, builder.build())
+        } catch (e: SecurityException) {
+            // Android 13 runtime revocation safety
+        }
     }
 }
