@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     <AuthProvider>
       <div className="min-h-screen bg-[var(--background)] flex flex-col lg:flex-row">
         <AdminNav />
-        <main className="flex-1 px-3 py-5 sm:px-4 sm:py-6 lg:px-8 lg:py-8 md:max-w-7xl mx-auto w-full overflow-x-hidden" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+        <main className="flex-1 px-3 pt-4 sm:px-4 sm:pt-6 lg:px-8 lg:py-8 md:max-w-7xl mx-auto w-full overflow-x-hidden pb-24 sm:pb-28 lg:pb-8" style={{ paddingBottom: 'max(5.5rem, calc(4.5rem + env(safe-area-inset-bottom)))' }}>
           {children}
         </main>
       </div>

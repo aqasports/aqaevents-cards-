@@ -105,6 +105,7 @@ function DashboardClientInner({
   const { t, dir, locale } = useTranslations("dashboard");
 
   const [viewMode, setViewMode] = useState<"erp" | "events">("erp");
+  const [mobileFiliereFilter, setMobileFiliereFilter] = useState<"all" | "academy" | "events" | "store">("all");
 
   useEffect(() => {
     const v = searchParams?.get("view");
@@ -250,9 +251,61 @@ function DashboardClientInner({
             <p className="text-xs text-[var(--muted)]">{t("erpPillarsSubtitle")}</p>
           </div>
 
+          {/* Mobile Filiere Selector (Quick switch between Academy, Events, Store on phones) */}
+          <div className="lg:hidden mobile-scroll-tabs -mx-1 px-1 py-1">
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-[var(--surface-2)]/70 border border-[var(--border)]">
+              <button
+                type="button"
+                onClick={() => setMobileFiliereFilter("all")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 min-h-[34px] ${
+                  mobileFiliereFilter === "all"
+                    ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm border border-[var(--border)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                All Filières
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileFiliereFilter("academy")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 min-h-[34px] ${
+                  mobileFiliereFilter === "academy"
+                    ? "bg-sky-500/20 text-sky-300 shadow-sm border border-sky-500/30"
+                    : "text-[var(--muted)] hover:text-sky-300"
+                }`}
+              >
+                1. Academy
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileFiliereFilter("events")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 min-h-[34px] ${
+                  mobileFiliereFilter === "events"
+                    ? "bg-emerald-500/20 text-emerald-300 shadow-sm border border-emerald-500/30"
+                    : "text-[var(--muted)] hover:text-emerald-300"
+                }`}
+              >
+                2. Events
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileFiliereFilter("store")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 min-h-[34px] ${
+                  mobileFiliereFilter === "store"
+                    ? "bg-purple-500/20 text-purple-300 shadow-sm border border-purple-500/30"
+                    : "text-[var(--muted)] hover:text-purple-300"
+                }`}
+              >
+                3. Store
+              </button>
+            </div>
+          </div>
+
           <div className="grid gap-5 lg:grid-cols-3">
             {/* FILIERE 1: 1. AQA SPORTS ACADEMY (AQA SWIM DERIVED) */}
-            <Card className="flex flex-col justify-between border-sky-500/30 bg-gradient-to-b from-sky-950/25 to-[var(--surface)] hover:border-sky-400/50 transition-all">
+            <Card className={`flex-col justify-between border-sky-500/30 bg-gradient-to-b from-sky-950/25 to-[var(--surface)] hover:border-sky-400/50 transition-all ${
+              mobileFiliereFilter === "all" || mobileFiliereFilter === "academy" ? "flex" : "hidden lg:flex"
+            }`}>
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
@@ -336,7 +389,9 @@ function DashboardClientInner({
             </Card>
 
             {/* FILIERE 2: 2. AQA EVENTS */}
-            <Card className="flex flex-col justify-between border-emerald-500/30 bg-gradient-to-b from-emerald-950/25 to-[var(--surface)] hover:border-emerald-400/50 transition-all">
+            <Card className={`flex-col justify-between border-emerald-500/30 bg-gradient-to-b from-emerald-950/25 to-[var(--surface)] hover:border-emerald-400/50 transition-all ${
+              mobileFiliereFilter === "all" || mobileFiliereFilter === "events" ? "flex" : "hidden lg:flex"
+            }`}>
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
@@ -421,7 +476,9 @@ function DashboardClientInner({
             </Card>
 
             {/* FILIERE 3: 3. AQA STORE */}
-            <Card className="flex flex-col justify-between border-purple-500/30 bg-gradient-to-b from-purple-950/25 to-[var(--surface)] hover:border-purple-400/50 transition-all">
+            <Card className={`flex-col justify-between border-purple-500/30 bg-gradient-to-b from-purple-950/25 to-[var(--surface)] hover:border-purple-400/50 transition-all ${
+              mobileFiliereFilter === "all" || mobileFiliereFilter === "store" ? "flex" : "hidden lg:flex"
+            }`}>
               <div className="space-y-4">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">

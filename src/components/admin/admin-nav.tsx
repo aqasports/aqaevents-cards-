@@ -741,58 +741,170 @@ function AdminNavInner() {
         </div>
       </aside>
 
-      {/* 2. MOBILE TOP STICKY BAR */}
+      {/* 2. MOBILE TOP STICKY BAR (AQA ERP 2.2) */}
       <header
-        className="lg:hidden print:hidden w-full sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md shadow-sm flex items-center justify-between px-4 py-3"
-        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+        className="lg:hidden print:hidden w-full sticky top-0 z-40 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md shadow-sm flex items-center justify-between px-3.5 py-2.5"
+        style={{ paddingTop: "max(0.6rem, env(safe-area-inset-top))" }}
       >
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open Navigation Menu"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] text-[var(--muted)] hover:text-white hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation cursor-pointer"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
 
-        <Link href="/admin" className="flex items-center gap-2">
-          <img src="/aqa-logo.png" alt="AQA ERP Logo" className="h-6 w-auto object-contain" />
-          <span className="font-extrabold text-sm text-[var(--foreground)]">AQA ERP</span>
-        </Link>
+          <Link href="/admin" className="flex items-center gap-2">
+            <img src="/aqa-logo.png" alt="AQA ERP Logo" className="h-6 w-auto object-contain shrink-0" />
+            <div className="flex items-center gap-1.5">
+              <span className="font-extrabold text-sm text-[var(--foreground)] tracking-tight">AQA ERP</span>
+              <span className="inline-flex items-center rounded-md bg-cyan-500/15 border border-cyan-500/30 px-1.5 py-0.2 text-[9px] font-black text-cyan-300 font-mono">
+                2.2
+              </span>
+            </div>
+          </Link>
+        </div>
 
-        {/* Notification pill badges with counts in header */}
+        {/* Search trigger & Notification pill badges in header */}
         <div className="flex items-center gap-1.5">
-          {pendingSwimCount > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-cyan-400 px-1.5 text-[10px] font-black text-slate-950 animate-pulse shadow-[0_0_8px_rgba(0,242,255,0.6)] leading-none">
-              {pendingSwimCount}
-            </span>
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            aria-label="Quick Search"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border)] text-cyan-400 hover:text-cyan-300 hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation cursor-pointer shadow-sm"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+
+          {(pendingSwimCount > 0 || eventsTotalBadges > 0) && (
+            <div className="flex items-center gap-1 bg-[var(--surface-2)]/80 border border-[var(--border)] rounded-xl px-2 py-1">
+              {pendingSwimCount > 0 && (
+                <span className="inline-flex h-5 min-w-[18px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[9px] font-black text-slate-950 animate-pulse leading-none" title="Swim Leads & Demands">
+                  {pendingSwimCount}
+                </span>
+              )}
+              {eventsTotalBadges > 0 && (
+                <span className="inline-flex h-5 min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[9px] font-black text-white animate-pulse leading-none" title="Events & Invoices Pending">
+                  {eventsTotalBadges}
+                </span>
+              )}
+            </div>
           )}
-          {newCheckInsCount > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-orange-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)] leading-none">
-              {newCheckInsCount}
-            </span>
-          )}
-          {pendingProposalsCount > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-cyan-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.6)] leading-none">
-              {pendingProposalsCount}
-            </span>
-          )}
-          {pendingDemandsCount > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(245,158,11,0.6)] leading-none">
-              {pendingDemandsCount}
-            </span>
-          )}
-          {pendingCount > 0 && (
-            <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-black text-white animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.6)] leading-none">
-              {pendingCount}
-            </span>
-          )}
-          <span className="w-9" />
         </div>
       </header>
 
-      {/* 3. MOBILE SIDE DRAWER (Overlay) */}
+      {/* 3. MOBILE BOTTOM DOCK (Thumb-Zone Navigation) */}
+      <nav className="mobile-bottom-dock lg:hidden print:hidden select-none" aria-label="Mobile Bottom Navigation">
+        <div className="grid grid-cols-5 items-center justify-around px-1 pt-1.5">
+          {/* 1. Hub */}
+          <Link
+            href="/admin"
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all touch-manipulation cursor-pointer active:scale-90 ${
+              pathname === "/admin" && !searchParams?.get("view")
+                ? "text-[var(--accent)] font-bold"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <div className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+              pathname === "/admin" && !searchParams?.get("view") ? "bg-cyan-500/20 text-cyan-300 shadow-[0_0_10px_rgba(0,242,255,0.3)]" : ""
+            }`}>
+              {ICONS.hub}
+            </div>
+            <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[56px] text-center">
+              {t("mobileDockHub")}
+            </span>
+          </Link>
+
+          {/* 2. Academy */}
+          <Link
+            href="/admin/swim"
+            className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-all touch-manipulation cursor-pointer active:scale-90 ${
+              pathname.startsWith("/admin/swim") || pathname.startsWith("/admin/academy")
+                ? "text-sky-400 font-bold"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <div className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+              pathname.startsWith("/admin/swim") || pathname.startsWith("/admin/academy") ? "bg-sky-500/20 text-sky-300 shadow-[0_0_10px_rgba(14,165,233,0.3)]" : ""
+            }`}>
+              {ICONS.academy}
+            </div>
+            {pendingSwimCount > 0 && (
+              <span className="absolute top-0 right-3.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[8px] font-black text-slate-950 animate-pulse leading-none">
+                {pendingSwimCount}
+              </span>
+            )}
+            <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[56px] text-center">
+              {t("mobileDockAcademy")}
+            </span>
+          </Link>
+
+          {/* 3. Redeem Center Action (Primary POS Action Button) */}
+          <Link
+            href="/admin/redeem"
+            aria-label="Redeem & Scanner"
+            className="flex flex-col items-center justify-center -mt-4 touch-manipulation cursor-pointer active:scale-95 group"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-cyan-500 to-sky-400 text-slate-950 shadow-[0_0_18px_rgba(0,242,255,0.45)] border-2 border-[var(--surface)] group-hover:scale-105 transition-transform">
+              <svg className="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+            </div>
+            <span className="text-[10px] font-extrabold text-[var(--accent)] tracking-tight mt-0.5">
+              {t("mobileDockRedeem")}
+            </span>
+          </Link>
+
+          {/* 4. Events & Clients */}
+          <Link
+            href="/admin/clients"
+            className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-all touch-manipulation cursor-pointer active:scale-90 ${
+              pathname.startsWith("/admin/clients") || pathname.startsWith("/admin/events") || searchParams?.get("view") === "events"
+                ? "text-emerald-400 font-bold"
+                : "text-[var(--muted)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <div className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+              pathname.startsWith("/admin/clients") || pathname.startsWith("/admin/events") || searchParams?.get("view") === "events" ? "bg-emerald-500/20 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.3)]" : ""
+            }`}>
+              {ICONS.users}
+            </div>
+            {eventsTotalBadges > 0 && (
+              <span className="absolute top-0 right-3.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-1 text-[8px] font-black text-white animate-pulse leading-none">
+                {eventsTotalBadges}
+              </span>
+            )}
+            <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[56px] text-center">
+              {t("mobileDockEvents")}
+            </span>
+          </Link>
+
+          {/* 5. Menu Drawer */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="All Modules Menu"
+            className="flex flex-col items-center justify-center py-1 rounded-xl text-[var(--muted)] hover:text-[var(--foreground)] transition-all touch-manipulation cursor-pointer active:scale-90"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h7" />
+              </svg>
+            </div>
+            <span className="text-[10px] tracking-tight mt-0.5 truncate max-w-[56px] text-center">
+              {t("mobileDockMenu")}
+            </span>
+          </button>
+        </div>
+      </nav>
+
+      {/* 4. MOBILE SIDE DRAWER (Overlay) */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
           <div
@@ -805,7 +917,7 @@ function AdminNavInner() {
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className={`fixed top-0 bottom-0 z-50 w-72 bg-[var(--surface)]/95 backdrop-blur-lg border-[var(--border)] shadow-2xl flex flex-col justify-between transition-transform duration-300 ${
+            className={`fixed top-0 bottom-0 z-50 w-80 max-w-[85vw] bg-[var(--surface)]/95 backdrop-blur-xl border-[var(--border)] shadow-2xl flex flex-col justify-between transition-transform duration-300 ${
               dir === "rtl"
                 ? "right-0 border-l animate-slide-in-right"
                 : "left-0 border-r animate-slide-in-left"
@@ -815,16 +927,20 @@ function AdminNavInner() {
             <div className="p-4 border-b border-[var(--border)] space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <img src="/aqa-logo.png" alt="AQA ERP" className="h-6 w-auto object-contain" />
+                  <img src="/aqa-logo.png" alt="AQA ERP" className="h-7 w-auto object-contain" />
                   <div>
-                    <p className="font-black text-xs text-[var(--accent)] uppercase tracking-wider leading-none">AQA ERP</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-black text-xs text-[var(--accent)] uppercase tracking-wider leading-none">AQA ERP</p>
+                      <span className="rounded bg-cyan-500/20 text-cyan-300 text-[8px] font-mono px-1 font-bold">2.2</span>
+                    </div>
                     <p className="text-[10px] text-[var(--muted)] mt-0.5">{t("erpSubtitle")}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMobileOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation"
+                  aria-label="Close menu"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-[var(--muted)] hover:text-white hover:bg-[var(--surface-2)] active:scale-95 transition-all touch-manipulation cursor-pointer"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -832,17 +948,37 @@ function AdminNavInner() {
                 </button>
               </div>
 
+              {/* Quick Search trigger inside drawer */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileOpen(false);
+                  setCommandOpen(true);
+                }}
+                className="flex items-center justify-between w-full rounded-xl px-3 py-2.5 text-xs font-semibold text-[var(--muted)] bg-[var(--surface-2)] hover:bg-[var(--surface-2)]/90 hover:text-[var(--foreground)] border border-[var(--border)] transition-all cursor-pointer shadow-sm active:scale-[0.98]"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <span>{t("quickSearch")}</span>
+                </div>
+                <kbd className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-[var(--surface)] text-[var(--muted)] border border-[var(--border)]">
+                  Ctrl K
+                </kbd>
+              </button>
+
               <FiliereSwitcher />
             </div>
 
-            {/* Scrollable list */}
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
+            {/* Scrollable list with touch-first row sizes */}
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-2 scrollbar-thin">
               <NavLinksList isMobile />
             </div>
 
             {/* Bottom Controls */}
-            <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-2)]/20 space-y-2.5">
-              <div className="flex items-center justify-between gap-2 bg-[var(--surface-2)]/60 border border-[var(--border)] rounded-xl px-3 py-2">
+            <div className="p-4 border-t border-[var(--border)] bg-[var(--surface-2)]/30 space-y-2.5" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+              <div className="flex items-center justify-between gap-2 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl px-3 py-2">
                 <span className="text-xs font-bold text-[var(--muted)]">{locale.toUpperCase()}</span>
                 <select
                   value={locale}
@@ -861,7 +997,7 @@ function AdminNavInner() {
                   setMobileOpen(false);
                   signOut({ callbackUrl: "/admin/login" });
                 }}
-                className="flex items-center justify-center gap-2 w-full rounded-xl py-2.5 text-sm font-bold text-[var(--muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-text)] border border-transparent transition-all active:scale-95"
+                className="flex items-center justify-center gap-2 w-full rounded-xl py-3 text-xs font-bold text-[var(--muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-text)] border border-transparent transition-all active:scale-95 cursor-pointer"
               >
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

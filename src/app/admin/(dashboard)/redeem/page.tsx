@@ -36,6 +36,17 @@ type ClientDropdownItem = {
   card: { cardCode: string; publicToken: string } | null;
 };
 
+type RecentRedemptionRecord = {
+  id: string;
+  creditsUsed?: number;
+  redeemedAt: string | Date;
+  session?: { sessionDate: string | Date } | null;
+  client?: { fullName: string } | null;
+  activity?: { name: string } | null;
+  staff?: { name: string } | null;
+  checkIns?: Array<{ scannedAt: string | Date }>;
+};
+
 import { useCreditRate } from "@/lib/use-credit-rate";
 
 export default function RedeemPage() {
@@ -69,7 +80,7 @@ export default function RedeemPage() {
 
   // Sound and simulation states
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [recentRedemptionsList, setRecentRedemptionsList] = useState<any[]>([]);
+  const [recentRedemptionsList, setRecentRedemptionsList] = useState<RecentRedemptionRecord[]>([]);
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [pendingRefundId, setPendingRefundId] = useState<string | null>(null);
   const [refundingId, setRefundingId] = useState<string | null>(null);
@@ -99,7 +110,7 @@ export default function RedeemPage() {
   function playSuccessSound() {
     if (!soundEnabled) return;
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
       const ctx = new AudioContextClass();
       
@@ -127,7 +138,7 @@ export default function RedeemPage() {
   function playErrorSound() {
     if (!soundEnabled) return;
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioContextClass) return;
       const ctx = new AudioContextClass();
       
@@ -343,7 +354,7 @@ export default function RedeemPage() {
 
     if (!sessionId) {
       const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
-      const upcomingSessions = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+      const upcomingSessions = activity.sessions?.filter((s) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
       if (upcomingSessions.length > 0) {
         sessionId = upcomingSessions[0].id;
       }
@@ -379,7 +390,7 @@ export default function RedeemPage() {
     const isInsufficient = currentBal < cost;
 
     const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
-    const upcomingSessions = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+    const upcomingSessions = activity.sessions?.filter((s) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
     const nextSession = upcomingSessions.length > 0 ? upcomingSessions[0].id : undefined;
 
     if (isInsufficient) {
@@ -541,7 +552,7 @@ export default function RedeemPage() {
           const updatedClientsRes = await fetch("/api/admin/clients");
           if (updatedClientsRes.ok) {
             const freshClientsList = await updatedClientsRes.json();
-            const freshClientObj = freshClientsList.find((c: any) => c.id === lookup.client.id);
+            const freshClientObj = freshClientsList.find((c: ClientDropdownItem) => c.id === lookup.client.id);
             if (freshClientObj) {
               setLookup({
                 client: { id: freshClientObj.id, fullName: freshClientObj.fullName },
@@ -621,7 +632,7 @@ export default function RedeemPage() {
             <h3 className={`mb-4 text-base font-semibold ${dir === "rtl" ? "text-right" : "text-left"}`}>
               {t("findClientCard")}
             </h3>
-            <form onSubmit={lookupCard} className="flex gap-3">
+            <form onSubmit={lookupCard} className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
               <div className="flex-1 search-container relative z-30">
                 <Input
                   ref={inputRef}
@@ -648,7 +659,7 @@ export default function RedeemPage() {
                   if (matchingClients.length === 0) return null;
 
                   return (
-                    <div className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+                    <div className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl backdrop-blur-md">
                       {matchingClients.map((c) => (
                         <button
                           key={c.id}
@@ -666,12 +677,12 @@ export default function RedeemPage() {
                               setMessage({ text: t("clientNoCreditsAlert"), tone: "info" });
                             }
                           }}
-                          className={`w-full px-4 py-2.5 hover:bg-slate-50 transition flex items-center justify-between border-b border-[var(--border)] last:border-0 ${
+                          className={`w-full px-4 py-3 hover:bg-[var(--surface-2)] transition flex items-center justify-between border-b border-[var(--border)] last:border-0 min-h-[44px] ${
                             dir === "rtl" ? "text-right flex-row-reverse" : "text-left"
                           }`}
                         >
                           <div>
-                            <p className="font-bold text-[var(--foreground)]">{c.fullName}</p>
+                            <p className="font-bold text-[var(--foreground)] text-sm">{c.fullName}</p>
                             <p className="text-xs text-[var(--muted)]">
                               Card: {c.card?.cardCode ?? t("noActiveCard")}
                             </p>
@@ -690,7 +701,7 @@ export default function RedeemPage() {
                 })()}
               </div>
               <div className="pt-0.5">
-                <Button type="submit" loading={loading} className="h-[38px]">
+                <Button type="submit" loading={loading} className="w-full sm:w-auto h-[44px] px-6 font-bold">
                   {t("findBtn")}
                 </Button>
               </div>
@@ -708,9 +719,9 @@ export default function RedeemPage() {
               }`}>
                 {t("multipleMatchesTitle", { count: matches.length })}
               </h3>
-              <div className="divide-y divide-[var(--border)] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
+              <div className="divide-y divide-[var(--border)] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
                 {matches.map((match) => (
-                  <div key={match.client.id} className={`flex items-center justify-between p-3 hover:bg-slate-50 transition ${
+                  <div key={match.client.id} className={`flex items-center justify-between p-3.5 hover:bg-[var(--surface-2)] transition ${
                     dir === "rtl" ? "flex-row-reverse" : ""
                   }`}>
                     <div className={dir === "rtl" ? "text-right" : "text-left"}>
@@ -801,9 +812,9 @@ export default function RedeemPage() {
                       const hasKidSufficient = currentBal >= 0.7;
 
                       return (
-                        <div key={activity.id} className="rounded-xl border border-[var(--border)] bg-slate-50/50 p-4 hover:border-[var(--primary)]/40 hover:bg-[var(--primary-light)]/5 transition-all duration-300 group flex flex-col justify-between">
+                        <div key={activity.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-4 hover:border-[var(--primary)]/40 hover:bg-[var(--surface-2)] transition-all duration-300 group flex flex-col justify-between">
                           <div>
-                            <h4 className="font-bold text-slate-800 text-sm group-hover:text-[var(--primary)] transition-colors">
+                            <h4 className="font-bold text-[var(--foreground)] text-sm group-hover:text-[var(--primary)] transition-colors">
                               {activity.name}
                             </h4>
                             <div className="flex flex-wrap gap-1.5 mt-2">
@@ -812,7 +823,7 @@ export default function RedeemPage() {
                               </Badge>
                               {(() => {
                                 const tenHoursAgo = new Date(Date.now() - 10 * 60 * 60 * 1000);
-                                const upcoming = activity.sessions?.filter((s: any) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
+                                const upcoming = activity.sessions?.filter((s) => s.active && new Date(s.sessionDate) >= tenHoursAgo) || [];
                                 if (upcoming.length === 0) return null;
                                 return (
                                   <Badge tone="info" size="sm">
@@ -825,7 +836,7 @@ export default function RedeemPage() {
                           <div className="mt-4 flex gap-2">
                             <Button
                               size="sm"
-                              className="flex-1 font-bold"
+                              className="flex-1 font-bold min-h-[40px]"
                               onClick={() => quickRedeem(activity.id)}
                               disabled={redeeming || (!hasSufficient && !isSuperAdmin)}
                             >
@@ -834,7 +845,7 @@ export default function RedeemPage() {
                             <Button
                               size="sm"
                               variant="secondary"
-                              className="font-semibold text-slate-700"
+                              className="font-semibold text-[var(--foreground)] min-h-[40px]"
                               onClick={() => quickRedeem(activity.id, 0.7)}
                               disabled={redeeming || (!hasKidSufficient && !isSuperAdmin)}
                             >
@@ -849,25 +860,25 @@ export default function RedeemPage() {
               </Card>
 
               {/* Advanced Validation Form */}
-              <details className="border border-[var(--border)] rounded-xl bg-slate-50/40 overflow-hidden group">
-                <summary className="px-5 py-4 font-semibold text-xs text-[var(--muted)] uppercase cursor-pointer hover:bg-slate-50 transition flex items-center justify-between select-none">
+              <details className="border border-[var(--border)] rounded-xl bg-[var(--surface-2)]/40 overflow-hidden group">
+                <summary className="px-5 py-4 font-semibold text-xs text-[var(--muted)] uppercase cursor-pointer hover:bg-[var(--surface-2)] transition flex items-center justify-between select-none">
                   <span>Advanced Validation — Past Events / Free / Walk-in</span>
-                  <svg className="h-4 w-4 transform group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <svg className="h-4 w-4 transform group-open:rotate-180 transition-transform text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                   </svg>
                 </summary>
                 <div className="p-5 border-t border-[var(--border)] bg-[var(--surface)] space-y-4">
 
                   {/* Walk-in toggle */}
-                  <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-slate-50/60 px-4 py-3">
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 px-4 py-3">
                     <div>
-                      <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">Walk-in Mode (Not a Client)</p>
+                      <p className="text-xs font-bold text-[var(--foreground)] uppercase tracking-wide">Walk-in Mode (Not a Client)</p>
                       <p className="text-xs text-[var(--muted)] mt-0.5">Register a non-registered participant. Generates an invoice for paid amount.</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => { setIsWalkInMode(!isWalkInMode); setWalkinName(""); setWalkinPaidAmount("0"); }}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isWalkInMode ? "bg-[var(--primary)]" : "bg-slate-300"}`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isWalkInMode ? "bg-[var(--primary)]" : "bg-[var(--surface-2)] border border-[var(--border)]"}`}
                     >
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isWalkInMode ? "translate-x-6" : "translate-x-1"}`} />
                     </button>
@@ -877,7 +888,7 @@ export default function RedeemPage() {
 
                     {/* Walk-in fields */}
                     {isWalkInMode && (
-                      <div className="grid gap-3 sm:grid-cols-2 rounded-lg bg-amber-50 border border-amber-200 p-3">
+                      <div className="grid gap-3 sm:grid-cols-2 rounded-xl bg-amber-950/20 border border-amber-500/30 p-3.5">
                         <Input
                           label="Attendee Name"
                           placeholder="Full name of walk-in participant"
@@ -896,11 +907,11 @@ export default function RedeemPage() {
                             onChange={(e) => setWalkinPaidAmount(e.target.value)}
                           />
                           {parseFloat(walkinPaidAmount) > 0 ? (
-                            <p className="text-xs text-amber-700 mt-1 font-semibold">
+                            <p className="text-xs text-amber-300 mt-1 font-semibold">
                               = {(Math.round((parseFloat(walkinPaidAmount) / creditRate) * 100) / 100).toFixed(2)} credits — Invoice will be generated
                             </p>
                           ) : (
-                            <p className="text-xs text-slate-500 mt-1">Free entry (no invoice)</p>
+                            <p className="text-xs text-[var(--muted)] mt-1">Free entry (no invoice)</p>
                           )}
                         </div>
                       </div>
@@ -923,10 +934,10 @@ export default function RedeemPage() {
 
                     {selectedActivity && (
                       <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Event / Session</label>
+                        <label className="block text-xs font-semibold text-[var(--foreground)] mb-1.5">Event / Session</label>
                         <select
                           name="sessionId"
-                          className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+                          className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--foreground)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] min-h-[42px]"
                           defaultValue=""
                         >
                           <option value="">{t("noSpecificSession")}</option>
@@ -963,13 +974,13 @@ export default function RedeemPage() {
 
                       return (
                         <div className="space-y-2 pt-2">
-                          <Button type="submit" className="w-full font-bold" disabled={disableButton} loading={redeeming}>
+                          <Button type="submit" className="w-full font-bold min-h-[44px]" disabled={disableButton} loading={redeeming}>
                             {buttonLabel}
                           </Button>
                           <Button
                             type="button"
                             onClick={handleRedeemKid}
-                            className="w-full font-semibold"
+                            className="w-full font-semibold min-h-[44px]"
                             variant="secondary"
                             disabled={!selectedActivityId || (lookup.balance < 0.7 && !isSuperAdmin)}
                             loading={redeeming}
@@ -982,7 +993,7 @@ export default function RedeemPage() {
                             name="isFree"
                             value="1"
                             disabled={!selectedActivityId || redeeming}
-                            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-400 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-500/40 bg-emerald-950/25 px-4 py-3 text-sm font-bold text-emerald-300 hover:bg-emerald-950/40 transition disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px]"
                           >
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4H5z" />
@@ -995,7 +1006,7 @@ export default function RedeemPage() {
 
                     {isWalkInMode && (
                       <div className="pt-2">
-                        <Button type="submit" className="w-full font-bold" loading={redeeming} disabled={!selectedActivityId || !walkinName.trim()}>
+                        <Button type="submit" className="w-full font-bold min-h-[44px]" loading={redeeming} disabled={!selectedActivityId || !walkinName.trim()}>
                           Register Walk-in Attendee{parseFloat(walkinPaidAmount) > 0 ? " + Generate Invoice" : ""}
                         </Button>
                       </div>
@@ -1031,25 +1042,25 @@ export default function RedeemPage() {
         <div className="space-y-6">
           {/* Scanner controls */}
           <Card>
-            <h3 className="text-base font-semibold mb-3 flex items-center gap-2">
-              <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <h3 className="text-base font-semibold mb-3 flex items-center gap-2 text-[var(--foreground)]">
+              <svg className="h-5 w-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h.01M16 20h.01M21 12h-1.88M3 12h1.88M12 21h.01m8.88-8.88h-.01m-17.76 0h-.01" />
               </svg>
               <span>Scan Station Controls</span>
             </h3>
             
-            <div className="flex items-center justify-between border border-[var(--border)] rounded-xl p-3 bg-slate-50/50">
+            <div className="flex items-center justify-between border border-[var(--border)] rounded-xl p-3 bg-[var(--surface-2)]/60">
               <div className="flex items-center gap-2.5">
                 <span className="relative flex h-3 w-3">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                 </span>
-                <span className="text-xs font-bold text-slate-700">{t("scannerReady")}</span>
+                <span className="text-xs font-bold text-[var(--foreground)]">{t("scannerReady")}</span>
               </div>
               <button
                 onClick={toggleSound}
                 type="button"
-                className="h-8 w-8 flex items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] transition text-slate-600"
+                className="h-9 w-9 flex items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] transition text-[var(--foreground)]"
                 title={soundEnabled ? t("soundOff") : t("soundOn")}
               >
                 {soundEnabled ? (
@@ -1057,7 +1068,7 @@ export default function RedeemPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
                   </svg>
                 ) : (
-                  <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <svg className="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zm12.95-6.364l-6.364 6.364m0-6.364l6.364 6.364" />
                   </svg>
                 )}
@@ -1067,10 +1078,10 @@ export default function RedeemPage() {
             <Button
               type="button"
               onClick={simulateCardScan}
-              className="w-full mt-3 font-semibold justify-center"
+              className="w-full mt-3 font-semibold justify-center min-h-[44px]"
               variant="secondary"
             >
-              <svg className="h-4 w-4 mr-1 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-4 w-4 mr-1 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -1080,21 +1091,21 @@ export default function RedeemPage() {
 
           {/* Recent Redemptions Log */}
           <Card className="max-h-[550px] flex flex-col">
-            <h3 className="text-base font-semibold mb-3 flex items-center justify-between">
+            <h3 className="text-base font-semibold mb-3 flex items-center justify-between text-[var(--foreground)]">
               <span className="flex items-center gap-2">
-                <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="h-5 w-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2H9m2-2a2 2 0 00-2 2v1c0 .55.45 1 1 1h2c.55 0 1-.45 1-1V5a2 2 0 00-2-2h-2m-4 9l2 2 4-4" />
                 </svg>
                 <span>{t("recentRedemptionsLog")}</span>
               </span>
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
               </span>
             </h3>
 
             {recentRedemptionsList.length === 0 ? (
-              <p className="text-xs text-[var(--muted)] italic py-8 text-center bg-slate-50/50 rounded-xl border border-dashed border-[var(--border)]">
+              <p className="text-xs text-[var(--muted)] italic py-8 text-center bg-[var(--surface-2)]/30 rounded-xl border border-dashed border-[var(--border)]">
                 No redemptions logged today yet.
               </p>
             ) : (
@@ -1108,10 +1119,10 @@ export default function RedeemPage() {
                   const checkInTimeStr = checkIn ? formatDate(checkIn.scannedAt, locale, true) : null;
 
                   return (
-                    <div key={red.id} className="p-3 border border-[var(--border)] rounded-xl bg-[var(--surface)] hover:bg-slate-50/50 transition flex flex-col justify-between gap-2 shadow-sm">
+                    <div key={red.id} className="p-3 border border-[var(--border)] rounded-xl bg-[var(--surface-2)]/40 hover:bg-[var(--surface-2)] transition flex flex-col justify-between gap-2 shadow-sm">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-bold text-slate-800 text-xs">{red.client?.fullName || "Unknown Client"}</p>
+                          <p className="font-bold text-[var(--foreground)] text-xs">{red.client?.fullName || "Unknown Client"}</p>
                           <p className="text-[10px] font-semibold text-[var(--muted)] mt-0.5">
                             {red.activity?.name} · Event: {eventTimeStr}
                           </p>
@@ -1121,7 +1132,7 @@ export default function RedeemPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between mt-1 pt-1 border-t border-[var(--border)]/50">
-                        <span className="text-[9px] font-mono text-slate-400 flex items-center gap-1">
+                        <span className="text-[9px] font-mono text-[var(--muted)] flex items-center gap-1">
                           <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
@@ -1132,12 +1143,12 @@ export default function RedeemPage() {
                             type="button"
                             onClick={() => confirmRefund(red.id)}
                             disabled={isRefunding}
-                            className="text-[10px] font-bold text-red-600 hover:text-red-800 transition flex items-center gap-0.5"
+                            className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition flex items-center gap-0.5"
                           >
                             {isRefunding ? "..." : t("undoBtn")}
                           </button>
                         ) : (
-                          <span className="text-[8px] text-slate-400 font-medium">Read-only</span>
+                          <span className="text-[8px] text-[var(--muted)] font-medium">Read-only</span>
                         )}
                       </div>
                     </div>

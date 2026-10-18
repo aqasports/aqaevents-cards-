@@ -271,6 +271,21 @@ a, button, [role="button"], select, input[type="checkbox"], input[type="radio"] 
   flex-shrink: 0;
 }
 
+/* Mobile Bottom Dock (Thumb-Zone Ergonomics) */
+.mobile-bottom-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.65), 0 -2px 10px rgba(0, 242, 255, 0.05);
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
 /* Print styles */
 @media print {
   .print\:hidden { display: none !important; }

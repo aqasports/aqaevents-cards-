@@ -1028,13 +1028,13 @@ function SwimOverviewPageInner() {
         </div>
 
         {/* Main Navigation Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
-          <div className="flex flex-wrap bg-[var(--surface)] p-1 rounded-xl border border-[var(--border)] gap-1">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+          <div className="mobile-scroll-tabs md:flex-wrap bg-[var(--surface)]/90 backdrop-blur-md p-1.5 rounded-2xl border border-[var(--border)] gap-1.5 max-w-full">
             <button
               onClick={() => setActiveTab("confirmed")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
                 activeTab === "confirmed"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
               }`}
             >
@@ -1046,9 +1046,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("leads")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
                 activeTab === "leads"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
               }`}
             >
@@ -1062,9 +1062,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("groups")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                 activeTab === "groups"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
               }`}
             >
@@ -1073,9 +1073,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("calendar")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 activeTab === "calendar"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
               }`}
             >
@@ -1084,9 +1084,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("cards")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                 activeTab === "cards"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
               }`}
             >
@@ -1095,9 +1095,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("sectors")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all cursor-pointer active:scale-95 ${
                 activeTab === "sectors"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-[var(--muted)] hover:text-white hover:bg-slate-800"
               }`}
             >
@@ -1106,9 +1106,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("calls")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 activeTab === "calls"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
               }`}
             >
@@ -1120,9 +1120,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("payments")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 activeTab === "payments"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
               }`}
             >
@@ -1136,9 +1136,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("backups")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 activeTab === "backups"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
               }`}
             >
@@ -1152,9 +1152,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("equipment")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 activeTab === "equipment"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
               }`}
             >
@@ -1171,9 +1171,9 @@ function SwimOverviewPageInner() {
 
             <button
               onClick={() => setActiveTab("pool")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 ${
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
                 activeTab === "pool"
-                  ? "bg-[var(--primary)] text-white shadow-sm"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
                   : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
               }`}
             >
@@ -1188,7 +1188,7 @@ function SwimOverviewPageInner() {
 
             <Link
               href="/admin/swim/coaching"
-              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 text-teal-400 hover:text-white hover:bg-teal-950/60 border border-teal-900/40"
+              className="shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 text-teal-400 hover:text-white hover:bg-teal-950/60 border border-teal-900/40 cursor-pointer active:scale-95"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />

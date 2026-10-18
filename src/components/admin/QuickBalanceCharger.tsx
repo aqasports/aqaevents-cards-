@@ -354,7 +354,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
   return (
     <div
       dir={dir}
-      className={`relative overflow-hidden rounded-2xl border bg-white p-4 sm:p-6 shadow-sm transition-all duration-500 ${
+      className={`relative overflow-hidden rounded-2xl border bg-[var(--surface)] p-4 sm:p-6 shadow-sm transition-all duration-500 ${
         successPulse
           ? "border-emerald-500 shadow-[0_0_25px_rgba(16,185,129,0.3)] ring-2 ring-emerald-400/40"
           : "border-[var(--border)] hover:border-[var(--primary)]/30 hover:shadow-md"
@@ -366,15 +366,15 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
       {/* Header section */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 shadow-inner">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 shadow-inner border border-amber-500/20">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <h3 className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
               {t("quickChargerTitle")}
-              <span className="rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase px-2 py-0.5 tracking-wider">
+              <span className="rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-extrabold uppercase px-2 py-0.5 tracking-wider">
                 {t("instantTopUp")}
               </span>
             </h3>
@@ -385,19 +385,19 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
         </div>
 
         {/* Quick Rate Badge */}
-        <div className="hidden sm:flex items-center gap-1.5 rounded-lg bg-slate-50 px-3 py-1.5 text-xs text-slate-600 border border-slate-200/80">
+        <div className="hidden sm:flex items-center gap-1.5 rounded-lg bg-[var(--surface-2)]/60 px-3 py-1.5 text-xs text-[var(--muted)] border border-[var(--border)]">
           <svg className="h-4 w-4 text-[var(--primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="font-medium">{t("ratePerCredit")}</span>
-          <span className="font-bold text-slate-900">{creditRate.toLocaleString()} DA</span>
+          <span className="font-bold text-[var(--foreground)]">{creditRate.toLocaleString()} DA</span>
         </div>
       </div>
 
       <div className="mt-4 grid gap-5 lg:grid-cols-12 items-start">
         {/* Step 1: Select Client */}
         <div className="lg:col-span-5 space-y-3">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+          <label className="block text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
             {t("selectClientStep")}
           </label>
 
@@ -413,10 +413,10 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                     setSearchQuery(e.target.value);
                     setShowDropdown(true);
                   }}
-                  className="w-full rounded-xl border border-[var(--border)] bg-slate-50/50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[var(--primary)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 transition-all"
+                  className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/80 py-2.5 pl-10 pr-4 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-light)] focus:border-[var(--primary)] focus:bg-[var(--surface-2)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 transition-all"
                 />
                 <svg
-                  className="absolute left-3.5 top-3 h-4 w-4 text-slate-400"
+                  className="absolute left-3.5 top-3 h-4 w-4 text-[var(--muted)]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -428,11 +428,11 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
 
               {/* Autocomplete Dropdown */}
               {showDropdown && (
-                <div className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-white p-1.5 shadow-xl transition-all animate-fade-in">
+                <div className="absolute z-30 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1.5 shadow-2xl transition-all animate-fade-in backdrop-blur-md">
                   {loadingInitial ? (
-                    <div className="p-4 text-center text-xs text-slate-400">{t("loadingClients")}</div>
+                    <div className="p-4 text-center text-xs text-[var(--muted)]">{t("loadingClients")}</div>
                   ) : filteredClients.length === 0 ? (
-                    <div className="p-4 text-center text-xs text-slate-400">{t("noClientsMatching")}</div>
+                    <div className="p-4 text-center text-xs text-[var(--muted)]">{t("noClientsMatching")}</div>
                   ) : (
                     filteredClients.slice(0, 10).map((c) => (
                       <button
@@ -443,13 +443,13 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                           setShowDropdown(false);
                           setMessage(null);
                         }}
-                        className="flex w-full items-center justify-between rounded-lg p-2.5 text-left text-sm hover:bg-[var(--primary-light)] transition-colors group"
+                        className="flex w-full items-center justify-between rounded-lg p-2.5 text-left text-sm hover:bg-[var(--surface)] hover:border-[var(--primary)]/30 border border-transparent transition-colors group"
                       >
                         <div className="min-w-0 pr-2">
-                          <p className="font-semibold text-slate-900 group-hover:text-[var(--primary)] truncate">
+                          <p className="font-semibold text-[var(--foreground)] group-hover:text-[var(--primary)] truncate">
                             {c.fullName}
                           </p>
-                          <p className="text-xs text-slate-400 truncate">
+                          <p className="text-xs text-[var(--muted)] truncate">
                             {c.phone || "No phone"} {c.cards?.[0]?.cardCode ? `· ${c.cards[0].cardCode}` : ""}
                           </p>
                         </div>
@@ -464,7 +464,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
             </div>
           ) : (
             /* Selected Client Card */
-            <div className="relative rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5 transition-all">
+            <div className="relative rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 transition-all">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-white font-black text-base shadow">
@@ -473,7 +473,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                   <div className="min-w-0">
                     <Link
                       href={`/admin/clients/${selectedClient.id}`}
-                      className="font-bold text-slate-900 text-sm truncate hover:text-[var(--primary)] hover:underline inline-flex items-center gap-1.5 transition-colors group"
+                      className="font-bold text-[var(--foreground)] text-sm truncate hover:text-[var(--primary)] hover:underline inline-flex items-center gap-1.5 transition-colors group"
                       title={t("viewProfile")}
                     >
                       <span>{selectedClient.fullName}</span>
@@ -481,7 +481,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                         <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </Link>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="text-xs text-[var(--muted)] truncate">
                       {primaryCardCode ? `Card: ${primaryCardCode}` : selectedClient.phone || "Active Client"}
                     </p>
                   </div>
@@ -501,7 +501,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                         <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                       </svg>
                     </Link>
-                    <span className="text-slate-300">·</span>
+                    <span className="text-[var(--border)]">·</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -509,7 +509,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                         setSearchQuery("");
                         setMessage(null);
                       }}
-                      className="text-[11px] font-semibold text-slate-500 hover:text-rose-600 underline transition-colors"
+                      className="text-[11px] font-semibold text-[var(--muted)] hover:text-rose-400 underline transition-colors"
                     >
                       {t("changeClient")}
                     </button>
@@ -518,15 +518,15 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
               </div>
 
               {/* Quick +1 Credit Trigger */}
-              <div className="mt-3 pt-3 border-t border-emerald-200/80 flex flex-wrap items-center justify-between gap-2">
+              <div className="mt-3 pt-3 border-t border-emerald-500/20 flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <svg className="h-3.5 w-3.5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <p className="text-xs font-bold text-[var(--foreground)] flex items-center gap-1.5">
+                    <svg className="h-3.5 w-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                     </svg>
                     <span>{t("quickAddOneCredit")}</span>
                   </p>
-                  <p className="text-[11px] text-slate-500 truncate">
+                  <p className="text-[11px] text-[var(--muted)] truncate">
                     {t("instantRechargeSub", { price: creditRate.toLocaleString() })}
                   </p>
                 </div>
@@ -535,7 +535,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                   type="button"
                   onClick={handleQuickAddOneCredit}
                   disabled={submitting || quickAddingCredit}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:scale-[0.97] px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shrink-0"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-[0.97] px-3.5 py-2.5 text-xs font-bold text-white shadow-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed shrink-0 min-h-[40px]"
                 >
                   {quickAddingCredit ? (
                     <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -555,8 +555,8 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
             <div
               className={`rounded-xl p-3 text-xs font-semibold border transition-all ${
                 message.tone === "success"
-                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                  : "bg-rose-50 text-rose-800 border-rose-200"
+                  ? "bg-emerald-950/40 text-emerald-300 border-emerald-500/30"
+                  : "bg-rose-950/40 text-rose-300 border-rose-500/30"
               }`}
             >
               {message.text}
@@ -566,13 +566,13 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
 
         {/* Step 2 & 3: Method Selector & Form */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
               {t("selectRechargeMethodStep")}
             </label>
 
             {/* Mode Switcher Tabs */}
-            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs">
+            <div className="inline-flex rounded-xl bg-[var(--surface-2)] p-1 border border-[var(--border)] text-xs">
               {(["package", "money", "manual"] as const).map((m) => (
                 <button
                   key={m}
@@ -581,10 +581,10 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                     setAdjustMode(m);
                     setMessage(null);
                   }}
-                  className={`rounded-lg px-3 py-1 font-semibold transition-all duration-200 ${
+                  className={`rounded-lg px-3 py-1.5 font-semibold transition-all duration-200 min-h-[36px] ${
                     adjustMode === m
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900"
+                      ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm border border-[var(--border)]"
+                      : "text-[var(--muted)] hover:text-[var(--foreground)]"
                   }`}
                 >
                   {m === "package" ? t("tabPackage") : m === "money" ? t("tabByMoney") : t("tabManual")}
@@ -642,20 +642,20 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                       const pkg = packages.find((p) => p.id === selectedPackageId);
                       if (!pkg) return null;
                       return (
-                        <div className="rounded-xl bg-slate-50 p-3 text-xs space-y-1.5 border border-slate-200">
-                          <div className="flex justify-between font-medium text-slate-600">
+                        <div className="rounded-xl bg-[var(--surface-2)]/60 p-3 text-xs space-y-1.5 border border-[var(--border)]">
+                          <div className="flex justify-between font-medium text-[var(--muted)]">
                             <span>{t("packagePrice")}</span>
-                            <span className="font-bold text-slate-900">{pkg.price.toLocaleString()} DA</span>
+                            <span className="font-bold text-[var(--foreground)]">{pkg.price.toLocaleString()} DA</span>
                           </div>
-                          <div className="flex justify-between text-slate-600">
+                          <div className="flex justify-between text-[var(--muted)]">
                             <span>{t("baseCredits")}</span>
                             <span>{pkg.creditAmount}</span>
                           </div>
-                          <div className="flex justify-between text-emerald-600 font-medium">
+                          <div className="flex justify-between text-emerald-400 font-medium">
                             <span>{t("bonusCredits")}</span>
                             <span>+{pkg.bonusCredits} free</span>
                           </div>
-                          <div className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900 text-sm">
+                          <div className="border-t border-[var(--border)] pt-1.5 flex justify-between font-bold text-[var(--foreground)] text-sm">
                             <span>{t("totalCredited")}</span>
                             <span className="text-[var(--primary)]">{pkg.totalCredits} {t("activitiesUnit")}</span>
                           </div>
@@ -696,7 +696,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                 </div>
 
                 {moneyAmount && computedMoneyCredits > 0 && (
-                  <div className="rounded-xl bg-[var(--primary-light)] text-[var(--primary)] p-3 text-xs flex justify-between items-center font-bold border border-[var(--primary)]/20 animate-fade-in">
+                  <div className="rounded-xl bg-[var(--primary)]/15 text-[var(--primary)] p-3 text-xs flex justify-between items-center font-bold border border-[var(--primary)]/30 animate-fade-in">
                     <span>{t("calculatedCredits")}</span>
                     <span className="text-sm font-black">{computedMoneyCredits.toFixed(2)} {t("activitiesUnit")}</span>
                   </div>
@@ -708,7 +708,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
             {adjustMode === "manual" && (
               <>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-semibold text-slate-500">Quick presets:</span>
+                  <span className="text-[11px] font-semibold text-[var(--muted)]">Quick presets:</span>
                   {[1, 2, 5, 10].map((num) => (
                     <button
                       key={num}
@@ -718,7 +718,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
                         setPaidMoney((num * creditRate).toString());
                         setManualReason(`Manual top-up: ${num} credit${num > 1 ? "s" : ""}`);
                       }}
-                      className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-700 hover:bg-[var(--primary-light)] hover:text-[var(--primary)] border border-slate-200 transition-colors"
+                      className="rounded-lg bg-[var(--surface-2)] px-2.5 py-1 text-xs font-bold text-[var(--foreground)] hover:bg-[var(--primary)]/20 hover:text-[var(--primary)] border border-[var(--border)] transition-colors min-h-[32px]"
                     >
                       +{num}
                     </button>
@@ -755,7 +755,7 @@ export function QuickBalanceCharger({ onBalanceUpdated }: QuickBalanceChargerPro
 
             <Button
               type="submit"
-              className="w-full mt-2 py-2.5 text-sm font-bold shadow-md hover:shadow-lg transition-all"
+              className="w-full mt-2 py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all min-h-[44px]"
               loading={submitting}
               disabled={!selectedClient || submitting || quickAddingCredit}
             >
