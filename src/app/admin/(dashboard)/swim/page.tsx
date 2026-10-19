@@ -114,6 +114,8 @@ interface SwimMember {
     status: string;
   } | null;
   payments: SwimPaymentItem[];
+  subscriptionStart?: string | null;
+  subscriptionEnd?: string | null;
 }
 
 interface SwimLead {
@@ -475,8 +477,12 @@ function SwimOverviewPageInner() {
       const situation = getMemberPaymentSituation(m);
       const totalPaid = situation.totalPaid;
       const debt = situation.debt;
-      const subStart = getEffectiveSubscriptionStart(m.dateOfStart);
-      const subEnd = computeSubscriptionEnd(subStart, m.duration, excludedPeriods);
+      const subStart = m.subscriptionStart
+        ? getEffectiveSubscriptionStart(m.subscriptionStart)
+        : getEffectiveSubscriptionStart(m.dateOfStart);
+      const subEnd = m.subscriptionEnd
+        ? new Date(m.subscriptionEnd)
+        : computeSubscriptionEnd(subStart, m.duration, excludedPeriods);
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
       const expiringSoon = isSubscriptionExpiringSoon(subEnd, 14);
@@ -2366,9 +2372,21 @@ function SwimOverviewPageInner() {
                         {m.subStatus === "expired" ? (
                           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-bold">Expired</span>
                         ) : (
-                          <span className={`font-mono font-bold text-sm ${m.subStatus === "expiring_soon" ? "text-amber-300" : "text-white"}`}>
-                            {m.daysLeft}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`font-mono font-bold text-sm ${m.subStatus === "expiring_soon" ? "text-amber-300" : "text-white"}`}>
+                              {m.daysLeft}d
+                            </span>
+                            <div className="h-1.5 w-16 rounded-full bg-slate-800 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${
+                                  m.subStatus === "expiring_soon"
+                                    ? "bg-gradient-to-r from-amber-500 to-orange-400"
+                                    : "bg-gradient-to-r from-cyan-500 to-sky-400"
+                                }`}
+                                style={{ width: `${Math.min(100, Math.max(2, (m.daysLeft / 270) * 100))}%` }}
+                              />
+                            </div>
+                          </div>
                         )}
                       </td>
                       {/* Price */}

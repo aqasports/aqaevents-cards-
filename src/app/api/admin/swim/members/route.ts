@@ -3,7 +3,11 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { generateSwimId, generateSwimToken, generateSwimCardCode } from "@/lib/swim-id";
-import { computeMemberSubscriptionDates } from "@/lib/swim-subscription";
+import {
+  computeMemberSubscriptionDates,
+  getEffectiveSubscriptionStart,
+  computeSubscriptionEnd,
+} from "@/lib/swim-subscription";
 import { decodeMemberGroupIds } from "@/lib/swim-groups";
 import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
@@ -109,6 +113,8 @@ export async function POST(request: NextRequest) {
       notes,
       issueCard,
       cardCode,
+      subscriptionStart,
+      subscriptionEnd,
     } = body;
 
     if (!fullName || !level || !formula) {
@@ -171,10 +177,17 @@ export async function POST(request: NextRequest) {
         paymentStatus: paymentStatus || "unpaid",
         groupStatus: "proposed",
         notes: finalNotes,
-        ...computeMemberSubscriptionDates(
-          dateOfStart ? new Date(dateOfStart) : new Date(),
-          duration || "3m"
-        ),
+        subscriptionStart: subscriptionStart
+          ? new Date(subscriptionStart)
+          : getEffectiveSubscriptionStart(dateOfStart ? new Date(dateOfStart) : new Date()),
+        subscriptionEnd: subscriptionEnd
+          ? new Date(subscriptionEnd)
+          : computeSubscriptionEnd(
+              subscriptionStart
+                ? new Date(subscriptionStart)
+                : getEffectiveSubscriptionStart(dateOfStart ? new Date(dateOfStart) : new Date()),
+              duration || "3m"
+            ),
       },
     });
 

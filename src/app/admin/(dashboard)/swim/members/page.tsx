@@ -54,6 +54,8 @@ interface SwimMember {
     method: string;
     paidAt: string;
   }>;
+  subscriptionStart?: string | null;
+  subscriptionEnd?: string | null;
 }
 
 interface SwimGroup {

@@ -11,9 +11,16 @@ import {
   getMemberPaymentSituation,
 } from "@/lib/swim-groups";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
-import { useLocale } from "@/lib/i18n";
+import { useLocale, useTranslations } from "@/lib/i18n";
 import QRCode from "qrcode";
 import { SwimPvcPrintDialog } from "@/components/swim/SwimPvcPrintDialog";
+import {
+  getEffectiveSubscriptionStart,
+  computeSubscriptionEnd,
+  subscriptionDaysLeft,
+  getSubscriptionStatus,
+  durationToDays,
+} from "@/lib/swim-subscription";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -71,6 +78,10 @@ interface SwimMemberDetail {
     status: string;
   } | null;
   payments: SwimPaymentItem[];
+  subscriptionStart?: string | null;
+  subscriptionEnd?: string | null;
+  subscriptionDaysLeft?: number | null;
+  subscriptionStatus?: "active" | "expiring_soon" | "expired" | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -123,13 +134,21 @@ export default function AdminSwimmerProfilePage({
 }) {
   const { swimId } = use(params);
   const router = useRouter();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const { t: tPortal } = useTranslations("swimPortal");
 
   const [member, setMember] = useState<SwimMemberDetail | null>(null);
   const [groups, setGroups] = useState<SwimGroupRef[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Subscription dates state
+  const [editSubStart, setEditSubStart] = useState("");
+  const [editSubEnd, setEditSubEnd] = useState("");
+  const [isSubEndManual, setIsSubEndManual] = useState(false);
+  const [showEditSubDates, setShowEditSubDates] = useState(false);
+  const [savingSubDates, setSavingSubDates] = useState(false);
 
   // PVC Card Print Modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -295,6 +314,17 @@ export default function AdminSwimmerProfilePage({
       setEditCategory(data.category);
       setEditLevel(data.level);
       setEditDateOfStart(data.dateOfStart.split("T")[0]);
+      // Pre-fill subscription dates
+      const startStr = data.subscriptionStart
+        ? data.subscriptionStart.split("T")[0]
+        : getEffectiveSubscriptionStart(data.dateOfStart).toISOString().split("T")[0];
+      const endStr = data.subscriptionEnd
+        ? data.subscriptionEnd.split("T")[0]
+        : computeSubscriptionEnd(startStr, data.duration).toISOString().split("T")[0];
+      setEditSubStart(startStr);
+      setEditSubEnd(endStr);
+      setIsSubEndManual(false);
+
       setEditNotes(data.notes || "");
       setCoachMsgText(data.coachMessage || "");
       setNewPriceInput(String(effectivePrice));
@@ -319,6 +349,57 @@ export default function AdminSwimmerProfilePage({
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
+  function handleSubStartChange(newStart: string) {
+    setEditSubStart(newStart);
+    if (!isSubEndManual && newStart) {
+      try {
+        const effStart = getEffectiveSubscriptionStart(new Date(newStart));
+        const autoEnd = computeSubscriptionEnd(effStart, member?.duration || "3m");
+        setEditSubEnd(autoEnd.toISOString().split("T")[0]);
+      } catch {
+        // ignore invalid date
+      }
+    }
+  }
+
+  function handleSubEndChange(newEnd: string) {
+    setEditSubEnd(newEnd);
+    setIsSubEndManual(true);
+  }
+
+  function handleRecalculateAutoEnd() {
+    if (!editSubStart) return;
+    try {
+      const effStart = getEffectiveSubscriptionStart(new Date(editSubStart));
+      const autoEnd = computeSubscriptionEnd(effStart, member?.duration || "3m");
+      setEditSubEnd(autoEnd.toISOString().split("T")[0]);
+      setIsSubEndManual(false);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleSaveSubDates() {
+    if (!member) return;
+    setSavingSubDates(true);
+    try {
+      const res = await fetch(`/api/admin/swim/members/${member.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriptionStart: editSubStart,
+          subscriptionEnd: editSubEnd,
+        }),
+      });
+      if (res.ok) {
+        setShowEditSubDates(false);
+        await loadMember();
+      }
+    } finally {
+      setSavingSubDates(false);
+    }
+  }
+
   async function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!member) return;
@@ -336,6 +417,8 @@ export default function AdminSwimmerProfilePage({
           category: editCategory,
           level: editLevel,
           dateOfStart: editDateOfStart,
+          subscriptionStart: editSubStart,
+          subscriptionEnd: editSubEnd,
           notes: editNotes,
         }),
       });
@@ -667,6 +750,27 @@ export default function AdminSwimmerProfilePage({
     : [];
   const hasAssignedGroups = assignedGroupsList.length > 0;
   const archivedGroupWarning = member.effectivelyUnassigned && Boolean(member.group || (member.groups && member.groups.length > 0));
+
+  const subStartVal = member.subscriptionStart || getEffectiveSubscriptionStart(member.dateOfStart).toISOString();
+  const subEndVal = member.subscriptionEnd || computeSubscriptionEnd(subStartVal, member.duration).toISOString();
+  const daysLeft = member.subscriptionDaysLeft !== undefined && member.subscriptionDaysLeft !== null
+    ? member.subscriptionDaysLeft
+    : subscriptionDaysLeft(subEndVal);
+  const subStatus = member.subscriptionStatus || getSubscriptionStatus(subEndVal);
+  const nominalDays = durationToDays(member.duration);
+
+  const formattedSubStart = subStartVal
+    ? new Date(subStartVal).toLocaleDateString(
+        locale === "ar" ? "ar-DZ" : "fr-DZ",
+        { year: "numeric", month: "short", day: "numeric" }
+      )
+    : "-";
+  const formattedSubEnd = subEndVal
+    ? new Date(subEndVal).toLocaleDateString(
+        locale === "ar" ? "ar-DZ" : "fr-DZ",
+        { year: "numeric", month: "short", day: "numeric" }
+      )
+    : "-";
 
   return (
     <div className="space-y-6 pb-12">
@@ -1258,6 +1362,170 @@ export default function AdminSwimmerProfilePage({
 
         {/* Right column */}
         <div className="space-y-5">
+          {/* Subscription Period Card with Progress Bar (Same as Client Part) */}
+          <Card>
+            <div className="space-y-3.5">
+              <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider font-display">
+                    {tPortal("subscriptionPeriodTitle")}
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      subStatus === "active"
+                        ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
+                        : subStatus === "expiring_soon"
+                        ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
+                        : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
+                    }`}
+                  >
+                    {subStatus === "active"
+                      ? tPortal("subscriptionActive")
+                      : subStatus === "expiring_soon"
+                      ? tPortal("subscriptionExpiringSoon")
+                      : tPortal("subscriptionExpired")}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setShowEditSubDates(!showEditSubDates)}
+                >
+                  {showEditSubDates ? "Cancel" : tPortal("editSubscriptionDates")}
+                </Button>
+              </div>
+
+              {!showEditSubDates ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {tPortal("subscriptionStartLabel")}
+                      </span>
+                      <span className="font-mono font-bold text-white text-xs">
+                        {formattedSubStart}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-800/60 border border-white/5 text-center">
+                      <span className="text-[9px] text-slate-400 uppercase font-semibold block mb-0.5">
+                        {tPortal("subscriptionEndLabel")}
+                      </span>
+                      <span
+                        className={`font-mono font-bold text-xs ${
+                          subStatus === "expired"
+                            ? "text-rose-400"
+                            : subStatus === "expiring_soon"
+                            ? "text-amber-300"
+                            : "text-cyan-300"
+                        }`}
+                      >
+                        {formattedSubEnd}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar of subscription period - same as client part */}
+                  {subStatus !== "expired" ? (
+                    <div className="flex items-center justify-between text-[11px] px-1">
+                      <span className="text-slate-400">
+                        {tPortal("subscriptionDaysLeft").replace("{n}", String(Math.max(0, daysLeft)))}
+                      </span>
+                      <div className="h-1.5 w-40 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            subStatus === "expiring_soon"
+                              ? "bg-gradient-to-r from-amber-500 to-orange-400"
+                              : "bg-gradient-to-r from-cyan-500 to-sky-400"
+                          }`}
+                          style={{
+                            width: `${Math.min(100, Math.max(2, (daysLeft / nominalDays) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-[11px] px-1 text-rose-400">
+                      <span>{tPortal("subscriptionExpired")} (0 {tPortal("memberCountSingle")})</span>
+                      <div className="h-1.5 w-40 rounded-full bg-slate-800 overflow-hidden">
+                        <div className="h-full rounded-full bg-rose-500/50 w-full" />
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate-500 italic pt-1 border-t border-white/5">
+                    {tPortal("subscriptionExclusionNote")}
+                  </p>
+                </>
+              ) : (
+                <div className="p-3.5 rounded-xl bg-slate-950/60 border border-cyan-500/30 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-300 font-semibold mb-1">
+                        {tPortal("subscriptionStartInput")}
+                      </label>
+                      <Input
+                        type="date"
+                        value={editSubStart}
+                        onChange={(e) => handleSubStartChange(e.target.value)}
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">
+                        Min. 1 Oct 2026
+                      </span>
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] text-slate-300 font-semibold">
+                          {tPortal("subscriptionEndInput")}
+                        </label>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          isSubEndManual
+                            ? "bg-amber-950/70 text-amber-300 border border-amber-500/30"
+                            : "bg-cyan-950/70 text-cyan-300 border border-cyan-500/30"
+                        }`}>
+                          {isSubEndManual ? tPortal("manuallyEdited") : tPortal("autoCalculated")}
+                        </span>
+                      </div>
+                      <Input
+                        type="date"
+                        value={editSubEnd}
+                        onChange={(e) => handleSubEndChange(e.target.value)}
+                      />
+                      {isSubEndManual && (
+                        <button
+                          type="button"
+                          onClick={handleRecalculateAutoEnd}
+                          className="text-[10px] text-cyan-400 hover:underline mt-1 block"
+                        >
+                          {tPortal("recalculateAuto")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowEditSubDates(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      disabled={savingSubDates}
+                      onClick={handleSaveSubDates}
+                    >
+                      {savingSubDates ? "Saving..." : tPortal("saveSubscriptionDates")}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
           {/* Financial Ledger */}
           <Card>
             <div className="space-y-3">
@@ -1550,6 +1818,20 @@ export default function AdminSwimmerProfilePage({
                       {new Date(member.createdAt).toLocaleDateString("fr-DZ")}
                     </span>
                   </div>
+                  <div>
+                    <span className="text-[var(--muted)]">{tPortal("subscriptionStartLabel")}:</span>
+                    <span className="ml-2 font-mono text-slate-200">
+                      {formattedSubStart}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[var(--muted)]">{tPortal("subscriptionEndLabel")}:</span>
+                    <span className={`ml-2 font-mono font-bold ${
+                      subStatus === "expired" ? "text-rose-400" : subStatus === "expiring_soon" ? "text-amber-300" : "text-cyan-300"
+                    }`}>
+                      {formattedSubEnd}
+                    </span>
+                  </div>
                   {member.notes && (
                     <div className="col-span-2">
                       <span className="text-[var(--muted)]">Notes:</span>
@@ -1609,6 +1891,32 @@ export default function AdminSwimmerProfilePage({
                     <div>
                       <label className="block text-[11px] text-slate-400 mb-1">Date of Start</label>
                       <Input type="date" value={editDateOfStart} onChange={(e) => setEditDateOfStart(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">{tPortal("subscriptionStartInput")}</label>
+                      <Input type="date" value={editSubStart} onChange={(e) => handleSubStartChange(e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] text-slate-400">{tPortal("subscriptionEndInput")}</label>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                          isSubEndManual
+                            ? "bg-amber-950/70 text-amber-300 border border-amber-500/30"
+                            : "bg-cyan-950/70 text-cyan-300 border border-cyan-500/30"
+                        }`}>
+                          {isSubEndManual ? tPortal("manuallyEdited") : tPortal("autoCalculated")}
+                        </span>
+                      </div>
+                      <Input type="date" value={editSubEnd} onChange={(e) => handleSubEndChange(e.target.value)} />
+                      {isSubEndManual && (
+                        <button
+                          type="button"
+                          onClick={handleRecalculateAutoEnd}
+                          className="text-[10px] text-cyan-400 hover:underline mt-1 block"
+                        >
+                          {tPortal("recalculateAuto")}
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div>

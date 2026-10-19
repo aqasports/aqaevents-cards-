@@ -101,6 +101,7 @@ export async function GET(request: NextRequest) {
 const PatchSchema = z.object({
   memberId: z.string().min(1),
   subscriptionStart: z.string().min(1), // ISO date string
+  subscriptionEnd: z.string().optional(),
 });
 
 export async function PATCH(request: NextRequest) {
@@ -117,7 +118,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const { memberId, subscriptionStart: rawStart } = parsed.data;
+    const { memberId, subscriptionStart: rawStart, subscriptionEnd: rawEnd } = parsed.data;
 
     const member = await prisma.swimMember.findUnique({
       where: { id: memberId },
@@ -128,7 +129,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     const effectiveStart = getEffectiveSubscriptionStart(new Date(rawStart));
-    const effectiveEnd = computeSubscriptionEnd(effectiveStart, member.duration);
+    const effectiveEnd = rawEnd
+      ? new Date(rawEnd)
+      : computeSubscriptionEnd(effectiveStart, member.duration);
 
     const updated = await prisma.swimMember.update({
       where: { id: memberId },

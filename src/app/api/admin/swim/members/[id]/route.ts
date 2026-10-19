@@ -15,6 +15,8 @@ import {
 import {
   getEffectiveSubscriptionStart,
   computeSubscriptionEnd,
+  subscriptionDaysLeft,
+  getSubscriptionStatus,
 } from "@/lib/swim-subscription";
 import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
@@ -86,6 +88,15 @@ export async function GET(
       groups: effectiveGroups,
     });
 
+    const subStart = member.subscriptionStart
+      ? member.subscriptionStart
+      : getEffectiveSubscriptionStart(member.dateOfStart);
+    const subEnd = member.subscriptionEnd
+      ? member.subscriptionEnd
+      : computeSubscriptionEnd(subStart, member.duration);
+    const daysLeft = subscriptionDaysLeft(subEnd);
+    const subStatus = getSubscriptionStatus(subEnd);
+
     return NextResponse.json({
       ...member,
       groups: allGroups,
@@ -98,6 +109,10 @@ export async function GET(
       isLinkedToPayment: paymentSituation.isLinkedToPayment,
       isDebtOnly: paymentSituation.isDebtOnly,
       debtDetails: paymentSituation.debtDetails,
+      subscriptionStart: subStart,
+      subscriptionEnd: subEnd,
+      subscriptionDaysLeft: daysLeft,
+      subscriptionStatus: subStatus,
     });
   } catch (err: unknown) {
     logger.error("GET admin swim member detail error:", err);
@@ -136,6 +151,7 @@ export async function PATCH(
       notes,
       whatsapp,
       subscriptionStart: rawSubscriptionStart,
+      subscriptionEnd: rawSubscriptionEnd,
       debtAmount,
       debtReason,
       addDebt,
@@ -313,20 +329,31 @@ export async function PATCH(
       }
     }
 
-    // Recompute subscription dates if subscriptionStart or duration changed
+    // Recompute subscription dates if subscriptionStart, subscriptionEnd or duration changed
     let computedSubStart: Date | undefined = undefined;
     let computedSubEnd: Date | undefined = undefined;
-    if (rawSubscriptionStart !== undefined || duration !== undefined) {
+    if (rawSubscriptionStart !== undefined || rawSubscriptionEnd !== undefined || duration !== undefined) {
       const currentMemberForSub = await prisma.swimMember.findUnique({
         where: { id },
-        select: { dateOfStart: true, duration: true, subscriptionStart: true },
+        select: { dateOfStart: true, duration: true, subscriptionStart: true, subscriptionEnd: true },
       });
-      const baseStart = rawSubscriptionStart
-        ? new Date(rawSubscriptionStart)
+      const baseStart = rawSubscriptionStart !== undefined
+        ? (rawSubscriptionStart ? new Date(rawSubscriptionStart) : null)
         : (currentMemberForSub?.subscriptionStart ?? currentMemberForSub?.dateOfStart ?? new Date());
       const baseDuration = duration || currentMemberForSub?.duration || "3m";
-      computedSubStart = getEffectiveSubscriptionStart(baseStart);
-      computedSubEnd = computeSubscriptionEnd(computedSubStart, baseDuration);
+
+      if (rawSubscriptionStart !== undefined) {
+        computedSubStart = baseStart ? getEffectiveSubscriptionStart(baseStart) : undefined;
+      }
+
+      if (rawSubscriptionEnd !== undefined) {
+        // Explicit manual override by admin
+        computedSubEnd = rawSubscriptionEnd ? new Date(rawSubscriptionEnd) : undefined;
+      } else if (computedSubStart !== undefined || duration !== undefined) {
+        // System automatically calculates end date
+        const effectiveStartForEnd = computedSubStart || getEffectiveSubscriptionStart(currentMemberForSub?.subscriptionStart ?? currentMemberForSub?.dateOfStart);
+        computedSubEnd = computeSubscriptionEnd(effectiveStartForEnd, baseDuration);
+      }
     }
 
     const beforeUpdateMember = await prisma.swimMember.findUnique({
@@ -404,6 +431,15 @@ export async function PATCH(
       groups: effectiveGroups,
     });
 
+    const subStart = updated.subscriptionStart
+      ? updated.subscriptionStart
+      : getEffectiveSubscriptionStart(updated.dateOfStart);
+    const subEnd = updated.subscriptionEnd
+      ? updated.subscriptionEnd
+      : computeSubscriptionEnd(subStart, updated.duration);
+    const daysLeft = subscriptionDaysLeft(subEnd);
+    const subStatus = getSubscriptionStatus(subEnd);
+
     return NextResponse.json({
       ...updated,
       groups: allGroups,
@@ -416,6 +452,10 @@ export async function PATCH(
       isLinkedToPayment: paymentSituation.isLinkedToPayment,
       isDebtOnly: paymentSituation.isDebtOnly,
       debtDetails: paymentSituation.debtDetails,
+      subscriptionStart: subStart,
+      subscriptionEnd: subEnd,
+      subscriptionDaysLeft: daysLeft,
+      subscriptionStatus: subStatus,
     });
   } catch (err: unknown) {
     logger.error("PATCH admin swim member error:", err);
