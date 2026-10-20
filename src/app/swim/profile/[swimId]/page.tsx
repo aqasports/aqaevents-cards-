@@ -7,6 +7,7 @@ import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { isOldSwimMember, extractFirstName, parseScheduleSlots } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { getSwimPaymentWhatsAppUrl } from "@/lib/swim-whatsapp";
+import { durationToDays, isStarterFormula } from "@/lib/swim-subscription";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -730,6 +731,10 @@ export default function SwimmerProfilePage({
             {member.subscriptionEnd && (() => {
               const subStatus = member.subscriptionStatus ?? "active";
               const daysLeft = member.subscriptionDaysLeft ?? 0;
+              const isStarter = isStarterFormula(member.duration, member.formula);
+              const nominalDays = isStarter && member.subscriptionStart && member.subscriptionEnd
+                ? Math.max(1, Math.round((new Date(member.subscriptionEnd).getTime() - new Date(member.subscriptionStart).getTime()) / (24 * 60 * 60 * 1000)) + 1)
+                : durationToDays(member.duration);
               const formattedSubStart = member.subscriptionStart
                 ? new Date(member.subscriptionStart).toLocaleDateString(
                     locale === "ar" ? "ar-DZ" : "fr-DZ",
@@ -794,14 +799,14 @@ export default function SwimmerProfilePage({
                               ? "bg-gradient-to-r from-amber-500 to-orange-400"
                               : "bg-gradient-to-r from-cyan-500 to-sky-400"
                           }`}
-                          style={{ width: `${Math.min(100, Math.max(2, (daysLeft / 270) * 100))}%` }}
+                          style={{ width: `${Math.min(100, Math.max(2, (daysLeft / nominalDays) * 100))}%` }}
                         />
                       </div>
                     </div>
                   )}
 
                   <p className="text-[10px] text-slate-500 italic pt-1 border-t border-white/5">
-                    {t("subscriptionExclusionNote")}
+                    {isStarter ? t("subscriptionStarterNote") : t("subscriptionExclusionNote")}
                   </p>
                 </section>
               );

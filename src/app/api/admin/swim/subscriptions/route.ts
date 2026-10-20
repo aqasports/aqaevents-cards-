@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         : getEffectiveSubscriptionStart(m.dateOfStart);
       const subEnd = m.subscriptionEnd
         ? m.subscriptionEnd
-        : computeSubscriptionEnd(subStart, m.duration);
+        : computeSubscriptionEnd(subStart, m.duration, undefined, m.formula);
 
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
@@ -122,7 +122,7 @@ export async function PATCH(request: NextRequest) {
 
     const member = await prisma.swimMember.findUnique({
       where: { id: memberId },
-      select: { id: true, duration: true },
+      select: { id: true, duration: true, formula: true },
     });
     if (!member) {
       return NextResponse.json({ error: "Member not found" }, { status: 404 });
@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest) {
     const effectiveStart = getEffectiveSubscriptionStart(new Date(rawStart));
     const effectiveEnd = rawEnd
       ? new Date(rawEnd)
-      : computeSubscriptionEnd(effectiveStart, member.duration);
+      : computeSubscriptionEnd(effectiveStart, member.duration, undefined, member.formula);
 
     const updated = await prisma.swimMember.update({
       where: { id: memberId },

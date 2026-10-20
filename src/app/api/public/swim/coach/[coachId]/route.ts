@@ -220,7 +220,7 @@ export async function GET(
           : getEffectiveSubscriptionStart(s.dateOfStart);
         const subEnd = s.subscriptionEnd
           ? s.subscriptionEnd
-          : computeSubscriptionEnd(subStart, s.duration);
+          : computeSubscriptionEnd(subStart, s.duration, undefined, s.formula);
 
         return {
           id: s.id,

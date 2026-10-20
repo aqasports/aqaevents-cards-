@@ -124,6 +124,29 @@ function isExcluded(day: Date, periods: ExcludedPeriod[]): boolean {
 // ─── Main Exported Functions ──────────────────────────────────────────────────
 
 /**
+ * Returns true if the given duration code or formula corresponds to the Starter formula.
+ * Starter is 1 month ("1m" / "starter").
+ */
+export function isStarterFormula(
+  durationCode: string | null | undefined,
+  formula?: string | null | undefined
+): boolean {
+  const d = (durationCode || "").toLowerCase().trim();
+  const f = (formula || "").toLowerCase().trim();
+  return d === "1m" || d.includes("starter") || f.includes("starter");
+}
+
+/**
+ * Returns the last calendar day of the same month as `date` (at UTC midnight).
+ * Business rule: Starter formulas must end on the last day of the starting month
+ * and never exceed into another month.
+ */
+export function getLastDayOfSameMonth(date: Date): Date {
+  const d = toUTCMidnight(date);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+}
+
+/**
  * Returns the effective subscription start date.
  * If `rawDate` is before SUBSCRIPTION_FLOOR (1 Oct 2026), returns the floor instead.
  */
@@ -136,22 +159,37 @@ export function getEffectiveSubscriptionStart(rawDate: Date | string | null | un
 }
 
 /**
- * Computes the subscription end date by walking forward `nominalDays` active
- * swimming days from `startDate`, skipping all excluded periods.
+ * Computes the subscription end date.
+ *
+ * Rules:
+ * 1. Starter formula ("1m" / "starter"):
+ *    Always ends on the last day of the starting month (never exceeds to another month).
+ * 2. Other 3 formulas ("3m" Silver, "6m" Gold, "9m" Diamond):
+ *    Walks forward active swimming days, skipping excluded periods (Ramadan & Eid),
+ *    exceeding month boundaries as needed to complete the full period.
  *
  * @param startDate     Effective subscription start (already clamped)
  * @param durationCode  "1m" | "3m" | "6m" | "9m"
  * @param periods       Excluded periods to skip (defaults to DEFAULT_EXCLUDED_PERIODS)
+ * @param formula       Optional formula name (e.g. "Starter", "G10")
  * @returns             The last day of the subscription (inclusive)
  */
 export function computeSubscriptionEnd(
   startDate: Date | string,
   durationCode: string | null | undefined,
-  periods: ExcludedPeriod[] = DEFAULT_EXCLUDED_PERIODS
+  periods: ExcludedPeriod[] = DEFAULT_EXCLUDED_PERIODS,
+  formula?: string | null | undefined
 ): Date {
   const start = toUTCMidnight(
     typeof startDate === "string" ? new Date(startDate) : startDate
   );
+
+  // Business Rule: Starter formula always ends on the last day of the same month
+  if (isStarterFormula(durationCode, formula)) {
+    return getLastDayOfSameMonth(start);
+  }
+
+  // The other 3 formulas (Silver, Gold, Diamond) work normally with exclusions
   const nominalDays = durationToDays(durationCode);
 
   let activeDaysCount = 0;
@@ -212,15 +250,16 @@ export function getSubscriptionStatus(
 }
 
 /**
- * Given a member's dateOfStart and duration, computes and returns both
- * the effective subscription start and end dates.
+ * Given a member's dateOfStart, duration, and optional formula, computes and returns
+ * both the effective subscription start and end dates.
  */
 export function computeMemberSubscriptionDates(
   dateOfStart: Date | string | null | undefined,
   duration: string | null | undefined,
-  periods: ExcludedPeriod[] = DEFAULT_EXCLUDED_PERIODS
+  periods: ExcludedPeriod[] = DEFAULT_EXCLUDED_PERIODS,
+  formula?: string | null | undefined
 ): { subscriptionStart: Date; subscriptionEnd: Date } {
   const subscriptionStart = getEffectiveSubscriptionStart(dateOfStart);
-  const subscriptionEnd = computeSubscriptionEnd(subscriptionStart, duration, periods);
+  const subscriptionEnd = computeSubscriptionEnd(subscriptionStart, duration, periods, formula);
   return { subscriptionStart, subscriptionEnd };
 }

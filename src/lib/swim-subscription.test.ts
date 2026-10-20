@@ -6,6 +6,8 @@ import {
   subscriptionDaysLeft,
   getSubscriptionStatus,
   computeMemberSubscriptionDates,
+  isStarterFormula,
+  getLastDayOfSameMonth,
   SUBSCRIPTION_FLOOR,
   DEFAULT_EXCLUDED_PERIODS,
 } from "./swim-subscription";
@@ -47,27 +49,68 @@ describe("getEffectiveSubscriptionStart", () => {
   });
 });
 
-// ─── computeSubscriptionEnd (no exclusions) ───────────────────────────────────
+// ─── isStarterFormula & getLastDayOfSameMonth ─────────────────────────────────
 
-describe("computeSubscriptionEnd with empty exclusions", () => {
-  const noExclusions: typeof DEFAULT_EXCLUDED_PERIODS = [];
-
-  it("1m (30 days) starting Oct 1 2026 ends Oct 30 2026", () => {
-    const end = computeSubscriptionEnd(d("2026-10-01T00:00:00.000Z"), "1m", noExclusions);
-    expect(end.toISOString().slice(0, 10)).toBe("2026-10-30");
+describe("Starter Formula Rule Utilities", () => {
+  it("correctly identifies Starter formula from duration or formula", () => {
+    expect(isStarterFormula("1m")).toBe(true);
+    expect(isStarterFormula("1m", "G10")).toBe(true);
+    expect(isStarterFormula("3m", "Starter")).toBe(true);
+    expect(isStarterFormula(null, "starter pass")).toBe(true);
+    expect(isStarterFormula("3m", "G10")).toBe(false);
+    expect(isStarterFormula("6m", "MAX5")).toBe(false);
+    expect(isStarterFormula("9m", "Individuel")).toBe(false);
   });
 
-  it("3m (90 days) starting Oct 1 2026 ends Dec 29 2026", () => {
+  it("calculates the last day of the same calendar month", () => {
+    expect(getLastDayOfSameMonth(d("2026-10-07T00:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-10-31");
+    expect(getLastDayOfSameMonth(d("2026-10-01T00:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-10-31");
+    expect(getLastDayOfSameMonth(d("2026-10-25T00:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-10-31");
+    expect(getLastDayOfSameMonth(d("2026-11-15T00:00:00.000Z")).toISOString().slice(0, 10)).toBe("2026-11-30");
+    expect(getLastDayOfSameMonth(d("2027-02-10T00:00:00.000Z")).toISOString().slice(0, 10)).toBe("2027-02-28");
+  });
+});
+
+// ─── computeSubscriptionEnd ───────────────────────────────────────────────────
+
+describe("computeSubscriptionEnd: Starter formula month-boundary rule", () => {
+  const noExclusions: typeof DEFAULT_EXCLUDED_PERIODS = [];
+
+  it("Starter starting Oct 1 2026 ends Oct 31 2026 (never exceeds to Nov)", () => {
+    const end = computeSubscriptionEnd(d("2026-10-01T00:00:00.000Z"), "1m", noExclusions);
+    expect(end.toISOString().slice(0, 10)).toBe("2026-10-31");
+  });
+
+  it("Starter starting Oct 7 2026 ends Oct 31 2026 (never exceeds to Nov)", () => {
+    const end = computeSubscriptionEnd(d("2026-10-07T00:00:00.000Z"), "1m", noExclusions);
+    expect(end.toISOString().slice(0, 10)).toBe("2026-10-31");
+  });
+
+  it("Starter entering in last week (Oct 25 2026) ends Oct 31 2026", () => {
+    const end = computeSubscriptionEnd(d("2026-10-25T00:00:00.000Z"), "1m", noExclusions);
+    expect(end.toISOString().slice(0, 10)).toBe("2026-10-31");
+  });
+
+  it("Starter identified via formula name ends on the last day of month", () => {
+    const end = computeSubscriptionEnd(d("2026-10-12T00:00:00.000Z"), "1m", noExclusions, "Starter");
+    expect(end.toISOString().slice(0, 10)).toBe("2026-10-31");
+  });
+});
+
+describe("computeSubscriptionEnd: The other 3 formulas work normally and exceed 31-day barrier", () => {
+  const noExclusions: typeof DEFAULT_EXCLUDED_PERIODS = [];
+
+  it("3m (90 days) starting Oct 1 2026 ends Dec 29 2026 (crosses month barriers)", () => {
     const end = computeSubscriptionEnd(d("2026-10-01T00:00:00.000Z"), "3m", noExclusions);
     expect(end.toISOString().slice(0, 10)).toBe("2026-12-29");
   });
 
-  it("6m (180 days) starting Oct 1 2026 ends Mar 29 2027", () => {
+  it("6m (180 days) starting Oct 1 2026 ends Mar 29 2027 (crosses month barriers)", () => {
     const end = computeSubscriptionEnd(d("2026-10-01T00:00:00.000Z"), "6m", noExclusions);
     expect(end.toISOString().slice(0, 10)).toBe("2027-03-29");
   });
 
-  it("9m (270 days) starting Oct 1 2026 ends Jun 27 2027", () => {
+  it("9m (270 days) starting Oct 1 2026 ends Jun 27 2027 (crosses month barriers)", () => {
     const end = computeSubscriptionEnd(d("2026-10-01T00:00:00.000Z"), "9m", noExclusions);
     expect(end.toISOString().slice(0, 10)).toBe("2027-06-27");
   });

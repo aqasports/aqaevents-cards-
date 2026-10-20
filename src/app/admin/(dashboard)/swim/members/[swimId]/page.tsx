@@ -20,6 +20,7 @@ import {
   subscriptionDaysLeft,
   getSubscriptionStatus,
   durationToDays,
+  isStarterFormula,
 } from "@/lib/swim-subscription";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -354,7 +355,12 @@ export default function AdminSwimmerProfilePage({
     if (!isSubEndManual && newStart) {
       try {
         const effStart = getEffectiveSubscriptionStart(new Date(newStart));
-        const autoEnd = computeSubscriptionEnd(effStart, member?.duration || "3m");
+        const autoEnd = computeSubscriptionEnd(
+          effStart,
+          member?.duration || "3m",
+          undefined,
+          member?.formula
+        );
         setEditSubEnd(autoEnd.toISOString().split("T")[0]);
       } catch {
         // ignore invalid date
@@ -371,7 +377,12 @@ export default function AdminSwimmerProfilePage({
     if (!editSubStart) return;
     try {
       const effStart = getEffectiveSubscriptionStart(new Date(editSubStart));
-      const autoEnd = computeSubscriptionEnd(effStart, member?.duration || "3m");
+      const autoEnd = computeSubscriptionEnd(
+        effStart,
+        member?.duration || "3m",
+        undefined,
+        member?.formula
+      );
       setEditSubEnd(autoEnd.toISOString().split("T")[0]);
       setIsSubEndManual(false);
     } catch {
@@ -752,12 +763,15 @@ export default function AdminSwimmerProfilePage({
   const archivedGroupWarning = member.effectivelyUnassigned && Boolean(member.group || (member.groups && member.groups.length > 0));
 
   const subStartVal = member.subscriptionStart || getEffectiveSubscriptionStart(member.dateOfStart).toISOString();
-  const subEndVal = member.subscriptionEnd || computeSubscriptionEnd(subStartVal, member.duration).toISOString();
+  const subEndVal = member.subscriptionEnd || computeSubscriptionEnd(subStartVal, member.duration, undefined, member.formula).toISOString();
   const daysLeft = member.subscriptionDaysLeft !== undefined && member.subscriptionDaysLeft !== null
     ? member.subscriptionDaysLeft
     : subscriptionDaysLeft(subEndVal);
   const subStatus = member.subscriptionStatus || getSubscriptionStatus(subEndVal);
-  const nominalDays = durationToDays(member.duration);
+  const isStarter = isStarterFormula(member.duration, member.formula);
+  const nominalDays = isStarter && subStartVal && subEndVal
+    ? Math.max(1, Math.round((new Date(subEndVal).getTime() - new Date(subStartVal).getTime()) / (24 * 60 * 60 * 1000)) + 1)
+    : durationToDays(member.duration);
 
   const formattedSubStart = subStartVal
     ? new Date(subStartVal).toLocaleDateString(
@@ -1453,7 +1467,7 @@ export default function AdminSwimmerProfilePage({
                   )}
 
                   <p className="text-[10px] text-slate-500 italic pt-1 border-t border-white/5">
-                    {tPortal("subscriptionExclusionNote")}
+                    {isStarter ? tPortal("subscriptionStarterNote") : tPortal("subscriptionExclusionNote")}
                   </p>
                 </>
               ) : (

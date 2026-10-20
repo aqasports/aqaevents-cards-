@@ -93,7 +93,7 @@ export async function GET(
       : getEffectiveSubscriptionStart(member.dateOfStart);
     const subEnd = member.subscriptionEnd
       ? member.subscriptionEnd
-      : computeSubscriptionEnd(subStart, member.duration);
+      : computeSubscriptionEnd(subStart, member.duration, undefined, member.formula);
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 
@@ -335,7 +335,7 @@ export async function PATCH(
     if (rawSubscriptionStart !== undefined || rawSubscriptionEnd !== undefined || duration !== undefined) {
       const currentMemberForSub = await prisma.swimMember.findUnique({
         where: { id },
-        select: { dateOfStart: true, duration: true, subscriptionStart: true, subscriptionEnd: true },
+        select: { dateOfStart: true, duration: true, formula: true, subscriptionStart: true, subscriptionEnd: true },
       });
       const baseStart = rawSubscriptionStart !== undefined
         ? (rawSubscriptionStart ? new Date(rawSubscriptionStart) : null)
@@ -352,7 +352,12 @@ export async function PATCH(
       } else if (computedSubStart !== undefined || duration !== undefined) {
         // System automatically calculates end date
         const effectiveStartForEnd = computedSubStart || getEffectiveSubscriptionStart(currentMemberForSub?.subscriptionStart ?? currentMemberForSub?.dateOfStart);
-        computedSubEnd = computeSubscriptionEnd(effectiveStartForEnd, baseDuration);
+        computedSubEnd = computeSubscriptionEnd(
+          effectiveStartForEnd,
+          baseDuration,
+          undefined,
+          formula ?? currentMemberForSub?.formula
+        );
       }
     }
 
@@ -436,7 +441,7 @@ export async function PATCH(
       : getEffectiveSubscriptionStart(updated.dateOfStart);
     const subEnd = updated.subscriptionEnd
       ? updated.subscriptionEnd
-      : computeSubscriptionEnd(subStart, updated.duration);
+      : computeSubscriptionEnd(subStart, updated.duration, undefined, updated.formula);
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 

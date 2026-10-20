@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       );
       const subEnd = m.subscriptionEnd
         ? new Date(m.subscriptionEnd)
-        : computeSubscriptionEnd(subStart, m.duration);
+        : computeSubscriptionEnd(subStart, m.duration, undefined, m.formula);
 
       return {
         ...m,

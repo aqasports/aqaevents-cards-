@@ -186,7 +186,9 @@ export async function POST(request: NextRequest) {
               subscriptionStart
                 ? new Date(subscriptionStart)
                 : getEffectiveSubscriptionStart(dateOfStart ? new Date(dateOfStart) : new Date()),
-              duration || "3m"
+              duration || "3m",
+              undefined,
+              formula
             ),
       },
     });

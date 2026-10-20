@@ -378,7 +378,7 @@ export async function GET(
       : getEffectiveSubscriptionStart(member.dateOfStart);
     const subEnd = member.subscriptionEnd
       ? member.subscriptionEnd
-      : computeSubscriptionEnd(subStart, member.duration);
+      : computeSubscriptionEnd(subStart, member.duration, undefined, member.formula);
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 

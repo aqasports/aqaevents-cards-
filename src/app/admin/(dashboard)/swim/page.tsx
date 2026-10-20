@@ -38,6 +38,8 @@ import {
   isSubscriptionExpiringSoon,
   DEFAULT_EXCLUDED_PERIODS,
   type ExcludedPeriod,
+  durationToDays,
+  isStarterFormula,
 } from "@/lib/swim-subscription";
 import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
@@ -482,12 +484,17 @@ function SwimOverviewPageInner() {
         : getEffectiveSubscriptionStart(m.dateOfStart);
       const subEnd = m.subscriptionEnd
         ? new Date(m.subscriptionEnd)
-        : computeSubscriptionEnd(subStart, m.duration, excludedPeriods);
+        : computeSubscriptionEnd(subStart, m.duration, excludedPeriods, m.formula);
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
       const expiringSoon = isSubscriptionExpiringSoon(subEnd, 14);
+      const isStarter = isStarterFormula(m.duration, m.formula);
+      const nominalDays = isStarter
+        ? Math.max(1, Math.round((subEnd.getTime() - subStart.getTime()) / (24 * 60 * 60 * 1000)) + 1)
+        : durationToDays(m.duration);
       return {
         ...m,
+        nominalDays,
         totalPaid,
         debt,
         effectivePriceDA: situation.effectivePriceDA,
@@ -2383,7 +2390,7 @@ function SwimOverviewPageInner() {
                                     ? "bg-gradient-to-r from-amber-500 to-orange-400"
                                     : "bg-gradient-to-r from-cyan-500 to-sky-400"
                                 }`}
-                                style={{ width: `${Math.min(100, Math.max(2, (m.daysLeft / 270) * 100))}%` }}
+                                style={{ width: `${Math.min(100, Math.max(2, (m.daysLeft / (m.nominalDays || 90)) * 100))}%` }}
                               />
                             </div>
                           </div>
