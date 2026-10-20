@@ -135,7 +135,7 @@ export default function AdminSwimmerProfilePage({
   const { swimId } = use(params);
   const router = useRouter();
   const { t, locale } = useLocale();
-  const { t: tPortal } = useTranslations("swimPortal");
+  const { t: tPortal } = useTranslations("swimPublic");
 
   const [member, setMember] = useState<SwimMemberDetail | null>(null);
   const [groups, setGroups] = useState<SwimGroupRef[]>([]);
@@ -1391,7 +1391,7 @@ export default function AdminSwimmerProfilePage({
                   variant="secondary"
                   onClick={() => setShowEditSubDates(!showEditSubDates)}
                 >
-                  {showEditSubDates ? "Cancel" : tPortal("editSubscriptionDates")}
+                  {showEditSubDates ? tPortal("cancel") : tPortal("editSubscriptionDates")}
                 </Button>
               </div>
 
@@ -1428,7 +1428,7 @@ export default function AdminSwimmerProfilePage({
                   {subStatus !== "expired" ? (
                     <div className="flex items-center justify-between text-[11px] px-1">
                       <span className="text-slate-400">
-                        {tPortal("subscriptionDaysLeft").replace("{n}", String(Math.max(0, daysLeft)))}
+                        {tPortal("subscriptionDaysLeft", { n: Math.max(0, daysLeft) })}
                       </span>
                       <div className="h-1.5 w-40 rounded-full bg-slate-800 overflow-hidden">
                         <div
@@ -1445,7 +1445,7 @@ export default function AdminSwimmerProfilePage({
                     </div>
                   ) : (
                     <div className="flex items-center justify-between text-[11px] px-1 text-rose-400">
-                      <span>{tPortal("subscriptionExpired")} (0 {tPortal("memberCountSingle")})</span>
+                      <span>{tPortal("subscriptionExpired")}</span>
                       <div className="h-1.5 w-40 rounded-full bg-slate-800 overflow-hidden">
                         <div className="h-full rounded-full bg-rose-500/50 w-full" />
                       </div>
@@ -1469,7 +1469,7 @@ export default function AdminSwimmerProfilePage({
                         onChange={(e) => handleSubStartChange(e.target.value)}
                       />
                       <span className="text-[10px] text-slate-400 mt-1 block">
-                        Min. 1 Oct 2026
+                        {tPortal("minDateHint")}
                       </span>
                     </div>
                     <div>
@@ -1509,7 +1509,7 @@ export default function AdminSwimmerProfilePage({
                       size="sm"
                       onClick={() => setShowEditSubDates(false)}
                     >
-                      Cancel
+                      {tPortal("cancel")}
                     </Button>
                     <Button
                       type="button"
@@ -1518,7 +1518,7 @@ export default function AdminSwimmerProfilePage({
                       disabled={savingSubDates}
                       onClick={handleSaveSubDates}
                     >
-                      {savingSubDates ? "Saving..." : tPortal("saveSubscriptionDates")}
+                      {savingSubDates ? tPortal("saving") : tPortal("saveSubscriptionDates")}
                     </Button>
                   </div>
                 </div>
