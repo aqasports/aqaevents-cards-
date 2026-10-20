@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import QRCode from "qrcode";
@@ -8,6 +9,55 @@ export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ token: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { token } = await params;
+  let memberName: string | null = null;
+  try {
+    const card = await prisma.swimCard.findUnique({
+      where: { publicToken: token },
+      select: {
+        member: { select: { fullName: true } },
+      },
+    });
+    if (card?.member?.fullName) {
+      memberName = card.member.fullName.trim();
+    }
+  } catch {}
+
+  const titleText = memberName
+    ? `${memberName} · AQA Swim Pass Card`
+    : "AQA Swim Pass Card";
+  const descText = memberName
+    ? `AQA Swim Pass Card pour ${memberName}. Carte d'acces officielle AQA Sports Academy.`
+    : "AQA Swim Pass Card · Carte d'acces officielle AQA Sports Academy.";
+
+  return {
+    title: { absolute: titleText },
+    description: descText,
+    openGraph: {
+      title: titleText,
+      description: descText,
+      url: `https://aqasports.com/swim/card/${encodeURIComponent(token)}`,
+      siteName: "AQA Sports Academy",
+      images: [
+        {
+          url: "https://aqasports.com/image/face.png",
+          width: 1200,
+          height: 630,
+          alt: "AQA Swim Pass Card",
+        },
+      ],
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: titleText,
+      description: descText,
+      images: ["https://aqasports.com/image/face.png"],
+    },
+  };
 }
 
 export default async function SwimCardScanPage({ params }: Props) {
