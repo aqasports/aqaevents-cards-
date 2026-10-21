@@ -10,6 +10,7 @@ import {
 } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { nanoid } from "nanoid";
+import { loadApneaProfile } from "@/lib/swim-apnea-profile";
 import {
   getEffectiveSubscriptionStart,
   computeSubscriptionEnd,
@@ -385,9 +386,13 @@ export async function GET(
     const safeMember = { ...member };
     delete (safeMember as { notes?: unknown }).notes;
 
+    // AQA Apnea members get an extra profile block (additive; other categories unaffected)
+    const apnea = await loadApneaProfile(member.id, member.category);
+
     return NextResponse.json(
       {
         ...safeMember,
+        ...(apnea ? { apnea } : {}),
         priceDA: enriched.effectivePriceDA,
         groups: enriched.allGroups,
         isOldMember: enriched.isOldMember,

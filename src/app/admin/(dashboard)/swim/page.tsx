@@ -45,6 +45,7 @@ import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
 import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
 import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
+import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -169,7 +170,7 @@ interface SwimCardItem {
 function SwimOverviewPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -191,7 +192,8 @@ function SwimOverviewPageInner() {
       tabParam === "payments" ||
       tabParam === "backups" ||
       tabParam === "equipment" ||
-      tabParam === "pool"
+      tabParam === "pool" ||
+      tabParam === "apnea"
     ) {
       setActiveTab(tabParam);
     } else if (!tabParam) {
@@ -1197,6 +1199,20 @@ function SwimOverviewPageInner() {
               <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
                 2 Methods
               </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("apnea")}
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                activeTab === "apnea"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
+                  : "text-sky-400 hover:text-white hover:bg-sky-950/60 border border-sky-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 3 2M3 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 3 2M12 3v6m0 0l-3-3m3 3l3-3" />
+              </svg>
+              <span>AQA Apnea</span>
             </button>
 
             <Link
@@ -2487,6 +2503,11 @@ function SwimOverviewPageInner() {
       {/* ─── TAB: POOL DIRECTION DISPATCH & CORRESPONDENCE ─────────── */}
       {activeTab === "pool" && (
         <SwimPoolDesk members={members} groups={groups} />
+      )}
+
+      {/* TAB: AQA APNEA (packs, presence, records, coach terminals) */}
+      {activeTab === "apnea" && (
+        <SwimApneaDesk />
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}

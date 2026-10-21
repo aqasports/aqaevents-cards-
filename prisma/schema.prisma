@@ -366,6 +366,9 @@ model Coach {
   absences         SwimCoachAbsence[]
   replacementsOut  SwimReplacement[]  @relation("ReplacementOriginalCoach")
   replacementsIn   SwimReplacement[]  @relation("ReplacementSubstituteCoach")
+  apneaRecords     SwimApneaRecord[]
+  apneaPresences   SwimApneaPresence[]
+  apneaTerminals   SwimApneaTerminal[]
 }
 
 model EquipmentAsset {
@@ -684,6 +687,9 @@ model SwimMember {
   payments        SwimPayment[]
   attendances     SwimAttendance[]
   techReviews     SwimTechReview[]
+  apneaPacks      SwimApneaPack[]
+  apneaRecords    SwimApneaRecord[]
+  apneaPresences  SwimApneaPresence[]
 
   @@index([groupId])
   @@index([paymentStatus])
@@ -928,3 +934,68 @@ model SwimReplacement {
   @@index([substituteCoachId, status])
 }
 
+// ---------------------------------------------------------------------------
+// AQA Apnea
+// ---------------------------------------------------------------------------
+
+// Pack bought by an apnea member (4 sessions, optional fins, extras at 1950 DA each)
+model SwimApneaPack {
+  id            String     @id @default(cuid())
+  memberId      String
+  sessionsTotal Int        @default(4) // base 4 + extraSessions
+  extraSessions Int        @default(0)
+  withFins      Boolean    @default(false)
+  priceDA       Int        // total price: 7800 or 10500 + extras
+  startedAt     DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+
+  member        SwimMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId])
+}
+
+// Static (seconds) / dynamic (meters) performance entries
+model SwimApneaRecord {
+  id               String     @id @default(cuid())
+  memberId         String
+  kind             String     // "static" | "dynamic"
+  value            Int        // seconds (static) or meters (dynamic)
+  recordedAt       DateTime   @default(now())
+  coachId          String?
+  clientMutationId String?    @unique
+  createdAt        DateTime   @default(now())
+
+  member           SwimMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  coach            Coach?     @relation(fields: [coachId], references: [id], onDelete: SetNull)
+
+  @@index([memberId, kind, recordedAt])
+}
+
+// Presence log, kept separate from SwimAttendance so existing group stats and coach reports are untouched
+model SwimApneaPresence {
+  id           String     @id @default(cuid())
+  memberId     String
+  sessionDate  DateTime   // calendar day (UTC midnight)
+  status       String     @default("present") // "present" | "absent"
+  coachId      String?
+  markedAt     DateTime   @default(now())
+
+  member       SwimMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  coach        Coach?     @relation(fields: [coachId], references: [id], onDelete: SetNull)
+
+  @@unique([memberId, sessionDate])
+  @@index([sessionDate])
+}
+
+// Secret terminal link for the coach in charge of apnea
+model SwimApneaTerminal {
+  id        String   @id @default(cuid())
+  coachId   String
+  token     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  coach     Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId])
+}

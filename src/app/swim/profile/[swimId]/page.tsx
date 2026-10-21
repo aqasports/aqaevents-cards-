@@ -8,6 +8,7 @@ import { isOldSwimMember, extractFirstName, parseScheduleSlots } from "@/lib/swi
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { getSwimPaymentWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { durationToDays, isStarterFormula } from "@/lib/swim-subscription";
+import { ApneaProfileView, type ApneaProfileViewData } from "@/components/swim/ApneaProfileView";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -82,6 +83,7 @@ interface SwimMemberData {
   subscriptionEnd?: string | null;
   subscriptionDaysLeft?: number | null;
   subscriptionStatus?: "active" | "expiring_soon" | "expired" | null;
+  apnea?: ApneaProfileViewData;
 }
 
 // ─── Solid Logo Badge Component ───────────────────────────────────────────────
@@ -346,6 +348,25 @@ export default function SwimmerProfilePage({
           </Link>
         </div>
       </div>
+    );
+  }
+
+  // AQA Apnea clients get a dedicated profile (card, payment, sessions, records, evolution, goal)
+  if (member.apnea) {
+    return (
+      <ApneaProfileView
+        member={{
+          fullName: member.fullName,
+          swimId: member.swimId,
+          category: member.category,
+          level: member.level,
+          formula: member.formula,
+          duration: member.duration,
+          card: member.card,
+          group: member.group,
+          apnea: member.apnea,
+        }}
+      />
     );
   }
 
