@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import crypto from "crypto";
 import { PurchaseRequestsRepository } from "./repository";
 import { ClientsRepository } from "../clients/repository";
 import { BillingService } from "../invoices/service";
@@ -23,7 +24,7 @@ export class PurchaseRequestsService {
       throw new Error("Client not found");
     }
 
-    const confirmationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const confirmationCode = crypto.randomInt(100000, 1000000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes TTL
 
     const request = await this.repo.create({

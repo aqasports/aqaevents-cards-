@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { checkAndIncrement } from "@/lib/rate-limit";
 import {
   decodeSolidNotes,
   decodeMemberGroupIds,
@@ -53,9 +54,22 @@ function getGroupScheduleSortKey(schedule: string): number {
  * remaining blank places up to group capacity, and individual payment status.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ coachId: string }> }
 ) {
+  const ip =
+    req.headers.get("x-nf-client-connection-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+
+  const { limited } = await checkAndIncrement(`swim_coach_terminal:${ip}`, {
+    windowMs: 60_000,
+    max: 30,
+  });
+  if (limited) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { coachId } = await params;
 
   try {
@@ -65,7 +79,6 @@ export async function GET(
       select: {
         id: true,
         name: true,
-        phone: true,
         specialties: true,
         active: true,
       },

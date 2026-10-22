@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { checkAndIncrement } from "@/lib/rate-limit";
 import {
   getBestApneaRecords,
   summarizeApneaPacks,
@@ -27,9 +28,21 @@ async function resolveTerminal(token: string) {
  * Exposes first-class operational data only (no phone, no payment info).
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const ip =
+    req.headers.get("x-nf-client-connection-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+  const { limited } = await checkAndIncrement(`apnea_terminal:${ip}`, {
+    windowMs: 60_000,
+    max: 60,
+  });
+  if (limited) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { token } = await params;
   try {
     const terminal = await resolveTerminal(token);

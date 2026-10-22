@@ -28,6 +28,10 @@ function prepare() {
   }
 
   if (!databaseUrl) {
+    if (process.env.CI || process.env.NETLIFY || process.env.NODE_ENV === 'production') {
+      console.error('Error: DATABASE_URL is not set in production/CI environment. Refusing to fall back to sqlite.');
+      process.exit(1);
+    }
     console.log('No DATABASE_URL found. Defaulting to sqlite provider.');
     databaseUrl = 'file:./dev.db';
   }

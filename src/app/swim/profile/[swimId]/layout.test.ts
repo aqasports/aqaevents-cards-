@@ -27,7 +27,7 @@ describe("SwimmerProfileLayout metadata", () => {
     expect(meta.openGraph?.title).toBe("AQA Swim Client Card · SWM-650535");
     expect(meta.openGraph?.description).toContain("AQA Swim Client Card");
     expect(meta.openGraph?.images).toBeDefined();
-    expect(meta.twitter?.card).toBe("summary_large_image");
+    expect((meta.twitter as { card?: string } | undefined)?.card).toBe("summary_large_image");
   });
 
   it("generates personalized metadata when member is found", async () => {

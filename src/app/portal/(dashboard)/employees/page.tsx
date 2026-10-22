@@ -209,7 +209,7 @@ export default function PortalEmployeesPage() {
           <div className="p-8 text-center text-xs text-slate-400">Loading roster...</div>
         ) : employees.length === 0 ? (
           <div className="p-8 text-center text-xs text-slate-400">
-            No employees registered yet. Click "Add Single Employee" or "Bulk CSV Import" to add staff.
+            No employees registered yet. Click &quot;Add Single Employee&quot; or &quot;Bulk CSV Import&quot; to add staff.
           </div>
         ) : (
           <div className="overflow-x-auto">

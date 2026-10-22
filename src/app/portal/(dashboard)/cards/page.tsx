@@ -242,7 +242,7 @@ export default function PortalCardsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white">Card Inventory</h1>
-          <p className="text-xs text-slate-400 mt-0.5">Manage your organization's physical event cards and employee assignments.</p>
+          <p className="text-xs text-slate-400 mt-0.5">Manage your organization&apos;s physical event cards and employee assignments.</p>
         </div>
         {canManage && blankCards.length > 0 && (
           <button

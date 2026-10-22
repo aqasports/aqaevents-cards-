@@ -23,12 +23,6 @@ export async function generateMetadata({
           ...(formattedSwm
             ? [{ swimId: { equals: formattedSwm, mode: "insensitive" as const } }]
             : []),
-          ...(normalizedId.length >= 4
-            ? [{ swimId: { endsWith: normalizedId, mode: "insensitive" as const } }]
-            : []),
-          ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
-            ? [{ swimId: { endsWith: cleanDigits, mode: "insensitive" as const } }]
-            : []),
           {
             card: {
               OR: [

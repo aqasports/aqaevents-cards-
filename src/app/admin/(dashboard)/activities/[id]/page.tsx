@@ -716,7 +716,7 @@ const DAYS_OF_WEEK = [
 function getNextFourDates(selectedDays: number[], timeStr: string): Date[] {
   const dates: Date[] = [];
   const [hours, minutes] = timeStr.split(":").map(Number);
-  let current = new Date();
+  const current = new Date();
   let safetyCounter = 0;
   while (dates.length < 4 && safetyCounter < 100) {
     safetyCounter++;

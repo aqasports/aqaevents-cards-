@@ -12,13 +12,13 @@ export async function requireAdminSession() {
       return { session: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
     }
 
-    // Verify that the user still exists in the database.
-    // This catches stale sessions from database resets.
-    let userExists;
+    // Verify that the user still exists in the database and sync live role.
+    // This catches stale sessions from database resets or role demotions.
+    let userExists: { id: string; role?: string } | null = null;
     try {
       userExists = await prisma.adminUser.findUnique({
         where: { id: session.user.id },
-        select: { id: true },
+        select: { id: true, role: true },
       });
     } catch (dbErr) {
       logger.error("[api-auth] Database error verifying user:", dbErr);
@@ -39,6 +39,10 @@ export async function requireAdminSession() {
           { status: 401 }
         ),
       };
+    }
+
+    if (userExists.role) {
+      session.user.role = userExists.role;
     }
 
     return { session, error: null };

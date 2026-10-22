@@ -58,23 +58,25 @@ export async function sendNotification(
         logger.error("Twilio SMS notification failed with status:", res.status);
       }
     } else {
-      // Fall back to console.log simulation if env vars are missing
+      // Fall back to console.log simulation if env vars are missing (mask 6-digit OTPs in logs)
+      const maskedMessage = message.replace(/\b\d{6}\b/g, "******");
       logger.info(
         `[SIMULATED NOTIFICATION SENT]
 Type: ${type.toUpperCase()}
 Recipient: ${recipient}
-${subject ? `Subject: ${subject}\n` : ""}Message: ${message}
+${subject ? `Subject: ${subject}\n` : ""}Message: ${maskedMessage}
 `
       );
     }
 
+    const storedMessage = message.replace(/\b\d{6}\b/g, "******");
     await prisma.notificationLog.create({
       data: {
         clientId,
         type,
         recipient,
         subject: subject ?? null,
-        message,
+        message: storedMessage,
         status: deliveryStatus,
       },
     });

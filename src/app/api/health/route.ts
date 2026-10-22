@@ -26,7 +26,7 @@ export async function GET() {
   } catch (error: any) {
     logger.error("Health check failed:", error);
     return NextResponse.json(
-      { status: "unhealthy", error: error.message || String(error) },
+      { status: "unhealthy", error: "Database connectivity check failed" },
       { status: 500 }
     );
   }

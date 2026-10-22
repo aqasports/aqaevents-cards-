@@ -9,7 +9,9 @@ import {
   parseDebtFromNotes,
 } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
-import { nanoid } from "nanoid";
+import { checkAndIncrement } from "@/lib/rate-limit";
+import { generateSwimCardCode, generateSwimToken } from "@/lib/swim-id";
+
 import { loadApneaProfile } from "@/lib/swim-apnea-profile";
 import {
   getEffectiveSubscriptionStart,
@@ -25,6 +27,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const trimmed = phone.trim();
+  if (trimmed.length <= 4) return "****";
+  return `${trimmed.slice(0, 3)}****${trimmed.slice(-2)}`;
+}
 
 async function enrichMemberGroups(member: any) {
   const isOldMember = isOldSwimMember(member.level);
@@ -121,9 +130,13 @@ async function enrichMemberGroups(member: any) {
         : [];
 
       const { isSolid, cleanNotes: solidNotes } = decodeSolidNotes(g.notes);
+      // Do not spread raw `swimmers` or `notes` onto the public group payload
+      const { swimmers: _rawSwimmers, notes: _rawNotes, ...safeGroup } = g;
+      void _rawSwimmers;
+      void _rawNotes;
 
       allGroups.push({
-        ...g,
+        ...safeGroup,
         isSolid,
         solidNotes,
         groupMembers,
@@ -149,10 +162,13 @@ async function enrichMemberGroups(member: any) {
           .filter(Boolean)
       : [];
     const { isSolid, cleanNotes: solidNotes } = decodeSolidNotes(member.group.notes);
+    const { swimmers: _rawSwimmers, notes: _rawNotes, ...safeGroup } = member.group;
+    void _rawSwimmers;
+    void _rawNotes;
 
     allGroups = [
       {
-        ...member.group,
+        ...safeGroup,
         isSolid,
         solidNotes,
         groupMembers,
@@ -214,8 +230,25 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ swimId: string }> }
 ) {
+  const ip =
+    request.headers.get("x-nf-client-connection-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+
+  const { limited } = await checkAndIncrement(`swim_member_get:${ip}`, {
+    windowMs: 60_000,
+    max: 30,
+  });
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: corsHeaders }
+    );
+  }
+
   const { swimId } = await params;
-  const normalizedId = swimId.trim().toUpperCase();
+  const rawId = swimId.trim();
+  const normalizedId = rawId.toUpperCase();
 
   try {
     let member = await prisma.swimMember.findUnique({
@@ -247,7 +280,7 @@ export async function GET(
       },
     });
 
-    // Fallback: search by cardCode, publicToken, internal id, phone, or partial ID if not matched directly
+    // Exact fallback only: full 6-digit number -> SWM-XXXXXX, exact cardCode, exact publicToken, or exact internal id
     if (!member) {
       const cleanDigits = normalizedId.replace(/\D/g, "");
       const formattedSwm = cleanDigits.length === 6 ? `SWM-${cleanDigits}` : null;
@@ -255,25 +288,15 @@ export async function GET(
       member = await prisma.swimMember.findFirst({
         where: {
           OR: [
-            { id: swimId.trim() },
+            { id: rawId },
             { swimId: { equals: normalizedId, mode: "insensitive" } },
             ...(formattedSwm ? [{ swimId: { equals: formattedSwm, mode: "insensitive" as const } }] : []),
-            ...(normalizedId.length >= 4 ? [{ swimId: { endsWith: normalizedId, mode: "insensitive" as const } }] : []),
-            ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
-              ? [{ swimId: { endsWith: cleanDigits, mode: "insensitive" as const } }]
-              : []),
             {
               card: {
                 OR: [
                   { cardCode: { equals: normalizedId, mode: "insensitive" } },
                   ...(formattedSwm ? [{ cardCode: { equals: formattedSwm, mode: "insensitive" as const } }] : []),
-                  ...(normalizedId.length >= 4
-                    ? [{ cardCode: { endsWith: normalizedId, mode: "insensitive" as const } }]
-                    : []),
-                  ...(cleanDigits.length >= 4 && cleanDigits.length <= 7
-                    ? [{ cardCode: { endsWith: cleanDigits, mode: "insensitive" as const } }]
-                    : []),
-                  { publicToken: { equals: swimId.trim() } },
+                  { publicToken: { equals: rawId } },
                 ],
               },
             },
@@ -305,45 +328,6 @@ export async function GET(
           },
         },
       });
-
-      if (!member && cleanDigits.length >= 8) {
-        const allMembers = await prisma.swimMember.findMany({
-          include: {
-            group: {
-              include: {
-                swimmers: {
-                  select: {
-                    id: true,
-                    swimId: true,
-                    fullName: true,
-                    groupStatus: true,
-                  },
-                },
-              },
-            },
-            card: true,
-            payments: {
-              select: {
-                id: true,
-                amount: true,
-                method: true,
-                notes: true,
-                paidAt: true,
-              },
-              orderBy: { paidAt: "desc" },
-            },
-          },
-        });
-
-        member =
-          allMembers.find((m) => {
-            const mPhone = (m.phone || "").replace(/\D/g, "");
-            return (
-              mPhone.length >= 8 &&
-              (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
-            );
-          }) || null;
-      }
     }
 
     if (!member) {
@@ -356,8 +340,8 @@ export async function GET(
     // Auto-create active card if member has none so digital pass card works immediately
     if (!member.card) {
       try {
-        const publicToken = nanoid(16);
-        const cardCode = `SWM-${Math.floor(100000 + Math.random() * 900000)}`;
+        const publicToken = generateSwimToken();
+        const cardCode = generateSwimCardCode();
         const createdCard = await prisma.swimCard.create({
           data: {
             memberId: member.id,
@@ -383,8 +367,13 @@ export async function GET(
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 
-    const safeMember = { ...member };
-    delete (safeMember as { notes?: unknown }).notes;
+    const safeMember: Record<string, unknown> = {
+      ...member,
+      phone: maskPhone(member.phone),
+      email: null,
+      group: enriched.allGroups[0] ?? null,
+    };
+    delete safeMember.notes;
 
     // AQA Apnea members get an extra profile block (additive; other categories unaffected)
     const apnea = await loadApneaProfile(member.id, member.category);
@@ -423,8 +412,25 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ swimId: string }> }
 ) {
+  const ip =
+    request.headers.get("x-nf-client-connection-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+
+  const { limited } = await checkAndIncrement(`swim_member_post:${ip}`, {
+    windowMs: 60_000,
+    max: 15,
+  });
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: corsHeaders }
+    );
+  }
+
   const { swimId } = await params;
-  const normalizedId = swimId.trim().toUpperCase();
+  const rawId = swimId.trim();
+  const normalizedId = rawId.toUpperCase();
 
   try {
     const body = await request.json();
@@ -436,23 +442,24 @@ export async function POST(
 
     if (!member) {
       const cleanDigits = normalizedId.replace(/\D/g, "");
-      const allMembers = await prisma.swimMember.findMany({ take: 30 });
-      member =
-        allMembers.find((m) => {
-          const sId = m.swimId.toUpperCase();
-          const mPhone = m.phone.replace(/\D/g, "");
-          if (sId === normalizedId || (normalizedId.length >= 4 && sId.endsWith(normalizedId))) {
-            return true;
-          }
-          if (
-            cleanDigits.length >= 8 &&
-            mPhone.length >= 8 &&
-            (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
-          ) {
-            return true;
-          }
-          return false;
-        }) || null;
+      const formattedSwm = cleanDigits.length === 6 ? `SWM-${cleanDigits}` : null;
+      member = await prisma.swimMember.findFirst({
+        where: {
+          OR: [
+            { id: rawId },
+            { swimId: { equals: normalizedId, mode: "insensitive" } },
+            ...(formattedSwm ? [{ swimId: { equals: formattedSwm, mode: "insensitive" as const } }] : []),
+            {
+              card: {
+                OR: [
+                  { cardCode: { equals: normalizedId, mode: "insensitive" } },
+                  { publicToken: { equals: rawId } },
+                ],
+              },
+            },
+          ],
+        },
+      });
     }
 
     if (!member) {
@@ -494,12 +501,19 @@ export async function POST(
       });
 
       const enriched = await enrichMemberGroups(updated);
+      const safeUpdated: Record<string, unknown> = {
+        ...updated,
+        phone: maskPhone(updated.phone),
+        email: null,
+        group: enriched.allGroups[0] ?? null,
+      };
+      delete safeUpdated.notes;
 
       return NextResponse.json(
         {
           success: true,
           member: {
-            ...updated,
+            ...safeUpdated,
             priceDA: enriched.effectivePriceDA,
             groups: enriched.allGroups,
             isOldMember: enriched.isOldMember,
@@ -516,7 +530,7 @@ export async function POST(
         where: { id: member.id },
         data: {
           groupStatus: "rejected",
-          rejectionReason: reason || null,
+          rejectionReason: reason ? String(reason).slice(0, 500) : null,
         },
       });
 
@@ -530,14 +544,21 @@ export async function POST(
           level: member.level,
           formula: member.formula,
           duration: member.duration,
-          preferredDays: preferredDays || null,
+          preferredDays: preferredDays ? String(preferredDays).slice(0, 200) : null,
           notes: `Re-inscription request from ${member.swimId} (rejected proposed group: ${reason || "schedule mismatch"})`,
           status: "pending",
         },
       });
 
+      const safeRejected: Record<string, unknown> = {
+        ...updated,
+        phone: maskPhone(updated.phone),
+        email: null,
+      };
+      delete safeRejected.notes;
+
       return NextResponse.json(
-        { success: true, member: updated, reinscriptionCreated: true },
+        { success: true, member: safeRejected, reinscriptionCreated: true },
         { headers: corsHeaders }
       );
     }

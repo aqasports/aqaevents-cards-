@@ -349,6 +349,77 @@ class AppI18n {
       'profile.connected': 'Connecte a la production',
       'profile.version_label': 'AQA Coaches Pro v2.4.0 (Build 2026.10)',
       'profile.app_info': 'Systeme officiel de commandement bassin de l\'Academie AQA Sports.',
+      'profile.lang_sub': 'Changer la langue de l\'application',
+      'profile.support_title': 'Support Pédagogique AQA',
+      'profile.support_sub': 'Cursus technique, directives et bibliothèque d\'exercices',
+      'profile.role_head_desc':
+          'Head Coach : Supervision de tous les secteurs (Enfants, Adultes Homme/Femme, Apnée), gestion des remplacements, feuilles de présence, évaluations techniques et attribution des badges.',
+      'profile.role_coach_desc':
+          'Coach Titulaire : Accès complet à vos groupes et séances en remplacement (appel, logger 3 étapes, notation séance et suivi d\'évolution).',
+      'profile.role_assistant_desc':
+          'Assistant Coach : Accès en lecture seule aux groupes assignés, consultation des effectifs et fiches techniques nageurs.',
+      'profile.coach_id': 'Identifiant Coach',
+      'profile.phone': 'Téléphone',
+      'profile.phone_none': 'Non renseigné',
+      'profile.primary_pool': 'Bassin Principal',
+      'profile.all_pools': 'Tous les bassins AQA',
+      'profile.specialties': 'Spécialités',
+      'profile.logout_confirm':
+          'Voulez-vous vraiment vous déconnecter de l\'application AQA Coaches ?',
+
+      // Notifications (OS alerts + Notification Center)
+      'notif.settings_title': 'Paramètres des Notifications',
+      'notif.allow_title': 'Autoriser les notifications sur le téléphone',
+      'notif.allow_sub': 'Recevoir les alertes directement sur votre téléphone',
+      'notif.new_client_toggle_title': 'Nouveau client ajouté au groupe (NEW)',
+      'notif.new_client_toggle_sub':
+          'Notification et label NEW qui disparaît après la 1ère séance du nageur',
+      'notif.movement_toggle_title': 'Mouvement de groupe & Multi-groupe',
+      'notif.movement_toggle_sub':
+          'Notifie le coach lors d\'un transfert ou multi-groupe (sans label NEW)',
+      'notif.replacement_toggle_title': 'Demandes de couverture & remplacement',
+      'notif.replacement_toggle_sub':
+          'Alerte lorsqu\'un coach soumet une demande de couverture',
+      'notif.reminder_toggle_title': 'Rappel de fin de séance (10 min)',
+      'notif.reminder_toggle_sub':
+          'Rappel 10 min avant la fin pour saisir l\'appel et l\'évaluation',
+      'notif.test_button': 'Tester alerte',
+      'notif.test_short': 'Tester',
+      'notif.test_body':
+          'Notification de test reçue avec succès sur votre appareil.',
+      'notif.test_sent': 'Notification test envoyée avec succès',
+      'notif.test_failed':
+          'Veuillez vérifier les autorisations dans les paramètres du téléphone',
+      'notif.os_settings': 'Paramètres OS',
+      'notif.center_title': 'Centre de Notifications',
+      'notif.empty_title': 'Aucune nouvelle notification',
+      'notif.empty_sub':
+          'Toutes les alertes et mouvements de groupe sont à jour',
+      'notif.clear_all': 'Tout effacer',
+      'notif.new_client_title': 'Nouveau Client [NEW] • {{group}}',
+      'notif.new_client_body':
+          '{{member}} a été ajouté au groupe {{group}} (badge NEW actif jusqu\'à sa 1ère séance).',
+      'notif.movement_title': 'Mouvement de Groupe • {{group}}',
+      'notif.multi_title': 'Affectation Multi-Groupe • {{group}}',
+      'notif.movement_transfer_body':
+          '{{member}} a été transféré de {{from}} vers {{group}}.',
+      'notif.movement_join_body':
+          '{{member}} a rejoint le groupe {{group}} (mouvement de groupe).',
+      'notif.multi_body':
+          '{{member}} a rejoint {{group}} en affectation multi-groupe.',
+      'notif.replacement_title': 'Demande de Couverture • {{group}}',
+      'notif.replacement_body':
+          '{{coach}} vous propose un remplacement le {{date}} ({{time}}).',
+      'notif.welcome_title': 'AQA Coaches • Notifications actives',
+      'notif.welcome_body':
+          'Vous recevrez les alertes de nouveaux clients (NEW), mouvements de groupe et remplacements.',
+      'notif.item_new_title': 'Nouveau Membre',
+      'notif.item_movement_title': 'Mouvement de Groupe',
+      'notif.item_multi_title': 'Affectation Multi-Groupe',
+      'notif.item_join': '{{member}} a rejoint {{group}}.',
+      'notif.item_join_multi': '{{member}} a rejoint {{group}} (multi-groupe).',
+      'notif.item_transfer': '{{member}} transféré de {{from}} vers {{group}}.',
+      'notif.rep_item_body': '{{coach}} sollicite un remplacement ({{date}}).',
     },
     'en': {
       // App branding
@@ -662,6 +733,75 @@ class AppI18n {
       'profile.connected': 'Connected to Production Cloud',
       'profile.version_label': 'AQA Coaches Pro v2.4.0 (Build 2026.10)',
       'profile.app_info': 'Official poolside command system of AQA Sports Academy.',
+      'profile.lang_sub': 'Change application language',
+      'profile.support_title': 'AQA Teaching Support',
+      'profile.support_sub': 'Technical syllabus, guidelines and drills library',
+      'profile.role_head_desc':
+          'Head Coach: Supervision of all sectors (Kids, Adults Men/Women, Apnea), replacement management, attendance sheets, technical evaluations and badge awarding.',
+      'profile.role_coach_desc':
+          'Head Coach (Titular): Full access to your groups and coverage sessions (attendance, 3-step logger, session rating and progression tracking).',
+      'profile.role_assistant_desc':
+          'Assistant Coach: Read-only access to assigned groups, rosters and swimmer technical records.',
+      'profile.coach_id': 'Coach Identifier',
+      'profile.phone': 'Phone',
+      'profile.phone_none': 'Not provided',
+      'profile.primary_pool': 'Primary Pool',
+      'profile.all_pools': 'All AQA pools',
+      'profile.specialties': 'Specialties',
+      'profile.logout_confirm':
+          'Are you sure you want to log out of the AQA Coaches app?',
+
+      // Notifications (OS alerts + Notification Center)
+      'notif.settings_title': 'Notification Settings',
+      'notif.allow_title': 'Allow Phone Notifications',
+      'notif.allow_sub': 'Receive real-time alerts on your phone',
+      'notif.new_client_toggle_title': 'New Client Added to Group (NEW)',
+      'notif.new_client_toggle_sub':
+          'Notification and NEW label that disappears after their first session',
+      'notif.movement_toggle_title': 'Group Movement & Multi-Group Assignment',
+      'notif.movement_toggle_sub':
+          'Notifies coach on group movement or multi-group assign (no NEW label)',
+      'notif.replacement_toggle_title': 'Coverage & Replacement Requests',
+      'notif.replacement_toggle_sub':
+          'Alert when another coach submits a coverage request',
+      'notif.reminder_toggle_title': 'Session End Reminder (10 min)',
+      'notif.reminder_toggle_sub':
+          'Reminder 10 min before session end to log attendance and evaluation',
+      'notif.test_button': 'Test Alert',
+      'notif.test_short': 'Test',
+      'notif.test_body': 'Test alert successfully delivered to your device.',
+      'notif.test_sent': 'Test alert dispatched successfully',
+      'notif.test_failed':
+          'Please check notification permissions in phone settings',
+      'notif.os_settings': 'OS Settings',
+      'notif.center_title': 'Notification Center',
+      'notif.empty_title': 'No new notifications',
+      'notif.empty_sub': 'All alerts and group updates are up to date',
+      'notif.clear_all': 'Clear All',
+      'notif.new_client_title': 'New Client [NEW] • {{group}}',
+      'notif.new_client_body':
+          '{{member}} was added to group {{group}} (NEW badge active until their 1st session).',
+      'notif.movement_title': 'Group Movement • {{group}}',
+      'notif.multi_title': 'Multi-Group Assignment • {{group}}',
+      'notif.movement_transfer_body':
+          '{{member}} was transferred from {{from}} to {{group}}.',
+      'notif.movement_join_body':
+          '{{member}} joined group {{group}} (group movement).',
+      'notif.multi_body':
+          '{{member}} joined {{group}} as a multi-group assignment.',
+      'notif.replacement_title': 'Coverage Request • {{group}}',
+      'notif.replacement_body':
+          '{{coach}} offers you a coverage session on {{date}} ({{time}}).',
+      'notif.welcome_title': 'AQA Coaches • Notifications enabled',
+      'notif.welcome_body':
+          'You will receive new client (NEW), group movement and coverage alerts.',
+      'notif.item_new_title': 'New Member',
+      'notif.item_movement_title': 'Group Movement',
+      'notif.item_multi_title': 'Multi-Group Assignment',
+      'notif.item_join': '{{member}} joined {{group}}.',
+      'notif.item_join_multi': '{{member}} joined {{group}} (multi-group).',
+      'notif.item_transfer': '{{member}} transferred from {{from}} to {{group}}.',
+      'notif.rep_item_body': '{{coach}} requests a coverage ({{date}}).',
     },
     'ar': {
       // App branding (Strict Western Arabic numerals 0-9)
@@ -975,6 +1115,70 @@ class AppI18n {
       'profile.connected': 'متصل بخادم الإنتاج الرسمي',
       'profile.version_label': 'AQA Coaches Pro v2.4.0 (Build 2026.10)',
       'profile.app_info': 'النظام الرسمي لإدارة وتأطير تدريب السباحة بأكاديمية AQA Sports.',
+      'profile.lang_sub': 'تغيير لغة التطبيق',
+      'profile.support_title': 'الدعم البيداغوجي AQA',
+      'profile.support_sub': 'الدليل والمقرر الفني ومكتبة التمارين',
+      'profile.role_head_desc':
+          'Head Coach: إشراف عام على كافة القطاعات (أطفال، كبار، سيدات، كتم النفس)، إدارة الاستخلافات، سجلات الحضور، التقييم الفني وتثبيت الشارات.',
+      'profile.role_coach_desc':
+          'Coach Titulaire: وصول كامل إلى أفواجك وحصص الاستخلاف (تسجيل الحضور، تقييم الحصص، والمتابعة الفنية).',
+      'profile.role_assistant_desc':
+          'Assistant Coach: اطلاع في وضع القراءة فقط على الأفواج المعينة ومتابعة بطاقات السباحين.',
+      'profile.coach_id': 'معرف المدرب',
+      'profile.phone': 'الهاتف',
+      'profile.phone_none': 'غير مسجل',
+      'profile.primary_pool': 'المسبح الرئيسي',
+      'profile.all_pools': 'كافة مسابح AQA',
+      'profile.specialties': 'التخصصات',
+      'profile.logout_confirm':
+          'هل أنت متأكد من تسجيل الخروج من تطبيق AQA Coaches؟',
+
+      // Notifications (OS alerts + Notification Center)
+      'notif.settings_title': 'إعدادات الإشعارات',
+      'notif.allow_title': 'تفعيل إشعارات الهاتف',
+      'notif.allow_sub': 'تلقي التنبيهات الفورية على جهازك',
+      'notif.new_client_toggle_title': 'إضافة مشترك جديد إلى الفوج (NEW)',
+      'notif.new_client_toggle_sub':
+          'تنبيه وشارة NEW تختفي تلقائيا بعد الحصة الأولى للسباح الجديد',
+      'notif.movement_toggle_title': 'حركة تغيير الفوج والتعيين متعدد الأفواج',
+      'notif.movement_toggle_sub':
+          'إشعار عند نقل سباح أو تعيينه في عدة أفواج (بدون شارة NEW)',
+      'notif.replacement_toggle_title': 'طلبات الاستخلاف والتغطية',
+      'notif.replacement_toggle_sub': 'تنبيه عند استلام طلب استخلاف للقبول أو الرفض',
+      'notif.reminder_toggle_title': 'تذكير نهاية الحصة (10 دقائق)',
+      'notif.reminder_toggle_sub':
+          'تذكير قبل 10 دقائق من نهاية الحصة لتسجيل الحضور والتقييم',
+      'notif.test_button': 'اختبار إشعار',
+      'notif.test_short': 'اختبار',
+      'notif.test_body': 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.',
+      'notif.test_sent': 'تم إرسال إشعار تجريبي بنجاح',
+      'notif.test_failed': 'يرجى التحقق من أذونات الإشعارات في إعدادات الهاتف',
+      'notif.os_settings': 'إعدادات الهاتف',
+      'notif.center_title': 'مركز الإشعارات',
+      'notif.empty_title': 'لا توجد إشعارات جديدة',
+      'notif.empty_sub': 'جميع التنبيهات ومستجدات الأفواج محدثة',
+      'notif.clear_all': 'مسح الكل',
+      'notif.new_client_title': 'مشترك جديد [NEW] • {{group}}',
+      'notif.new_client_body':
+          'تمت إضافة {{member}} إلى فوج {{group}} (شارة NEW فعالة حتى أول حصة له).',
+      'notif.movement_title': 'حركة تغيير الفوج • {{group}}',
+      'notif.multi_title': 'تعيين متعدد الأفواج • {{group}}',
+      'notif.movement_transfer_body': 'تم نقل {{member}} من {{from}} إلى {{group}}.',
+      'notif.movement_join_body': 'انضم {{member}} إلى فوج {{group}} (حركة فوج).',
+      'notif.multi_body': 'انضم {{member}} إلى {{group}} ضمن تعيين متعدد الأفواج.',
+      'notif.replacement_title': 'طلب تغطية • {{group}}',
+      'notif.replacement_body':
+          'يقترح عليك {{coach}} حصة استخلاف يوم {{date}} ({{time}}).',
+      'notif.welcome_title': 'AQA Coaches • الإشعارات مفعلة',
+      'notif.welcome_body':
+          'ستصلك تنبيهات المشتركين الجدد (NEW) وحركات الأفواج وطلبات الاستخلاف.',
+      'notif.item_new_title': 'مشترك جديد',
+      'notif.item_movement_title': 'حركة تغيير الفوج',
+      'notif.item_multi_title': 'تعيين متعدد الأفواج',
+      'notif.item_join': 'انضم {{member}} إلى {{group}}.',
+      'notif.item_join_multi': 'انضم {{member}} إلى {{group}} (متعدد الأفواج).',
+      'notif.item_transfer': 'نقل {{member}} من {{from}} إلى {{group}}.',
+      'notif.rep_item_body': 'يطلب {{coach}} استخلافا ({{date}}).',
     },
   };
 }

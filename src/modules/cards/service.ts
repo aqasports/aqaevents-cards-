@@ -1,5 +1,5 @@
 import { prisma, isSqlite } from "@/lib/prisma";
-import { generatePublicToken, getEventCardUrl } from "@/lib/tokens";
+import { generatePublicToken, getEventCardUrl, getFirstName } from "@/lib/tokens";
 import { CardsRepository } from "./repository";
 import { BillingRepository } from "../invoices/repository";
 import QRCode from "qrcode";
@@ -260,7 +260,6 @@ export class CardsService {
       return null;
     }
 
-    const { getFirstName } = require("@/lib/tokens");
     const balance = await this.billingRepo.sumLedgerDelta(card.clientId);
 
     const history = card.client.redemptions.map((redemption: any) => ({

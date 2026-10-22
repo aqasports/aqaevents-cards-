@@ -86,9 +86,9 @@ export default function AdminContractsPage() {
           <p className="py-8 text-center text-xs text-[var(--muted)]">Loading corporate contracts...</p>
         ) : contracts.length === 0 ? (
           <div className="py-8 text-center space-y-2">
-            <p className="text-xs text-[var(--muted)]">No contracts found for status "{statusFilter}".</p>
+            <p className="text-xs text-[var(--muted)]">No contracts found for status &quot;{statusFilter}&quot;.</p>
             <p className="text-[11px] text-[var(--muted-light)]">
-              Contracts can be created under an Organization's details page.
+              Contracts can be created under an Organization&apos;s details page.
             </p>
           </div>
         ) : (

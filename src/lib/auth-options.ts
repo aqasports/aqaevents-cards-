@@ -64,6 +64,17 @@ export const authOptions: NextAuthOptions = {
 
         // ── 2. Explicit Corporate Portal Login Path ─────────────────────────
         if (credentials?.loginType === "org" || credentials?.orgId) {
+          if (await isLockedOut(email)) {
+            const time = await getLockoutTimeRemaining(email);
+            await logAdminAction(
+              null,
+              "LOGIN_BLOCKED_LOCKOUT",
+              email,
+              `Corporate portal account locked. ${time}s remaining.`
+            );
+            throw new Error(`ACCOUNT_LOCKED:${time}`);
+          }
+
           const orgUser = await prisma.organizationUser.findFirst({
             where: {
               email,
@@ -73,15 +84,19 @@ export const authOptions: NextAuthOptions = {
           });
 
           if (!orgUser || !orgUser.passwordHash) {
+            await recordFailedAttempt(email);
             await new Promise((r) => setTimeout(r, 1000));
             return null;
           }
 
           const valid = await verifyPassword(credentials.password, orgUser.passwordHash);
           if (!valid) {
+            await recordFailedAttempt(email);
             await new Promise((r) => setTimeout(r, 1000));
             return null;
           }
+
+          await resetAttempts(email);
 
           return {
             id: orgUser.id,
@@ -118,6 +133,7 @@ export const authOptions: NextAuthOptions = {
           if (orgUser && orgUser.passwordHash) {
             const valid = await verifyPassword(credentials.password, orgUser.passwordHash);
             if (valid) {
+              await resetAttempts(email);
               return {
                 id: orgUser.id,
                 email: orgUser.email,
@@ -129,6 +145,7 @@ export const authOptions: NextAuthOptions = {
             }
           }
 
+          await recordFailedAttempt(email);
           await new Promise((r) => setTimeout(r, 1000));
           await logAdminAction(
             null,

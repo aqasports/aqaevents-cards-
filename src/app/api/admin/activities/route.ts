@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  let { requiresCheck, clubId } = parsed.data;
+  const { requiresCheck } = parsed.data;
+  let { clubId } = parsed.data;
   if (requiresCheck) {
     if (!clubId) {
       return NextResponse.json({ error: "A club must be selected when check-in is required." }, { status: 400 });

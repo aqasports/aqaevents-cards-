@@ -23,6 +23,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const action = searchParams.get("action") || "status";
 
+  if (action !== "status" && session.user.role !== "super_admin") {
+    return NextResponse.json(
+      { error: "Forbidden: Super Admin role required for full data export" },
+      { status: 403 }
+    );
+  }
+
   try {
     // 1. Status Overview & History
     if (action === "status") {

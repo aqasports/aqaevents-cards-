@@ -8,11 +8,11 @@ const ACCESS_TOKEN_TTL_SEC = 15 * 60; // 15 minutes
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getJwtSecret(): string {
-  return (
-    process.env.COACH_JWT_SECRET ||
-    process.env.NEXTAUTH_SECRET ||
-    "aqa_coach_jwt_secret_dev_key_change_in_production"
-  );
+  const secret = process.env.COACH_JWT_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret && process.env.NODE_ENV === "production") {
+    throw new Error("COACH_JWT_SECRET or NEXTAUTH_SECRET must be set in production");
+  }
+  return secret || "aqa_coach_jwt_secret_dev_key_change_in_production";
 }
 
 function base64UrlEncode(str: string): string {

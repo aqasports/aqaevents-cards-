@@ -207,8 +207,8 @@ describe("AQA Swim WhatsApp Utilities", () => {
       expect(url).toContain(encodeURIComponent("24000 دج"));
       expect(url).toContain(encodeURIComponent("بريدي موب"));
       expect(url).toContain(encodeURIComponent("RIP"));
-      // Ensure no Eastern Arabic numerals
-      expect(url).not.toContain(encodeURIComponent("٢٤٠٠٠"));
+      // Ensure no Eastern Arabic numerals (U+0662 U+0664 U+0660)
+      expect(url).not.toContain(encodeURIComponent("\u0662\u0664\u0660\u0660\u0660"));
     });
 
     it("generates Cash at Pool appointment link in French", () => {

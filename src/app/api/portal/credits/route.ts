@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Find an employee or primary contact client in org
-      let client = await prisma.client.findFirst({
+      const client = await prisma.client.findFirst({
         where: { organizationId },
       });
 

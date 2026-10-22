@@ -1,6 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+
+export function getClientIp(request: NextRequest | Request): string {
+  const nfIp = request.headers.get("x-nf-client-connection-ip")?.trim();
+  if (nfIp) return nfIp;
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[0];
+  }
+  return "unknown";
+}
 
 export async function checkAndIncrement(
   key: string,

@@ -1,8 +1,9 @@
 import { logger } from "@/lib/logger";
+export type EventListener = (payload: any) => unknown | Promise<unknown>;
 export class AsyncEventEmitter {
-  private listenersMap = new Map<string, Function[]>();
+  private listenersMap = new Map<string, EventListener[]>();
 
-  on(event: string, listener: Function) {
+  on(event: string, listener: EventListener) {
     const list = this.listenersMap.get(event) ?? [];
     list.push(listener);
     this.listenersMap.set(event, list);

@@ -70,7 +70,7 @@ export async function POST(
         data: {
           fullName: name ? String(name).trim() : (isEmail ? clean.split("@")[0] : clean),
           email: isEmail ? clean : null,
-          phone: isEmail ? "+213555000000" : clean,
+          phone: isEmail ? null : clean,
         },
       });
     }
@@ -80,6 +80,12 @@ export async function POST(
         sessionId,
         clientId: client.id,
         status: { in: ["waiting", "notified"] },
+      },
+      select: {
+        id: true,
+        sessionId: true,
+        status: true,
+        createdAt: true,
       },
     });
 
@@ -100,8 +106,16 @@ export async function POST(
         clientId: client.id,
         status: "waiting",
       },
-      include: {
-        client: true,
+      select: {
+        id: true,
+        sessionId: true,
+        status: true,
+        createdAt: true,
+        client: {
+          select: {
+            fullName: true,
+          },
+        },
       },
     });
 

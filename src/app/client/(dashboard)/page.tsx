@@ -28,12 +28,20 @@ export default function ClientDashboardPage() {
   useEffect(() => {
     async function loadProfile() {
       try {
-        const res = await fetch("/api/client/me");
+        const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+        const urlToken = params?.get("token");
+        const endpoint = urlToken ? `/api/client/me?token=${encodeURIComponent(urlToken)}` : "/api/client/me";
+        const res = await fetch(endpoint);
         if (res.ok) {
           const data = await res.json();
-          setProfile(data);
+          setProfile({
+            ...(data.client ?? data),
+            balance: data.creditBalance ?? data.balance ?? 0,
+            cards: data.cards ?? [],
+            redemptions: data.redemptions ?? [],
+          });
         } else {
-          setError("Please login to view your card balance.");
+          setError("Please open your personal card link or login to view your balance.");
         }
       } catch {
         setError("Network error loading profile.");

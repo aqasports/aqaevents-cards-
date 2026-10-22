@@ -204,7 +204,7 @@ export default function PortalCreditsPage() {
         <div className="bg-[#0f172a] border border-slate-800 p-6 rounded-2xl space-y-4">
           <h3 className="text-sm font-bold text-white">Push Fixed Credits to Employee Card</h3>
           <p className="text-xs text-slate-400">
-            Deduct credits from company pool and assign directly onto a specific employee's AQA Card.
+            Deduct credits from company pool and assign directly onto a specific employee&apos;s AQA Card.
           </p>
 
           <form onSubmit={handleIndividualAllocate} className="space-y-4 text-xs">

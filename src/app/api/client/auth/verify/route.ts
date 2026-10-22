@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMagicPin } from "@/lib/client-auth";
 import { getClientEffectiveBalance } from "@/lib/organizations";
+import { checkAndIncrement } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const ip =
+    request.headers.get("x-nf-client-connection-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown";
+
+  const { limited } = await checkAndIncrement(`magic_verify:${ip}`, { windowMs: 60_000, max: 10 });
+  if (limited) {
+    return NextResponse.json({ error: "Too many verification attempts" }, { status: 429 });
+  }
+
   try {
     const body = await request.json();
     const { phoneOrEmail, pin } = body;

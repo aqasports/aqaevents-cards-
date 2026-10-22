@@ -301,8 +301,8 @@ export default function ReportsPage() {
                     <th className="py-2">Activity Name</th>
                     <th className="py-2">Approx Revenue</th>
                     <th className="py-2">Direct Expenses</th>
-                    <th className="py-2">Coach's Bill</th>
-                    <th className="py-2">Boat's / Gear Bill</th>
+                    <th className="py-2">Coach&apos;s Bill</th>
+                    <th className="py-2">Boat&apos;s / Gear Bill</th>
                     <th className="py-2">Net Profit</th>
                     <th className="py-2 text-right">Margin</th>
                   </tr>

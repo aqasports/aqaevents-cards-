@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST as requestMagicLink } from "./magic-link/route";
 import { POST as verifyMagicPin } from "./verify/route";
 import { GET as getClientMe } from "../me/route";
+import { signClientToken } from "@/lib/client-auth";
 import { prisma } from "@/lib/prisma";
 import { NextRequest } from "next/server";
 
@@ -104,9 +105,10 @@ describe("Client Self-Service Portal Auth & Profile API", () => {
 
       vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 15 } } as any);
 
+      const signedToken = signClientToken("client-1");
       const req = new NextRequest("http://localhost:3000/api/client/me", {
         headers: {
-          authorization: "Bearer cli_client-1_123456789",
+          authorization: `Bearer ${signedToken}`,
         },
       });
 

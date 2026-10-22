@@ -188,10 +188,40 @@ export class ActivitiesService {
   async deleteActivity(id: string, adminId?: string) {
     const activity = await this.activitiesRepo.findUnique({
       where: { id },
+      include: {
+        _count: {
+          select: { redemptions: true, checkIns: true },
+        },
+      },
     });
 
     if (!activity) {
       throw new Error("Activity not found");
+    }
+
+    const hasFinancialHistory =
+      ((activity as { _count?: { redemptions?: number; checkIns?: number } })._count?.redemptions ?? 0) > 0 ||
+      ((activity as { _count?: { redemptions?: number; checkIns?: number } })._count?.checkIns ?? 0) > 0;
+
+    if (hasFinancialHistory) {
+      // Soft-archive to preserve immutable redemptions and ledger entries
+      await this.activitiesRepo.update({
+        where: { id },
+        data: { active: false },
+      });
+
+      if (adminId) {
+        await this.reportingRepo.createAudit({
+          data: {
+            userId: adminId,
+            action: "ARCHIVE_ACTIVITY",
+            target: `Activity "${activity.name}"`,
+            details: `Archived activity "${activity.name}" (ID: ${id}) instead of deleting to preserve existing redemptions and ledger history.`,
+          },
+        });
+      }
+
+      return { success: true, archived: true };
     }
 
     await this.activitiesRepo.delete({

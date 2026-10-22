@@ -1,21 +1,29 @@
 export const dynamic = "force-dynamic";
 
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSuperAdminSession } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+
+function timingSafeMatch(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 export async function POST(request: NextRequest) {
   try {
     const backupKey = request.headers.get("X-Backup-Key");
     const validBackupKey = process.env.BACKUP_API_KEY;
-    const hasValidKey = validBackupKey && backupKey === validBackupKey;
-    
-    // We assume an admin session might exist via a known cookie or authorization header.
-    // Here we check for a generic admin session cookie or auth header if the key is not present.
-    const hasAdminSession = request.cookies.has("admin_session") || request.headers.has("Authorization");
+    const hasValidKey = Boolean(validBackupKey && backupKey && timingSafeMatch(backupKey, validBackupKey));
 
-    if (!hasValidKey && !hasAdminSession) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!hasValidKey) {
+      const { session, error } = await requireSuperAdminSession();
+      if (error || !session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
     }
 
     const clients = await prisma.client.findMany();
@@ -53,14 +61,45 @@ export async function POST(request: NextRequest) {
     const swimPayments = await prisma.swimPayment.findMany();
     const swimCards = await prisma.swimCard.findMany();
 
+    // Extended tables for complete ERP backup coverage
+    const organizations = (await prisma.organization?.findMany?.()) ?? [];
+    const organizationUsersRaw = (await prisma.organizationUser?.findMany?.()) ?? [];
+    const contracts = (await prisma.contract?.findMany?.()) ?? [];
+    const departments = (await prisma.department?.findMany?.()) ?? [];
+    const invoiceLineItems = (await prisma.invoiceLineItem?.findMany?.()) ?? [];
+    const coaches = (await prisma.coach?.findMany?.()) ?? [];
+    const coachAccountsRaw = (await prisma.coachAccount?.findMany?.()) ?? [];
+    const equipmentAssets = (await prisma.equipmentAsset?.findMany?.()) ?? [];
+    const equipmentUsages = (await prisma.equipmentUsage?.findMany?.()) ?? [];
+    const clubs = (await prisma.club?.findMany?.()) ?? [];
+    const checkIns = (await prisma.checkIn?.findMany?.()) ?? [];
+    const platformSettings = (await prisma.platformSetting?.findMany?.()) ?? [];
+    const campaignPromos = (await prisma.campaignPromo?.findMany?.()) ?? [];
+    const swimEquipmentSales = (await prisma.swimEquipmentSale?.findMany?.()) ?? [];
+    const swimEquipmentArticles = (await prisma.swimEquipmentArticle?.findMany?.()) ?? [];
+    const swimGroupStaff = (await prisma.swimGroupStaff?.findMany?.()) ?? [];
+    const swimSessions = (await prisma.swimSession?.findMany?.()) ?? [];
+    const swimAttendances = (await prisma.swimAttendance?.findMany?.()) ?? [];
+    const swimTechReviews = (await prisma.swimTechReview?.findMany?.()) ?? [];
+    const swimCoachAbsences = (await prisma.swimCoachAbsence?.findMany?.()) ?? [];
+    const swimReplacements = (await prisma.swimReplacement?.findMany?.()) ?? [];
+    const swimApneaPacks = (await prisma.swimApneaPack?.findMany?.()) ?? [];
+    const swimApneaRecords = (await prisma.swimApneaRecord?.findMany?.()) ?? [];
+    const swimApneaPresences = (await prisma.swimApneaPresence?.findMany?.()) ?? [];
+    const swimApneaTerminals = (await prisma.swimApneaTerminal?.findMany?.()) ?? [];
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const adminUsers = adminUsersRaw.map(({ passwordHash, ...rest }) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const organizationUsers = organizationUsersRaw.map(({ passwordHash, magicToken, ...rest }: any) => rest);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const coachAccounts = coachAccountsRaw.map(({ passwordHash, ...rest }: any) => rest);
 
     const timestamp = new Date().toISOString();
     const backupData = {
       metadata: {
         timestamp,
-        version: "1.0.0",
+        version: "2.0.0",
         counts: {
           clients: clients.length,
           cards: cards.length,
@@ -82,6 +121,31 @@ export async function POST(request: NextRequest) {
           swimLeads: swimLeads.length,
           swimPayments: swimPayments.length,
           swimCards: swimCards.length,
+          organizations: organizations.length,
+          organizationUsers: organizationUsers.length,
+          contracts: contracts.length,
+          departments: departments.length,
+          invoiceLineItems: invoiceLineItems.length,
+          coaches: coaches.length,
+          coachAccounts: coachAccounts.length,
+          equipmentAssets: equipmentAssets.length,
+          equipmentUsages: equipmentUsages.length,
+          clubs: clubs.length,
+          checkIns: checkIns.length,
+          platformSettings: platformSettings.length,
+          campaignPromos: campaignPromos.length,
+          swimEquipmentSales: swimEquipmentSales.length,
+          swimEquipmentArticles: swimEquipmentArticles.length,
+          swimGroupStaff: swimGroupStaff.length,
+          swimSessions: swimSessions.length,
+          swimAttendances: swimAttendances.length,
+          swimTechReviews: swimTechReviews.length,
+          swimCoachAbsences: swimCoachAbsences.length,
+          swimReplacements: swimReplacements.length,
+          swimApneaPacks: swimApneaPacks.length,
+          swimApneaRecords: swimApneaRecords.length,
+          swimApneaPresences: swimApneaPresences.length,
+          swimApneaTerminals: swimApneaTerminals.length,
         }
       },
       data: {
@@ -105,6 +169,31 @@ export async function POST(request: NextRequest) {
         swimLeads,
         swimPayments,
         swimCards,
+        organizations,
+        organizationUsers,
+        contracts,
+        departments,
+        invoiceLineItems,
+        coaches,
+        coachAccounts,
+        equipmentAssets,
+        equipmentUsages,
+        clubs,
+        checkIns,
+        platformSettings,
+        campaignPromos,
+        swimEquipmentSales,
+        swimEquipmentArticles,
+        swimGroupStaff,
+        swimSessions,
+        swimAttendances,
+        swimTechReviews,
+        swimCoachAbsences,
+        swimReplacements,
+        swimApneaPacks,
+        swimApneaRecords,
+        swimApneaPresences,
+        swimApneaTerminals,
       }
     };
 

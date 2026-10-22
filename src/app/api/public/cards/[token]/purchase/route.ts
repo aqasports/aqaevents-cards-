@@ -68,8 +68,11 @@ export async function POST(
 
     } else if (type === "custom") {
       const credits = Number(customCredits);
-      if (isNaN(credits) || credits <= 0) {
-        return NextResponse.json({ error: "Invalid custom credits amount" }, { status: 400 });
+      if (!Number.isFinite(credits) || credits <= 0 || credits > 50 || !Number.isInteger(credits * 2)) {
+        return NextResponse.json(
+          { error: "Invalid custom credits amount (must be between 0.5 and 50)" },
+          { status: 400 }
+        );
       }
 
       const creditRate = await getCreditRate();

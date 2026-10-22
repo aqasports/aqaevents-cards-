@@ -53,7 +53,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Activity not found" }, { status: 404 });
   }
 
-  let requiresCheck = parsed.data.requiresCheck !== undefined ? parsed.data.requiresCheck : existingActivity.requiresCheck;
+  const requiresCheck = parsed.data.requiresCheck !== undefined ? parsed.data.requiresCheck : existingActivity.requiresCheck;
   let clubId = parsed.data.clubId !== undefined ? parsed.data.clubId : existingActivity.clubId;
 
   if (requiresCheck) {

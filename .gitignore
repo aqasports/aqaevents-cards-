@@ -38,6 +38,14 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# scratch and backups
+/scratch/
+/backups/
+/prisma/dev.db
+/prisma/dev.db-journal
+/.netlify/
+
 next-env.d.ts
 
 # prisma
