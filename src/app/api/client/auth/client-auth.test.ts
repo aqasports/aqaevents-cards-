@@ -15,6 +15,8 @@ vi.mock("@/lib/prisma", () => ({
     },
     rateLimitBucket: {
       findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
       upsert: vi.fn(),
       delete: vi.fn(),
     },
@@ -66,11 +68,16 @@ describe("Client Self-Service Portal Auth & Profile API", () => {
         email: "sarah@aqa.dz",
       } as any);
 
-      vi.mocked(prisma.rateLimitBucket.findUnique).mockResolvedValue({
-        key: "magic_pin:client-1",
-        count: 123456,
-        lockUntil: new Date(Date.now() + 10 * 60 * 1000), // valid
-      } as any);
+      vi.mocked(prisma.rateLimitBucket.findUnique).mockImplementation(async ({ where }: any) => {
+        if (where?.key === "magic_pin:client-1") {
+          return {
+            key: "magic_pin:client-1",
+            count: 123456,
+            lockUntil: new Date(Date.now() + 10 * 60 * 1000), // valid
+          } as any;
+        }
+        return null;
+      });
 
       vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { amount: 10 } } as any);
 
