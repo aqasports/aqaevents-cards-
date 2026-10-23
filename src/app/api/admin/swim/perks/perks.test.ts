@@ -66,7 +66,7 @@ describe("AQA Swim Perks API Endpoint", () => {
         formula: "MAX5",
         notes: null,
         payments: [],
-        group: null,
+        group: { id: "grp-2", name: "Groupe B", coachName: "Amine", schedule: "Mar 19h", active: true },
       },
       {
         id: "mem-3",
@@ -75,6 +75,17 @@ describe("AQA Swim Perks API Endpoint", () => {
         phone: "0555778899",
         duration: "1m", // Starter (should NOT appear in premium)
         formula: "G10",
+        notes: null,
+        payments: [],
+        group: { id: "grp-3", name: "Groupe Starter", active: true },
+      },
+      {
+        id: "mem-4",
+        swimId: "SWM-001004",
+        fullName: "Unassigned Client",
+        phone: "0555000000",
+        duration: "3m", // Has 3m duration but unassigned to any group -> NEVER give formula/tier
+        formula: "Silver",
         notes: null,
         payments: [],
         group: null,
@@ -88,7 +99,7 @@ describe("AQA Swim Perks API Endpoint", () => {
     expect(res.status).toBe(200);
 
     const json = await res.json();
-    expect(json.members.length).toBe(2); // Only Silver & Gold
+    expect(json.members.length).toBe(2); // Only assigned Silver & Gold (unassigned mem-4 is excluded)
     expect(json.stats.totalSubscribers).toBe(2);
     expect(json.stats.silverCount).toBe(1);
     expect(json.stats.goldCount).toBe(1);
@@ -110,7 +121,7 @@ describe("AQA Swim Perks API Endpoint", () => {
       formula: "G10",
       notes: null,
       payments: [],
-      group: null,
+      group: { id: "grp-1", name: "Groupe A", active: true },
     };
 
     vi.mocked(prisma.swimMember.findUnique).mockResolvedValue(mockMember as any);

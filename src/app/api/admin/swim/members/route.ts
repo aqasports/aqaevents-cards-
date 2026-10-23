@@ -117,9 +117,9 @@ export async function POST(request: NextRequest) {
       subscriptionEnd,
     } = body;
 
-    if (!fullName || !level || !formula) {
+    if (!fullName || !level) {
       return NextResponse.json(
-        { error: "Full name, level and formula are required" },
+        { error: "Full name and level are required" },
         { status: 400 }
       );
     }
@@ -170,8 +170,8 @@ export async function POST(request: NextRequest) {
         category: category || "homme",
         level: level.trim(),
         groupId: groupId || null,
-        formula: formula.trim(),
-        duration: duration || "3m",
+        formula: groupId ? (formula?.trim() || "G10") : "",
+        duration: groupId ? (duration || "3m") : null,
         priceDA: finalPriceDA,
         coachMessage: coachMessage?.trim() || null,
         paymentStatus: paymentStatus || "unpaid",

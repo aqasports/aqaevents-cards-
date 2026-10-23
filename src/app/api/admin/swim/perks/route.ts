@@ -4,7 +4,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit";
-import { getMemberPaymentSituation } from "@/lib/swim-groups";
+import { getMemberPaymentSituation, isMemberAssignedToGroup } from "@/lib/swim-groups";
 import {
   resolveFormulaTier,
   isPremiumFormula,
@@ -39,15 +39,20 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
       include: {
         payments: { orderBy: { paidAt: "desc" } },
-        group: { select: { id: true, name: true, coachName: true, schedule: true } },
+        group: { select: { id: true, name: true, coachName: true, schedule: true, active: true } },
       },
     });
 
     // Filter to premium formulas only (Silver 3m, Gold 6m, Diamond 9m)
-    const premiumMembers = members.filter((m) => isPremiumFormula(m.duration, m.formula));
+    // Rule: Never give a formula or premium perks to a non-assigned client
+    const premiumMembers = members.filter((m) => {
+      const isAssigned = isMemberAssignedToGroup(m);
+      if (!isAssigned) return false;
+      return isPremiumFormula(m.duration, m.formula, m);
+    });
 
     const enriched = premiumMembers.map((m) => {
-      const tier = resolveFormulaTier(m.duration, m.formula) as PremiumTierId;
+      const tier = resolveFormulaTier(m.duration, m.formula, m) as PremiumTierId;
       const perks = parsePerksFromNotes(m.notes, m);
       const progress = computePerksProgress(perks);
       const situation = getMemberPaymentSituation(m);

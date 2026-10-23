@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { Input } from "@/components/admin/ui";
+import { isMemberAssignedToGroup } from "@/lib/swim-groups";
 
 export interface StarterMemberRow {
   id: string;
@@ -23,11 +24,15 @@ export interface StarterMemberRow {
   subStatus: string;
   expiringSoon: boolean;
   isStarter: boolean;
+  isAssigned?: boolean;
+  effectivelyUnassigned?: boolean;
+  groups?: Array<{ id: string; active?: boolean }>;
   group?: {
     id: string;
     name: string;
     coachName?: string | null;
     schedule?: string | null;
+    active?: boolean;
   } | null;
 }
 
@@ -42,7 +47,12 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
 
   // Filter only Starter formula subscribers
   const starterMembers = useMemo(() => {
-    return members.filter((m) => m.isStarter);
+    return members.filter((m) => {
+      // STRICT RULE: Non-assigned clients never have a formula or expectations
+      const isAssigned = m.isAssigned !== undefined ? m.isAssigned : isMemberAssignedToGroup(m);
+      if (!isAssigned) return false;
+      return m.isStarter;
+    });
   }, [members]);
 
   // Compute Next Month Expectation Totals

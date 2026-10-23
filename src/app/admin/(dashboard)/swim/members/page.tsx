@@ -146,8 +146,8 @@ export default function SwimMembersPage() {
           dateOfStart,
           category,
           level,
-          formula: "G10",
-          duration: "3m",
+          formula: groupId ? "G10" : "",
+          duration: groupId ? "3m" : null,
           priceDA: 0,
           groupId: groupId || null,
           coachMessage,
@@ -456,7 +456,7 @@ export default function SwimMembersPage() {
                           {getSwimLevelLabel(m.level)}
                         </div>
                         <div className="text-[11px] text-[var(--muted)]">
-                          Type: {m.formula}
+                          {effectiveGrp ? `Type: ${m.formula || "Standard"}` : "Non Assigné (Sans formule)"}
                         </div>
                       </td>
 

@@ -233,6 +233,7 @@ export async function PATCH(
 
     // Auto-calculate formula and official AQA tariff when groups/duration change without explicit priceDA
     let finalFormula = formula;
+    let finalDuration = duration;
     let finalPriceDA = priceDA !== undefined ? parseInt(priceDA, 10) : undefined;
 
     // Handle explicit debt (ancien unsettled payment)
@@ -272,15 +273,21 @@ export async function PATCH(
           duration: effDur,
         });
       }
-    } else if (finalPriceDA === undefined && targetMultiGroupIds !== undefined && targetMultiGroupIds.length === 0) {
+    } else if (
+      (targetMultiGroupIds !== undefined && targetMultiGroupIds.length === 0) ||
+      (effectivePrimaryGroupId === null && (targetMultiGroupIds === undefined || targetMultiGroupIds.length === 0))
+    ) {
       // Swimmer was unassigned from all groups.
       // Rule: Non-assigned clients are NOT automatically linked to payment situation unless explicit debt is set.
+      // Rule: Never give a formula or tier for non-assigned client (to a group).
+      finalFormula = "";
+      finalDuration = null;
       const current = await prisma.swimMember.findUnique({
         where: { id },
         select: { notes: true },
       });
       const parsedDebt = parseDebtFromNotes(current?.notes);
-      if (!parsedDebt.hasDebt) {
+      if (finalPriceDA === undefined && !parsedDebt.hasDebt) {
         finalPriceDA = 0;
       }
     } else if (finalPriceDA === undefined && (groupId !== undefined || formula !== undefined || duration !== undefined)) {
@@ -382,8 +389,16 @@ export async function PATCH(
         ...((effectivePrimaryGroupId !== undefined || groupId !== undefined) && {
           groupId: effectivePrimaryGroupId !== undefined ? effectivePrimaryGroupId : (groupId || null),
         }),
-        ...((finalFormula || formula) && { formula: finalFormula || formula }),
-        ...(duration && { duration }),
+        ...(finalFormula !== undefined
+          ? { formula: finalFormula }
+          : formula !== undefined
+          ? { formula: formula }
+          : {}),
+        ...(finalDuration !== undefined
+          ? { duration: finalDuration || null }
+          : duration !== undefined
+          ? { duration: duration || null }
+          : {}),
         ...(finalPriceDA !== undefined && { priceDA: finalPriceDA }),
         ...(coachMessage !== undefined && { coachMessage: coachMessage?.trim() || null }),
         ...((paymentStatus || autoPaymentStatus) && { paymentStatus: paymentStatus || autoPaymentStatus }),

@@ -8,8 +8,10 @@ import {
   PerkDeliveryStatus,
   computePerksProgress,
   parsePerksFromNotes,
+  resolveFormulaTier,
   PerkProgress,
 } from "@/lib/swim-perks";
+import { isMemberAssignedToGroup } from "@/lib/swim-groups";
 
 export interface PremiumMemberRow {
   id: string;
@@ -31,11 +33,15 @@ export interface PremiumMemberRow {
   subStatus: string;
   expiringSoon: boolean;
   notes?: string | null;
+  isAssigned?: boolean;
+  effectivelyUnassigned?: boolean;
+  groups?: Array<{ id: string; active?: boolean }>;
   group?: {
     id: string;
     name: string;
     coachName?: string | null;
     schedule?: string | null;
+    active?: boolean;
   } | null;
 }
 
@@ -70,22 +76,15 @@ export function SwimPremiumDesk({ members, onReload }: SwimPremiumDeskProps) {
   const enrichedPremiumMembers = useMemo(() => {
     return members
       .filter((m) => {
-        const d = (m.duration || "").toLowerCase().trim();
-        const f = (m.formula || "").toLowerCase().trim();
-        const isStarter = d === "1m" || d.includes("starter") || f.includes("starter");
-        return !isStarter; // 3 other formulas: Silver, Gold, Diamond
+        // STRICT RULE: Never give a formula or premium perks to a non-assigned client
+        const isAssigned = m.isAssigned !== undefined ? m.isAssigned : isMemberAssignedToGroup(m);
+        if (!isAssigned) return false;
+
+        const tier = resolveFormulaTier(m.duration, m.formula, m);
+        return tier === "silver" || tier === "gold" || tier === "diamond";
       })
       .map((m) => {
-        const d = (m.duration || "").toLowerCase().trim();
-        const f = (m.formula || "").toLowerCase().trim();
-
-        let tier: PremiumTierId = "silver";
-        if (d === "9m" || f.includes("diamond") || f.includes("econom")) {
-          tier = "diamond";
-        } else if (d === "6m" || f.includes("gold") || f.includes("recommand")) {
-          tier = "gold";
-        }
-
+        const tier = resolveFormulaTier(m.duration, m.formula, m) as PremiumTierId;
         const perks = parsePerksFromNotes(m.notes, m);
         const progress = computePerksProgress(perks);
 

@@ -48,6 +48,7 @@ import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
 import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
 import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
 import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
+import { isPremiumFormula } from "@/lib/swim-perks";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -498,18 +499,22 @@ function SwimOverviewPageInner() {
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
       const expiringSoon = isSubscriptionExpiringSoon(subEnd, 14);
-      const isStarter = isStarterFormula(m.duration, m.formula);
+      const isAssigned = situation.isAssigned;
+      // Rule: Never give a formula or tier for non assigned client (to a group)
+      const isStarter = isAssigned && isStarterFormula(m.duration, m.formula);
+      const isPremium = isAssigned && isPremiumFormula(m.duration, m.formula, m);
       const nominalDays = isStarter
         ? Math.max(1, Math.round((subEnd.getTime() - subStart.getTime()) / (24 * 60 * 60 * 1000)) + 1)
         : durationToDays(m.duration);
       return {
         ...m,
         isStarter,
+        isPremium,
         nominalDays,
         totalPaid,
         debt,
         effectivePriceDA: situation.effectivePriceDA,
-        isAssigned: situation.isAssigned,
+        isAssigned,
         isLinkedToPayment: situation.isLinkedToPayment,
         isDebtOnly: situation.isDebtOnly,
         debtDetails: situation.debtDetails,
@@ -638,8 +643,8 @@ function SwimOverviewPageInner() {
           dateOfStart,
           category,
           level,
-          formula: "G10",
-          duration: "3m",
+          formula: groupId ? "G10" : "",
+          duration: groupId ? "3m" : null,
           priceDA: 0,
           groupId: groupId || null,
           coachMessage,
@@ -1380,7 +1385,7 @@ function SwimOverviewPageInner() {
                               {getSwimLevelLabel(m.level)}
                             </div>
                             <div className="text-[11px] text-[var(--muted)]">
-                              Type: {m.formula}
+                              {effectiveGrp ? `Type: ${m.formula || "Standard"}` : "Non Assigné (Sans formule)"}
                             </div>
                           </td>
 
@@ -2168,7 +2173,7 @@ function SwimOverviewPageInner() {
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   paymentSubTab === "premium" ? "bg-white/20 text-white" : "bg-purple-950 text-purple-300 border border-purple-500/30"
                 }`}>
-                  {enrichedPaymentsMembers.filter((m) => !m.isStarter).length}
+                  {enrichedPaymentsMembers.filter((m) => m.isPremium).length}
                 </span>
               </button>
             </div>

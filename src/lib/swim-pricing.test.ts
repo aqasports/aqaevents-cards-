@@ -81,6 +81,19 @@ describe("Swim Pricing Utilities (from tarifs.astro)", () => {
       expect(tier.frontImage).toBe("/image/default.webp");
       expect(tier.backImage).toBe("/image/card_emerald.png");
     });
+
+    it("returns unassigned blank card for non-assigned clients", () => {
+      const tier = getCardTier("G10", "3m", false);
+      expect(tier.tierId).toBe("unassigned");
+      expect(tier.badge).toBe("NON ASSIGNÉ");
+      expect(tier.backImage).toBe("/image/card_starter.png");
+    });
+
+    it("never assumes silver for missing duration or formula", () => {
+      const tier = getCardTier(null, null);
+      expect(tier.tierId).toBe("unassigned");
+      expect(tier.badge).toBe("SANS FORMULE");
+    });
   });
 
   describe("resolveMultiGroupFormula", () => {

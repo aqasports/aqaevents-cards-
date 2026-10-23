@@ -338,7 +338,7 @@ export function calculateSwimPrice(
 // ─── Card Tier Resolution ─────────────────────────────────────────────────────
 
 export interface CardTierInfo {
-  tierId: "starter" | "silver" | "gold" | "diamond" | "emerald";
+  tierId: "starter" | "silver" | "gold" | "diamond" | "emerald" | "unassigned";
   title: string;
   badge: string;
   frontImage: string;
@@ -348,13 +348,27 @@ export interface CardTierInfo {
 
 /**
  * Returns the card tier and official real image asset based on swimmer duration / formula.
+ * Rule: Never give a formula or tier for a non-assigned client (to a group).
+ * Rule: Never default to Silver if duration or formula is unknown/unassigned.
  */
 export function getCardTier(
   formula?: string | null,
-  duration?: string | null
+  duration?: string | null,
+  isAssigned: boolean = true
 ): CardTierInfo {
+  if (!isAssigned) {
+    return {
+      tierId: "unassigned",
+      title: "Sans Formule",
+      badge: "NON ASSIGNÉ",
+      frontImage: "/image/1.webp",
+      backImage: "/image/card_starter.png",
+      accentColor: "#64748b",
+    };
+  }
+
   const normFormula = (formula || "").toLowerCase().trim();
-  const normDuration = (duration || "3m").toLowerCase().trim();
+  const normDuration = (duration || "").toLowerCase().trim();
 
   // Emerald / VIP special check
   if (normFormula.includes("emerald") || normFormula.includes("vip")) {
@@ -380,18 +394,6 @@ export function getCardTier(
     };
   }
 
-  // 6 months -> Gold
-  if (normDuration === "6m" || normFormula.includes("gold") || normFormula.includes("recommand")) {
-    return {
-      tierId: "gold",
-      title: "Gold Pass",
-      badge: "GOLD",
-      frontImage: "/image/3.webp",
-      backImage: "/image/card_gold.png",
-      accentColor: "#f59e0b",
-    };
-  }
-
   // 9 months -> Diamond
   if (normDuration === "9m" || normFormula.includes("diamond") || normFormula.includes("econom")) {
     return {
@@ -404,13 +406,37 @@ export function getCardTier(
     };
   }
 
-  // Default: 3 months -> Silver
+  // 6 months -> Gold
+  if (normDuration === "6m" || normFormula.includes("gold") || normFormula.includes("recommand")) {
+    return {
+      tierId: "gold",
+      title: "Gold Pass",
+      badge: "GOLD",
+      frontImage: "/image/3.webp",
+      backImage: "/image/card_gold.png",
+      accentColor: "#f59e0b",
+    };
+  }
+
+  // 3 months -> Silver
+  if (normDuration === "3m" || normFormula.includes("silver") || normFormula.includes("decouverte")) {
+    return {
+      tierId: "silver",
+      title: "Silver Pass",
+      badge: "SILVER",
+      frontImage: "/image/2.webp",
+      backImage: "/image/card_silver.png",
+      accentColor: "#94a3b8",
+    };
+  }
+
+  // Default fallback if unknown or no duration specified: neutral unassigned card (never assume Silver)
   return {
-    tierId: "silver",
-    title: "Silver Pass",
-    badge: "SILVER",
-    frontImage: "/image/2.webp",
-    backImage: "/image/card_silver.png",
-    accentColor: "#94a3b8",
+    tierId: "unassigned",
+    title: "Sans Formule",
+    badge: "SANS FORMULE",
+    frontImage: "/image/1.webp",
+    backImage: "/image/card_starter.png",
+    accentColor: "#64748b",
   };
 }

@@ -34,6 +34,42 @@ describe("swim-perks: tier resolution", () => {
     expect(isPremiumFormula("9m", "INDIVID")).toBe(true);
     expect(isPremiumFormula("1m", "G10")).toBe(false);
   });
+
+  it("never gives a formula or tier for non-assigned client (to a group)", () => {
+    // Unassigned member without group: null tier and false premium/starter
+    const unassignedMember = { groupId: null, group: null, duration: "3m", formula: "Silver" };
+    expect(resolveFormulaTier("3m", "Silver", unassignedMember)).toBeNull();
+    expect(isPremiumFormula("3m", "Silver", unassignedMember)).toBe(false);
+    expect(isStarterTier("1m", "Starter", { groupId: null })).toBe(false);
+
+    // Member with archived group (effectively unassigned): null tier
+    const archivedMember = {
+      groupId: "grp-archived",
+      effectivelyUnassigned: true,
+      duration: "3m",
+      formula: "Silver",
+    };
+    expect(resolveFormulaTier("3m", "Silver", archivedMember)).toBeNull();
+    expect(isPremiumFormula("3m", "Silver", archivedMember)).toBe(false);
+
+    // Assigned member with active group: resolves properly
+    const assignedMember = {
+      groupId: "grp-1",
+      group: { id: "grp-1", active: true },
+      duration: "3m",
+      formula: "Silver",
+    };
+    expect(resolveFormulaTier("3m", "Silver", assignedMember)).toBe("silver");
+    expect(isPremiumFormula("3m", "Silver", assignedMember)).toBe(true);
+  });
+
+  it("never assumes Silver for missing or unknown duration/formula", () => {
+    expect(resolveFormulaTier(null, null)).toBeNull();
+    expect(resolveFormulaTier(undefined, undefined)).toBeNull();
+    expect(resolveFormulaTier("", "")).toBeNull();
+    expect(resolveFormulaTier("unknown", "random")).toBeNull();
+    expect(isPremiumFormula(null, null)).toBe(false);
+  });
 });
 
 describe("swim-perks: default perks per tier", () => {
@@ -92,8 +128,12 @@ describe("swim-perks: encoding and decoding in notes", () => {
     expect(encoded).toContain("Locker 42.");
     expect(encoded).toContain("[DEBT:5000:Precedent]");
 
-    const parsed = parsePerksFromNotes(encoded, { duration: "6m" });
+    const parsed = parsePerksFromNotes(encoded, { duration: "6m", groupId: "grp-gold" });
     expect(parsed.length).toBe(3); // Gold has 3 perks, video + pack + app
+
+    // An unassigned member has no tier and therefore gets 0 default perks
+    const unassignedParsed = parsePerksFromNotes(null, { duration: "6m", groupId: null });
+    expect(unassignedParsed.length).toBe(0);
 
     const videoPerk = parsed.find((p) => p.id === "video_analysis");
     expect(videoPerk?.status).toBe("delivered");

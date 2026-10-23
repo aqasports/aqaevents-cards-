@@ -11,8 +11,21 @@
  * Strictly Western Arabic numerals (0-9). No emojis anywhere.
  */
 
+import { isMemberAssignedToGroup } from "@/lib/swim-groups";
+
 export type PremiumTierId = "silver" | "gold" | "diamond";
 export type SwimTierId = "starter" | PremiumTierId;
+
+export type MemberAssignmentContext = {
+  groupId?: string | null;
+  effectiveGroup?: { id: string; active?: boolean } | null;
+  effectivelyUnassigned?: boolean;
+  groups?: Array<{ id: string; active?: boolean }>;
+  group?: { id: string; active?: boolean } | null;
+  isAssigned?: boolean;
+  duration?: string | null;
+  formula?: string | null;
+};
 
 export type PerkDeliveryStatus = "pending" | "in_progress" | "delivered" | "cancelled";
 
@@ -97,25 +110,36 @@ export const DIAMOND_DEFAULT_PERKS: Omit<PerkItem, "status">[] = [
 
 /**
  * Returns true if the duration/formula represents the Starter formula (1 month).
+ * Rule: Non-assigned clients never have a formula or tier.
  */
 export function isStarterTier(
   duration?: string | null,
-  formula?: string | null
+  formula?: string | null,
+  member?: MemberAssignmentContext | null
 ): boolean {
-  const d = (duration || "").toLowerCase().trim();
-  const f = (formula || "").toLowerCase().trim();
-  return d === "1m" || d.includes("starter") || f.includes("starter");
+  return resolveFormulaTier(duration, formula, member) === "starter";
 }
 
 /**
- * Resolves the canonical tier for a swimmer: "starter", "silver", "gold", or "diamond".
+ * Resolves the canonical tier for a swimmer: "starter", "silver", "gold", "diamond", or null.
+ * Rule: Never give a formula or tier for a non-assigned client (to a group).
+ * Rule: Never blindly assume Silver when formula or duration is unknown/missing.
  */
 export function resolveFormulaTier(
   duration?: string | null,
-  formula?: string | null
-): SwimTierId {
+  formula?: string | null,
+  member?: MemberAssignmentContext | null
+): SwimTierId | null {
+  // If member assignment context is provided, enforce that they must be assigned to an active group
+  if (member) {
+    const isAssigned = member.isAssigned !== undefined ? member.isAssigned : isMemberAssignedToGroup(member);
+    if (!isAssigned) return null;
+  }
+
   const d = (duration || "").toLowerCase().trim();
   const f = (formula || "").toLowerCase().trim();
+
+  if (!d && !f) return null;
 
   if (d === "1m" || d.includes("starter") || f.includes("starter")) {
     return "starter";
@@ -126,24 +150,31 @@ export function resolveFormulaTier(
   if (d === "6m" || f.includes("gold") || f.includes("recommand")) {
     return "gold";
   }
-  return "silver";
+  if (d === "3m" || f.includes("silver") || f.includes("decouverte")) {
+    return "silver";
+  }
+
+  // Never default to Silver!
+  return null;
 }
 
 /**
  * Returns true if the member is in one of the three premium formulas (Silver, Gold, Diamond).
+ * Rule: Non-assigned clients never have a formula or tier.
  */
 export function isPremiumFormula(
   duration?: string | null,
-  formula?: string | null
+  formula?: string | null,
+  member?: MemberAssignmentContext | null
 ): boolean {
-  const tier = resolveFormulaTier(duration, formula);
+  const tier = resolveFormulaTier(duration, formula, member);
   return tier === "silver" || tier === "gold" || tier === "diamond";
 }
 
 /**
  * Returns the default template perks for a given tier.
  */
-export function getDefaultPerksForTier(tier: SwimTierId): PerkItem[] {
+export function getDefaultPerksForTier(tier: SwimTierId | null | undefined): PerkItem[] {
   if (tier === "diamond") {
     return DIAMOND_DEFAULT_PERKS.map((p) => ({ ...p, status: "pending" as const }));
   }
@@ -164,12 +195,13 @@ const PERKS_TAG_GLOBAL_REGEX = /\[PERKS:[A-Za-z0-9+/=_-]+\]/g;
 /**
  * Parses perks stored in member notes. Merges with default perks for the member's tier,
  * preserving any custom perks and updated delivery states.
+ * If the member is unassigned or has no tier, returns empty array.
  */
 export function parsePerksFromNotes(
   notes?: string | null,
-  member?: { duration?: string | null; formula?: string | null }
+  member?: MemberAssignmentContext | null
 ): PerkItem[] {
-  const tier = resolveFormulaTier(member?.duration, member?.formula);
+  const tier = resolveFormulaTier(member?.duration, member?.formula, member);
   const defaultPerks = getDefaultPerksForTier(tier);
 
   if (!notes || !notes.includes("[PERKS:")) {

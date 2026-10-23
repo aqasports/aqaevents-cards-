@@ -889,7 +889,11 @@ export default function AdminSwimmerProfilePage({
         <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">
           <div className="text-[10px] text-[var(--muted)] uppercase font-semibold mb-1">Formula & Period</div>
           <div className="text-sm font-bold text-cyan-300 truncate">
-            {member.formula || "Pending Group"} ({member.duration || "3m"})
+            {!isAssigned ? (
+              <span className="text-slate-400 italic font-normal">{t("unassignedNoFormula")}</span>
+            ) : (
+              `${member.formula || "—"} (${member.duration || "—"})`
+            )}
           </div>
         </div>
         <div className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)]">

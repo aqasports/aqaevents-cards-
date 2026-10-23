@@ -43,7 +43,8 @@ export function SwimFlipCard({
   const [isFlipped, setIsFlipped] = useState(initialFlipped);
   const [qrCode, setQrCode] = useState<string | null>(precomputedQr || null);
 
-  const tier: CardTierInfo = getCardTier(member.formula, member.duration);
+  const isAssigned = member.isAssigned !== undefined ? member.isAssigned : Boolean(member.group);
+  const tier: CardTierInfo = getCardTier(member.formula, member.duration, isAssigned);
 
   // Generate QR code on client if not precomputed
   useEffect(() => {
@@ -70,7 +71,6 @@ export function SwimFlipCard({
     }
   }, [member.card?.publicToken, precomputedQr]);
 
-  const isAssigned = member.isAssigned !== undefined ? member.isAssigned : Boolean(member.group);
   const isDebtOnly = Boolean(member.isDebtOnly);
   const isLinked = member.isLinkedToPayment !== undefined ? member.isLinkedToPayment : (isAssigned || isDebtOnly);
 
@@ -139,7 +139,7 @@ export function SwimFlipCard({
             {/* Top Right Formula Badge */}
             <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
               <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-black/60 backdrop-blur-md text-white border border-white/20 shadow-lg">
-                {member.formula || tier.badge} · {member.duration || "3m"}
+                {!isAssigned ? "NON ASSIGNÉ" : `${member.formula || tier.badge} · ${member.duration || "3m"}`}
               </span>
             </div>
 
