@@ -46,6 +46,8 @@ import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
 import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
 import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
 import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
+import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
+import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -199,6 +201,11 @@ function SwimOverviewPageInner() {
     } else if (!tabParam) {
       setActiveTab("confirmed");
     }
+
+    const subParam = searchParams?.get("sub");
+    if (subParam === "starter" || subParam === "premium" || subParam === "all") {
+      setPaymentSubTab(subParam);
+    }
   }, [searchParams]);
 
   // Data States
@@ -248,6 +255,7 @@ function SwimOverviewPageInner() {
   const [submittingPayment, setSubmittingPayment] = useState(false);
 
   // Payments Tab State
+  const [paymentSubTab, setPaymentSubTab] = useState<"all" | "starter" | "premium">("all");
   const [paymentsFilter, setPaymentsFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "debt_only" | "expiring" | "unassigned">("all");
   const [paymentsSearch, setPaymentsSearch] = useState("");
   const [savingSubStart, setSavingSubStart] = useState<string | null>(null); // memberId being saved
@@ -496,6 +504,7 @@ function SwimOverviewPageInner() {
         : durationToDays(m.duration);
       return {
         ...m,
+        isStarter,
         nominalDays,
         totalPaid,
         debt,
@@ -2109,7 +2118,89 @@ function SwimOverviewPageInner() {
       {activeTab === "payments" && (
         <div className="space-y-4">
 
-          {/* Summary Stats Row */}
+          {/* Payments Sub-Navigation Tabs */}
+          <div className="flex flex-wrap items-center justify-between gap-2 p-1.5 rounded-2xl bg-slate-900/90 border border-white/8 backdrop-blur-md">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setPaymentSubTab("all")}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  paymentSubTab === "all"
+                    ? "bg-[var(--primary)] text-white shadow-lg shadow-sky-500/20"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                }`}
+              >
+                <span>Tous les Abonnements & Paiements</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                  paymentSubTab === "all" ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400"
+                }`}>
+                  {enrichedPaymentsMembers.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentSubTab("starter")}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  paymentSubTab === "starter"
+                    ? "bg-sky-600 text-white shadow-lg shadow-sky-500/20"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                }`}
+              >
+                <span>Formule Starter (Prévisions Mois Prochain)</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                  paymentSubTab === "starter" ? "bg-white/20 text-white" : "bg-sky-950 text-sky-300 border border-sky-500/30"
+                }`}>
+                  {enrichedPaymentsMembers.filter((m) => m.isStarter).length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPaymentSubTab("premium")}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  paymentSubTab === "premium"
+                    ? "bg-purple-700 text-white shadow-lg shadow-purple-500/20"
+                    : "text-slate-400 hover:text-white hover:bg-slate-800/60"
+                }`}
+              >
+                <span>Formules Premium & Délivrance (Silver, Gold, Diamond)</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                  paymentSubTab === "premium" ? "bg-white/20 text-white" : "bg-purple-950 text-purple-300 border border-purple-500/30"
+                }`}>
+                  {enrichedPaymentsMembers.filter((m) => !m.isStarter).length}
+                </span>
+              </button>
+            </div>
+
+            <div className="hidden lg:flex items-center gap-2 pr-2 text-[11px] text-slate-400 font-medium">
+              <span>Saison 2026/2027</span>
+            </div>
+          </div>
+
+          {paymentSubTab === "starter" && (
+            <SwimStarterDesk
+              members={enrichedPaymentsMembers}
+              onRecordPayment={(m) => {
+                const rawMember = members.find((raw) => raw.id === m.id);
+                if (rawMember) {
+                  setPayingMember(rawMember);
+                  setPaymentAmount(String(m.debt > 0 ? m.debt : m.effectivePriceDA));
+                }
+              }}
+            />
+          )}
+
+          {paymentSubTab === "premium" && (
+            <SwimPremiumDesk
+              members={enrichedPaymentsMembers}
+              onReload={loadAllData}
+            />
+          )}
+
+          {paymentSubTab === "all" && (
+            <>
+              {/* Summary Stats Row */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-0.5">
               <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Total Expected</p>
@@ -2487,6 +2578,8 @@ function SwimOverviewPageInner() {
               </tbody>
             </table>
           </div>
+            </>
+          )}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../i18n/app_i18n.dart';
 import '../models/replacement.dart';
 import 'web_notification_stub.dart'
     if (dart.library.js_interop) 'web_notification_web.dart' as platform_notif;
@@ -64,6 +65,7 @@ class NotificationService {
   bool _notifySessionReminder = true;
   late Set<String> _seenIds;
   late Set<String> _dismissedIds;
+  Future<bool>? _promptInFlight;
 
   NotificationService(this._prefs) {
     _isAuthorized = _prefs.getBool(_prefKeyAuth) ?? false;
@@ -74,6 +76,12 @@ class NotificationService {
     _seenIds = (_prefs.getStringList(_prefKeySeenIds) ?? const []).toSet();
     _dismissedIds =
         (_prefs.getStringList(_prefKeyDismissedIds) ?? const []).toSet();
+  }
+
+  /// Localized notification strings based on the coach's saved app language.
+  AppI18n get _i18n {
+    final lang = _prefs.getString('aqa_coach_i18next_lng') ?? 'fr';
+    return AppI18n(['fr', 'en', 'ar'].contains(lang) ? lang : 'fr');
   }
 
   bool get isAuthorized => _isAuthorized;
@@ -92,29 +100,69 @@ class NotificationService {
         dismissedIds: Set.unmodifiable(_dismissedIds),
       );
 
-  /// Synchronizes with native Android/iOS OS permission state and automatically
-  /// prompts the user for notification permission on first launch.
+  /// Synchronizes with native Android/iOS OS permission state. Prompts the user
+  /// ONLY on the very first launch — after that, a denied state is respected and
+  /// the UI must offer the "OS Settings" escape hatch instead of re-prompting.
   Future<bool> ensureInitializedAndPromptIfFirstRun() async {
     if (kIsWeb) return _isAuthorized;
     try {
       final osGranted =
           await _nativeChannel.invokeMethod<bool>('checkPermission') ?? false;
 
-      if (!osGranted) {
-        return await requestPermission();
+      if (osGranted) {
+        _isAuthorized = true;
+        await _prefs.setBool(_prefKeyAuth, true);
+        return true;
       }
 
-      _isAuthorized = true;
-      await _prefs.setBool(_prefKeyAuth, true);
-      return true;
+      final alreadyPrompted = _prefs.getBool(_prefKeyPromptedOnce) ?? false;
+      if (alreadyPrompted) {
+        // Respect the denial: never nag on every launch. The profile screen
+        // exposes a direct "open OS settings" button for recovery.
+        _isAuthorized = false;
+        await _prefs.setBool(_prefKeyAuth, false);
+        return false;
+      }
+
+      return await requestPermission();
     } catch (e) {
       debugPrint('Native notification check failed: $e');
       return _isAuthorized;
     }
   }
 
+  /// Passively syncs the in-memory/persisted authorization state from the OS
+  /// WITHOUT ever triggering the system permission dialog.
+  Future<bool> syncFromSystem() async {
+    if (kIsWeb) return _isAuthorized;
+    try {
+      final osGranted =
+          await _nativeChannel.invokeMethod<bool>('checkPermission') ?? false;
+      _isAuthorized = osGranted;
+      await _prefs.setBool(_prefKeyAuth, osGranted);
+      return osGranted;
+    } catch (e) {
+      debugPrint('Native notification sync failed: $e');
+      return _isAuthorized;
+    }
+  }
+
   /// Requests notification permission from the browser or native Android/iOS OS
   Future<bool> requestPermission() async {
+    // Collapse concurrent prompt attempts (HomeScreen + settings notifier both
+    // fire at startup) into a single OS dialog.
+    if (_promptInFlight != null) return _promptInFlight!;
+
+    final future = _requestPermissionInternal();
+    _promptInFlight = future;
+    try {
+      return await future;
+    } finally {
+      _promptInFlight = null;
+    }
+  }
+
+  Future<bool> _requestPermissionInternal() async {
     bool granted = false;
 
     if (kIsWeb) {
@@ -260,9 +308,11 @@ class NotificationService {
         await _markSeen(id);
         if (_notifyNewClient) {
           await showNotification(
-            title: 'Nouveau Client [NEW] • $groupName',
-            body:
-                '$memberName a ete ajoute au groupe $groupName (badge NEW actif jusqu\'a sa 1ere seance).',
+            title: _i18n.t('notif.new_client_title', {'group': groupName}),
+            body: _i18n.t('notif.new_client_body', {
+              'member': memberName,
+              'group': groupName,
+            }),
             tag: 'aqa-new-client-$id',
           );
         }
@@ -271,14 +321,24 @@ class NotificationService {
         if (_notifyGroupMovement) {
           final isMulti = movementKind == 'multi_group';
           final bodyText = isMulti
-              ? '$memberName a rejoint $groupName en affectation multi-groupe.'
+              ? _i18n.t('notif.multi_body', {
+                  'member': memberName,
+                  'group': groupName,
+                })
               : fromGroupName != null && fromGroupName.isNotEmpty
-                  ? '$memberName a ete transfere de $fromGroupName vers $groupName.'
-                  : '$memberName a rejoint le groupe $groupName (mouvement de groupe).';
+                  ? _i18n.t('notif.movement_transfer_body', {
+                      'member': memberName,
+                      'from': fromGroupName,
+                      'group': groupName,
+                    })
+                  : _i18n.t('notif.movement_join_body', {
+                      'member': memberName,
+                      'group': groupName,
+                    });
           await showNotification(
             title: isMulti
-                ? 'Affectation Multi-Groupe • $groupName'
-                : 'Mouvement de Groupe • $groupName',
+                ? _i18n.t('notif.multi_title', {'group': groupName})
+                : _i18n.t('notif.movement_title', {'group': groupName}),
             body: bodyText,
             tag: 'aqa-movement-$id',
           );
@@ -294,9 +354,12 @@ class NotificationService {
 
         await _markSeen(repKey);
         await showNotification(
-          title: 'Demande de Couverture • ${rep.groupName}',
-          body:
-              '${rep.originalCoachName} vous propose un remplacement le ${rep.sessionDate} (${rep.startTime}).',
+          title: _i18n.t('notif.replacement_title', {'group': rep.groupName}),
+          body: _i18n.t('notif.replacement_body', {
+            'coach': rep.originalCoachName,
+            'date': rep.sessionDate,
+            'time': rep.startTime,
+          }),
           tag: repKey,
         );
       }
@@ -315,7 +378,9 @@ class NotificationSettingsNotifier
   }
 
   Future<void> _syncNativeOnInit() async {
-    final granted = await _service.ensureInitializedAndPromptIfFirstRun();
+    // Passive sync only — HomeScreen owns the one-time permission prompt.
+    // This eliminates the startup double system dialog.
+    final granted = await _service.syncFromSystem();
     if (mounted) {
       state = _service.currentState;
       _ref.read(notificationPermissionProvider.notifier).state = granted;
@@ -336,9 +401,8 @@ class NotificationSettingsNotifier
         _service.isAuthorized;
     if (_service.isAuthorized) {
       await _service.showNotification(
-        title: 'AQA Coaches • Notifications actives',
-        body:
-            'Vous recevrez les alertes de nouveaux clients (NEW), mouvements de groupe et remplacements.',
+        title: _service._i18n.t('notif.welcome_title'),
+        body: _service._i18n.t('notif.welcome_body'),
         tag: 'aqa-notif-welcome',
       );
     }
