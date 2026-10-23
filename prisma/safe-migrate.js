@@ -62,8 +62,13 @@ function main() {
 
   const isSqlite = dbUrl.startsWith("file:") || dbUrl.startsWith("sqlite:");
   if (isSqlite) {
+    if (process.env.NETLIFY || process.env.CI || process.env.NODE_ENV === "production") {
+      console.error("FATAL: SQLite DATABASE_URL detected in production/CI environment. Aborting migration.");
+      process.exit(1);
+    }
     console.log("SQLite detected. Using db push for development database...");
-    runCommand("npx prisma db push --accept-data-loss");
+    // Safe dev-only db push without destructive data-loss flag
+    runCommand("npx prisma db push");
     return;
   }
 

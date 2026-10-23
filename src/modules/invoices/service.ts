@@ -75,10 +75,16 @@ export class BillingService {
         paidAt: true,
         createdAt: true,
         client: {
-          select: { id: true, fullName: true, phone: true, email: true },
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+          },
         },
       },
       orderBy: { createdAt: "desc" },
+      take: 500,
     });
 
     const [totals] = await prisma.$queryRaw<

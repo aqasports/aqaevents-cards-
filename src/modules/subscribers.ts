@@ -171,6 +171,9 @@ eventBus.on(EVENTS.CLIENT_CREATED, async (payload: any) => {
 
 // Ledger Listener
 eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
+  if (payload.tx && typeof payload.tx.$executeRaw === "function") {
+    await payload.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${payload.clientId}))`;
+  }
   let activeCardId = payload.cardId;
   if (!activeCardId) {
     const activeCard = await cardsRepo.findFirst(
@@ -199,6 +202,27 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
   }
 
   const validAdminId = await resolveAdminId(payload.adminId, payload.tx);
+
+  // Duplicate recharge guard within 5 seconds inside the advisory-locked transaction
+  if (
+    !payload.isInitialSignup &&
+    payload.tx &&
+    typeof payload.tx.ledgerEntry?.findFirst === "function"
+  ) {
+    const fiveSecondsAgo = new Date(Date.now() - 5000);
+    const recentDuplicate = await payload.tx.ledgerEntry.findFirst({
+      where: {
+        clientId: payload.clientId,
+        delta,
+        reason: reason || (delta > 0 ? "Manual credit addition" : "Manual debit adjustment"),
+        createdAt: { gte: fiveSecondsAgo },
+      },
+      select: { id: true },
+    });
+    if (recentDuplicate) {
+      throw new Error("DUPLICATE_RECHARGE");
+    }
+  }
 
   const ledger = await billingRepo.createLedger(
     {
@@ -298,6 +322,23 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
 
 // Audit Log Listener
 eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
+  if (payload.tx && typeof payload.tx.auditLog?.create === "function") {
+    const balance = Math.round((await billingRepo.sumLedgerDelta(payload.clientId, payload.tx)) * 100) / 100;
+    const client = await clientsRepo.findUnique({ where: { id: payload.clientId } }, payload.tx);
+    await reportingRepo.createAudit(
+      {
+        data: {
+          userId: payload.adminId,
+          action: "RECHARGE_CLIENT",
+          target: `Client ${client?.fullName ?? payload.clientId}`,
+          details: `Recharged ${client?.fullName ?? payload.clientId} with ${payload.delta} credits. Reason: ${payload.reason}. New Balance: ${balance} credits.`,
+        },
+      },
+      payload.tx
+    );
+    return;
+  }
+
   payload.postCommitActions = payload.postCommitActions ?? [];
   payload.postCommitActions.push(async () => {
     const client = await clientsRepo.findUnique({ where: { id: payload.clientId } });
@@ -353,6 +394,24 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
 
   const validAdminId = await resolveAdminId(payload.adminId, payload.tx);
 
+  // Duplicate redemption guard within 5 seconds inside the advisory-locked transaction
+  if (payload.tx && typeof payload.tx.redemption?.findFirst === "function") {
+    const fiveSecondsAgo = new Date(Date.now() - 5000);
+    const recentRedemption = await payload.tx.redemption.findFirst({
+      where: {
+        clientId: payload.client.id,
+        activityId: payload.activity.id,
+        sessionId: payload.sessionId || null,
+        creditsUsed: cost,
+        redeemedAt: { gte: fiveSecondsAgo },
+      },
+      select: { id: true },
+    });
+    if (recentRedemption) {
+      throw new Error("DUPLICATE_REDEMPTION");
+    }
+  }
+
   const redemption = await billingRepo.createRedemption(
     {
       data: {
@@ -399,6 +458,23 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
 
 // Audit Log Listener
 eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
+  if (payload.tx && typeof payload.tx.auditLog?.create === "function") {
+    const newBalance = Math.round((await billingRepo.sumLedgerDelta(payload.client.id, payload.tx)) * 100) / 100;
+    const cost = payload.redemptionResult?.creditsUsed ?? payload.activity.creditCost;
+    await reportingRepo.createAudit(
+      {
+        data: {
+          userId: payload.adminId,
+          action: "REDEEM_ACTIVITY",
+          target: `Client ${payload.client.fullName}`,
+          details: `Redeemed activity "${payload.activity.name}" for ${payload.client.fullName}. Credits deducted: -${cost}. New Balance: ${newBalance} credits.`,
+        },
+      },
+      payload.tx
+    );
+    return;
+  }
+
   payload.postCommitActions = payload.postCommitActions ?? [];
   payload.postCommitActions.push(async () => {
     const newBalance = await getClientBalance(payload.client.id);

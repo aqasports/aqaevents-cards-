@@ -52,7 +52,18 @@ export async function POST(
       balance: result.balance,
     });
   } catch (err: any) {
-    const message = err?.message || "Failed to confirm purchase request";
+    const rawMessage = err?.message || "";
+    const safeMessages = new Set([
+      "Purchase request not found",
+      "Purchase request has already been confirmed",
+      "Invalid purchase request status",
+      "Confirmation code has expired",
+      "Invalid confirmation code",
+      "Client not found",
+    ]);
+    const message = safeMessages.has(rawMessage)
+      ? rawMessage
+      : "Failed to confirm purchase request";
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

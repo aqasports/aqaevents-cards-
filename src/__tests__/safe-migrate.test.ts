@@ -104,9 +104,10 @@ describe("safe-migrate.js -- hardening checks", () => {
   // Verify the SQLite path is preserved (should still use db push)
   // -----------------------------------------------------------------------
 
-  it("still handles SQLite with db push for local development", () => {
+  it("still handles SQLite with db push for local development without --accept-data-loss", () => {
     expect(scriptContent).toContain("SQLite detected");
-    expect(scriptContent).toContain("db push --accept-data-loss");
+    expect(scriptContent).toContain("npx prisma db push");
+    expect(scriptContent).not.toContain("--accept-data-loss");
   });
 
   // -----------------------------------------------------------------------

@@ -91,15 +91,23 @@ export class PurchaseRequestsService {
       throw new Error("Invalid confirmation code");
     }
 
-    const payload = JSON.parse(request.payload);
-
-    const billingResult = await this.billingService.createInvoiceWithCredits(payload);
-
+    // Atomically mark as confirmed before issuing credits so concurrent requests cannot double-confirm
     await this.repo.update({
       where: { id: request.id },
       data: { status: "confirmed" },
     });
 
-    return billingResult;
+    const payload = JSON.parse(request.payload);
+
+    try {
+      const billingResult = await this.billingService.createInvoiceWithCredits(payload);
+      return billingResult;
+    } catch (err) {
+      await this.repo.update({
+        where: { id: request.id },
+        data: { status: "pending_confirmation" },
+      });
+      throw err;
+    }
   }
 }

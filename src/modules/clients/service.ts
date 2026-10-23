@@ -74,7 +74,7 @@ export class ClientsService {
       where,
       select: clientSelect,
       orderBy: { createdAt: "desc" },
-      take: limit,
+      take: limit ?? 500,
     });
 
     const balances = await getClientBalances(clients.map((c: any) => c.id));

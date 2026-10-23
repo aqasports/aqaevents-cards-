@@ -14,7 +14,7 @@ app.commandLine.appendSwitch("disable-http-cache");
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const ADMIN_URL  = "https://aqasports.com/admin";
-const APP_TOKEN  = "655B3D5B26D3" + "02F8B768A89A063051EB" + "7F049D0BD58C1E899782684" + "341DB8643";
+const APP_TOKEN  = process.env.AQA_ADMIN_APP_TOKEN || "";
 const TOKEN_URLS = ["https://*.aqasports.com/*", "https://*.netlify.app/*"];
 
 // ─── Persistent window state ──────────────────────────────────────────────────
@@ -37,6 +37,7 @@ if (!app.requestSingleInstanceLock()) {
 // ─── Inject token BEFORE any window is created ───────────────────────────────
 // Uses the default session so the header goes on every matching request.
 function setupTokenInjection() {
+  if (!APP_TOKEN) return;
   session.defaultSession.webRequest.onBeforeSendHeaders(
     { urls: TOKEN_URLS },
     (details, callback) => {

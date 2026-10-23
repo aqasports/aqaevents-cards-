@@ -191,7 +191,7 @@ model LedgerEntry {
   client     Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
   card       Card?       @relation(fields: [cardId], references: [id], onDelete: SetNull)
   package    Package?    @relation(fields: [packageId], references: [id], onDelete: SetNull)
-  redemption Redemption? @relation(fields: [redemptionId], references: [id], onDelete: Cascade)
+  redemption Redemption? @relation(fields: [redemptionId], references: [id], onDelete: SetNull)
   createdBy  AdminUser?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([clientId])
@@ -209,7 +209,7 @@ model Redemption {
   notes       String?
 
   client        Client           @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  activity      Activity         @relation(fields: [activityId], references: [id], onDelete: Restrict)
   session       ActivitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   staff         AdminUser?       @relation(fields: [staffId], references: [id], onDelete: SetNull)
   ledgerEntries LedgerEntry[]

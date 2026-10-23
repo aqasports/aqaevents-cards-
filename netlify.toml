@@ -1,5 +1,5 @@
 [build]
-  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && npm run build"
+  command = "node prisma/prepare.js && npx prisma generate && npm run build && node prisma/safe-migrate.js"
   publish = ".next"
 
 [build.environment]
@@ -22,7 +22,7 @@
 # NEVER point staging DATABASE_URL at the production connection string.
 # ---------------------------------------------------------------------------
 [context.staging]
-  command = "node prisma/prepare.js && npx prisma generate && node prisma/safe-migrate.js && npm run build"
+  command = "node prisma/prepare.js && npx prisma generate && npm run build && node prisma/safe-migrate.js"
 
 [context.staging.environment]
   NODE_VERSION = "20"
