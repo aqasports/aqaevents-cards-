@@ -68,7 +68,7 @@ describe("Client Self-Service Portal Auth & Profile API", () => {
         email: "sarah@aqa.dz",
       } as any);
 
-      vi.mocked(prisma.rateLimitBucket.findUnique).mockImplementation(async ({ where }: any) => {
+      (prisma.rateLimitBucket.findUnique as any).mockImplementation(async ({ where }: any) => {
         if (where?.key === "magic_pin:client-1") {
           return {
             key: "magic_pin:client-1",

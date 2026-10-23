@@ -355,13 +355,64 @@ export class ClientsService {
 
     if (options?.force) {
       if (options.deleteRelated) {
-        // Delete all related records first to bypass foreign key constraints safely
+        // If financial ledger history exists, anonymize PII + archive instead of destroying ledger/invoices
+        const ledgerCount =
+          typeof prisma.ledgerEntry?.count === "function"
+            ? await prisma.ledgerEntry.count({ where: { clientId: id } })
+            : 0;
+
+        if (ledgerCount > 0) {
+          await prisma.$transaction(async (tx) => {
+            if (typeof (tx as any).notificationLog?.deleteMany === "function") {
+              await (tx as any).notificationLog.deleteMany({ where: { clientId: id } });
+            }
+            if (typeof (tx as any).card?.updateMany === "function") {
+              await (tx as any).card.updateMany({
+                where: { clientId: id },
+                data: { status: "voided" },
+              });
+            }
+            if (typeof (tx as any).client?.update === "function") {
+              await (tx as any).client.update({
+                where: { id },
+                data: {
+                  fullName: `Anonymized Client (${id.slice(-6)})`,
+                  phone: `anon_${id}`,
+                  email: null,
+                  notes: "[ANONYMIZED - FINANCIAL HISTORY PRESERVED]",
+                  archived: true,
+                  archivedAt: new Date(),
+                },
+              });
+            }
+          });
+
+          await this.reportingRepo.createAudit({
+            data: {
+              userId: adminId,
+              action: "ANONYMIZE_CLIENT_FORCE",
+              target: `Client ${client.fullName} (ID: ${id})`,
+              details: `Anonymized client PII and voided cards while preserving ${ledgerCount} financial ledger record(s) and invoices.`,
+            },
+          });
+
+          return { success: true, action: "anonymized" };
+        }
+
+        // No ledger history: delete non-financial related records safely
         await prisma.$transaction(async (tx) => {
-          await tx.notificationLog.deleteMany({ where: { clientId: id } });
-          await tx.ledgerEntry.deleteMany({ where: { clientId: id } });
-          await tx.invoice.deleteMany({ where: { clientId: id } });
-          await tx.redemption.deleteMany({ where: { clientId: id } });
-          await tx.card.deleteMany({ where: { clientId: id } });
+          if (typeof (tx as any).notificationLog?.deleteMany === "function") {
+            await (tx as any).notificationLog.deleteMany({ where: { clientId: id } });
+          }
+          if (typeof (tx as any).invoice?.deleteMany === "function") {
+            await (tx as any).invoice.deleteMany({ where: { clientId: id } });
+          }
+          if (typeof (tx as any).redemption?.deleteMany === "function") {
+            await (tx as any).redemption.deleteMany({ where: { clientId: id } });
+          }
+          if (typeof (tx as any).card?.deleteMany === "function") {
+            await (tx as any).card.deleteMany({ where: { clientId: id } });
+          }
           await tx.client.delete({ where: { id } });
         });
 
@@ -370,7 +421,7 @@ export class ClientsService {
             userId: adminId,
             action: "DELETE_CLIENT_FORCE",
             target: `Client ${client.fullName} (ID: ${id})`,
-            details: `Permanently force-deleted client and all related records (invoices, ledger history, redemptions, cards, notifications).`,
+            details: `Permanently force-deleted client with zero ledger entries.`,
           },
         });
 

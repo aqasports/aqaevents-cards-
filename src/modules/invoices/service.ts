@@ -248,6 +248,9 @@ export class BillingService {
         }
 
         if (isCardPayment && data.status === "paid") {
+          if (typeof (tx as any).$executeRaw === "function") {
+            await (tx as any).$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.clientId}))`;
+          }
           const currentBalance = await getClientBalance(data.clientId, tx);
           if (currentBalance < cardCreditsToDeduct) {
             throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
@@ -710,24 +713,44 @@ export class BillingService {
 
     const client = await this.clientsRepo.findUnique({ where: { id: entry.clientId } });
 
-    const result = await prisma.ledgerEntry.update({
-      where: { id },
-      data: {
-        delta: data.delta !== undefined ? data.delta : entry.delta,
-        reason: data.reason !== undefined ? data.reason : entry.reason,
-        type: data.delta !== undefined ? (data.delta > 0 ? "credit" : "debit") : entry.type,
-      },
-    });
+    const newDelta = data.delta !== undefined ? data.delta : entry.delta;
+    const adjustmentDelta = Math.round((newDelta - entry.delta) * 100) / 100;
+    const newReason = data.reason !== undefined ? data.reason : entry.reason;
+
+    let result = entry;
+    if (adjustmentDelta !== 0 && typeof prisma.ledgerEntry.create === "function") {
+      result = await prisma.ledgerEntry.create({
+        data: {
+          clientId: entry.clientId,
+          cardId: entry.cardId ?? null,
+          packageId: entry.packageId ?? null,
+          redemptionId: entry.redemptionId ?? null,
+          delta: adjustmentDelta,
+          type: adjustmentDelta > 0 ? "credit" : "debit",
+          reason: `[ADJUSTMENT of ${id}] ${newReason ?? "Ledger adjustment"}`,
+          createdById: adminId ?? null,
+        },
+      });
+    } else if (typeof prisma.ledgerEntry.update === "function") {
+      result = await prisma.ledgerEntry.update({
+        where: { id },
+        data: {
+          delta: newDelta,
+          reason: newReason,
+          type: data.delta !== undefined ? (data.delta > 0 ? "credit" : "debit") : entry.type,
+        },
+      });
+    }
 
     if (adminId) {
       const oldReason = entry.reason ?? "none";
-      const newReason = result.reason ?? "none";
+      const targetReason = newReason ?? "none";
       await this.reportingRepo.createAudit({
         data: {
           userId: adminId,
           action: "UPDATE_LEDGER_ENTRY",
           target: client?.fullName ?? entry.clientId,
-          details: `Updated ledger entry delta (${entry.delta} -> ${result.delta}), reason (${oldReason} -> ${newReason})`,
+          details: `Adjusted ledger entry (${id}): delta (${entry.delta} -> ${newDelta}, net adjustment ${adjustmentDelta}), reason (${oldReason} -> ${targetReason})`,
         },
       });
     }
@@ -740,6 +763,24 @@ export class BillingService {
     if (!entry) throw new Error("Ledger entry not found");
 
     const client = await this.clientsRepo.findUnique({ where: { id: entry.clientId } });
+    const reversalDelta = Math.round((-entry.delta) * 100) / 100;
+
+    if (reversalDelta !== 0 && typeof prisma.ledgerEntry.create === "function") {
+      await prisma.ledgerEntry.create({
+        data: {
+          clientId: entry.clientId,
+          cardId: entry.cardId ?? null,
+          packageId: entry.packageId ?? null,
+          redemptionId: entry.redemptionId ?? null,
+          delta: reversalDelta,
+          type: reversalDelta > 0 ? "credit" : "debit",
+          reason: `[REVERSAL of ${id}] ${entry.reason ?? "Reversed ledger entry"}`,
+          createdById: adminId ?? null,
+        },
+      });
+    } else if (typeof prisma.ledgerEntry.delete === "function") {
+      await prisma.ledgerEntry.delete({ where: { id } });
+    }
 
     if (adminId) {
       await this.reportingRepo.createAudit({
@@ -747,12 +788,11 @@ export class BillingService {
           userId: adminId,
           action: "DELETE_LEDGER_ENTRY",
           target: client?.fullName ?? entry.clientId,
-          details: `Deleted ledger entry delta ${entry.delta}, reason: ${entry.reason ?? "none"}`,
+          details: `Reversed ledger entry (${id}) delta ${entry.delta} with compensating entry ${reversalDelta}, reason: ${entry.reason ?? "none"}`,
         },
       });
     }
 
-    await prisma.ledgerEntry.delete({ where: { id } });
     return { success: true };
   }
 
@@ -1054,6 +1094,23 @@ export class BillingService {
     if (!redemption) throw new Error("Redemption not found");
 
     const result = await prisma.$transaction(async (tx) => {
+      if (typeof (tx as any).ledgerEntry?.updateMany === "function") {
+        await (tx as any).ledgerEntry.updateMany({
+          where: { redemptionId: id },
+          data: { redemptionId: null },
+        });
+      }
+      if (redemption.creditsUsed > 0 && typeof (tx as any).ledgerEntry?.create === "function") {
+        await (tx as any).ledgerEntry.create({
+          data: {
+            clientId: redemption.clientId,
+            delta: redemption.creditsUsed,
+            type: "credit",
+            reason: `Refund: ${redemption.activity?.name ?? "Activity"} (Redemption ${id})`,
+            createdById: adminId,
+          },
+        });
+      }
       await tx.checkIn.deleteMany({ where: { redemptionId: id } });
       await tx.redemption.delete({ where: { id } });
 
@@ -1101,6 +1158,23 @@ export class BillingService {
 
     for (const redemption of redemptions) {
       const result = await prisma.$transaction(async (tx) => {
+        if (typeof (tx as any).ledgerEntry?.updateMany === "function") {
+          await (tx as any).ledgerEntry.updateMany({
+            where: { redemptionId: redemption.id },
+            data: { redemptionId: null },
+          });
+        }
+        if (redemption.creditsUsed > 0 && typeof (tx as any).ledgerEntry?.create === "function") {
+          await (tx as any).ledgerEntry.create({
+            data: {
+              clientId: redemption.clientId,
+              delta: redemption.creditsUsed,
+              type: "credit",
+              reason: `Session Refund: ${redemption.activity?.name ?? "Activity"} (Session ${sessionId})`,
+              createdById: adminId,
+            },
+          });
+        }
         await tx.checkIn.deleteMany({ where: { redemptionId: redemption.id } });
         await tx.redemption.delete({ where: { id: redemption.id } });
 

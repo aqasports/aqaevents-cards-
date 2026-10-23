@@ -342,6 +342,9 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
 
 // Ledger Listener
 eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
+  if (payload.tx && typeof payload.tx.$executeRaw === "function") {
+    await payload.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${payload.client.id}))`;
+  }
   const currentBalance = Math.round((await billingRepo.sumLedgerDelta(payload.client.id, payload.tx)) * 100) / 100;
   const cost = Math.round((payload.creditsUsed ?? payload.activity.creditCost) * 100) / 100;
   if (currentBalance < cost && !payload.bypassBalanceCheck) {
