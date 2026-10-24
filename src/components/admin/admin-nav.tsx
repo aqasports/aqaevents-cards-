@@ -356,14 +356,10 @@ function AdminNavInner() {
 
     fetchNavCounts();
 
-    const interval = setInterval(() => {
-      fetchNavCounts();
-    }, 120000);
-
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
-        Date.now() - lastFetchTime >= 30000
+        Date.now() - lastFetchTime >= 60000
       ) {
         fetchNavCounts();
       }
@@ -371,7 +367,6 @@ function AdminNavInner() {
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
-      clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
