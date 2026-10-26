@@ -231,6 +231,21 @@ class BootstrapNotifier extends AsyncNotifier<BootstrapData> {
       state = AsyncError(err, st);
     }
   }
+
+  /// Quiet background refresh: no loading flicker, keeps previous data on
+  /// failure. Used by the foreground 120s sync timer and app-resume hook so
+  /// coach notifications arrive while the app is open.
+  Future<void> refreshSilently() async {
+    if (state is! AsyncData<BootstrapData>) {
+      await refresh();
+      return;
+    }
+    try {
+      await _fetchAndCache(background: true);
+    } catch (_) {
+      // Silent by design: stale data stays on screen until next tick.
+    }
+  }
 }
 
 final bootstrapProvider =

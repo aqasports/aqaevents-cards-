@@ -7,8 +7,10 @@ import {
   generateFinancialInsights,
   buildMonthlyFinancialSeries,
   resolveFormulaMonths,
+  extractRealActiveMonthKeys,
   FINANCIAL_KNOWLEDGE_PILLS,
   DEFAULT_FINANCE_LEDGER_STATE,
+  DEFAULT_FINANCE_GOALS,
   FinanceMemberInput,
   SwimFinanceLedgerState,
 } from "./swim-finance";
@@ -434,5 +436,64 @@ describe("AQA Swim Financial & Accounting Engine", () => {
 
     expect(FINANCIAL_KNOWLEDGE_PILLS.length).toBeGreaterThanOrEqual(4);
     expect(FINANCIAL_KNOWLEDGE_PILLS[0].keyFormula).toBeDefined();
+  });
+
+  it("strictly excludes future months when extracting real active month keys unless projections are enabled", () => {
+    // Member starts Oct 2026 with 3-month formula (Oct, Nov, Dec 2026)
+    const activeMember: FinanceMemberInput = {
+      id: "m_oct",
+      swimId: "SWM-999001",
+      fullName: "Test Octubre",
+      phone: "0555000000",
+      category: "homme",
+      level: "new_aqa",
+      formula: "G10",
+      duration: "3m",
+      priceDA: 21900,
+      paymentStatus: "paid",
+      notes: null,
+      groupId: "grp_1",
+      group: mockGroups[0],
+      dateOfStart: "2026-10-01",
+      createdAt: "2026-10-01T10:00:00.000Z",
+      payments: [{ amount: 21900, paidAt: "2026-10-01T10:00:00.000Z" }],
+    };
+
+    const fixedCurrentDate = new Date("2026-10-26T12:00:00.000Z");
+
+    // 1. Without future projections: only real past & current months up to 2026-10
+    const realMonthsOnly = extractRealActiveMonthKeys({
+      members: [activeMember],
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      currentDate: fixedCurrentDate,
+      includeFutureProjections: false,
+    });
+
+    expect(realMonthsOnly).toContain("2026-10");
+    expect(realMonthsOnly).not.toContain("2026-11");
+    expect(realMonthsOnly).not.toContain("2026-12");
+    expect(realMonthsOnly).not.toContain("2027-01");
+    for (const m of realMonthsOnly) {
+      expect(m <= "2026-10").toBe(true);
+    }
+
+    // 2. With future projections: includes active contract future months
+    const projectedMonths = extractRealActiveMonthKeys({
+      members: [activeMember],
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      currentDate: fixedCurrentDate,
+      includeFutureProjections: true,
+    });
+
+    expect(projectedMonths).toContain("2026-10");
+    expect(projectedMonths).toContain("2026-11");
+    expect(projectedMonths).toContain("2026-12");
+
+    // 3. Verify zeroed default financial targets (no hardcoded placeholder goals)
+    expect(DEFAULT_FINANCE_GOALS.revenueTargetDA).toBe(0);
+    expect(DEFAULT_FINANCE_GOALS.netProfitTargetDA).toBe(0);
+    expect(DEFAULT_FINANCE_GOALS.assignedClientsTarget).toBe(0);
+    expect(DEFAULT_FINANCE_GOALS.collectionRateTargetPct).toBe(0);
+    expect(DEFAULT_FINANCE_GOALS.maxExpenseRatioPct).toBe(0);
   });
 });

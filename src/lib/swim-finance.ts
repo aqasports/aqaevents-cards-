@@ -6,6 +6,7 @@ import {
   getCurrentFrenchMonth,
   getMemberPaymentSituation,
   isMemberPoolPaid,
+  normalizeMonth,
   parseScheduleSlots,
 } from "./swim-groups";
 import {
@@ -98,11 +99,11 @@ export interface SwimFinanceLedgerState {
 }
 
 export const DEFAULT_FINANCE_GOALS: SwimFinanceGoals = {
-  netProfitTargetDA: 1500000,
-  revenueTargetDA: 2500000,
-  assignedClientsTarget: 150,
-  collectionRateTargetPct: 85,
-  maxExpenseRatioPct: 45,
+  netProfitTargetDA: 0,
+  revenueTargetDA: 0,
+  assignedClientsTarget: 0,
+  collectionRateTargetPct: 0,
+  maxExpenseRatioPct: 0,
 };
 
 export const DEFAULT_FINANCE_LEDGER_STATE: SwimFinanceLedgerState = {
@@ -1272,6 +1273,103 @@ export function compareFinancialPeriods(
         Math.round((periodA.activeNetMarginPct - periodB.activeNetMarginPct) * 10) / 10,
     },
   };
+}
+
+/**
+ * Dynamically extracts all distinct YYYY-MM month keys that contain REAL recorded activity
+ * (real member start dates, real payment timestamps, real bordereaux, or real expenses).
+ * Strictly excludes any future months that have not occurred yet (<= current calendar month),
+ * unless includeFutureProjections is explicitly set to true.
+ */
+export function extractRealActiveMonthKeys(params: {
+  members?: FinanceMemberInput[];
+  bordereaux?: PoolBordereau[];
+  equipmentSales?: FinanceEquipmentSaleInput[];
+  customExpenses?: SwimCustomExpense[];
+  ledger?: SwimFinanceLedgerState;
+  currentDate?: Date;
+  includeFutureProjections?: boolean;
+}): string[] {
+  const now = params.currentDate || new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+  const set = new Set<string>();
+
+  // Always include the current active calendar month
+  set.add(currentMonthKey);
+
+  // 1. Members start dates & payment dates
+  for (const m of params.members || []) {
+    if (m.dateOfStart) {
+      const match = m.dateOfStart.match(/^(\d{4}-\d{2})/);
+      if (match) set.add(match[1]);
+    }
+    if (m.createdAt) {
+      const match = m.createdAt.match(/^(\d{4}-\d{2})/);
+      if (match) set.add(match[1]);
+    }
+    if (Array.isArray(m.payments)) {
+      for (const p of m.payments) {
+        if (p.paidAt) {
+          const match = p.paidAt.match(/^(\d{4}-\d{2})/);
+          if (match) set.add(match[1]);
+        }
+      }
+    }
+  }
+
+  // 2. Equipment sales
+  for (const s of params.equipmentSales || []) {
+    if (s.soldAt) {
+      const match = s.soldAt.match(/^(\d{4}-\d{2})/);
+      if (match) set.add(match[1]);
+    }
+  }
+
+  // 3. Custom expenses
+  const allExpenses = params.ledger?.customExpenses || params.customExpenses || [];
+  for (const e of allExpenses) {
+    if (e.monthKey) set.add(e.monthKey);
+    else if (e.date) {
+      const match = e.date.match(/^(\d{4}-\d{2})/);
+      if (match) set.add(match[1]);
+    }
+  }
+
+  // 4. Bordereaux
+  for (const b of params.bordereaux || []) {
+    if (b.month) {
+      const norm = normalizeMonth(b.month);
+      const mIdx = FRENCH_MONTHS.findIndex((fm) => normalizeMonth(fm) === norm);
+      if (mIdx !== -1) {
+        const y = now.getFullYear();
+        set.add(`${y}-${String(mIdx + 1).padStart(2, "0")}`);
+      }
+    }
+  }
+
+  if (params.includeFutureProjections) {
+    // Include future months covered by active member contracts
+    for (const m of params.members || []) {
+      const win = getMemberSubscriptionWindow(m);
+      if (win.start && win.end) {
+        const cursor = new Date(win.start.getTime());
+        while (cursor <= win.end) {
+          const k = `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, "0")}`;
+          if (k >= "2026-08") set.add(k);
+          cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+        }
+      }
+    }
+    return Array.from(set)
+      .filter((k) => /^\d{4}-\d{2}$/.test(k) && k >= "2026-08")
+      .sort();
+  }
+
+  // Strict mode (Default): only real realized months up to the current active month
+  return Array.from(set)
+    .filter((k) => /^\d{4}-\d{2}$/.test(k) && k >= "2026-08" && k <= currentMonthKey)
+    .sort();
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   computePeriodFinancialReport,
   DEFAULT_FINANCE_LEDGER_STATE,
   ExpenseCategory,
+  extractRealActiveMonthKeys,
   FinanceCoachInput,
   FinanceEquipmentSaleInput,
   FinanceMemberInput,
@@ -42,24 +43,9 @@ interface SwimFinanceDeskProps {
   groups?: SwimGroupReference[];
 }
 
-const AVAILABLE_MONTH_KEYS = [
-  "2026-09",
-  "2026-10",
-  "2026-11",
-  "2026-12",
-  "2027-01",
-  "2027-02",
-  "2027-03",
-  "2027-04",
-  "2027-05",
-  "2027-06",
-];
-
 const AVAILABLE_QUARTERS = [
   { key: "2026-Q3", label: "T3 2026 (Juil - Sep)" },
   { key: "2026-Q4", label: "T4 2026 (Oct - Dec)" },
-  { key: "2027-Q1", label: "T1 2027 (Jan - Mar)" },
-  { key: "2027-Q2", label: "T2 2027 (Avr - Juin)" },
 ];
 
 function formatDA(amount: number): string {
@@ -178,13 +164,38 @@ export function SwimFinanceDesk({
   );
 
   // ─── 3. DYNAMIC ACCOUNTING CONTROLS & PERIOD FILTERS ─────────────────────────
+  const [showFutureProjections, setShowFutureProjections] = useState(false);
+
+  // Dynamic discovery of real recorded months from real database records (strictly up to current date)
+  const availableMonthKeys = useMemo(() => {
+    return extractRealActiveMonthKeys({
+      members: rawMembers,
+      bordereaux,
+      equipmentSales,
+      customExpenses: ledger.customExpenses,
+      includeFutureProjections: false,
+    });
+  }, [rawMembers, bordereaux, equipmentSales, ledger.customExpenses]);
+
+  const seriesMonthKeys = useMemo(() => {
+    return extractRealActiveMonthKeys({
+      members: rawMembers,
+      bordereaux,
+      equipmentSales,
+      customExpenses: ledger.customExpenses,
+      includeFutureProjections: showFutureProjections,
+    });
+  }, [rawMembers, bordereaux, equipmentSales, ledger.customExpenses, showFutureProjections]);
+
   const currentDefaultMonth = useMemo(() => {
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, "0");
     const candidate = `${y}-${m}`;
-    return AVAILABLE_MONTH_KEYS.includes(candidate) ? candidate : "2026-10";
-  }, []);
+    return availableMonthKeys.includes(candidate)
+      ? candidate
+      : availableMonthKeys[availableMonthKeys.length - 1] || "2026-10";
+  }, [availableMonthKeys]);
 
   const [periodAFilter, setPeriodAFilter] = useState<PeriodFilter>({
     mode: "all",
@@ -277,7 +288,7 @@ export function SwimFinanceDesk({
 
   const monthlySeries = useMemo(() => {
     return buildMonthlyFinancialSeries({
-      monthKeys: ["2026-09", "2026-10", "2026-11", "2026-12", "2027-01", "2027-02"],
+      monthKeys: seriesMonthKeys,
       members: rawMembers,
       groups: rawGroups,
       coaches,
@@ -290,6 +301,7 @@ export function SwimFinanceDesk({
       recognitionMode,
     });
   }, [
+    seriesMonthKeys,
     rawMembers,
     rawGroups,
     coaches,
@@ -781,7 +793,7 @@ export function SwimFinanceDesk({
                   }
                   className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-cyan-500/40 text-xs font-mono text-cyan-300 focus:outline-none"
                 >
-                  {AVAILABLE_MONTH_KEYS.map((mk) => (
+                  {availableMonthKeys.map((mk) => (
                     <option key={mk} value={mk}>
                       {mk}
                     </option>
@@ -1605,26 +1617,62 @@ export function SwimFinanceDesk({
           {/* CHART 3: MULTI-MONTH EVOLUTION SVG BAR + LINE CHART */}
           <Card>
             <div className="p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-bold text-white">{t("trendChartTitle")}</h3>
-                  <p className="text-xs text-slate-400">
-                    Comparaison chronologique mensuelle des revenus (payé + à payer), des charges totales et du bénéfice net
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-sm font-bold text-white">{t("trendChartTitle")}</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-500/30 font-mono">
+                      {showFutureProjections ? "Projections Incluses" : "Données Réelles Réalisées"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {showFutureProjections
+                      ? "Mois réels réalisés + projection prévisionnelle des abonnements pluriannuels actifs"
+                      : "Historique strict des mois réels clôturés ou en cours (aucun mois futur anticipé)"}
                   </p>
                 </div>
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="flex items-center gap-1.5 text-sky-400">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block" />
-                    Revenus
-                  </span>
-                  <span className="flex items-center gap-1.5 text-rose-400">
-                    <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" />
-                    Dépenses
-                  </span>
-                  <span className="flex items-center gap-1.5 text-cyan-300">
-                    <span className="w-3 h-0.5 bg-[var(--accent)] inline-block" />
-                    Bénéfice Net
-                  </span>
+
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  {/* Mode Selector: Mois Réels vs Projections */}
+                  <div className="flex items-center rounded-lg bg-slate-900 border border-white/10 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowFutureProjections(false)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                        !showFutureProjections
+                          ? "bg-sky-500 text-white shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      Mois Réels ({availableMonthKeys.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowFutureProjections(true)}
+                      className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                        showFutureProjections
+                          ? "bg-sky-500 text-white shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      + Projections Contrats
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-sky-400">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-sky-500 inline-block" />
+                      Revenus
+                    </span>
+                    <span className="flex items-center gap-1.5 text-rose-400">
+                      <span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" />
+                      Dépenses
+                    </span>
+                    <span className="flex items-center gap-1.5 text-cyan-300">
+                      <span className="w-3 h-0.5 bg-[var(--accent)] inline-block" />
+                      Bénéfice Net
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1689,6 +1737,7 @@ export function SwimFinanceDesk({
                       {monthlySeries.map((m, idx) => {
                         const center = PAD_L + idx * colW + colW / 2;
                         const barWidth = Math.min(26, colW * 0.28);
+                        const isFuture = m.monthKey > currentDefaultMonth;
                         const revH = (m.totalRevenueDA / yMax) * innerH;
                         const expH = (m.totalExpensesDA / yMax) * innerH;
                         return (
@@ -1701,7 +1750,9 @@ export function SwimFinanceDesk({
                               height={Math.max(2, revH)}
                               rx="3"
                               fill="#0ea5e9"
-                              opacity="0.88"
+                              opacity={isFuture ? "0.55" : "0.88"}
+                              stroke={isFuture ? "rgba(14,165,233,0.8)" : "none"}
+                              strokeDasharray={isFuture ? "2 2" : undefined}
                             />
                             {/* Expense Bar */}
                             <rect
@@ -1711,7 +1762,9 @@ export function SwimFinanceDesk({
                               height={Math.max(2, expH)}
                               rx="3"
                               fill="#f43f5e"
-                              opacity="0.85"
+                              opacity={isFuture ? "0.5" : "0.85"}
+                              stroke={isFuture ? "rgba(244,63,94,0.8)" : "none"}
+                              strokeDasharray={isFuture ? "2 2" : undefined}
                             />
                             {/* Month Label */}
                             <text
@@ -1720,10 +1773,22 @@ export function SwimFinanceDesk({
                               textAnchor="middle"
                               fontSize="10"
                               fontWeight="600"
-                              fill="#cbd5e1"
+                              fill={isFuture ? "#f59e0b" : "#cbd5e1"}
                             >
                               {m.label}
                             </text>
+                            {isFuture && (
+                              <text
+                                x={center}
+                                y={PAD_T + 10}
+                                textAnchor="middle"
+                                fontSize="7"
+                                fontFamily="monospace"
+                                fill="#f59e0b"
+                              >
+                                PROJ
+                              </text>
+                            )}
                           </g>
                         );
                       })}
@@ -1888,7 +1953,7 @@ export function SwimFinanceDesk({
                       }
                       className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-amber-500/40 text-xs font-mono text-amber-300"
                     >
-                      {AVAILABLE_MONTH_KEYS.map((mk) => (
+                      {availableMonthKeys.map((mk) => (
                         <option key={mk} value={mk}>
                           {mk}
                         </option>
@@ -2604,8 +2669,16 @@ export function SwimFinanceDesk({
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-slate-200">{g.label}</span>
                           <span className="font-mono text-white">
-                            {g.fmt(g.current)} /{" "}
-                            <span className="text-slate-400">{g.fmt(g.target)}</span> ({pct}%)
+                            {g.fmt(g.current)}{" "}
+                            {g.target > 0 ? (
+                              <>
+                                / <span className="text-slate-400">{g.fmt(g.target)}</span> ({pct}%)
+                              </>
+                            ) : (
+                              <span className="text-slate-500 text-[11px] font-sans ml-1">
+                                (Non défini)
+                              </span>
+                            )}
                           </span>
                         </div>
                         <div className="h-2.5 w-full rounded-full bg-slate-900 overflow-hidden">

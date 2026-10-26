@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,17 +21,44 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
+  Timer? _syncTimer;
+
+  /// Foreground sync cadence. Notifications and roster changes arrive while
+  /// the app is open; the timer is cancelled the moment the screen disposes.
+  static const Duration _foregroundSyncInterval = Duration(seconds: 120);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref
           .read(notificationServiceProvider)
           .ensureInitializedAndPromptIfFirstRun();
     });
+    _syncTimer = Timer.periodic(_foregroundSyncInterval, (_) {
+      if (!mounted) return;
+      ref.read(bootstrapProvider.notifier).refreshSilently();
+    });
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Fresh data + pending OS notifications the moment the coach returns.
+      ref.read(bootstrapProvider.notifier).refreshSilently();
+      ref.read(notificationServiceProvider).syncFromSystem();
+    }
   }
 
   @override
@@ -227,9 +255,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             children: [
                               AqaGlassIconButton(
                                 icon: Icons.notifications_outlined,
-                                tooltip: i18n.locale == 'ar'
-                                    ? 'الإشعارات'
-                                    : 'Notifications',
+                                tooltip: i18n.t('notif.center_title'),
                                 iconColor: totalBadgeCount > 0
                                     ? AqaTheme.accentTeal
                                     : AqaTheme.textSecondary,
@@ -368,11 +394,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                             const SizedBox(width: 8.0),
                             Text(
-                              i18n.locale == 'ar'
-                                  ? 'مركز الإشعارات'
-                                  : i18n.locale == 'en'
-                                      ? 'Notification Center'
-                                      : 'Centre de Notifications',
+                              i18n.t('notif.center_title'),
                               style: const TextStyle(
                                 color: AqaTheme.textPrimary,
                                 fontSize: 16.0,
@@ -384,11 +406,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         Row(
                           children: [
                             AqaIslandButton(
-                              label: i18n.locale == 'ar'
-                                  ? 'اختبار'
-                                  : i18n.locale == 'en'
-                                      ? 'Test Alert'
-                                      : 'Tester',
+                              label: i18n.t('notif.test_short'),
                               icon: Icons.bolt_rounded,
                               compact: true,
                               secondary: true,
@@ -397,11 +415,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     .read(notificationServiceProvider)
                                     .showNotification(
                                       title: 'AQA Coaches',
-                                      body: i18n.locale == 'ar'
-                                          ? 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.'
-                                          : i18n.locale == 'en'
-                                              ? 'Test alert successfully delivered to your device.'
-                                              : 'Notification de test recue avec succes sur votre appareil.',
+                                      body: i18n.t('notif.test_body'),
                                       tag:
                                           'test-${DateTime.now().millisecondsSinceEpoch}',
                                     );
@@ -410,11 +424,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     SnackBar(
                                       backgroundColor: AqaTheme.statusSuccess,
                                       content: Text(
-                                        i18n.locale == 'ar'
-                                            ? 'تم إرسال إشعار تجريبي'
-                                            : i18n.locale == 'en'
-                                                ? 'Test notification dispatched'
-                                                : 'Notification test envoyee a l\'appareil',
+                                        i18n.t('notif.test_sent'),
                                       ),
                                     ),
                                   );
@@ -433,11 +443,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       .markAllAsSeen(allIds);
                                 },
                                 child: Text(
-                                  i18n.locale == 'ar'
-                                      ? 'مسح الكل'
-                                      : i18n.locale == 'en'
-                                          ? 'Clear All'
-                                          : 'Tout effacer',
+                                  i18n.t('notif.clear_all'),
                                   style: const TextStyle(
                                     color: AqaTheme.textMuted,
                                     fontSize: 11.5,
@@ -484,11 +490,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   ),
                                   const SizedBox(height: 10.0),
                                   Text(
-                                    i18n.locale == 'ar'
-                                        ? 'لا توجد إشعارات جديدة'
-                                        : i18n.locale == 'en'
-                                            ? 'No new notifications'
-                                            : 'Aucune nouvelle notification',
+                                    i18n.t('notif.empty_title'),
                                     style: const TextStyle(
                                       color: AqaTheme.textPrimary,
                                       fontSize: 14.5,
@@ -497,11 +499,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   ),
                                   const SizedBox(height: 4.0),
                                   Text(
-                                    i18n.locale == 'ar'
-                                        ? 'جميع التنبيهات ومستجدات الأفواج محدثة'
-                                        : i18n.locale == 'en'
-                                            ? 'All alerts and group updates are up to date'
-                                            : 'Toutes les alertes et mouvements de groupe sont a jour',
+                                    i18n.t('notif.empty_sub'),
                                     style: const TextStyle(
                                       color: AqaTheme.textMuted,
                                       fontSize: 12.0,
