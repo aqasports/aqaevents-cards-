@@ -813,7 +813,10 @@ export function computePeriodFinancialReport(params: {
   // Coach salaries calculation
   // Merge known coaches from DB + coaches found in groups + coaches configured in ledger
   const allCoachKeys = new Set<string>();
-  const coachIdentityByKey = new Map<string, { id: string; name: string; defaultPayRate: number }>();
+  const coachIdentityByKey = new Map<
+    string,
+    { id: string; name: string; defaultPayRate: number; commissionRate: number }
+  >();
 
   for (const c of coaches) {
     if (c.active === false) continue;
@@ -823,6 +826,7 @@ export function computePeriodFinancialReport(params: {
       id: c.id,
       name: c.name.trim(),
       defaultPayRate: c.defaultPayRate || 0,
+      commissionRate: c.commissionRate || 0,
     });
   }
 
@@ -833,6 +837,7 @@ export function computePeriodFinancialReport(params: {
         id: `coach_${key.replace(/\s+/g, "_")}`,
         name: stat.coachName,
         defaultPayRate: 0,
+        commissionRate: 0,
       });
     }
   }
@@ -845,6 +850,7 @@ export function computePeriodFinancialReport(params: {
         id: cfg.coachId || cfgKey,
         name: cfg.coachName || cfgKey,
         defaultPayRate: 0,
+        commissionRate: 0,
       });
     }
   }
@@ -867,11 +873,24 @@ export function computePeriodFinancialReport(params: {
     const estimatedSessionsCount = (stat ? stat.weeklySlotsCount * 4 : 4) * monthsSpan;
     const groupRevenueDA = stat ? stat.groupRevenueDA : 0;
 
-    const mode: CoachSalaryMode = savedCfg?.mode || "fixed_monthly";
+    const fallbackMode: CoachSalaryMode =
+      identity.defaultPayRate > 0
+        ? "per_session"
+        : identity.commissionRate > 0
+        ? "revenue_share"
+        : "per_group";
+
+    const mode: CoachSalaryMode = savedCfg?.mode || fallbackMode;
     const fixedMonthlyDA = savedCfg?.fixedMonthlyDA ?? 0;
     const perGroupDA = savedCfg?.perGroupDA ?? 0;
     const perSessionDA = savedCfg?.perSessionDA ?? identity.defaultPayRate ?? 0;
-    const revenueSharePct = savedCfg?.revenueSharePct ?? 0;
+    const revenueSharePct =
+      savedCfg?.revenueSharePct ??
+      (identity.commissionRate > 0
+        ? identity.commissionRate <= 1
+          ? Math.round(identity.commissionRate * 100)
+          : identity.commissionRate
+        : 0);
     const bonusDA = savedCfg?.bonusDA ?? 0;
     const deductionDA = savedCfg?.deductionDA ?? 0;
     const isPaid = savedCfg?.isPaid ?? false;

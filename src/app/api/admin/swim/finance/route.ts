@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { logAdminAction } from "@/lib/audit";
 import {
   DEFAULT_FINANCE_GOALS,
   DEFAULT_FINANCE_LEDGER_STATE,
@@ -239,6 +240,53 @@ export async function POST(request: NextRequest) {
         value: JSON.stringify(updated),
       },
     });
+
+    // Sync defaultPayRate / commissionRate to matching Coach DB rows when coachSalaries are updated
+    if (parsed.data.coachSalaries) {
+      const dbCoaches = await prisma.coach.findMany({
+        where: { active: true },
+        select: { id: true, name: true },
+      });
+      for (const cfg of Object.values(parsed.data.coachSalaries)) {
+        const matched = dbCoaches.find(
+          (c) =>
+            c.id === cfg.coachId ||
+            c.name.trim().toLowerCase() === (cfg.coachName || "").trim().toLowerCase()
+        );
+        if (matched) {
+          const nextPayRate =
+            cfg.mode === "per_session"
+              ? Math.round(cfg.perSessionDA)
+              : cfg.mode === "per_group"
+              ? Math.round(cfg.perGroupDA)
+              : cfg.mode === "fixed_monthly"
+              ? Math.round(cfg.fixedMonthlyDA)
+              : 0;
+          const nextCommission =
+            cfg.mode === "revenue_share" ? Number((cfg.revenueSharePct / 100).toFixed(4)) : 0;
+          await prisma.coach
+            .update({
+              where: { id: matched.id },
+              data: {
+                defaultPayRate: nextPayRate,
+                commissionRate: nextCommission,
+              },
+            })
+            .catch(() => {});
+        }
+      }
+    }
+
+    await logAdminAction(
+      session.user.id,
+      "UPDATE_SWIM_FINANCE_LEDGER",
+      "SwimFinance",
+      JSON.stringify({
+        coachesConfigured: Object.keys(updated.coachSalaries || {}).length,
+        expensesCount: (updated.customExpenses || []).length,
+        snapshotsCount: (updated.snapshots || []).length,
+      })
+    ).catch(() => {});
 
     return NextResponse.json({ success: true, ledger: updated });
   } catch (err: unknown) {

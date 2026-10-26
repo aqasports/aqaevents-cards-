@@ -367,6 +367,34 @@ export function SwimFinanceDesk({
     persistLedgerUpdate({ coachSalaries: nextSalaries });
   };
 
+  const handleApplyBulkCoachPreset = (
+    patch: Partial<CoachSalaryConfig>,
+    notice: string
+  ) => {
+    const nextSalaries: Record<string, CoachSalaryConfig> = {
+      ...(ledger.coachSalaries || {}),
+    };
+    for (const c of reportA.coachRows) {
+      const existing: CoachSalaryConfig = nextSalaries[c.coachKey] || {
+        coachId: c.coachId,
+        coachName: c.coachName,
+        mode: c.mode,
+        fixedMonthlyDA: 0,
+        perGroupDA: 0,
+        perSessionDA: 0,
+        revenueSharePct: 0,
+        bonusDA: c.bonusDA,
+        deductionDA: c.deductionDA,
+        isPaid: c.isPaid,
+      };
+      nextSalaries[c.coachKey] = {
+        ...existing,
+        ...patch,
+      };
+    }
+    persistLedgerUpdate({ coachSalaries: nextSalaries }, notice);
+  };
+
   // ─── 6. GOALS & WHAT-IF SIMULATOR STATES ─────────────────────────────────────
   const [goalsDraft, setGoalsDraft] = useState<SwimFinanceGoals>(
     DEFAULT_FINANCE_LEDGER_STATE.goals
@@ -691,12 +719,15 @@ export function SwimFinanceDesk({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
             {toastMsg && (
               <span className="px-3 py-1.5 rounded-xl bg-emerald-950/90 border border-emerald-500/40 text-emerald-300 text-xs font-semibold">
                 {toastMsg}
               </span>
             )}
+            <Button variant="secondary" size="sm" onClick={() => window.print()}>
+              Imprimer Bilan A4
+            </Button>
             <Button variant="secondary" size="sm" onClick={handleSaveSnapshot} disabled={saving}>
               {t("saveSnapshotBtn")}
             </Button>
@@ -1847,6 +1878,85 @@ export function SwimFinanceDesk({
                 </div>
               </div>
 
+              {/* Quick Bulk Coach Presets */}
+              <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl bg-slate-950/80 border border-white/10">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                  Barèmes Rapides (Tous les Coaches) :
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleApplyBulkCoachPreset(
+                      { mode: "per_group", perGroupDA: 8000 },
+                      "Barème 8 000 DA / Groupe appliqué"
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-cyan-300 cursor-pointer"
+                >
+                  8 000 DA / Groupe
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleApplyBulkCoachPreset(
+                      { mode: "per_group", perGroupDA: 10000 },
+                      "Barème 10 000 DA / Groupe appliqué"
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-cyan-300 cursor-pointer"
+                >
+                  10 000 DA / Groupe
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleApplyBulkCoachPreset(
+                      { mode: "per_session", perSessionDA: 2000 },
+                      "Barème 2 000 DA / Séance appliqué"
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-sky-300 cursor-pointer"
+                >
+                  2 000 DA / Séance
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleApplyBulkCoachPreset(
+                      { mode: "fixed_monthly", fixedMonthlyDA: 25000 },
+                      "Forfait 25 000 DA / Mois appliqué"
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-emerald-300 cursor-pointer"
+                >
+                  25 000 DA / Mois Fixe
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleApplyBulkCoachPreset(
+                      { mode: "revenue_share", revenueSharePct: 15 },
+                      "Commission 15% CA Groupe appliquée"
+                    )
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-amber-300 cursor-pointer"
+                >
+                  15% Commission CA
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleApplyBulkCoachPreset(
+                      { isPaid: true },
+                      "Tous les salaires coaches marqués réglés"
+                    )
+                  }
+                  className="ml-auto px-2.5 py-1 rounded-lg bg-emerald-950/70 hover:bg-emerald-900/70 border border-emerald-500/40 text-xs font-bold text-emerald-300 cursor-pointer"
+                >
+                  Tout Marquer Réglé
+                </button>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
@@ -2658,6 +2768,111 @@ export function SwimFinanceDesk({
           </div>
         </Card>
       )}
+
+      {/* ─── OFFICIAL A4 PRINTABLE ACCOUNTING STATEMENT (VISIBLE ONLY ON PRINT) ── */}
+      <div className="hidden print:block bg-white text-black p-6 space-y-5 font-sans">
+        <div className="flex items-start justify-between border-b-2 border-black pb-4">
+          <div>
+            <h1 className="text-xl font-black uppercase tracking-tight">
+              AQA SPORTS ACADEMY · SECTEUR AQA SWIM
+            </h1>
+            <p className="text-xs font-semibold text-gray-700">
+              BILAN COMPTABLE ANALYTIQUE &amp; COMPTE DE RÉSULTAT OFFICIEL
+            </p>
+          </div>
+          <div className="text-right text-xs font-mono">
+            <div>Période : {reportA.periodLabel}</div>
+            <div>Date d&apos;édition : {new Date().toLocaleDateString("fr-DZ")}</div>
+            <div>
+              Base : {accountingBasis === "accrual" ? "Engagement (Payé + À Payer)" : "Trésorerie"}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-4 gap-3 text-xs border border-black p-3 font-mono">
+          <div>
+            <div className="text-[10px] uppercase text-gray-600">Clients Assignés</div>
+            <div className="text-sm font-bold">{reportA.assignedClientsCount} nageurs</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase text-gray-600">Total Revenus (CA)</div>
+            <div className="text-sm font-bold">{formatDA(reportA.totalRecognizedRevenueDA)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase text-gray-600">Total Charges</div>
+            <div className="text-sm font-bold">-{formatDA(reportA.totalExpensesDA)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase text-gray-600">Bénéfice Net ({reportA.activeNetMarginPct}%)</div>
+            <div className="text-sm font-black">{formatSignedDA(reportA.activeNetProfitDA)}</div>
+          </div>
+        </div>
+
+        <table className="w-full text-xs border-collapse border border-black font-mono">
+          <thead>
+            <tr className="bg-gray-100 border-b border-black text-left font-sans">
+              <th className="p-2 border-r border-black">Poste du Compte de Résultat</th>
+              <th className="p-2 border-r border-black">Détail Analytique</th>
+              <th className="p-2 text-right">Montant (DA)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-gray-300">
+              <td className="p-2 border-r border-black font-sans font-bold">1. Encaissements Clients (Payé)</td>
+              <td className="p-2 border-r border-black font-sans">{reportA.fullyPaidClientsCount} soldés, {reportA.partialClientsCount} partiels</td>
+              <td className="p-2 text-right">+{formatDA(reportA.revenuePaidDA)}</td>
+            </tr>
+            <tr className="border-b border-gray-300">
+              <td className="p-2 border-r border-black font-sans font-bold">2. Créances Clients (Reste à Payer)</td>
+              <td className="p-2 border-r border-black font-sans">{reportA.unpaidClientsCount} non payés + reliquats partiels</td>
+              <td className="p-2 text-right">+{formatDA(reportA.revenueStillToPayDA)}</td>
+            </tr>
+            {includeEquipmentMargin && (
+              <tr className="border-b border-gray-300">
+                <td className="p-2 border-r border-black font-sans font-bold">3. Marge Nette Boutique Équipement</td>
+                <td className="p-2 border-r border-black font-sans">Ventes: {formatDA(reportA.equipmentRevenueDA)} / Coût: {formatDA(reportA.equipmentCostDA)}</td>
+                <td className="p-2 text-right">+{formatDA(reportA.equipmentNetMarginDA)}</td>
+              </tr>
+            )}
+            <tr className="border-b border-black bg-gray-100 font-bold">
+              <td className="p-2 border-r border-black font-sans">TOTAL PRODUITS D&apos;EXPLOITATION</td>
+              <td className="p-2 border-r border-black font-sans">Recouvrement: {reportA.collectionRatePct}%</td>
+              <td className="p-2 text-right">{formatDA(reportA.totalRecognizedRevenueDA)}</td>
+            </tr>
+            <tr className="border-b border-gray-300">
+              <td className="p-2 border-r border-black font-sans font-bold">4. Redevances Piscine (poolpaid)</td>
+              <td className="p-2 border-r border-black font-sans">{reportA.poolPaidClientsCount} adhérents poolpaid</td>
+              <td className="p-2 text-right">-{formatDA(reportA.appliedPoolExpenseDA)}</td>
+            </tr>
+            <tr className="border-b border-gray-300">
+              <td className="p-2 border-r border-black font-sans font-bold">5. Masse Salariale Entraîneurs (Coaches)</td>
+              <td className="p-2 border-r border-black font-sans">{reportA.coachRows.length} coaches actifs</td>
+              <td className="p-2 text-right">-{formatDA(reportA.coachSalaryTotalDA)}</td>
+            </tr>
+            <tr className="border-b border-black">
+              <td className="p-2 border-r border-black font-sans font-bold">6. Autres Charges Opérationnelles</td>
+              <td className="p-2 border-r border-black font-sans">{reportA.filteredCustomExpenses.length} écritures de charges</td>
+              <td className="p-2 text-right">-{formatDA(reportA.otherExpensesTotalDA)}</td>
+            </tr>
+            <tr className="bg-gray-200 font-black text-sm">
+              <td className="p-2.5 border-r border-black font-sans">RÉSULTAT NET DU SECTEUR AQA SWIM</td>
+              <td className="p-2.5 border-r border-black font-sans">Marge Nette: {reportA.activeNetMarginPct}% · Seuil: {reportA.breakEven.breakEvenSwimmersCount} nageurs</td>
+              <td className="p-2.5 text-right">{formatSignedDA(reportA.activeNetProfitDA)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="grid grid-cols-2 gap-8 pt-6 text-xs">
+          <div className="border border-black p-4 h-24">
+            <div className="font-bold uppercase">Direction Financière AQA Sports</div>
+            <div className="text-[10px] text-gray-600">Visa, Date &amp; Cachet</div>
+          </div>
+          <div className="border border-black p-4 h-24">
+            <div className="font-bold uppercase">Direction Générale / Audit</div>
+            <div className="text-[10px] text-gray-600">Approbation du Bilan</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
