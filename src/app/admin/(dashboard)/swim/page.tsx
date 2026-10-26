@@ -46,6 +46,7 @@ import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
 import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
 import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
 import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
+import { SwimFinanceDesk } from "@/components/admin/swim/finance/SwimFinanceDesk";
 import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
 import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
 import { isPremiumFormula } from "@/lib/swim-perks";
@@ -173,7 +174,7 @@ interface SwimCardItem {
 function SwimOverviewPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "finance">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -196,7 +197,8 @@ function SwimOverviewPageInner() {
       tabParam === "backups" ||
       tabParam === "equipment" ||
       tabParam === "pool" ||
-      tabParam === "apnea"
+      tabParam === "apnea" ||
+      tabParam === "finance"
     ) {
       setActiveTab(tabParam);
     } else if (!tabParam) {
@@ -925,6 +927,14 @@ function SwimOverviewPageInner() {
       badgeTone: "info" as const,
       actionText: "Ouvrir Coaching Desk",
     },
+    {
+      title: "8. Comptabilité & Rentabilité (Finance & Profits)",
+      desc: "Calculer le bénéfice net (clients assignés payés + reste à payer moins poolpaid, salaires coaches et autres charges), comparer les périodes, visualiser les graphiques et simuler vos objectifs.",
+      href: "/admin/swim?tab=finance",
+      badge: "P&L & Bilan",
+      badgeTone: "success" as const,
+      actionText: "Ouvrir Finance Desk",
+    },
   ];
 
   // Eligible groups for Add Member modal (category-scoped + optional solid filter)
@@ -1227,6 +1237,23 @@ function SwimOverviewPageInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 3 2M3 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 3 2M12 3v6m0 0l-3-3m3 3l3-3" />
               </svg>
               <span>AQA Apnea</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("finance")}
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                activeTab === "finance"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
+                  : "text-emerald-400 hover:text-white hover:bg-emerald-950/60 border border-emerald-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              <span>Comptabilité & Profits</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800/40 font-mono">
+                P&amp;L
+              </span>
             </button>
 
             <Link
@@ -2606,6 +2633,11 @@ function SwimOverviewPageInner() {
       {/* TAB: AQA APNEA (packs, presence, records, coach terminals) */}
       {activeTab === "apnea" && (
         <SwimApneaDesk />
+      )}
+
+      {/* TAB: COMPTABILITE, RENTABILITE & COMPARATEUR DE PERIODES */}
+      {activeTab === "finance" && (
+        <SwimFinanceDesk members={members} groups={groups} />
       )}
 
       {/* ─── ADD SWIMMER MODAL ────────────────────────────────────────── */}
