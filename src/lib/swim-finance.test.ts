@@ -5,6 +5,8 @@ import {
   runWhatIfSimulation,
   computeFinancialHealthScore,
   generateFinancialInsights,
+  buildMonthlyFinancialSeries,
+  resolveFormulaMonths,
   FINANCIAL_KNOWLEDGE_PILLS,
   DEFAULT_FINANCE_LEDGER_STATE,
   FinanceMemberInput,
@@ -214,6 +216,7 @@ describe("AQA Swim Financial & Accounting Engine", () => {
       groups: mockGroups,
       ledger: DEFAULT_FINANCE_LEDGER_STATE,
       filter: { mode: "month", monthKey: "2026-10" },
+      recognitionMode: "full_contract",
     });
 
     const reportSep = computePeriodFinancialReport({
@@ -221,6 +224,7 @@ describe("AQA Swim Financial & Accounting Engine", () => {
       groups: mockGroups,
       ledger: DEFAULT_FINANCE_LEDGER_STATE,
       filter: { mode: "month", monthKey: "2026-09" },
+      recognitionMode: "full_contract",
     });
 
     const cmp = compareFinancialPeriods(reportOct, reportSep);
@@ -236,6 +240,179 @@ describe("AQA Swim Financial & Accounting Engine", () => {
     });
     expect(sim.projectedSwimmers).toBe(13);
     expect(sim.projectedRevenueDA).toBeGreaterThan(reportOct.totalRecognizedRevenueDA);
+  });
+
+  it("accurately amortizes Silver, Gold, and Diamond across contract months (Oct 7300, Nov 7300, Dec 7300)", () => {
+    // Exact user test case:
+    // Silver: 21900 DA / 3 = 7300 DA / month for Oct, Nov, Dec.
+    // Must NOT pump all money into October leaving November and December with zero.
+    const silverSwimmer: FinanceMemberInput = {
+      id: "silver_1",
+      swimId: "SWM-SILVER",
+      fullName: "Farid Belhadj",
+      phone: "0550111111",
+      category: "homme",
+      level: "new_aqa",
+      formula: "Silver",
+      duration: "3m",
+      priceDA: 21900,
+      paymentStatus: "paid",
+      notes: "[POOLPAID:Octobre]",
+      groupId: "grp_1",
+      group: mockGroups[0],
+      dateOfStart: "2026-10-01",
+      payments: [{ amount: 21900, paidAt: "2026-10-01T10:00:00.000Z" }],
+    };
+
+    // Gold: 39900 DA / 6 = 6650 DA / month for 6 months
+    const goldSwimmer: FinanceMemberInput = {
+      id: "gold_1",
+      swimId: "SWM-GOLD",
+      fullName: "Sofiane Feghouli",
+      phone: "0550222222",
+      category: "homme",
+      level: "old_aqa",
+      formula: "Gold",
+      duration: "6m",
+      priceDA: 39900,
+      paymentStatus: "paid",
+      notes: "[POOLPAID:Octobre]",
+      groupId: "grp_1",
+      group: mockGroups[0],
+      dateOfStart: "2026-10-01",
+      payments: [{ amount: 39900, paidAt: "2026-10-01T10:00:00.000Z" }],
+    };
+
+    // Diamond: 54900 DA / 9 = 6100 DA / month for 9 months
+    const diamondSwimmer: FinanceMemberInput = {
+      id: "diamond_1",
+      swimId: "SWM-DIAMOND",
+      fullName: "Riyad Mahrez",
+      phone: "0550333333",
+      category: "homme",
+      level: "new_aqa",
+      formula: "Diamond",
+      duration: "9m",
+      priceDA: 54900,
+      paymentStatus: "paid",
+      notes: "[POOLPAID:Octobre]",
+      groupId: "grp_1",
+      group: mockGroups[0],
+      dateOfStart: "2026-10-01",
+      payments: [{ amount: 54900, paidAt: "2026-10-01T10:00:00.000Z" }],
+    };
+
+    // 1. Verify formula months resolver
+    expect(resolveFormulaMonths("3m", "Silver")).toBe(3);
+    expect(resolveFormulaMonths("6m", "Gold")).toBe(6);
+    expect(resolveFormulaMonths("9m", "Diamond")).toBe(9);
+    expect(resolveFormulaMonths("1m", "Starter")).toBe(1);
+    expect(resolveFormulaMonths(null, "Recommande")).toBe(6);
+    expect(resolveFormulaMonths(null, "Economique")).toBe(9);
+
+    // 2. Test Silver month by month: October, November, December
+    const testMembers = [silverSwimmer];
+
+    const reportOct = computePeriodFinancialReport({
+      members: testMembers,
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-10" },
+      recognitionMode: "monthly_amortized",
+    });
+
+    const reportNov = computePeriodFinancialReport({
+      members: testMembers,
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-11" },
+      recognitionMode: "monthly_amortized",
+    });
+
+    const reportDec = computePeriodFinancialReport({
+      members: testMembers,
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-12" },
+      recognitionMode: "monthly_amortized",
+    });
+
+    const reportJan = computePeriodFinancialReport({
+      members: testMembers,
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2027-01" },
+      recognitionMode: "monthly_amortized",
+    });
+
+    // October: exactly 7300 DA (21900 / 3)
+    expect(reportOct.assignedClientsCount).toBe(1);
+    expect(reportOct.totalRecognizedRevenueDA).toBe(7300);
+    expect(reportOct.revenuePaidDA).toBe(7300);
+    expect(reportOct.revenueStillToPayDA).toBe(0);
+    expect(reportOct.swimmerRows[0].monthlyRateDA).toBe(7300);
+    expect(reportOct.swimmerRows[0].contractMonths).toBe(3);
+
+    // November: exactly 7300 DA (not zero!)
+    expect(reportNov.assignedClientsCount).toBe(1);
+    expect(reportNov.totalRecognizedRevenueDA).toBe(7300);
+    expect(reportNov.revenuePaidDA).toBe(7300);
+    expect(reportNov.revenueStillToPayDA).toBe(0);
+
+    // December: exactly 7300 DA (not zero!)
+    expect(reportDec.assignedClientsCount).toBe(1);
+    expect(reportDec.totalRecognizedRevenueDA).toBe(7300);
+    expect(reportDec.revenuePaidDA).toBe(7300);
+    expect(reportDec.revenueStillToPayDA).toBe(0);
+
+    // Total across 3 months equals full contract
+    expect(
+      reportOct.totalRecognizedRevenueDA +
+        reportNov.totalRecognizedRevenueDA +
+        reportDec.totalRecognizedRevenueDA
+    ).toBe(21900);
+
+    // January: 0 DA because 3-month contract ended in December
+    expect(reportJan.assignedClientsCount).toBe(0);
+    expect(reportJan.totalRecognizedRevenueDA).toBe(0);
+
+    // 3. Test Gold (39900 DA / 6 = 6650 DA/month)
+    const goldReportOct = computePeriodFinancialReport({
+      members: [goldSwimmer],
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-10" },
+      recognitionMode: "monthly_amortized",
+    });
+    expect(goldReportOct.totalRecognizedRevenueDA).toBe(6650);
+    expect(goldReportOct.swimmerRows[0].monthlyRateDA).toBe(6650);
+    expect(goldReportOct.swimmerRows[0].contractMonths).toBe(6);
+
+    // 4. Test Diamond (54900 DA / 9 = 6100 DA/month)
+    const diamondReportOct = computePeriodFinancialReport({
+      members: [diamondSwimmer],
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-10" },
+      recognitionMode: "monthly_amortized",
+    });
+    expect(diamondReportOct.totalRecognizedRevenueDA).toBe(6100);
+    expect(diamondReportOct.swimmerRows[0].monthlyRateDA).toBe(6100);
+    expect(diamondReportOct.swimmerRows[0].contractMonths).toBe(9);
+
+    // 5. Test multi-month time series trend
+    const series = buildMonthlyFinancialSeries({
+      monthKeys: ["2026-10", "2026-11", "2026-12", "2027-01"],
+      members: [silverSwimmer],
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      recognitionMode: "monthly_amortized",
+    });
+
+    expect(series[0].totalRevenueDA).toBe(7300); // Oct
+    expect(series[1].totalRevenueDA).toBe(7300); // Nov
+    expect(series[2].totalRevenueDA).toBe(7300); // Dec
+    expect(series[3].totalRevenueDA).toBe(0);    // Jan
   });
 
   it("computes financial health score, diagnostics and accounting knowledge pills", () => {

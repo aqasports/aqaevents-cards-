@@ -18,6 +18,7 @@ import {
   SwimGroupReference,
   SwimMemberReference,
 } from "./swim-pool-dispatch";
+import { computeSubscriptionEnd } from "./swim-subscription";
 
 export type AccountingBasis = "accrual" | "cash";
 export type PoolExpenseBasis = "poolpaid_only" | "all_assigned";
@@ -111,7 +112,7 @@ export const DEFAULT_FINANCE_LEDGER_STATE: SwimFinanceLedgerState = {
   snapshots: [],
   defaultAccountingBasis: "accrual",
   defaultPoolBasis: "poolpaid_only",
-  defaultRecognitionMode: "full_contract",
+  defaultRecognitionMode: "monthly_amortized",
   includeEquipmentMargin: true,
   updatedAt: new Date().toISOString(),
 };
@@ -173,6 +174,8 @@ export interface ComputedSwimmerFinanceRow {
   category: string;
   formula: string;
   duration: string;
+  contractMonths: number;
+  monthlyRateDA: number;
   groupNames: string[];
   coachNames: string[];
   isAssigned: boolean;
@@ -341,14 +344,75 @@ export interface WhatIfSimulationResult {
 }
 
 /**
- * Duration code ("1m", "3m", "6m", "9m") to months count for amortization.
+ * Resolves the number of active subscription months for multi-month tiers:
+ * - Silver / Découverte / 3m: 3 months (e.g. 21,900 DA / 3 = 7,300 DA / month)
+ * - Gold / Recommandé / 6m: 6 months (e.g. 39,900 DA / 6 = 6,650 DA / month)
+ * - Diamond / Économique / 9m: 9 months (e.g. 54,900 DA / 9 = 6,100 DA / month)
+ * - Starter / 1m: 1 month
  */
-export function durationToMonthsCount(duration?: string | null): number {
-  const d = (duration || "3m").toLowerCase().trim();
-  if (d === "1m" || d.includes("starter")) return 1;
-  if (d === "6m" || d.includes("recommand") || d.includes("gold")) return 6;
-  if (d === "9m" || d.includes("econom") || d.includes("diamond")) return 9;
+export function resolveFormulaMonths(
+  duration?: string | null,
+  formula?: string | null
+): number {
+  const combined = `${duration || ""} ${formula || ""}`.toLowerCase().trim();
+  if (
+    combined.includes("diamond") ||
+    combined.includes("diamant") ||
+    combined.includes("econom") ||
+    combined.includes("économ") ||
+    combined.includes("9m") ||
+    combined.includes("9 mois") ||
+    combined.includes("9mois") ||
+    combined.includes("9 m")
+  ) {
+    return 9;
+  }
+  if (
+    combined.includes("gold") ||
+    combined.includes("or") ||
+    combined.includes("recommand") ||
+    combined.includes("6m") ||
+    combined.includes("6 mois") ||
+    combined.includes("6mois") ||
+    combined.includes("6 m")
+  ) {
+    return 6;
+  }
+  if (
+    combined.includes("starter") ||
+    combined.includes("1m") ||
+    combined.includes("1 mois") ||
+    combined.includes("1mois") ||
+    combined.includes("1 m") ||
+    combined.includes("mensuel") ||
+    combined.includes("un mois")
+  ) {
+    return 1;
+  }
+  if (
+    combined.includes("silver") ||
+    combined.includes("argent") ||
+    combined.includes("decouvert") ||
+    combined.includes("découvert") ||
+    combined.includes("trimestriel") ||
+    combined.includes("3m") ||
+    combined.includes("3 mois") ||
+    combined.includes("3mois") ||
+    combined.includes("3 m")
+  ) {
+    return 3;
+  }
   return 3;
+}
+
+/**
+ * Duration code ("1m", "3m", "6m", "9m") or formula name to months count for amortization.
+ */
+export function durationToMonthsCount(
+  duration?: string | null,
+  formula?: string | null
+): number {
+  return resolveFormulaMonths(duration, formula);
 }
 
 /**
@@ -455,7 +519,56 @@ export function resolvePeriodBounds(filter: PeriodFilter): {
 }
 
 /**
- * Checks whether a member is active/relevant during the given date bounds.
+ * Calculates the active contract date window [start, end] and formula duration for a swimmer.
+ * Accurately covers multi-month subscriptions (Silver 3m, Gold 6m, Diamond 9m) across consecutive months.
+ */
+export function getMemberSubscriptionWindow(member: FinanceMemberInput): {
+  start: Date | null;
+  end: Date | null;
+  contractMonths: number;
+} {
+  const contractMonths = resolveFormulaMonths(member.duration, member.formula);
+  const rawStartStr = member.subscriptionStart || member.dateOfStart || member.createdAt;
+  if (!rawStartStr) {
+    return { start: null, end: null, contractMonths };
+  }
+
+  const subStart = new Date(rawStartStr);
+  if (isNaN(subStart.getTime())) {
+    return { start: null, end: null, contractMonths };
+  }
+
+  let subEnd: Date | null = null;
+  if (member.subscriptionEnd) {
+    const parsedEnd = new Date(member.subscriptionEnd);
+    if (!isNaN(parsedEnd.getTime())) {
+      subEnd = parsedEnd;
+    }
+  }
+
+  if (!subEnd) {
+    try {
+      subEnd = computeSubscriptionEnd(
+        subStart,
+        member.duration || `${contractMonths}m`,
+        undefined,
+        member.formula || undefined
+      );
+    } catch {
+      const fallbackEnd = new Date(subStart.getTime());
+      fallbackEnd.setUTCMonth(fallbackEnd.getUTCMonth() + contractMonths);
+      fallbackEnd.setUTCHours(23, 59, 59, 999);
+      subEnd = fallbackEnd;
+    }
+  }
+
+  return { start: subStart, end: subEnd, contractMonths };
+}
+
+/**
+ * Checks whether a member is active during the given date bounds.
+ * A swimmer with a multi-month contract (Silver 3m, Gold 6m, Diamond 9m) is active in all
+ * months covered by their subscription window [start, end].
  */
 export function isMemberInPeriod(
   member: FinanceMemberInput,
@@ -464,11 +577,14 @@ export function isMemberInPeriod(
 ): boolean {
   if (!start || !end) return true;
 
-  const rawStartStr = member.subscriptionStart || member.dateOfStart || member.createdAt;
-  const subStart = rawStartStr ? new Date(rawStartStr) : null;
-  const subEnd = member.subscriptionEnd ? new Date(member.subscriptionEnd) : null;
+  const window = getMemberSubscriptionWindow(member);
+  if (window.start && window.end) {
+    if (window.start <= end && window.end >= start) {
+      return true;
+    }
+  }
 
-  // Check if any payment happened inside [start, end]
+  // Also check if any payment happened inside [start, end]
   if (Array.isArray(member.payments)) {
     for (const p of member.payments) {
       if (p.paidAt) {
@@ -480,18 +596,10 @@ export function isMemberInPeriod(
     }
   }
 
-  if (subStart && !isNaN(subStart.getTime())) {
-    if (subEnd && !isNaN(subEnd.getTime())) {
-      // Active subscription overlaps with [start, end]
-      return subStart <= end && subEnd >= start;
-    }
-    // No explicit end date: infer from duration
-    const months = durationToMonthsCount(member.duration);
-    const inferredEnd = new Date(subStart.getTime() + months * 30 * 24 * 60 * 60 * 1000);
-    return subStart <= end && inferredEnd >= start;
-  }
+  // If no date was found at all on the member, include by default
+  if (!window.start) return true;
 
-  return true;
+  return false;
 }
 
 /**
@@ -675,16 +783,28 @@ export function computePeriodFinancialReport(params: {
 
     assignedClientsCount += 1;
 
-    const contractMonths = durationToMonthsCount(m.duration);
-    const prorationFactor =
-      recognitionMode === "monthly_amortized"
-        ? Math.min(1, monthsSpan / contractMonths)
-        : 1;
-
+    const contractMonths = resolveFormulaMonths(m.duration, m.formula);
     const effectiveContractDA = sit.effectivePriceDA;
-    const recognizedRevenueDA = Math.round(effectiveContractDA * prorationFactor);
-    const memberPaidDA = Math.round(sit.totalPaid * prorationFactor);
-    const memberStillToPayDA = Math.max(0, recognizedRevenueDA - memberPaidDA);
+    const monthlyRateDA = Math.round(effectiveContractDA / contractMonths);
+    const monthlyPaidRateDA = Math.round(sit.totalPaid / contractMonths);
+
+    let recognizedRevenueDA: number;
+    let memberPaidDA: number;
+    let memberStillToPayDA: number;
+
+    if (recognitionMode === "monthly_amortized") {
+      // Divide formula across contract months so each active month receives its fair share
+      // E.g. Silver (21,900 DA / 3 = 7,300 DA / month for Oct, Nov, Dec)
+      const spanMonths = Math.min(contractMonths, Math.max(1, monthsSpan));
+      recognizedRevenueDA = Math.min(effectiveContractDA, monthlyRateDA * spanMonths);
+      memberPaidDA = Math.min(sit.totalPaid, monthlyPaidRateDA * spanMonths);
+      memberStillToPayDA = Math.max(0, recognizedRevenueDA - memberPaidDA);
+    } else {
+      // Full contract lump sum recognition
+      recognizedRevenueDA = effectiveContractDA;
+      memberPaidDA = sit.totalPaid;
+      memberStillToPayDA = sit.debt;
+    }
 
     if (sit.debt === 0 && sit.totalPaid > 0) {
       fullyPaidClientsCount += 1;
@@ -722,7 +842,9 @@ export function computePeriodFinancialReport(params: {
       fullName: m.fullName,
       category: m.category || "homme",
       formula: m.formula || "G10",
-      duration: m.duration || "3m",
+      duration: m.duration || `${contractMonths}m`,
+      contractMonths,
+      monthlyRateDA,
       groupNames,
       coachNames,
       isAssigned: sit.isAssigned,

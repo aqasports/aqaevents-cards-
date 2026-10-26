@@ -131,7 +131,7 @@ export function SwimFinanceDesk({
           setLedger(data.ledger);
           setAccountingBasis(data.ledger.defaultAccountingBasis || "accrual");
           setPoolBasis(data.ledger.defaultPoolBasis || "poolpaid_only");
-          setRecognitionMode(data.ledger.defaultRecognitionMode || "full_contract");
+          setRecognitionMode(data.ledger.defaultRecognitionMode || "monthly_amortized");
           setIncludeEquipmentMargin(data.ledger.includeEquipmentMargin ?? true);
           setGoalsDraft(data.ledger.goals || DEFAULT_FINANCE_LEDGER_STATE.goals);
         }
@@ -207,7 +207,7 @@ export function SwimFinanceDesk({
   const [accountingBasis, setAccountingBasis] = useState<AccountingBasis>("accrual");
   const [poolBasis, setPoolBasis] = useState<PoolExpenseBasis>("poolpaid_only");
   const [recognitionMode, setRecognitionMode] =
-    useState<RevenueRecognitionMode>("full_contract");
+    useState<RevenueRecognitionMode>("monthly_amortized");
   const [includeEquipmentMargin, setIncludeEquipmentMargin] = useState<boolean>(true);
 
   // ─── 4. COMPUTED REPORTS & MULTI-PERIOD SERIES ───────────────────────────────
@@ -2984,8 +2984,15 @@ export function SwimFinanceDesk({
                         <td className="py-2.5 px-3 text-cyan-400 font-bold">{row.swimId}</td>
                         <td className="py-2.5 px-3 font-sans">
                           <div className="font-bold text-white">{row.fullName}</div>
-                          <div className="text-[10px] text-slate-400 capitalize">
-                            {row.category} · {row.formula} ({row.duration})
+                          <div className="text-[10px] text-slate-400 capitalize flex items-center gap-1.5 flex-wrap">
+                            <span>
+                              {row.category} · {row.formula} ({row.duration})
+                            </span>
+                            {row.contractMonths > 1 && (
+                              <span className="px-1.5 py-0.2 rounded bg-sky-950/70 text-sky-300 font-mono text-[9px] border border-sky-500/30">
+                                {formatDA(row.monthlyRateDA)}/m · Total {formatDA(row.effectivePriceDA)}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="py-2.5 px-3 font-sans">
