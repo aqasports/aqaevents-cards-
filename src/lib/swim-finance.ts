@@ -45,12 +45,22 @@ export interface SwimCustomExpense {
   notes?: string;
 }
 
-export type CoachSalaryMode = "fixed_monthly" | "per_group" | "per_session" | "revenue_share";
+export type CoachRole = "head_coach" | "coach";
+
+export type CoachSalaryMode =
+  | "auto_aqa"
+  | "manual"
+  | "fixed_monthly"
+  | "per_group"
+  | "per_session"
+  | "revenue_share";
 
 export interface CoachSalaryConfig {
   coachId: string;
   coachName: string;
+  role?: CoachRole;
   mode: CoachSalaryMode;
+  manualBaseSalaryDA?: number;
   fixedMonthlyDA: number;
   perGroupDA: number;
   perSessionDA: number;
@@ -58,8 +68,27 @@ export interface CoachSalaryConfig {
   bonusDA: number;
   deductionDA: number;
   isPaid: boolean;
+  fifthWeekOverrides?: Record<string, boolean>; // groupId -> boolean
   notes?: string;
 }
+
+export const AQA_COACH_RATES = {
+  head_coach: {
+    g10_g5: 13000,
+    indiv: 10000,
+    kids: 13000,
+  },
+  coach: {
+    g10_g5: 12000,
+    indiv: 9000,
+    kids: 13000,
+  },
+  fifth_week: {
+    g10_g5: 1500,
+    indiv: 500,
+    kids: 500,
+  },
+} as const;
 
 export interface SwimFinanceGoals {
   netProfitTargetDA: number;
@@ -154,6 +183,7 @@ export interface FinanceEquipmentSaleInput {
 export interface FinanceCoachInput {
   id: string;
   name: string;
+  role?: CoachRole;
   defaultPayRate?: number;
   commissionRate?: number;
   active?: boolean;
@@ -192,21 +222,38 @@ export interface ComputedSwimmerFinanceRow {
   dateOfStart: string;
 }
 
+export interface ComputedCoachGroupBreakdown {
+  groupId: string;
+  groupName: string;
+  groupType: "g10_g5" | "indiv" | "kids";
+  groupTypeLabel: string; // "G10 / G5", "Indiv", "Enfant"
+  schedule: string;
+  trainingDays: string[];
+  baseRateDA: number;
+  hasFifthWeek: boolean;
+  isFifthWeekOverridden: boolean;
+  fifthWeekBonusDA: number;
+  totalGroupDA: number;
+}
+
 export interface ComputedCoachSalaryRow {
   coachKey: string;
   coachId: string;
   coachName: string;
+  role: CoachRole;
   mode: CoachSalaryMode;
   activeGroupsCount: number;
   assignedSwimmersCount: number;
   estimatedSessionsCount: number;
   groupRevenueDA: number;
   baseSalaryDA: number;
+  fifthWeekBonusTotalDA: number;
   bonusDA: number;
   deductionDA: number;
   totalSalaryDA: number;
   isPaid: boolean;
   notes?: string;
+  groupBreakdown: ComputedCoachGroupBreakdown[];
 }
 
 export interface CategoryProfitabilityRow {
@@ -414,6 +461,122 @@ export function durationToMonthsCount(
   formula?: string | null
 ): number {
   return resolveFormulaMonths(duration, formula);
+}
+
+const FRENCH_DAY_MAP: Record<string, number> = {
+  dimanche: 0,
+  dim: 0,
+  lundi: 1,
+  lun: 1,
+  mardi: 2,
+  mar: 2,
+  mercredi: 3,
+  mer: 3,
+  jeudi: 4,
+  jeu: 4,
+  vendredi: 5,
+  ven: 5,
+  samedi: 6,
+  sam: 6,
+};
+
+/**
+ * Classifies a group for AQA coach salary computation:
+ * - "kids": category is enfant/enfants/kids/ado or name/level contains enfant/kids/ado
+ * - "indiv": level is indiv/solo or capacity 1 or name contains indiv/particulier/solo/1v1
+ * - "g10_g5": all other adult groups (G10, MAX5, G5, etc.)
+ */
+export function classifyGroupFinanceType(
+  group: Pick<SwimGroupReference, "name" | "category" | "level" | "capacity">
+): "kids" | "indiv" | "g10_g5" {
+  const cat = (group.category || "").toLowerCase();
+  const name = (group.name || "").toLowerCase();
+  const level = (group.level || "").toLowerCase();
+
+  if (
+    cat.includes("enfant") ||
+    cat.includes("kids") ||
+    cat.includes("ado") ||
+    name.includes("enfant") ||
+    name.includes("kids") ||
+    name.includes("ado") ||
+    level.includes("enfant") ||
+    level.includes("kids")
+  ) {
+    return "kids";
+  }
+
+  if (
+    level.includes("indiv") ||
+    level.includes("solo") ||
+    level.includes("particulier") ||
+    name.includes("indiv") ||
+    name.includes("particulier") ||
+    name.includes("solo") ||
+    name.includes("1v1") ||
+    group.capacity === 1
+  ) {
+    return "indiv";
+  }
+
+  return "g10_g5";
+}
+
+/**
+ * Extracts distinct French day names from a group's schedule (e.g. "Lundi 18:00" -> ["Lundi"]).
+ */
+export function extractScheduleDays(schedule: string): string[] {
+  if (!schedule) return [];
+  const slots = parseScheduleSlots(schedule);
+  const days = new Set<string>();
+  for (const s of slots) {
+    if (s.day) {
+      days.add(s.day);
+    }
+  }
+  const lower = schedule.toLowerCase();
+  for (const [name] of Object.entries(FRENCH_DAY_MAP)) {
+    if (name.length > 3 && lower.includes(name)) {
+      days.add(name.charAt(0).toUpperCase() + name.slice(1));
+    }
+  }
+  return Array.from(days);
+}
+
+/**
+ * Detects whether any training day of a group occurs 5 times in a given calendar month.
+ * E.g. October 2026 has 5 Thursdays, 5 Fridays, and 5 Saturdays.
+ */
+export function doesGroupHaveFifthWeekInMonth(
+  schedule: string,
+  year: number,
+  monthIndex: number
+): boolean {
+  const days = extractScheduleDays(schedule);
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+
+  if (days.length === 0) {
+    return daysInMonth >= 31;
+  }
+
+  for (const dayStr of days) {
+    const norm = dayStr.toLowerCase().trim();
+    const dayOfWeek = FRENCH_DAY_MAP[norm];
+    if (dayOfWeek !== undefined) {
+      let count = 0;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(Date.UTC(year, monthIndex, day));
+        if (d.getUTCDay() === dayOfWeek) {
+          count++;
+        }
+      }
+      if (count >= 5) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -692,6 +855,7 @@ export function computePeriodFinancialReport(params: {
       swimmerCount: number;
       groupRevenueDA: number;
       groupIds: Set<string>;
+      groups: SwimGroupReference[];
       weeklySlotsCount: number;
     }
   >();
@@ -710,12 +874,14 @@ export function computePeriodFinancialReport(params: {
         swimmerCount: 0,
         groupRevenueDA: 0,
         groupIds: new Set<string>(),
+        groups: [],
         weeklySlotsCount: 0,
       };
       coachStatsMap.set(key, entry);
     }
     if (!entry.groupIds.has(g.id)) {
       entry.groupIds.add(g.id);
+      entry.groups.push(g);
       const slots = parseScheduleSlots(g.schedule || "");
       entry.weeklySlotsCount += Math.max(1, slots.length);
     }
@@ -873,9 +1039,16 @@ export function computePeriodFinancialReport(params: {
             swimmerCount: 0,
             groupRevenueDA: 0,
             groupIds: new Set<string>(),
+            groups: [],
             weeklySlotsCount: 1,
           };
           coachStatsMap.set(key, cEntry);
+        }
+        for (const rg of resolvedGroups) {
+          if (!cEntry.groupIds.has(rg.id)) {
+            cEntry.groupIds.add(rg.id);
+            cEntry.groups.push(rg);
+          }
         }
         cEntry.swimmerCount += 1;
         cEntry.groupRevenueDA += shareRevenue;
@@ -996,12 +1169,17 @@ export function computePeriodFinancialReport(params: {
     const estimatedSessionsCount = (stat ? stat.weeklySlotsCount * 4 : 4) * monthsSpan;
     const groupRevenueDA = stat ? stat.groupRevenueDA : 0;
 
+    const isDefaultHeadCoach =
+      key.includes("karim") ||
+      (identity.name && identity.name.toLowerCase().includes("karim"));
+    const role: CoachRole = savedCfg?.role ?? (isDefaultHeadCoach ? "head_coach" : "coach");
+
     const fallbackMode: CoachSalaryMode =
       identity.defaultPayRate > 0
         ? "per_session"
         : identity.commissionRate > 0
         ? "revenue_share"
-        : "per_group";
+        : "auto_aqa";
 
     const mode: CoachSalaryMode = savedCfg?.mode || fallbackMode;
     const fixedMonthlyDA = savedCfg?.fixedMonthlyDA ?? 0;
@@ -1018,8 +1196,63 @@ export function computePeriodFinancialReport(params: {
     const deductionDA = savedCfg?.deductionDA ?? 0;
     const isPaid = savedCfg?.isPaid ?? false;
 
+    // Calculate official AQA group breakdown
+    const groupBreakdown: ComputedCoachGroupBreakdown[] = [];
+    let autoBaseDA = 0;
+    let autoFifthWeekDA = 0;
+
+    const assignedGroupsList = stat?.groups || [];
+    for (const g of assignedGroupsList) {
+      const gType = classifyGroupFinanceType(g);
+      const baseRate = AQA_COACH_RATES[role][gType];
+      const fifthRate = AQA_COACH_RATES.fifth_week[gType];
+
+      let hasFifthWeek = false;
+      let isFifthWeekOverridden = false;
+
+      if (savedCfg?.fifthWeekOverrides && savedCfg.fifthWeekOverrides[g.id] !== undefined) {
+        hasFifthWeek = savedCfg.fifthWeekOverrides[g.id];
+        isFifthWeekOverridden = true;
+      } else if (filter.mode === "month" && filter.monthKey) {
+        const info = parseMonthKeyInfo(filter.monthKey);
+        hasFifthWeek = doesGroupHaveFifthWeekInMonth(g.schedule || "", info.year, info.monthIndex);
+      } else {
+        const now = new Date();
+        hasFifthWeek = doesGroupHaveFifthWeekInMonth(g.schedule || "", now.getFullYear(), now.getMonth());
+      }
+
+      const scaledBase = Math.round(baseRate * Math.max(1, monthsSpan));
+      const fifthBonus = hasFifthWeek ? Math.round(fifthRate * Math.max(1, monthsSpan)) : 0;
+      const totalGroupDA = scaledBase + fifthBonus;
+
+      autoBaseDA += scaledBase;
+      autoFifthWeekDA += fifthBonus;
+
+      groupBreakdown.push({
+        groupId: g.id,
+        groupName: g.name,
+        groupType: gType,
+        groupTypeLabel: gType === "kids" ? "Enfant" : gType === "indiv" ? "Indiv" : "G10 / G5",
+        schedule: g.schedule || "",
+        trainingDays: extractScheduleDays(g.schedule || ""),
+        baseRateDA: scaledBase,
+        hasFifthWeek,
+        isFifthWeekOverridden,
+        fifthWeekBonusDA: fifthBonus,
+        totalGroupDA,
+      });
+    }
+
     let baseSalaryDA = 0;
-    if (mode === "fixed_monthly") {
+    let fifthWeekBonusTotalDA = 0;
+
+    if (mode === "auto_aqa") {
+      baseSalaryDA = autoBaseDA;
+      fifthWeekBonusTotalDA = autoFifthWeekDA;
+    } else if (mode === "manual") {
+      baseSalaryDA = savedCfg?.manualBaseSalaryDA !== undefined ? savedCfg.manualBaseSalaryDA : autoBaseDA;
+      fifthWeekBonusTotalDA = autoFifthWeekDA;
+    } else if (mode === "fixed_monthly") {
       baseSalaryDA = Math.round(fixedMonthlyDA * monthsSpan);
     } else if (mode === "per_group") {
       baseSalaryDA = Math.round(perGroupDA * activeGroupsCount * monthsSpan);
@@ -1029,7 +1262,7 @@ export function computePeriodFinancialReport(params: {
       baseSalaryDA = Math.round((groupRevenueDA * revenueSharePct) / 100);
     }
 
-    const totalSalaryDA = Math.max(0, baseSalaryDA + bonusDA - deductionDA);
+    const totalSalaryDA = Math.max(0, baseSalaryDA + fifthWeekBonusTotalDA + bonusDA - deductionDA);
     coachSalaryTotalDA += totalSalaryDA;
     if (isPaid) {
       coachSalaryPaidDA += totalSalaryDA;
@@ -1041,17 +1274,20 @@ export function computePeriodFinancialReport(params: {
       coachKey: key,
       coachId: identity.id,
       coachName: identity.name,
+      role,
       mode,
       activeGroupsCount,
       assignedSwimmersCount,
       estimatedSessionsCount,
       groupRevenueDA,
       baseSalaryDA,
+      fifthWeekBonusTotalDA,
       bonusDA,
       deductionDA,
       totalSalaryDA,
       isPaid,
       notes: savedCfg?.notes,
+      groupBreakdown,
     });
   }
 

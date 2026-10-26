@@ -8,6 +8,9 @@ import {
   buildMonthlyFinancialSeries,
   resolveFormulaMonths,
   extractRealActiveMonthKeys,
+  classifyGroupFinanceType,
+  doesGroupHaveFifthWeekInMonth,
+  AQA_COACH_RATES,
   FINANCIAL_KNOWLEDGE_PILLS,
   DEFAULT_FINANCE_LEDGER_STATE,
   DEFAULT_FINANCE_GOALS,
@@ -495,5 +498,152 @@ describe("AQA Swim Financial & Accounting Engine", () => {
     expect(DEFAULT_FINANCE_GOALS.assignedClientsTarget).toBe(0);
     expect(DEFAULT_FINANCE_GOALS.collectionRateTargetPct).toBe(0);
     expect(DEFAULT_FINANCE_GOALS.maxExpenseRatioPct).toBe(0);
+  });
+
+  it("accurately computes coach salary using official AQA rate scale with 5th week bonus and manual editing", () => {
+    // 1. Group Classification tests
+    expect(classifyGroupFinanceType({ name: "Sam 10:00 Karim Azal", category: "enfants", level: "debutant" })).toBe("kids");
+    expect(classifyGroupFinanceType({ name: "Lun 18:00 Sarah Azal", category: "femme", level: "indiv" })).toBe("indiv");
+    expect(classifyGroupFinanceType({ name: "Mer 19:00 Karim Azal", category: "homme", level: "G10" })).toBe("g10_g5");
+    expect(classifyGroupFinanceType({ name: "Jeu 20:00 Sarah Azal", category: "homme", level: "MAX5" })).toBe("g10_g5");
+
+    // 2. 5th week calendar detection:
+    // October 2026:
+    // Thursdays (Jeudi), Fridays (Vendredi), and Saturdays (Samedi) have 5 occurrences!
+    // Mondays (Lundi) and Tuesdays (Mardi) have 4 occurrences.
+    expect(doesGroupHaveFifthWeekInMonth("Jeudi 18:00 · Azal", 2026, 9)).toBe(true);
+    expect(doesGroupHaveFifthWeekInMonth("Vendredi 10:00 · Azal", 2026, 9)).toBe(true);
+    expect(doesGroupHaveFifthWeekInMonth("Samedi 10:00 · Azal", 2026, 9)).toBe(true);
+    expect(doesGroupHaveFifthWeekInMonth("Lundi 18:00 · Azal", 2026, 9)).toBe(false);
+    expect(doesGroupHaveFifthWeekInMonth("Mardi 10:00 · Azal", 2026, 9)).toBe(false);
+
+    // 3. Test Coach calculation:
+    // Coach Karim Benali (Head Coach):
+    // - Group 1: "Lun 18:00 Karim B Azal" (G10, 4 Mondays in Oct) -> Base = 13000 DA, 5th week = 0 DA
+    // - Group 2: "Jeu 19:00 Karim B Azal" (Indiv, 5 Thursdays in Oct) -> Base = 10000 DA, 5th week = 500 DA
+    // Expected Karim Total = 13000 + 10000 + 500 = 23500 DA
+    const testGroups: SwimGroupReference[] = [
+      {
+        id: "g_karim_1",
+        name: "Lun 18:00 Karim B Azal",
+        category: "homme",
+        level: "G10",
+        coachName: "Karim Benali",
+        schedule: "Lundi 18:00 · Azal",
+        capacity: 10,
+        active: true,
+      },
+      {
+        id: "g_karim_2",
+        name: "Jeu 19:00 Karim Indiv Azal",
+        category: "homme",
+        level: "indiv",
+        coachName: "Karim Benali",
+        schedule: "Jeudi 19:00 · Azal",
+        capacity: 1,
+        active: true,
+      },
+      // Coach Sarah Mansouri (Coach Standard):
+      // - Group 3: "Sam 10:00 Sarah Kids Azal" (Kids, 5 Saturdays in Oct) -> Base = 13000 DA, 5th week = 500 DA
+      // - Group 4: "Mar 10:00 Sarah G5 Azal" (MAX5, 4 Tuesdays in Oct) -> Base = 12000 DA, 5th week = 0 DA
+      // Expected Sarah Total = 13000 + 500 + 12000 = 25500 DA
+      {
+        id: "g_sarah_1",
+        name: "Sam 10:00 Sarah Kids Azal",
+        category: "enfants",
+        level: "G10",
+        coachName: "Sarah Mansouri",
+        schedule: "Samedi 10:00 · Azal",
+        capacity: 10,
+        active: true,
+      },
+      {
+        id: "g_sarah_2",
+        name: "Mar 10:00 Sarah G5 Azal",
+        category: "femme",
+        level: "MAX5",
+        coachName: "Sarah Mansouri",
+        schedule: "Mardi 10:00 · Azal",
+        capacity: 5,
+        active: true,
+      },
+    ];
+
+    const report = computePeriodFinancialReport({
+      members: [],
+      groups: testGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-10" },
+    });
+
+    const karimRow = report.coachRows.find((c) => c.coachKey === "karim benali");
+    expect(karimRow).toBeDefined();
+    expect(karimRow!.role).toBe("head_coach");
+    expect(karimRow!.baseSalaryDA).toBe(23000); // 13000 (G10) + 10000 (Indiv)
+    expect(karimRow!.fifthWeekBonusTotalDA).toBe(500); // 500 on Indiv (Jeudi)
+    expect(karimRow!.totalSalaryDA).toBe(23500);
+
+    const sarahRow = report.coachRows.find((c) => c.coachKey === "sarah mansouri");
+    expect(sarahRow).toBeDefined();
+    expect(sarahRow!.role).toBe("coach");
+    expect(sarahRow!.baseSalaryDA).toBe(25000); // 13000 (Kids) + 12000 (G5)
+    expect(sarahRow!.fifthWeekBonusTotalDA).toBe(500); // 500 on Kids (Samedi)
+    expect(sarahRow!.totalSalaryDA).toBe(25500);
+
+    // 4. Test Manual Override & 5th week toggle
+    const customLedger: SwimFinanceLedgerState = {
+      ...DEFAULT_FINANCE_LEDGER_STATE,
+      coachSalaries: {
+        "karim benali": {
+          coachId: karimRow!.coachId,
+          coachName: "Karim Benali",
+          role: "head_coach",
+          mode: "auto_aqa",
+          fixedMonthlyDA: 0,
+          perGroupDA: 0,
+          perSessionDA: 0,
+          revenueSharePct: 0,
+          bonusDA: 3000,
+          deductionDA: 1000,
+          isPaid: true,
+          // Force 5th week ON for Group 1 (Lundi) even though calendar has only 4 Mondays!
+          fifthWeekOverrides: {
+            g_karim_1: true,
+          },
+        },
+        "sarah mansouri": {
+          coachId: sarahRow!.coachId,
+          coachName: "Sarah Mansouri",
+          role: "coach",
+          mode: "manual", // Manual custom base salary override
+          manualBaseSalaryDA: 30000,
+          fixedMonthlyDA: 0,
+          perGroupDA: 0,
+          perSessionDA: 0,
+          revenueSharePct: 0,
+          bonusDA: 0,
+          deductionDA: 0,
+          isPaid: false,
+        },
+      },
+    };
+
+    const overriddenReport = computePeriodFinancialReport({
+      members: [],
+      groups: testGroups,
+      ledger: customLedger,
+      filter: { mode: "month", monthKey: "2026-10" },
+    });
+
+    const karimOverridden = overriddenReport.coachRows.find((c) => c.coachKey === "karim benali")!;
+    // Base 23000 + 5th week (1500 on G10 + 500 on Indiv = 2000) + bonus 3000 - deduction 1000 = 27000 DA
+    expect(karimOverridden.fifthWeekBonusTotalDA).toBe(2000);
+    expect(karimOverridden.totalSalaryDA).toBe(27000);
+    expect(karimOverridden.isPaid).toBe(true);
+
+    const sarahOverridden = overriddenReport.coachRows.find((c) => c.coachKey === "sarah mansouri")!;
+    expect(sarahOverridden.mode).toBe("manual");
+    expect(sarahOverridden.baseSalaryDA).toBe(30000);
+    expect(sarahOverridden.totalSalaryDA).toBe(30500); // 30000 base + 500 5th week
   });
 });

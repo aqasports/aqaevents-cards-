@@ -5,7 +5,9 @@ import { useTranslations } from "@/lib/i18n";
 import { Card, Badge, Button, Input } from "@/components/admin/ui";
 import {
   AccountingBasis,
+  AQA_COACH_RATES,
   buildMonthlyFinancialSeries,
+  CoachRole,
   CoachSalaryConfig,
   CoachSalaryMode,
   compareFinancialPeriods,
@@ -372,7 +374,7 @@ export function SwimFinanceDesk({
     const existing: CoachSalaryConfig = ledger.coachSalaries?.[coachKey] || {
       coachId,
       coachName,
-      mode: "fixed_monthly",
+      mode: "auto_aqa",
       fixedMonthlyDA: 0,
       perGroupDA: 0,
       perSessionDA: 0,
@@ -391,6 +393,36 @@ export function SwimFinanceDesk({
     persistLedgerUpdate({ coachSalaries: nextSalaries });
   };
 
+  const handleToggleGroupFifthWeek = (
+    coachKey: string,
+    coachId: string,
+    coachName: string,
+    groupId: string,
+    currentValue: boolean
+  ) => {
+    const existing: CoachSalaryConfig = ledger.coachSalaries?.[coachKey] || {
+      coachId,
+      coachName,
+      mode: "auto_aqa",
+      fixedMonthlyDA: 0,
+      perGroupDA: 0,
+      perSessionDA: 0,
+      revenueSharePct: 0,
+      bonusDA: 0,
+      deductionDA: 0,
+      isPaid: false,
+    };
+    const nextOverrides = {
+      ...(existing.fifthWeekOverrides || {}),
+      [groupId]: !currentValue,
+    };
+    handleUpdateCoachConfig(coachKey, coachId, coachName, {
+      fifthWeekOverrides: nextOverrides,
+    });
+  };
+
+  const [expandedCoachKey, setExpandedCoachKey] = useState<string | null>(null);
+
   const handleApplyBulkCoachPreset = (
     patch: Partial<CoachSalaryConfig>,
     notice: string
@@ -402,6 +434,7 @@ export function SwimFinanceDesk({
       const existing: CoachSalaryConfig = nextSalaries[c.coachKey] || {
         coachId: c.coachId,
         coachName: c.coachName,
+        role: c.role,
         mode: c.mode,
         fixedMonthlyDA: 0,
         perGroupDA: 0,
@@ -2227,13 +2260,13 @@ export function SwimFinanceDesk({
                   type="button"
                   onClick={() =>
                     handleApplyBulkCoachPreset(
-                      { mode: "per_group", perGroupDA: 8000 },
-                      "Barème 8 000 DA / Groupe appliqué"
+                      { mode: "auto_aqa" },
+                      "Barème Officiel AQA appliqué à tous les coaches"
                     )
                   }
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-cyan-300 cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-cyan-950/80 hover:bg-cyan-900/80 border border-cyan-500/50 text-xs font-mono font-bold text-cyan-300 cursor-pointer shadow-[0_0_10px_rgba(0,242,255,0.15)]"
                 >
-                  8 000 DA / Groupe
+                  Barème Officiel AQA
                 </button>
                 <button
                   type="button"
@@ -2251,18 +2284,6 @@ export function SwimFinanceDesk({
                   type="button"
                   onClick={() =>
                     handleApplyBulkCoachPreset(
-                      { mode: "per_session", perSessionDA: 2000 },
-                      "Barème 2 000 DA / Séance appliqué"
-                    )
-                  }
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-sky-300 cursor-pointer"
-                >
-                  2 000 DA / Séance
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleApplyBulkCoachPreset(
                       { mode: "fixed_monthly", fixedMonthlyDA: 25000 },
                       "Forfait 25 000 DA / Mois appliqué"
                     )
@@ -2270,18 +2291,6 @@ export function SwimFinanceDesk({
                   className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-emerald-300 cursor-pointer"
                 >
                   25 000 DA / Mois Fixe
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleApplyBulkCoachPreset(
-                      { mode: "revenue_share", revenueSharePct: 15 },
-                      "Commission 15% CA Groupe appliquée"
-                    )
-                  }
-                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-xs font-mono text-amber-300 cursor-pointer"
-                >
-                  15% Commission CA
                 </button>
                 <button
                   type="button"
@@ -2302,6 +2311,7 @@ export function SwimFinanceDesk({
                   <thead>
                     <tr className="border-b border-white/10 text-slate-400 uppercase tracking-wider text-[10px]">
                       <th className="py-2.5 px-3">{t("coachColName")}</th>
+                      <th className="py-2.5 px-3">{t("coachColRole")}</th>
                       <th className="py-2.5 px-3">{t("coachColGroups")}</th>
                       <th className="py-2.5 px-3">{t("coachColMode")}</th>
                       <th className="py-2.5 px-3">{t("coachColBase")}</th>
@@ -2314,125 +2324,316 @@ export function SwimFinanceDesk({
                   <tbody className="divide-y divide-white/5">
                     {reportA.coachRows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-6 text-center text-slate-400">
+                        <td colSpan={9} className="py-6 text-center text-slate-400">
                           Aucun coach actif détecté dans les groupes d&apos;entraînement.
                         </td>
                       </tr>
                     ) : (
                       reportA.coachRows.map((c) => {
                         const cfg = ledger.coachSalaries?.[c.coachKey];
-                        const currentBaseValue =
-                          c.mode === "fixed_monthly"
-                            ? cfg?.fixedMonthlyDA ?? 0
-                            : c.mode === "per_group"
-                            ? cfg?.perGroupDA ?? 0
-                            : c.mode === "per_session"
-                            ? cfg?.perSessionDA ?? 0
-                            : cfg?.revenueSharePct ?? 0;
+                        const isExpanded = expandedCoachKey === c.coachKey;
 
                         return (
-                          <tr key={c.coachKey} className="hover:bg-white/[0.02]">
-                            <td className="py-3 px-3 font-bold text-white">{c.coachName}</td>
-                            <td className="py-3 px-3 text-slate-300 font-mono text-[11px]">
-                              {c.activeGroupsCount} grp · {c.assignedSwimmersCount} nageurs ·{" "}
-                              {c.estimatedSessionsCount} séances
-                            </td>
-                            <td className="py-3 px-3">
-                              <select
-                                value={c.mode}
-                                onChange={(e) =>
-                                  handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                    mode: e.target.value as CoachSalaryMode,
-                                  })
-                                }
-                                className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/10 text-xs text-white"
-                              >
-                                <option value="fixed_monthly">{t("modeFixed")}</option>
-                                <option value="per_group">{t("modePerGroup")}</option>
-                                <option value="per_session">{t("modePerSession")}</option>
-                                <option value="revenue_share">{t("modeRevShare")}</option>
-                              </select>
-                            </td>
-                            <td className="py-3 px-3">
-                              <div className="flex items-center gap-1">
+                          <React.Fragment key={c.coachKey}>
+                            <tr className={`hover:bg-white/[0.02] transition-colors ${isExpanded ? "bg-cyan-950/20" : ""}`}>
+                              {/* Coach Name & Expand Button */}
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-white text-xs">{c.coachName}</span>
+                                  {c.groupBreakdown.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setExpandedCoachKey((prev) => (prev === c.coachKey ? null : c.coachKey))
+                                      }
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-mono border transition-all cursor-pointer ${
+                                        isExpanded
+                                          ? "bg-cyan-950 border-cyan-500/50 text-cyan-300"
+                                          : "bg-slate-900 border-white/10 text-slate-400 hover:text-white"
+                                      }`}
+                                      title={isExpanded ? "Masquer détail groupes" : "Voir détail groupes"}
+                                    >
+                                      {c.groupBreakdown.length} grp {isExpanded ? "▲" : "▼"}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Role: Head Coach vs Coach */}
+                              <td className="py-3 px-3">
+                                <select
+                                  value={c.role}
+                                  onChange={(e) =>
+                                    handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                      role: e.target.value as CoachRole,
+                                    })
+                                  }
+                                  className={`px-2 py-1 rounded-lg text-xs font-semibold focus:outline-none cursor-pointer border ${
+                                    c.role === "head_coach"
+                                      ? "bg-sky-950/90 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(0,242,255,0.15)]"
+                                      : "bg-slate-900 text-slate-300 border-white/10"
+                                  }`}
+                                >
+                                  <option value="head_coach">{t("roleHeadCoach")}</option>
+                                  <option value="coach">{t("roleCoach")}</option>
+                                </select>
+                              </td>
+
+                              {/* Active Groups & 5th Week Badge */}
+                              <td className="py-3 px-3">
+                                <div className="space-y-0.5 font-mono text-[11px]">
+                                  <div className="text-slate-300">
+                                    {c.activeGroupsCount} grp · {c.assignedSwimmersCount} nageurs
+                                  </div>
+                                  {c.fifthWeekBonusTotalDA > 0 && (
+                                    <div className="text-[10px] text-emerald-400 font-semibold">
+                                      5e sem: +{formatDA(c.fifthWeekBonusTotalDA)}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Mode: Auto AQA vs Manual vs Legacy */}
+                              <td className="py-3 px-3">
+                                <select
+                                  value={c.mode}
+                                  onChange={(e) =>
+                                    handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                      mode: e.target.value as CoachSalaryMode,
+                                    })
+                                  }
+                                  className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-white/10 text-xs text-white focus:outline-none focus:border-cyan-500"
+                                >
+                                  <option value="auto_aqa">{t("modeAutoAqa")}</option>
+                                  <option value="manual">{t("modeManual")}</option>
+                                  <option value="fixed_monthly">{t("modeFixed")}</option>
+                                  <option value="per_group">{t("modePerGroup")}</option>
+                                  <option value="per_session">{t("modePerSession")}</option>
+                                  <option value="revenue_share">{t("modeRevShare")}</option>
+                                </select>
+                              </td>
+
+                              {/* Base Rate (Auto display or editable input) */}
+                              <td className="py-3 px-3">
+                                {c.mode === "auto_aqa" ? (
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center gap-1.5 font-mono text-cyan-300 font-bold text-xs">
+                                      <span>{formatDA(c.baseSalaryDA)}</span>
+                                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-cyan-950 border border-cyan-500/30 text-cyan-300 font-sans">
+                                        Auto
+                                      </span>
+                                    </div>
+                                    {c.fifthWeekBonusTotalDA > 0 && (
+                                      <div className="text-[10px] font-mono text-emerald-400">
+                                        +{formatDA(c.fifthWeekBonusTotalDA)} (5e sem)
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : c.mode === "manual" ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={cfg?.manualBaseSalaryDA !== undefined ? cfg.manualBaseSalaryDA : c.baseSalaryDA}
+                                      onChange={(e) =>
+                                        handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                          manualBaseSalaryDA: Math.max(0, Number(e.target.value) || 0),
+                                        })
+                                      }
+                                      className="w-24 px-2 py-1 rounded-lg bg-slate-900 border border-cyan-500/40 text-cyan-200 font-mono text-xs focus:outline-none"
+                                    />
+                                    <span className="text-[10px] text-slate-400 font-mono">DA</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={
+                                        c.mode === "fixed_monthly"
+                                          ? cfg?.fixedMonthlyDA ?? 0
+                                          : c.mode === "per_group"
+                                          ? cfg?.perGroupDA ?? 0
+                                          : c.mode === "per_session"
+                                          ? cfg?.perSessionDA ?? 0
+                                          : cfg?.revenueSharePct ?? 0
+                                      }
+                                      onChange={(e) => {
+                                        const num = Math.max(0, Number(e.target.value) || 0);
+                                        if (c.mode === "fixed_monthly") {
+                                          handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                            fixedMonthlyDA: num,
+                                          });
+                                        } else if (c.mode === "per_group") {
+                                          handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                            perGroupDA: num,
+                                          });
+                                        } else if (c.mode === "per_session") {
+                                          handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                            perSessionDA: num,
+                                          });
+                                        } else {
+                                          handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                            revenueSharePct: Math.min(100, num),
+                                          });
+                                        }
+                                      }}
+                                      className="w-24 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white font-mono text-xs"
+                                    />
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                      {c.mode === "revenue_share" ? "%" : "DA"}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Prime (Bonus) */}
+                              <td className="py-3 px-3">
                                 <input
                                   type="number"
                                   min={0}
-                                  value={currentBaseValue}
-                                  onChange={(e) => {
-                                    const num = Math.max(0, Number(e.target.value) || 0);
-                                    if (c.mode === "fixed_monthly") {
-                                      handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                        fixedMonthlyDA: num,
-                                      });
-                                    } else if (c.mode === "per_group") {
-                                      handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                        perGroupDA: num,
-                                      });
-                                    } else if (c.mode === "per_session") {
-                                      handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                        perSessionDA: num,
-                                      });
-                                    } else {
-                                      handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                        revenueSharePct: Math.min(100, num),
-                                      });
-                                    }
-                                  }}
-                                  className="w-24 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-white font-mono text-xs"
+                                  value={c.bonusDA}
+                                  onChange={(e) =>
+                                    handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                      bonusDA: Math.max(0, Number(e.target.value) || 0),
+                                    })
+                                  }
+                                  className="w-20 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-emerald-300 font-mono text-xs focus:outline-none focus:border-emerald-500"
                                 />
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  {c.mode === "revenue_share" ? "%" : "DA"}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-3">
-                              <input
-                                type="number"
-                                min={0}
-                                value={c.bonusDA}
-                                onChange={(e) =>
-                                  handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                    bonusDA: Math.max(0, Number(e.target.value) || 0),
-                                  })
-                                }
-                                className="w-20 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-emerald-300 font-mono text-xs"
-                              />
-                            </td>
-                            <td className="py-3 px-3">
-                              <input
-                                type="number"
-                                min={0}
-                                value={c.deductionDA}
-                                onChange={(e) =>
-                                  handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                    deductionDA: Math.max(0, Number(e.target.value) || 0),
-                                  })
-                                }
-                                className="w-20 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-rose-300 font-mono text-xs"
-                              />
-                            </td>
-                            <td className="py-3 px-3 text-right font-mono font-bold text-orange-400">
-                              {formatDA(c.totalSalaryDA)}
-                            </td>
-                            <td className="py-3 px-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
-                                    isPaid: !c.isPaid,
-                                  })
-                                }
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase cursor-pointer border ${
-                                  c.isPaid
-                                    ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
-                                    : "bg-amber-950/80 text-amber-300 border-amber-500/40"
-                                }`}
-                              >
-                                {c.isPaid ? t("paidBadge") : t("pendingBadge")}
-                              </button>
-                            </td>
-                          </tr>
+                              </td>
+
+                              {/* Retenue (Deduction) */}
+                              <td className="py-3 px-3">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={c.deductionDA}
+                                  onChange={(e) =>
+                                    handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                      deductionDA: Math.max(0, Number(e.target.value) || 0),
+                                    })
+                                  }
+                                  className="w-20 px-2 py-1 rounded-lg bg-slate-900 border border-white/10 text-rose-300 font-mono text-xs focus:outline-none focus:border-rose-500"
+                                />
+                              </td>
+
+                              {/* Total Salary */}
+                              <td className="py-3 px-3 text-right font-mono font-black text-sm text-orange-400">
+                                {formatDA(c.totalSalaryDA)}
+                              </td>
+
+                              {/* Status Toggle */}
+                              <td className="py-3 px-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleUpdateCoachConfig(c.coachKey, c.coachId, c.coachName, {
+                                      isPaid: !c.isPaid,
+                                    })
+                                  }
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase cursor-pointer border transition-all ${
+                                    c.isPaid
+                                      ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                                      : "bg-amber-950/80 text-amber-300 border-amber-500/40"
+                                  }`}
+                                >
+                                  {c.isPaid ? t("paidBadge") : t("pendingBadge")}
+                                </button>
+                              </td>
+                            </tr>
+
+                            {/* Expanded Breakdown Sub-Row */}
+                            {isExpanded && (
+                              <tr className="bg-slate-950/80 border-b border-cyan-500/20">
+                                <td colSpan={9} className="p-4">
+                                  <div className="rounded-xl border border-cyan-500/30 bg-slate-900/90 p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-cyan-400" />
+                                        <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                                          {t("groupBreakdownTitle")} · {c.coachName} ({c.role === "head_coach" ? "Head Coach" : "Coach"})
+                                        </h4>
+                                      </div>
+                                      <span className="text-[11px] font-mono text-cyan-300">
+                                        Total Groupes: {formatDA(c.baseSalaryDA + c.fifthWeekBonusTotalDA)}
+                                      </span>
+                                    </div>
+
+                                    {c.groupBreakdown.length === 0 ? (
+                                      <div className="py-3 text-center text-xs text-slate-400">
+                                        {t("groupBreakdownEmpty")}
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                        {c.groupBreakdown.map((gb) => (
+                                          <div
+                                            key={gb.groupId}
+                                            className="p-3 rounded-lg bg-slate-950/90 border border-white/5 space-y-2"
+                                          >
+                                            <div className="flex items-start justify-between gap-2">
+                                              <div>
+                                                <div className="text-xs font-bold text-slate-200">
+                                                  {gb.groupName}
+                                                </div>
+                                                <div className="text-[10px] text-slate-400 font-mono">
+                                                  {gb.schedule || "Horaire non spécifié"}
+                                                </div>
+                                              </div>
+                                              <span
+                                                className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                                  gb.groupType === "kids"
+                                                    ? "bg-amber-950 text-amber-300 border border-amber-500/30"
+                                                    : gb.groupType === "indiv"
+                                                    ? "bg-purple-950 text-purple-300 border border-purple-500/30"
+                                                    : "bg-sky-950 text-sky-300 border border-sky-500/30"
+                                                }`}
+                                              >
+                                                {gb.groupTypeLabel} · {formatDA(gb.baseRateDA)}
+                                              </span>
+                                            </div>
+
+                                            {/* 5th Week Toggle Button */}
+                                            <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-[11px] text-slate-400">
+                                                  {t("fifthWeekBonus")}:
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    handleToggleGroupFifthWeek(
+                                                      c.coachKey,
+                                                      c.coachId,
+                                                      c.coachName,
+                                                      gb.groupId,
+                                                      gb.hasFifthWeek
+                                                    )
+                                                  }
+                                                  className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border transition-all cursor-pointer ${
+                                                    gb.hasFifthWeek
+                                                      ? "bg-emerald-950 text-emerald-300 border-emerald-500/50 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                                                      : "bg-slate-900 text-slate-400 border-white/10 hover:border-slate-500"
+                                                  }`}
+                                                >
+                                                  {gb.hasFifthWeek
+                                                    ? `5e Semaine Active (+${formatDA(gb.fifthWeekBonusDA)})`
+                                                    : "4 Semaines (Normal)"}
+                                                  {gb.isFifthWeekOverridden && " [Manuel]"}
+                                                </button>
+                                              </div>
+                                              <span className="font-mono font-bold text-xs text-white">
+                                                {formatDA(gb.totalGroupDA)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })
                     )}
