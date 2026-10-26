@@ -3,6 +3,9 @@ import {
   computePeriodFinancialReport,
   compareFinancialPeriods,
   runWhatIfSimulation,
+  computeFinancialHealthScore,
+  generateFinancialInsights,
+  FINANCIAL_KNOWLEDGE_PILLS,
   DEFAULT_FINANCE_LEDGER_STATE,
   FinanceMemberInput,
   SwimFinanceLedgerState,
@@ -233,5 +236,26 @@ describe("AQA Swim Financial & Accounting Engine", () => {
     });
     expect(sim.projectedSwimmers).toBe(13);
     expect(sim.projectedRevenueDA).toBeGreaterThan(reportOct.totalRecognizedRevenueDA);
+  });
+
+  it("computes financial health score, diagnostics and accounting knowledge pills", () => {
+    const report = computePeriodFinancialReport({
+      members: mockMembers,
+      groups: mockGroups,
+      ledger: DEFAULT_FINANCE_LEDGER_STATE,
+      filter: { mode: "month", monthKey: "2026-10" },
+    });
+
+    const health = computeFinancialHealthScore(report);
+    expect(health.score).toBeGreaterThanOrEqual(0);
+    expect(health.score).toBeLessThanOrEqual(100);
+    expect(["A", "B", "C", "D"]).toContain(health.grade);
+
+    const insights = generateFinancialInsights(report);
+    expect(insights.length).toBeGreaterThan(0);
+    expect(insights[0].actionableRecommendation).toBeDefined();
+
+    expect(FINANCIAL_KNOWLEDGE_PILLS.length).toBeGreaterThanOrEqual(4);
+    expect(FINANCIAL_KNOWLEDGE_PILLS[0].keyFormula).toBeDefined();
   });
 });

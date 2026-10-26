@@ -9,12 +9,18 @@ import {
   CoachSalaryConfig,
   CoachSalaryMode,
   compareFinancialPeriods,
+  computeFinancialHealthScore,
   computePeriodFinancialReport,
   DEFAULT_FINANCE_LEDGER_STATE,
   ExpenseCategory,
   FinanceCoachInput,
   FinanceEquipmentSaleInput,
   FinanceMemberInput,
+  FINANCIAL_KNOWLEDGE_PILLS,
+  FinancialHealthScore,
+  FinancialInsightItem,
+  FinancialKnowledgePill,
+  generateFinancialInsights,
   PeriodFilter,
   PoolExpenseBasis,
   RevenueRecognitionMode,
@@ -295,6 +301,12 @@ export function SwimFinanceDesk({
     poolBasis,
     recognitionMode,
   ]);
+
+  // ─── 4b. FINANCIAL HEALTH AUDIT & DIAGNOSTICS ──────────────────────────────
+  const healthScore = useMemo(() => computeFinancialHealthScore(reportA), [reportA]);
+  const financialInsights = useMemo(() => generateFinancialInsights(reportA), [reportA]);
+  const [showKnowledgeHub, setShowKnowledgeHub] = useState(false);
+  const [expandedKnowledgeId, setExpandedKnowledgeId] = useState<string | null>(null);
 
   // ─── 5. EXPENSE & PAYROLL EDITOR STATES ──────────────────────────────────────
   const [newExpLabel, setNewExpLabel] = useState("");
@@ -1174,6 +1186,269 @@ export function SwimFinanceDesk({
               </Badge>
             </div>
           </div>
+
+          {/* ─── SECTION: AUDIT DE SANTÉ FINANCIÈRE & DIAGNOSTICS STRATÉGIQUES ─── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Health Score Card (5 cols on lg) */}
+            <div className="lg:col-span-5 rounded-2xl border border-white/10 bg-slate-900/90 p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Score de Santé Financière</h3>
+                  <p className="text-xs text-slate-400">
+                    Audit automatique de solvabilité & rentabilité
+                  </p>
+                </div>
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-xl font-mono border ${
+                    healthScore.grade === "A"
+                      ? "border-emerald-500/50 bg-emerald-950/60 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                      : healthScore.grade === "B"
+                      ? "border-cyan-500/50 bg-cyan-950/60 text-cyan-300 shadow-[0_0_15px_rgba(0,242,255,0.3)]"
+                      : healthScore.grade === "C"
+                      ? "border-amber-500/50 bg-amber-950/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+                      : "border-rose-500/50 bg-rose-950/60 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                  }`}
+                >
+                  {healthScore.grade}
+                </div>
+              </div>
+
+              {/* Numerical Score & Status */}
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <div className="flex items-baseline gap-1.5 font-mono">
+                    <span className="text-3xl font-black text-white">{healthScore.score}</span>
+                    <span className="text-sm text-slate-400">/ 100</span>
+                  </div>
+                  <Badge
+                    tone={
+                      healthScore.status === "excellent"
+                        ? "success"
+                        : healthScore.status === "healthy"
+                        ? "info"
+                        : healthScore.status === "warning"
+                        ? "warning"
+                        : "danger"
+                    }
+                  >
+                    {healthScore.statusLabel}
+                  </Badge>
+                </div>
+
+                <div className="h-2.5 w-full rounded-full bg-slate-950 overflow-hidden border border-white/5">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${
+                      healthScore.score >= 85
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-400"
+                        : healthScore.score >= 70
+                        ? "bg-gradient-to-r from-sky-500 to-cyan-400"
+                        : healthScore.score >= 50
+                        ? "bg-gradient-to-r from-amber-500 to-yellow-400"
+                        : "bg-gradient-to-r from-rose-500 to-red-400"
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(5, healthScore.score))}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* 4 Analytical Sub-Scores */}
+              <div className="space-y-2.5 pt-2 border-t border-white/10 text-xs">
+                {Object.entries(healthScore.subScores).map(([key, item]) => {
+                  const subPct = Math.min(100, Math.round((item.score / item.max) * 100));
+                  return (
+                    <div key={key} className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-300">{item.label}</span>
+                        <span className="font-mono font-bold text-slate-200">
+                          {item.score} / {item.max}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-slate-950 overflow-hidden">
+                        <div
+                          className="h-full bg-cyan-400 rounded-full transition-all"
+                          style={{ width: `${subPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Knowledge Center Toggle Button */}
+              <div className="pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowKnowledgeHub((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-slate-950/80 hover:bg-slate-800/90 border border-cyan-500/30 text-xs text-cyan-300 font-semibold transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                      />
+                    </svg>
+                    <span>Hub de Compétences Comptables</span>
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    {showKnowledgeHub ? "Masquer ▲" : "Explorer (4 fiches) ▼"}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Strategic Diagnostic & Insights (7 cols on lg) */}
+            <div className="lg:col-span-7 rounded-2xl border border-white/10 bg-slate-900/90 p-5 space-y-3.5">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-white">Diagnostics & Leviers Stratégiques</h3>
+                  <p className="text-xs text-slate-400">
+                    Recommandations calculées en direct sur les données de la période
+                  </p>
+                </div>
+                <Badge tone="info">{financialInsights.length} Analyses</Badge>
+              </div>
+
+              <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                {financialInsights.map((insight) => (
+                  <div
+                    key={insight.id}
+                    className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                      insight.type === "opportunity"
+                        ? "bg-cyan-950/20 border-cyan-500/30 text-cyan-200"
+                        : insight.type === "warning"
+                        ? "bg-amber-950/20 border-amber-500/30 text-amber-200"
+                        : insight.type === "success"
+                        ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-200"
+                        : "bg-slate-950/50 border-white/10 text-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-bold text-white">
+                        {insight.type === "opportunity" && (
+                          <svg className="w-4 h-4 text-cyan-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                        )}
+                        {insight.type === "warning" && (
+                          <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        )}
+                        {insight.type === "success" && (
+                          <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                        )}
+                        {insight.type === "info" && (
+                          <svg className="w-4 h-4 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                        <span>{insight.title}</span>
+                      </div>
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-slate-900/80 border border-white/10 text-slate-300">
+                        {insight.type === "opportunity"
+                          ? "Opportunité"
+                          : insight.type === "warning"
+                          ? "Vigilance"
+                          : insight.type === "success"
+                          ? "Performance"
+                          : "Audit"}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-300 leading-relaxed">{insight.detail}</p>
+
+                    <div className="p-2.5 rounded-lg bg-slate-950/80 border border-white/10 flex items-start gap-2">
+                      <span className="text-[10px] uppercase font-bold text-cyan-400 shrink-0 mt-0.5">
+                        Levier :
+                      </span>
+                      <span className="text-[11px] text-slate-200">
+                        {insight.actionableRecommendation}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ─── KNOWLEDGE HUB: COMPÉTENCES & CONCEPTS FINANCIERS ─── */}
+          {showKnowledgeHub && (
+            <Card className="border-cyan-500/30 bg-gradient-to-br from-slate-900/95 to-slate-950/95">
+              <div className="p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                      </svg>
+                      Centre de Compétences Financières & Comptables (AQA Swim)
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Maîtrisez les concepts comptables clés régissant la rentabilité et la gestion du club
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setShowKnowledgeHub(false)}
+                  >
+                    Fermer le Hub
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {FINANCIAL_KNOWLEDGE_PILLS.map((pill) => {
+                    const isExpanded = expandedKnowledgeId === pill.id;
+                    return (
+                      <div
+                        key={pill.id}
+                        className="rounded-xl border border-white/10 bg-slate-950/70 p-4 space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-xs font-bold text-cyan-300">{pill.title}</h4>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedKnowledgeId((prev) => (prev === pill.id ? null : pill.id))
+                            }
+                            className="text-[10px] text-slate-400 hover:text-white cursor-pointer px-2 py-0.5 rounded bg-slate-900 border border-white/10"
+                          >
+                            {isExpanded ? "Réduire" : "Détails"}
+                          </button>
+                        </div>
+
+                        {/* Key Formula Box */}
+                        <div className="px-3 py-2 rounded-lg bg-slate-900/90 border border-cyan-500/20 font-mono text-[11px] text-slate-200">
+                          <span className="text-[10px] text-cyan-400 uppercase font-bold block mb-0.5">
+                            Formule Comptable :
+                          </span>
+                          {pill.keyFormula}
+                        </div>
+
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {pill.concept}
+                        </p>
+
+                        <div className="pt-2 border-t border-white/5 space-y-1">
+                          <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+                            Application Pratique AQA Swim :
+                          </span>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            {pill.aqaApplication}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </Card>
+          )}
 
           {/* CHARTS ROW 1: P&L WATERFALL + EXPENSE DONUT */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

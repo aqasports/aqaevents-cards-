@@ -1263,3 +1263,234 @@ export function runWhatIfSimulation(
     projectedMarginPct,
   };
 }
+
+// ─── Financial Health Score & Analytical Knowledge Models ────────────────────
+
+export interface FinancialHealthScore {
+  score: number; // 0..100
+  grade: "A" | "B" | "C" | "D";
+  status: "excellent" | "healthy" | "warning" | "critical";
+  statusLabel: string;
+  subScores: {
+    collection: { score: number; max: 25; label: string };
+    margin: { score: number; max: 25; label: string };
+    breakEvenSafety: { score: number; max: 25; label: string };
+    costControl: { score: number; max: 25; label: string };
+  };
+}
+
+export function computeFinancialHealthScore(
+  report: PeriodFinancialReport
+): FinancialHealthScore {
+  // 1. Collection Efficiency (0..25)
+  let collScore = 5;
+  if (report.collectionRatePct >= 90) collScore = 25;
+  else if (report.collectionRatePct >= 80) collScore = 20;
+  else if (report.collectionRatePct >= 65) collScore = 15;
+  else if (report.collectionRatePct >= 50) collScore = 10;
+
+  // 2. Net Operating Margin (0..25)
+  let marginScore = 0;
+  if (report.activeNetMarginPct >= 45) marginScore = 25;
+  else if (report.activeNetMarginPct >= 30) marginScore = 20;
+  else if (report.activeNetMarginPct >= 15) marginScore = 15;
+  else if (report.activeNetMarginPct >= 0) marginScore = 10;
+
+  // 3. Break-Even Safety Margin (0..25)
+  let beScore = 0;
+  const safety = report.breakEven.safetyMarginSwimmers;
+  if (safety >= 30) beScore = 25;
+  else if (safety >= 15) beScore = 20;
+  else if (safety >= 5) beScore = 15;
+  else if (safety >= 0) beScore = 10;
+
+  // 4. Cost Control & Expense Ratio (0..25)
+  let costScore = 5;
+  if (report.expenseRatioPct <= 45 && report.expenseRatioPct > 0) costScore = 25;
+  else if (report.expenseRatioPct <= 60) costScore = 20;
+  else if (report.expenseRatioPct <= 75) costScore = 15;
+  else if (report.expenseRatioPct <= 90) costScore = 10;
+
+  const totalScore = collScore + marginScore + beScore + costScore;
+
+  let grade: "A" | "B" | "C" | "D" = "D";
+  let status: "excellent" | "healthy" | "warning" | "critical" = "critical";
+  let statusLabel = "Alerte Rentabilité";
+
+  if (totalScore >= 85) {
+    grade = "A";
+    status = "excellent";
+    statusLabel = "Excellente & Optimisée";
+  } else if (totalScore >= 70) {
+    grade = "B";
+    status = "healthy";
+    statusLabel = "Saine & Rentable";
+  } else if (totalScore >= 50) {
+    grade = "C";
+    status = "warning";
+    statusLabel = "Vigilance Requise";
+  }
+
+  return {
+    score: totalScore,
+    grade,
+    status,
+    statusLabel,
+    subScores: {
+      collection: {
+        score: collScore,
+        max: 25,
+        label: `Recouvrement (${report.collectionRatePct}%)`,
+      },
+      margin: {
+        score: marginScore,
+        max: 25,
+        label: `Marge Nette (${report.activeNetMarginPct}%)`,
+      },
+      breakEvenSafety: {
+        score: beScore,
+        max: 25,
+        label: `Marge Sécurité (${safety >= 0 ? `+${safety}` : safety} nag.)`,
+      },
+      costControl: {
+        score: costScore,
+        max: 25,
+        label: `Poids Charges (${report.expenseRatioPct}%)`,
+      },
+    },
+  };
+}
+
+export interface FinancialInsightItem {
+  id: string;
+  type: "opportunity" | "warning" | "success" | "info";
+  title: string;
+  detail: string;
+  actionableRecommendation: string;
+}
+
+export function generateFinancialInsights(
+  report: PeriodFinancialReport
+): FinancialInsightItem[] {
+  const insights: FinancialInsightItem[] = [];
+
+  // Insight 1: Receivables & DSO
+  if (report.revenueStillToPayDA > 0) {
+    const uncollectedPct =
+      report.grossClientRevenueDA > 0
+        ? Math.round((report.revenueStillToPayDA / report.grossClientRevenueDA) * 100)
+        : 0;
+    insights.push({
+      id: "insight_receivables",
+      type: uncollectedPct >= 25 ? "warning" : "info",
+      title: "Encaissement des Créances Clients",
+      detail: `${report.revenueStillToPayDA.toLocaleString("fr-DZ")} DA de créances restent à recouvrer auprès de ${report.unpaidClientsCount + report.partialClientsCount} adhérents (${uncollectedPct}% du chiffre d'affaires).`,
+      actionableRecommendation:
+        "Utilisez le desk Reinscription Calls & WhatsApp pour déclencher les relances de paiement ciblées et convertir ces créances en trésorerie disponible.",
+    });
+  }
+
+  // Insight 2: Pool Cost Ratio
+  if (report.totalRecognizedRevenueDA > 0) {
+    const poolCostPct = Math.round(
+      (report.appliedPoolExpenseDA / report.totalRecognizedRevenueDA) * 100
+    );
+    insights.push({
+      id: "insight_pool_cost",
+      type: poolCostPct > 35 ? "warning" : "success",
+      title: "Poids de la Redevance Bassin (poolpaid)",
+      detail: `La redevance piscine représente ${report.appliedPoolExpenseDA.toLocaleString("fr-DZ")} DA, soit ${poolCostPct}% des revenus totaux (coût moyen : ${report.breakEven.avgVariablePoolCostPerSwimmerDA.toLocaleString("fr-DZ")} DA/adhérent).`,
+      actionableRecommendation:
+        poolCostPct > 35
+          ? "Encouragez l'inscription sur les créneaux matinaux (3 500 DA vs 4 000 DA) ou augmentez la taille des groupes solid pour diluer le coût horaire."
+          : "Le ratio de redevance piscine est maîtrisé et laisse une marge brute confortable au club.",
+    });
+  }
+
+  // Insight 3: Break-Even Safety
+  if (report.breakEven.safetyMarginSwimmers < 10) {
+    insights.push({
+      id: "insight_breakeven",
+      type: "warning",
+      title: "Proximité du Seuil de Rentabilité",
+      detail: `Vous êtes à seulement ${report.breakEven.safetyMarginSwimmers} nageur(s) au-dessus de votre point mort (${report.breakEven.breakEvenSwimmersCount} adhérents requis pour couvrir les coûts fixes).`,
+      actionableRecommendation:
+        "Convertissez en priorité les demandes en attente (waitlist leads) pour accroître votre coussin de sécurité financière.",
+    });
+  } else {
+    insights.push({
+      id: "insight_breakeven_healthy",
+      type: "success",
+      title: "Coussin de Sécurité Financière Solide",
+      detail: `Avec ${report.assignedClientsCount} adhérents assignés, vous dépassez votre point mort de ${report.breakEven.safetyMarginSwimmers} nageurs, dégageant une marge de sécurité de ${report.breakEven.safetyMarginDA.toLocaleString("fr-DZ")} DA.`,
+      actionableRecommendation:
+        "Ce niveau d'activité permet de financer des investissements pédagogiques (chronomètres, matériel pro) ou d'ouvrir de nouveaux créneaux.",
+    });
+  }
+
+  // Insight 4: Category Profitability Champion
+  const sortedCats = [...report.categoryBreakdown].sort(
+    (a, b) => b.grossMarginDA - a.grossMarginDA
+  );
+  if (sortedCats.length > 0 && sortedCats[0].grossMarginDA > 0) {
+    const topCat = sortedCats[0];
+    insights.push({
+      id: "insight_top_category",
+      type: "opportunity",
+      title: `Secteur Leader : ${topCat.category.toUpperCase()}`,
+      detail: `Le segment ${topCat.category} génère la contribution brute la plus élevée avec ${topCat.grossMarginDA.toLocaleString("fr-DZ")} DA de marge (${topCat.grossMarginPct}%), pour ${topCat.assignedCount} adhérents.`,
+      actionableRecommendation:
+        "Développez la communication et les créneaux pour cette catégorie qui maximise le résultat net de l'académie.",
+    });
+  }
+
+  return insights;
+}
+
+export interface FinancialKnowledgePill {
+  id: string;
+  title: string;
+  concept: string;
+  aqaApplication: string;
+  keyFormula: string;
+}
+
+export const FINANCIAL_KNOWLEDGE_PILLS: FinancialKnowledgePill[] = [
+  {
+    id: "accrual_vs_cash",
+    title: "Comptabilité d'Engagement vs Comptabilité de Trésorerie",
+    concept:
+      "La comptabilité d'engagement enregistre les recettes dès que la prestation est convenue (Payé + Reste à payer), tandis que la comptabilité de trésorerie n'enregistre que l'argent effectivement encaissé en caisse ou en banque.",
+    aqaApplication:
+      "En natation, un adhérent inscrit pour 21 900 DA qui paie un acompte de 10 000 DA génère 21 900 DA d'engagement et 10 000 DA de trésorerie immédiate. La bascule en un clic dans l'outil permet d'anticiper les résultats futurs tout en sécurisant la liquidité réelle.",
+    keyFormula: "Trésorerie Nette = Encaissé Réel - Charges Décaissées",
+  },
+  {
+    id: "contribution_margin_breakeven",
+    title: "Marge sur Coûts Variables & Seuil de Rentabilité (Point Mort)",
+    concept:
+      "Le seuil de rentabilité est le nombre exact d'adhérents à partir duquel le club ne fait ni perte ni bénéfice. Chaque adhérent supplémentaire apporte une marge contributive unitaire qui couvre les charges fixes.",
+    aqaApplication:
+      "Chez AQA Swim, la redevance piscine est un coût variable direct (ex: 4 000 DA/mois), tandis que le salaire fixe du coach et les frais administratifs sont fixes. La marge unitaire (Prix moyen - Frais piscine) finance l'équipe pédagogique.",
+    keyFormula: "Point Mort (Nageurs) = Charges Fixes / (Prix Moyen - Frais Piscine Moyen)",
+  },
+  {
+    id: "working_capital_bfr",
+    title: "Besoin en Fonds de Roulement (BFR) en Club Sportif",
+    concept:
+      "Le BFR mesure le décalage de trésorerie entre les encaissements clients et les paiements des fournisseurs (piscine, coaches). Un BFR négatif signifie que les clients financent l'activité avant même que les dépenses ne soient payées.",
+    aqaApplication:
+      "Comme les formules AQA Swim (3m, 6m, 9m) sont généralement réglées au début du cycle alors que la piscine est payée mensuellement, le club bénéficie d'une trésorerie d'avance structurelle à préserver rigoureusement.",
+    keyFormula: "BFR = Créances Clients + Stocks - Dettes Fournisseurs & Salaires",
+  },
+  {
+    id: "revenue_proration",
+    title: "Lissage Mensuel & Amortissement des Abonnements Pluriannuels",
+    concept:
+      "Reconnaître l'intégralité d'un contrat de 9 mois le premier mois crée une illusion de pic de profit suivi de mois déficitaires. Le lissage mensuel divise le contrat sur sa durée effective pour refléter la valeur économique réelle.",
+    aqaApplication:
+      "L'option de 'Lissage Mensuel' dans l'outil permet de comparer objectivement chaque mois d'activité sans distorsion saisonnière liée aux pics de réinscriptions de septembre/octobre.",
+    keyFormula: "CA Mensuel Lissé = Prix Total Contrat / Nombre de Mois de Formule",
+  },
+];
+
