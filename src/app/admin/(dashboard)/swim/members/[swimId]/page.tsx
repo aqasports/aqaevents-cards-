@@ -1737,7 +1737,7 @@ export default function AdminSwimmerProfilePage({
                       </span>
                     </div>
                     <span className="text-[11px] font-mono text-cyan-300 font-bold">
-                      {nextMonthInfo.targetMonthStartDisplay} au {nextMonthInfo.targetMonthEndDisplay}
+                      {nextMonthInfo.targetMonthStartDisplay} {t("toSeparator")} {nextMonthInfo.targetMonthEndDisplay}
                     </span>
                   </div>
 
@@ -1747,7 +1747,7 @@ export default function AdminSwimmerProfilePage({
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">Amount (DA) *</label>
+                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">{t("amountLabel")}</label>
                       <Input
                         type="number"
                         required
@@ -1757,16 +1757,16 @@ export default function AdminSwimmerProfilePage({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">Method</label>
+                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">{t("methodLabel")}</label>
                       <select
                         value={nextMonthMethod}
                         onChange={(e) => setNextMonthMethod(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                       >
-                        <option value="cash">Cash</option>
-                        <option value="baridi_mob">Baridi Mob / CCP</option>
-                        <option value="virement">Virement Bancaire</option>
-                        <option value="cheque">Cheque</option>
+                        <option value="cash">{t("methodCash")}</option>
+                        <option value="baridi_mob">{t("methodBaridiMob")}</option>
+                        <option value="virement">{t("methodVirement")}</option>
+                        <option value="cheque">{t("methodCheque")}</option>
                       </select>
                     </div>
                   </div>
@@ -1791,10 +1791,10 @@ export default function AdminSwimmerProfilePage({
 
                   <div className="flex gap-2 pt-1 border-t border-white/10">
                     <Button type="submit" variant="primary" size="sm" disabled={submittingNextMonth}>
-                      {submittingNextMonth ? "Recording..." : `Confirm Payment for ${nextMonthInfo.targetMonthLabel}`}
+                      {submittingNextMonth ? t("recording") : t("confirmPaymentFor", { month: nextMonthInfo.targetMonthLabel })}
                     </Button>
                     <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddNextMonthPayment(false)}>
-                      Cancel
+                      {t("cancel")}
                     </Button>
                   </div>
                 </form>
@@ -1969,7 +1969,7 @@ export default function AdminSwimmerProfilePage({
                 <form onSubmit={handleAddPayment} className="p-3 rounded-xl bg-slate-800/60 border border-white/5 space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Amount (DA) *</label>
+                      <label className="block text-[11px] text-slate-400 mb-1">{t("amountLabel")}</label>
                       <Input
                         type="number"
                         required
@@ -1979,16 +1979,16 @@ export default function AdminSwimmerProfilePage({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Method</label>
+                      <label className="block text-[11px] text-slate-400 mb-1">{t("methodLabel")}</label>
                       <select
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
                       >
-                        <option value="cash">Cash</option>
-                        <option value="baridi_mob">Baridi Mob / CCP</option>
-                        <option value="virement">Virement Bancaire</option>
-                        <option value="cheque">Cheque</option>
+                        <option value="cash">{t("methodCash")}</option>
+                        <option value="baridi_mob">{t("methodBaridiMob")}</option>
+                        <option value="virement">{t("methodVirement")}</option>
+                        <option value="cheque">{t("methodCheque")}</option>
                       </select>
                     </div>
                   </div>
@@ -2017,9 +2017,9 @@ export default function AdminSwimmerProfilePage({
                   )}
                   <div className="flex gap-2 pt-1">
                     <Button type="submit" variant="primary" size="sm" disabled={submittingPayment}>
-                      {submittingPayment ? "Recording..." : "Confirm Payment"}
+                      {submittingPayment ? t("recording") : "Confirm Payment"}
                     </Button>
-                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddPayment(false)}>Cancel</Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddPayment(false)}>{t("cancel")}</Button>
                   </div>
                 </form>
               )}

@@ -607,7 +607,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
                 const SizedBox(height: 2.0),
                 Text(
-                  '${rep.originalCoachName} sollicite un remplacement (${rep.sessionDate}).',
+                  i18n.t('notif.rep_item_body', {
+                    'coach': rep.originalCoachName,
+                    'date': rep.sessionDate,
+                  }),
                   style: const TextStyle(
                     color: AqaTheme.textMuted,
                     fontSize: 11.5,
@@ -641,16 +644,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         : (isMultiGroup ? AqaTheme.accentTeal : AqaTheme.primarySkyHover);
 
     final titleText = isNewClientEvent
-        ? 'Nouveau Membre'
-        : (isMultiGroup ? 'Affectation Multi-Groupe' : 'Mouvement de Groupe');
+        ? i18n.t('notif.item_new_title')
+        : (isMultiGroup
+            ? i18n.t('notif.item_multi_title')
+            : i18n.t('notif.item_movement_title'));
 
     final descText = isNewClientEvent
-        ? '$memberName a rejoint $groupName.'
+        ? i18n.t('notif.item_join', {'member': memberName, 'group': groupName})
         : (isMultiGroup
-            ? '$memberName a rejoint $groupName (multi-groupe).'
+            ? i18n.t('notif.item_join_multi', {
+                'member': memberName,
+                'group': groupName,
+              })
             : (fromGroupName != null && fromGroupName.isNotEmpty
-                ? '$memberName transfere de $fromGroupName vers $groupName.'
-                : '$memberName a rejoint $groupName.'));
+                ? i18n.t('notif.item_transfer', {
+                    'member': memberName,
+                    'from': fromGroupName,
+                    'group': groupName,
+                  })
+                : i18n.t('notif.item_join', {
+                    'member': memberName,
+                    'group': groupName,
+                  })));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8.0),

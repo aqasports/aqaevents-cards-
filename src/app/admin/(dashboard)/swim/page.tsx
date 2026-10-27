@@ -50,6 +50,7 @@ import { SwimFinanceDesk } from "@/components/admin/swim/finance/SwimFinanceDesk
 import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
 import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
 import { isPremiumFormula } from "@/lib/swim-perks";
+import { useTranslations } from "@/lib/i18n";
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;
@@ -174,6 +175,7 @@ interface SwimCardItem {
 function SwimOverviewPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t: tPaymentsDesk } = useTranslations("swimPaymentsDesk");
   const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "finance">("confirmed");
   const [loading, setLoading] = useState(true);
 
@@ -2179,7 +2181,7 @@ function SwimOverviewPageInner() {
                     : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                 }`}
               >
-                <span>Formule Starter (Prévisions Mois Prochain)</span>
+                <span>{tPaymentsDesk("subTabStarter")}</span>
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   paymentSubTab === "starter" ? "bg-white/20 text-white" : "bg-sky-950 text-sky-300 border border-sky-500/30"
                 }`}>
@@ -2196,7 +2198,7 @@ function SwimOverviewPageInner() {
                     : "text-slate-400 hover:text-white hover:bg-slate-800/60"
                 }`}
               >
-                <span>Formules Premium & Délivrance (Silver, Gold, Diamond)</span>
+                <span>{tPaymentsDesk("subTabPremium")}</span>
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   paymentSubTab === "premium" ? "bg-white/20 text-white" : "bg-purple-950 text-purple-300 border border-purple-500/30"
                 }`}>
@@ -2206,7 +2208,7 @@ function SwimOverviewPageInner() {
             </div>
 
             <div className="hidden lg:flex items-center gap-2 pr-2 text-[11px] text-slate-400 font-medium">
-              <span>Saison 2026/2027</span>
+              <span>{tPaymentsDesk("season2026")}</span>
             </div>
           </div>
 

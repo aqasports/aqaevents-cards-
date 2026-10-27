@@ -4,7 +4,8 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { Input } from "@/components/admin/ui";
 import { isMemberAssignedToGroup } from "@/lib/swim-groups";
-import { isMemberNextMonthPaid, formatMonthKey } from "@/lib/swim-subscription";
+import { isMemberNextMonthPaid, formatMonthKey, formatMonthLabel } from "@/lib/swim-subscription";
+import { useLocale, useTranslations } from "@/lib/i18n";
 
 export interface StarterMemberRow {
   id: string;
@@ -46,6 +47,9 @@ interface SwimStarterDeskProps {
 }
 
 export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskProps) {
+  const { locale } = useLocale();
+  const { t } = useTranslations("swimPaymentsDesk");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "expiring" | "next_month_paid">("all");
 
@@ -64,14 +68,13 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
     const now = new Date();
     const nextMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
     const monthKey = formatMonthKey(nextMonthDate);
-    const monthName = nextMonthDate.toLocaleDateString("fr-DZ", { month: "long", year: "numeric", timeZone: "UTC" });
-    const capitalized = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    const monthLabel = formatMonthLabel(nextMonthDate, locale);
     return {
       monthKey,
-      monthLabel: capitalized,
+      monthLabel,
       firstDayDisplay: `01/${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}/${nextMonthDate.getUTCFullYear()}`,
     };
-  }, []);
+  }, [locale]);
 
   // Compute Next Month Expectation Totals
   const totalStarterCount = starterMembers.length;
@@ -172,28 +175,30 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-500/20 text-sky-300 border border-sky-500/30">
-              Formule Starter · 1 Mois
+              {t("headerTag")}
             </span>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-white/10">
-              Prévisions {nextMonthInfo.monthLabel}
+              {t("forecastTag", { month: nextMonthInfo.monthLabel })}
             </span>
           </div>
           <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-            Suivi des Abonnés Starter & Prévisions Financières
+            {t("starterTitle")}
           </h2>
           <p className="text-xs text-slate-400 max-w-2xl">
-            La formule Starter suit un cycle mensuel strict se clôturant au dernier jour du mois. Consultez ci-dessous les projections de revenus attendus pour le mois prochain basées sur le total des abonnés actifs.
+            {t("starterDesc")}
           </p>
         </div>
 
         {/* Highlight Summary Pill */}
         <div className="shrink-0 p-3 rounded-xl bg-slate-900/90 border border-sky-500/30 text-right">
-          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Attendu pour {nextMonthInfo.monthLabel}</div>
+          <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            {t("expectedForMonth", { month: nextMonthInfo.monthLabel })}
+          </div>
           <div className="text-xl sm:text-2xl font-bold font-mono text-cyan-300">
             {totalExpectedNextMonth.toLocaleString("fr-DZ")} DA
           </div>
           <div className="text-[11px] text-slate-400 mt-0.5">
-            {totalStarterCount} abonné{totalStarterCount !== 1 ? "s" : ""} au tarif Starter
+            {t("subscribersCountAtStarterRate", { count: totalStarterCount })}
           </div>
         </div>
       </div>
@@ -202,19 +207,19 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-1">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Abonnés Starter</p>
+            <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">{t("kpiStarterSubscribers")}</p>
             <div className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
           </div>
           <p className="text-xl font-bold font-mono text-white">{totalStarterCount}</p>
-          <p className="text-[11px] text-slate-400">Total abonnements 1 mois</p>
+          <p className="text-[11px] text-slate-400">{t("kpiTotalOneMonth")}</p>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-sky-500/20 space-y-1 shadow-[0_0_15px_rgba(14,165,233,0.1)]">
           <div className="flex items-center justify-between">
-            <p className="text-[10px] text-sky-400 uppercase font-semibold tracking-wider">Total Attendu Mois Prochain</p>
+            <p className="text-[10px] text-sky-400 uppercase font-semibold tracking-wider">{t("kpiTotalExpectedNextMonth")}</p>
             {nextMonthPaidCount > 0 ? (
               <span className="text-[10px] text-emerald-400 font-mono font-bold">
-                {nextMonthPaidCount} réglé{nextMonthPaidCount > 1 ? "s" : ""}
+                {t("kpiSettledCount", { count: nextMonthPaidCount })}
               </span>
             ) : (
               <span className="text-[10px] text-sky-300 font-mono font-bold">100%</span>
@@ -225,25 +230,25 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
           </p>
           <p className="text-[11px] text-slate-400">
             {nextMonthPaidCount > 0
-              ? `Déjà réglé en avance : ${totalCollectedNextMonth.toLocaleString("fr-DZ")} DA`
-              : "Cumul des formules Starter"}
+              ? t("kpiPrepaidAdvance", { amount: totalCollectedNextMonth.toLocaleString("fr-DZ") })
+              : t("kpiStarterCumulative")}
           </p>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-1">
-          <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Tarif Mensuel Moyen</p>
+          <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">{t("kpiAveragePrice")}</p>
           <p className="text-xl font-bold font-mono text-slate-200">
             {averageMonthlyPrice.toLocaleString("fr-DZ")} DA
           </p>
-          <p className="text-[11px] text-slate-400">Moyenne pondérée par nageur</p>
+          <p className="text-[11px] text-slate-400">{t("kpiWeightedAverage")}</p>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-1">
-          <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">Échéances en Cours</p>
+          <p className="text-[10px] text-slate-400 uppercase font-semibold tracking-wider">{t("kpiExpiringCurrent")}</p>
           <p className={`text-xl font-bold font-mono ${expiringThisMonthCount > 0 ? "text-amber-400" : "text-slate-400"}`}>
             {expiringThisMonthCount}
           </p>
-          <p className="text-[11px] text-slate-400">Clôture fin de mois sous 14j</p>
+          <p className="text-[11px] text-slate-400">{t("kpiClosing14Days")}</p>
         </div>
       </div>
 
@@ -252,10 +257,10 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
         <div className="p-4 rounded-2xl bg-slate-900/70 border border-white/8 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-              Répartition par Type de Formule & Projections Détaillées
+              {t("formulaBreakdownMatrix")}
             </h3>
             <span className="text-[11px] text-slate-400 font-mono">
-              Cycle de facturation mensuel
+              {t("monthlyBillingCycle")}
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
@@ -267,15 +272,15 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-xs text-white">{item.formula}</span>
                   <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-950/80 text-sky-300 border border-sky-500/30">
-                    {item.count} abonné{item.count !== 1 ? "s" : ""}
+                    {t("subscribersBadge", { count: item.count })}
                   </span>
                 </div>
                 <div className="text-sm font-bold font-mono text-cyan-300">
                   {item.totalDA.toLocaleString("fr-DZ")} DA
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-white/5">
-                  <span>Tarif: {item.unitPrice.toLocaleString("fr-DZ")} DA/m</span>
-                  <span>{item.percent}% du total</span>
+                  <span>{t("ratePerMonth", { amount: item.unitPrice.toLocaleString("fr-DZ") })}</span>
+                  <span>{t("percentOfTotal", { percent: item.percent })}</span>
                 </div>
               </div>
             ))}
@@ -286,19 +291,19 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
       {/* Filter and Search Bar */}
       <div className="flex flex-wrap gap-2 items-center">
         <Input
-          placeholder="Rechercher nom, téléphone, ID nageur..."
+          placeholder={t("searchStarterPlaceholder")}
           value={searchTerm}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
           className="w-full sm:w-64"
         />
         <div className="flex gap-1.5 flex-wrap">
           {([
-            { key: "all", label: "Tous les Starter" },
-            { key: "next_month_paid", label: `Mois Prochain Réglé (${nextMonthPaidCount})` },
-            { key: "paid", label: "Payés (En Règle)" },
-            { key: "partial", label: "Partiels" },
-            { key: "unpaid", label: "Non Payés" },
-            { key: "expiring", label: `Échéance Proche (${expiringThisMonthCount})` },
+            { key: "all", label: t("filterAllStarter") },
+            { key: "next_month_paid", label: t("filterNextMonthPaid", { count: nextMonthPaidCount }) },
+            { key: "paid", label: t("filterPaid") },
+            { key: "partial", label: t("filterPartial") },
+            { key: "unpaid", label: t("filterUnpaid") },
+            { key: "expiring", label: t("filterExpiring", { count: expiringThisMonthCount }) },
           ] as const).map(({ key: f, label }) => (
             <button
               key={f}
@@ -324,7 +329,7 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
           ))}
         </div>
         <span className="text-[11px] text-slate-500 ml-auto font-mono">
-          {filteredMembers.length} abonné{filteredMembers.length !== 1 ? "s" : ""}
+          {t("subscribersBadge", { count: filteredMembers.length })}
         </span>
       </div>
 
@@ -333,21 +338,21 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
         <table className="w-full text-xs text-left min-w-[950px]">
           <thead>
             <tr className="border-b border-white/8 text-[10px] text-slate-400 uppercase tracking-wider">
-              <th className="px-3 py-2.5 font-semibold">Nageur</th>
-              <th className="px-3 py-2.5 font-semibold">Groupe / Créneau</th>
-              <th className="px-3 py-2.5 font-semibold">Formule Mensuelle</th>
-              <th className="px-3 py-2.5 font-semibold">Période en Cours</th>
-              <th className="px-3 py-2.5 font-semibold text-center">Jours Restants</th>
-              <th className="px-3 py-2.5 font-semibold">Statut Mois</th>
-              <th className="px-3 py-2.5 font-semibold">Prévision Mois Prochain</th>
-              <th className="px-3 py-2.5 font-semibold text-right">Actions</th>
+              <th className="px-3 py-2.5 font-semibold">{t("tableHeaderSwimmer")}</th>
+              <th className="px-3 py-2.5 font-semibold">{t("tableHeaderGroupSchedule")}</th>
+              <th className="px-3 py-2.5 font-semibold">{t("tableHeaderFormula")}</th>
+              <th className="px-3 py-2.5 font-semibold">{t("tableHeaderPeriod")}</th>
+              <th className="px-3 py-2.5 font-semibold text-center">{t("tableHeaderDaysLeft")}</th>
+              <th className="px-3 py-2.5 font-semibold">{t("tableHeaderStatus")}</th>
+              <th className="px-3 py-2.5 font-semibold">{t("tableHeaderNextMonth")}</th>
+              <th className="px-3 py-2.5 font-semibold text-right">{t("tableHeaderActions")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {filteredMembers.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-slate-500 text-xs">
-                  Aucun abonné formule Starter ne correspond aux filtres sélectionnés.
+                  {t("noStarterMatches")}
                 </td>
               </tr>
             )}
@@ -385,11 +390,11 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                           </div>
                         )}
                         {m.group.coachName && (
-                          <div className="text-[10px] text-cyan-400/80">Coach: {m.group.coachName}</div>
+                          <div className="text-[10px] text-cyan-400/80">{t("coach")}: {m.group.coachName}</div>
                         )}
                       </div>
                     ) : (
-                      <span className="text-slate-500 italic">Non assigné</span>
+                      <span className="text-slate-500 italic">{t("unassigned")}</span>
                     )}
                   </td>
 
@@ -398,32 +403,32 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-sky-400">{m.formula}</span>
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-sky-950/60 text-sky-300 border border-sky-500/20">
-                        1 Mois
+                        {t("oneMonth")}
                       </span>
                     </div>
                     <div className="font-mono text-slate-300 text-[11px] mt-0.5">
-                      {m.effectivePriceDA.toLocaleString("fr-DZ")} DA/mois
+                      {t("daPerMonth", { amount: m.effectivePriceDA.toLocaleString("fr-DZ") })}
                     </div>
                   </td>
 
                   {/* Current Period */}
                   <td className="px-3 py-2.5 font-mono text-[11px]">
                     <div className="text-slate-300">{subStartDisplay}</div>
-                    <div className="text-slate-500 text-[10px]">au {subEndDisplay}</div>
+                    <div className="text-slate-500 text-[10px]">{t("to")} {subEndDisplay}</div>
                   </td>
 
                   {/* Days Left */}
                   <td className="px-3 py-2.5 text-center">
                     {m.daysLeft <= 0 ? (
                       <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-950/80 text-rose-300 border border-rose-500/30 font-bold">
-                        Échu
+                        {t("expiredBadge")}
                       </span>
                     ) : (
                       <div className="flex flex-col items-center">
                         <span className={`font-mono font-bold text-xs ${m.daysLeft <= 7 ? "text-amber-300" : "text-white"}`}>
                           {m.daysLeft}j
                         </span>
-                        <span className="text-[9px] text-slate-500">fin de mois</span>
+                        <span className="text-[9px] text-slate-500">{t("monthEndClosing")}</span>
                       </div>
                     )}
                   </td>
@@ -440,7 +445,7 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                       {m.paymentStatus}
                     </span>
                     <div className="text-[10px] font-mono text-slate-400 mt-0.5">
-                      Payé: {m.totalPaid.toLocaleString("fr-DZ")} DA
+                      {t("paidAmountLabel", { amount: m.totalPaid.toLocaleString("fr-DZ") })}
                     </div>
                   </td>
 
@@ -453,10 +458,10 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                           <div className="p-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold">
                               <span>{nextMonthInfo.monthLabel}</span>
-                              <span className="font-mono text-emerald-400">RÉGLÉ EN AVANCE</span>
+                              <span className="font-mono text-emerald-400">{t("settledInAdvance")}</span>
                             </div>
                             <div className="text-[9px] text-emerald-300/80">
-                              Déjà payé ({m.effectivePriceDA.toLocaleString("fr-DZ")} DA)
+                              {t("alreadyPaidAdvance", { amount: m.effectivePriceDA.toLocaleString("fr-DZ") })}
                             </div>
                           </div>
                         );
@@ -470,7 +475,7 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                             </span>
                           </div>
                           <div className="text-[9px] text-slate-400">
-                            Renouvellement dès le {nextMonthInfo.firstDayDisplay}
+                            {t("renewalFrom", { date: nextMonthInfo.firstDayDisplay })}
                           </div>
                         </div>
                       );
@@ -484,7 +489,7 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                         href={`/admin/swim/members/${m.swimId}`}
                         className="px-2 py-1 rounded-lg bg-slate-800 border border-white/10 text-slate-300 hover:text-white hover:bg-slate-700 text-[10px] font-bold transition-colors"
                       >
-                        Profil
+                        {t("profileAction")}
                       </Link>
                       <a
                         href={waUrl}
@@ -497,18 +502,18 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                           <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.554 4.107 1.527 5.832L0 24l6.335-1.509A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.98 0-3.831-.545-5.415-1.49l-.388-.233-3.763.897.934-3.676-.253-.398A9.786 9.786 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
                         </svg>
-                        Renouveler
+                        {t("renewAction")}
                       </a>
                       {isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid ? (
                         <span className="px-2 py-1 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                          {nextMonthInfo.monthLabel} Réglé
+                          {t("nextMonthSettledBadge", { month: nextMonthInfo.monthLabel })}
                         </span>
                       ) : onRecordPayment ? (
                         <button
                           onClick={() => onRecordPayment(m)}
                           className="px-2 py-1 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-300 hover:bg-sky-900/60 text-[10px] font-bold transition-colors"
                         >
-                          + Encaisser
+                          {t("collectAction")}
                         </button>
                       ) : null}
                     </div>

@@ -163,11 +163,7 @@ class ProfileView extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2.0),
                     Text(
-                      i18n.locale == 'ar'
-                          ? 'تغيير لغة التطبيق'
-                          : i18n.locale == 'en'
-                              ? 'Change application language'
-                              : 'Changer la langue de l\'application',
+                      i18n.t('profile.lang_sub'),
                       style: const TextStyle(
                         color: AqaTheme.textMuted,
                         fontSize: 11.5,
@@ -190,26 +186,14 @@ class ProfileView extends ConsumerWidget {
             children: [
               AqaSectionHeader(
                 eyebrow: 'ALERTES & NOTIFICATIONS',
-                title: i18n.locale == 'ar'
-                    ? 'إعدادات الإشعارات'
-                    : i18n.locale == 'en'
-                        ? 'Notification Settings'
-                        : 'Parametres des Notifications',
+                title: i18n.t('notif.settings_title'),
               ),
               const SizedBox(height: 12.0),
               _buildNotificationToggleRow(
                 icon: Icons.notifications_active_outlined,
                 accentColor: AqaTheme.accentTeal,
-                title: i18n.locale == 'ar'
-                    ? 'تفعيل إشعارات الهاتف'
-                    : i18n.locale == 'en'
-                        ? 'Allow Phone Notifications'
-                        : 'Autoriser les notifications sur le telephone',
-                subtitle: i18n.locale == 'ar'
-                    ? 'تلقي التنبيهات الفورية على جهازك'
-                    : i18n.locale == 'en'
-                        ? 'Receive real-time alerts on your phone'
-                        : 'Recevoir les alertes directement sur votre telephone',
+                title: i18n.t('notif.allow_title'),
+                subtitle: i18n.t('notif.allow_sub'),
                 value: notifSettings.isAuthorized,
                 onChanged: (val) => notifNotifier.toggleAuthorized(val),
               ),
@@ -218,16 +202,8 @@ class ProfileView extends ConsumerWidget {
                 icon: Icons.fiber_new_rounded,
                 accentColor: AqaTheme.statusSuccess,
                 badgeTag: 'NEW',
-                title: i18n.locale == 'ar'
-                    ? 'إضافة مشترك جديد إلى الفوج (NEW)'
-                    : i18n.locale == 'en'
-                        ? 'New Client Added to Group (NEW)'
-                        : 'Nouveau client ajoute au groupe (NEW)',
-                subtitle: i18n.locale == 'ar'
-                    ? 'تنبيه وشارة NEW تختفي تلقائيا بعد الحصة الأولى للسباح الجديد'
-                    : i18n.locale == 'en'
-                        ? 'Notification and NEW label that disappears after their first session'
-                        : 'Notification et label NEW qui disparait apres la 1ere seance du nageur',
+                title: i18n.t('notif.new_client_toggle_title'),
+                subtitle: i18n.t('notif.new_client_toggle_sub'),
                 value: notifSettings.notifyNewClient,
                 enabled: notifSettings.isAuthorized,
                 onChanged: (val) => notifNotifier.toggleNewClient(val),
@@ -236,16 +212,8 @@ class ProfileView extends ConsumerWidget {
               _buildNotificationToggleRow(
                 icon: Icons.compare_arrows_rounded,
                 accentColor: AqaTheme.primarySkyHover,
-                title: i18n.locale == 'ar'
-                    ? 'حركة تغيير الفوج والتعيين متعدد الأفواج'
-                    : i18n.locale == 'en'
-                        ? 'Group Movement & Multi-Group Assignment'
-                        : 'Mouvement de groupe & Multi-groupe',
-                subtitle: i18n.locale == 'ar'
-                    ? 'إشعار عند نقل سباح أو تعيينه في عدة أفواج (بدون شارة NEW)'
-                    : i18n.locale == 'en'
-                        ? 'Notifies coach on group movement or multi-group assign (no NEW label)'
-                        : 'Notifie le coach lors d\'un transfert ou multi-groupe (sans label NEW)',
+                title: i18n.t('notif.movement_toggle_title'),
+                subtitle: i18n.t('notif.movement_toggle_sub'),
                 value: notifSettings.notifyGroupMovement,
                 enabled: notifSettings.isAuthorized,
                 onChanged: (val) => notifNotifier.toggleGroupMovement(val),
@@ -254,16 +222,8 @@ class ProfileView extends ConsumerWidget {
               _buildNotificationToggleRow(
                 icon: Icons.swap_horiz_rounded,
                 accentColor: AqaTheme.statusWarning,
-                title: i18n.locale == 'ar'
-                    ? 'طلبات الاستخلاف والتغطية'
-                    : i18n.locale == 'en'
-                        ? 'Coverage & Replacement Requests'
-                        : 'Demandes de couverture & remplacement',
-                subtitle: i18n.locale == 'ar'
-                    ? 'تنبيه عند استلام طلب استخلاف للقبول أو الرفض'
-                    : i18n.locale == 'en'
-                        ? 'Alert when another coach submits a coverage request'
-                        : 'Alerte lorsqu\'un coach soumet une demande de couverture',
+                title: i18n.t('notif.replacement_toggle_title'),
+                subtitle: i18n.t('notif.replacement_toggle_sub'),
                 value: notifSettings.notifyReplacements,
                 enabled: notifSettings.isAuthorized,
                 onChanged: (val) => notifNotifier.toggleReplacements(val),
@@ -272,16 +232,8 @@ class ProfileView extends ConsumerWidget {
               _buildNotificationToggleRow(
                 icon: Icons.timer_outlined,
                 accentColor: AqaTheme.accentTeal,
-                title: i18n.locale == 'ar'
-                    ? 'تذكير نهاية الحصة (10 دقائق)'
-                    : i18n.locale == 'en'
-                        ? 'Session End Reminder (10 min)'
-                        : 'Rappel de fin de seance (10 min)',
-                subtitle: i18n.locale == 'ar'
-                    ? 'تذكير قبل 10 دقائق من نهاية الحصة لتسجيل الحضور والتقييم'
-                    : i18n.locale == 'en'
-                        ? 'Reminder 10 min before session end to log attendance and evaluation'
-                        : 'Rappel 10 min avant la fin pour saisir l\'appel et l\'evaluation',
+                title: i18n.t('notif.reminder_toggle_title'),
+                subtitle: i18n.t('notif.reminder_toggle_sub'),
                 value: notifSettings.notifySessionReminder,
                 enabled: notifSettings.isAuthorized,
                 onChanged: (val) => notifNotifier.toggleSessionReminder(val),
@@ -292,11 +244,7 @@ class ProfileView extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: AqaIslandButton(
-                      label: i18n.locale == 'ar'
-                          ? 'اختبار إشعار'
-                          : i18n.locale == 'en'
-                              ? 'Test Alert'
-                              : 'Tester alerte',
+                      label: i18n.t('notif.test_button'),
                       icon: Icons.notification_important_rounded,
                       compact: true,
                       secondary: true,
@@ -305,11 +253,7 @@ class ProfileView extends ConsumerWidget {
                             .read(notificationServiceProvider)
                             .showNotification(
                               title: 'AQA Coaches',
-                              body: i18n.locale == 'ar'
-                                  ? 'تم استلام إشعار الاختبار بنجاح على نظام هاتفك.'
-                                  : i18n.locale == 'en'
-                                      ? 'Test alert successfully delivered to your device.'
-                                      : 'Notification de test recue avec succes sur votre appareil.',
+                              body: i18n.t('notif.test_body'),
                               tag: 'test-${DateTime.now().millisecondsSinceEpoch}',
                             );
                         if (context.mounted) {
@@ -320,16 +264,8 @@ class ProfileView extends ConsumerWidget {
                                   : AqaTheme.statusWarning,
                               content: Text(
                                 ok
-                                    ? (i18n.locale == 'ar'
-                                        ? 'تم إرسال إشعار تجريبي بنجاح'
-                                        : i18n.locale == 'en'
-                                            ? 'Test alert dispatched successfully'
-                                            : 'Notification test envoyee avec succes')
-                                    : (i18n.locale == 'ar'
-                                        ? 'يرجى التحقق من أذونات الإشعارات في إعدادات الهاتف'
-                                        : i18n.locale == 'en'
-                                            ? 'Please check notification permissions in phone settings'
-                                            : 'Veuillez verifier les autorisations dans les parametres du telephone'),
+                                    ? i18n.t('notif.test_sent')
+                                    : i18n.t('notif.test_failed'),
                               ),
                             ),
                           );
@@ -340,11 +276,7 @@ class ProfileView extends ConsumerWidget {
                   const SizedBox(width: 8.0),
                   Expanded(
                     child: AqaIslandButton(
-                      label: i18n.locale == 'ar'
-                          ? 'إعدادات الهاتف'
-                          : i18n.locale == 'en'
-                              ? 'OS Settings'
-                              : 'Parametres OS',
+                      label: i18n.t('notif.os_settings'),
                       icon: Icons.settings_suggest_rounded,
                       compact: true,
                       secondary: true,
@@ -397,11 +329,7 @@ class ProfileView extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      i18n.locale == 'ar'
-                          ? 'الدعم البيداغوجي AQA'
-                          : i18n.locale == 'en'
-                              ? 'AQA Teaching Support'
-                              : 'Support Pedagogique AQA',
+                      i18n.t('profile.support_title'),
                       style: const TextStyle(
                         color: AqaTheme.textPrimary,
                         fontSize: 13.5,
@@ -410,11 +338,7 @@ class ProfileView extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2.0),
                     Text(
-                      i18n.locale == 'ar'
-                          ? 'الدليل والمقرر الفني ومكتبة التمارين'
-                          : i18n.locale == 'en'
-                              ? 'Technical syllabus, guidelines and drills library'
-                              : 'Cursus technique, directives et bibliotheque d\'exercices',
+                      i18n.t('profile.support_sub'),
                       style: const TextStyle(
                         color: AqaTheme.textMuted,
                         fontSize: 11.0,
@@ -440,25 +364,15 @@ class ProfileView extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AqaSectionHeader(
-                title: i18n.locale == 'ar'
-                    ? 'صلاحيات ونطاق الحساب'
-                    : i18n.locale == 'en'
-                        ? 'Permissions & Scope'
-                        : 'Droits & Perimetre d\'Acces',
+                title: i18n.t('profile.permissions_title'),
               ),
               const SizedBox(height: 8.0),
               Text(
                 isHead
-                    ? (i18n.locale == 'ar'
-                        ? 'Head Coach: إشراف عام على كافة القطاعات (أطفال، كبار، سيدات، كتم النفس)، إدارة الاستخلافات، سجلات الحضور، التقييم الفني وتثبيت الشارات.'
-                        : 'Head Coach: Supervision de tous les secteurs (Enfants, Adultes Homme/Femme, Apnee), gestion des remplacements, feuilles de presence, evaluations techniques et attribution des badges.')
+                    ? i18n.t('profile.role_head_desc')
                     : isAssistant
-                        ? (i18n.locale == 'ar'
-                            ? 'Assistant Coach: اطلاع في وضع القراءة فقط على الأفواج المعينة ومتابعة بطاقات السباحين.'
-                            : 'Assistant Coach: Acces en lecture seule aux groupes assignes, consultation des effectifs et fiches techniques nageurs.')
-                        : (i18n.locale == 'ar'
-                            ? 'Coach Titulaire: وصول كامل إلى أفواجك وحصص الاستخلاف (تسجيل الحضور، تقييم الحصص، والمتابعة الفنية).'
-                            : 'Coach Titulaire: Acces complet a vos groupes et seances en remplacement (appel, logger 3 etapes, notation seance et suivi d\'evolution).'),
+                        ? i18n.t('profile.role_assistant_desc')
+                        : i18n.t('profile.role_coach_desc'),
                 style: const TextStyle(
                   color: AqaTheme.textMuted,
                   fontSize: 12.0,
@@ -476,29 +390,25 @@ class ProfileView extends ConsumerWidget {
           child: Column(
             children: [
               _buildInfoTile(
-                i18n.locale == 'ar' ? 'معرف المدرب' : 'Identifiant Coach',
+                i18n.t('profile.coach_id'),
                 user?.coachId ?? 'N/A',
                 Icons.badge_outlined,
               ),
               const Divider(),
               _buildInfoTile(
-                i18n.locale == 'ar' ? 'الهاتف' : 'Telephone',
-                user?.phone ??
-                    (i18n.locale == 'ar' ? 'غير مسجل' : 'Non renseigne'),
+                i18n.t('profile.phone'),
+                user?.phone ?? i18n.t('profile.phone_none'),
                 Icons.phone_outlined,
               ),
               const Divider(),
               _buildInfoTile(
-                i18n.locale == 'ar' ? 'المسبح الرئيسي' : 'Bassin Principal',
-                user?.primaryPool ??
-                    (i18n.locale == 'ar'
-                        ? 'كافة مسابح AQA'
-                        : 'Tous les bassins AQA'),
+                i18n.t('profile.primary_pool'),
+                user?.primaryPool ?? i18n.t('profile.all_pools'),
                 Icons.water_outlined,
               ),
               const Divider(),
               _buildInfoTile(
-                i18n.locale == 'ar' ? 'التخصصات' : 'Specialites',
+                i18n.t('profile.specialties'),
                 user?.specialties.isNotEmpty == true
                     ? user!.specialties.join(', ')
                     : 'Enseignement & Entrainement AQA Swim',
@@ -528,11 +438,7 @@ class ProfileView extends ConsumerWidget {
                   style: const TextStyle(color: AqaTheme.textPrimary),
                 ),
                 content: Text(
-                  i18n.locale == 'ar'
-                      ? 'هل أنت متأكد من تسجيل الخروج من تطبيق AQA Coaches؟'
-                      : i18n.locale == 'en'
-                          ? 'Are you sure you want to log out of AQA Coaches?'
-                          : 'Voulez-vous vraiment vous deconnecter de l\'application AQA Coaches?',
+                  i18n.t('profile.logout_confirm'),
                   style: const TextStyle(color: AqaTheme.textMuted),
                 ),
                 actions: [

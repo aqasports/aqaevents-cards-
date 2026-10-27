@@ -544,6 +544,57 @@ const dictionaries = {
       managePerks: "Manage Perks",
       savePerks: "Save Perks",
       addCustomPerk: "Add Custom Perk",
+      headerTag: "Starter Formula · 1 Month",
+      forecastTag: "Projections {month}",
+      expectedForMonth: "Expected for {month}",
+      subscribersCountAtStarterRate: "{count} subscriber(s) at Starter rate",
+      kpiStarterSubscribers: "Starter Subscribers",
+      kpiTotalOneMonth: "Total 1-month subscriptions",
+      kpiTotalExpectedNextMonth: "Total Expected Next Month",
+      kpiSettledCount: "{count} settled",
+      kpiPrepaidAdvance: "Already settled in advance: {amount} DA",
+      kpiStarterCumulative: "Cumulative Starter subscriptions",
+      kpiAveragePrice: "Average Monthly Rate",
+      kpiWeightedAverage: "Weighted average per swimmer",
+      kpiExpiringCurrent: "Expiring This Month",
+      kpiClosing14Days: "Month-end closing within 14d",
+      formulaBreakdownMatrix: "Formula Breakdown & Detailed Projections",
+      monthlyBillingCycle: "Monthly billing cycle",
+      subscribersBadge: "{count} subscriber(s)",
+      ratePerMonth: "Rate: {amount} DA/m",
+      percentOfTotal: "{percent}% of total",
+      searchStarterPlaceholder: "Search name, phone, swimmer ID...",
+      filterAllStarter: "All Starter",
+      filterNextMonthPaid: "Next Month Settled ({count})",
+      filterPaid: "Paid (In Good Standing)",
+      filterPartial: "Partial",
+      filterUnpaid: "Unpaid",
+      filterExpiring: "Expiring Soon ({count})",
+      tableHeaderSwimmer: "Swimmer",
+      tableHeaderGroupSchedule: "Group / Schedule",
+      tableHeaderFormula: "Monthly Formula",
+      tableHeaderPeriod: "Current Period",
+      tableHeaderDaysLeft: "Days Left",
+      tableHeaderStatus: "Month Status",
+      tableHeaderNextMonth: "Next Month Projection",
+      tableHeaderActions: "Actions",
+      noStarterMatches: "No Starter formula subscribers match the selected filters.",
+      unassigned: "Unassigned",
+      coach: "Coach",
+      oneMonth: "1 Month",
+      daPerMonth: "{amount} DA/month",
+      to: "to",
+      expiredBadge: "Expired",
+      monthEndClosing: "month end",
+      paidAmountLabel: "Paid: {amount} DA",
+      settledInAdvance: "SETTLED IN ADVANCE",
+      alreadyPaidAdvance: "Already paid ({amount} DA)",
+      renewalFrom: "Renewal starting {date}",
+      profileAction: "Profile",
+      renewAction: "Renew",
+      nextMonthSettledBadge: "{month} Settled",
+      collectAction: "+ Collect",
+      season2026: "Season 2026/2027",
     },
     swimCalls: {
       title: "Reinscription & Call Manager",
@@ -774,6 +825,16 @@ const dictionaries = {
       nextMonthAlreadyPaidNotice: "Next month ({month}) is already settled ({amount} DA).",
       nextMonthPromptTitle: "Renew for Next Month?",
       nextMonthPromptDesc: "Current month is paid. You can record advance renewal for {month} before the 1st.",
+      nextMonthNotePlaceholder: "Notes / Reference (e.g. Advance payment {month})",
+      amountLabel: "Amount (DA) *",
+      methodLabel: "Payment Method",
+      confirmPaymentFor: "Confirm Payment for {month}",
+      recording: "Recording...",
+      toSeparator: "to",
+      methodCash: "Cash",
+      methodBaridiMob: "Baridi Mob / CCP",
+      methodVirement: "Bank Transfer",
+      methodCheque: "Cheque",
       paymentHistory: "Payment Transactions",
       paymentDate: "Date",
       paymentAmount: "Amount",
@@ -2020,6 +2081,57 @@ const dictionaries = {
       managePerks: "Gérer les Avantages",
       savePerks: "Enregistrer les Avantages",
       addCustomPerk: "Ajouter un Avantage Sur-Mesure",
+      headerTag: "Formule Starter · 1 Mois",
+      forecastTag: "Prévisions {month}",
+      expectedForMonth: "Attendu pour {month}",
+      subscribersCountAtStarterRate: "{count} abonné(s) au tarif Starter",
+      kpiStarterSubscribers: "Abonnés Starter",
+      kpiTotalOneMonth: "Total abonnements 1 mois",
+      kpiTotalExpectedNextMonth: "Total Attendu Mois Prochain",
+      kpiSettledCount: "{count} réglé(s)",
+      kpiPrepaidAdvance: "Déjà réglé en avance : {amount} DA",
+      kpiStarterCumulative: "Cumul des formules Starter",
+      kpiAveragePrice: "Tarif Mensuel Moyen",
+      kpiWeightedAverage: "Moyenne pondérée par nageur",
+      kpiExpiringCurrent: "Échéances en Cours",
+      kpiClosing14Days: "Clôture fin de mois sous 14j",
+      formulaBreakdownMatrix: "Répartition par Type de Formule & Projections Détaillées",
+      monthlyBillingCycle: "Cycle de facturation mensuel",
+      subscribersBadge: "{count} abonné(s)",
+      ratePerMonth: "Tarif: {amount} DA/m",
+      percentOfTotal: "{percent}% du total",
+      searchStarterPlaceholder: "Rechercher nom, téléphone, ID nageur...",
+      filterAllStarter: "Tous les Starter",
+      filterNextMonthPaid: "Mois Prochain Réglé ({count})",
+      filterPaid: "Payés (En Règle)",
+      filterPartial: "Partiels",
+      filterUnpaid: "Non Payés",
+      filterExpiring: "Échéance Proche ({count})",
+      tableHeaderSwimmer: "Nageur",
+      tableHeaderGroupSchedule: "Groupe / Créneau",
+      tableHeaderFormula: "Formule Mensuelle",
+      tableHeaderPeriod: "Période en Cours",
+      tableHeaderDaysLeft: "Jours Restants",
+      tableHeaderStatus: "Statut Mois",
+      tableHeaderNextMonth: "Prévision Mois Prochain",
+      tableHeaderActions: "Actions",
+      noStarterMatches: "Aucun abonné formule Starter ne correspond aux filtres sélectionnés.",
+      unassigned: "Non assigné",
+      coach: "Coach",
+      oneMonth: "1 Mois",
+      daPerMonth: "{amount} DA/mois",
+      to: "au",
+      expiredBadge: "Échu",
+      monthEndClosing: "fin de mois",
+      paidAmountLabel: "Payé: {amount} DA",
+      settledInAdvance: "RÉGLÉ EN AVANCE",
+      alreadyPaidAdvance: "Déjà payé ({amount} DA)",
+      renewalFrom: "Renouvellement dès le {date}",
+      profileAction: "Profil",
+      renewAction: "Renouveler",
+      nextMonthSettledBadge: "{month} Réglé",
+      collectAction: "+ Encaisser",
+      season2026: "Saison 2026/2027",
     },
     swimCalls: {
       title: "Gestion des Appels & Réinscriptions",
@@ -2250,6 +2362,16 @@ const dictionaries = {
       nextMonthAlreadyPaidNotice: "Le mois prochain ({month}) est déjà réglé ({amount} DA).",
       nextMonthPromptTitle: "Renouvellement Mois Prochain ?",
       nextMonthPromptDesc: "Le mois en cours est soldé. Vous pouvez encaisser le renouvellement de {month} avant le 1er.",
+      nextMonthNotePlaceholder: "Notes / Référence (ex. avance {month})",
+      amountLabel: "Montant (DA) *",
+      methodLabel: "Mode de paiement",
+      confirmPaymentFor: "Confirmer le paiement pour {month}",
+      recording: "Enregistrement...",
+      toSeparator: "au",
+      methodCash: "Espèces",
+      methodBaridiMob: "Baridi Mob / CCP",
+      methodVirement: "Virement Bancaire",
+      methodCheque: "Chèque",
       paymentHistory: "Historique des Règlements",
       paymentDate: "Date",
       paymentAmount: "Montant",
@@ -3495,6 +3617,57 @@ const dictionaries = {
       managePerks: "إدارة المزايا",
       savePerks: "حفظ المزايا",
       addCustomPerk: "إضافة ميزة مخصصة",
+      headerTag: "صيغة Starter · 1 شهر",
+      forecastTag: "توقعات {month}",
+      expectedForMonth: "المتوقع لشهر {month}",
+      subscribersCountAtStarterRate: "{count} مشترك بسعر Starter",
+      kpiStarterSubscribers: "مشتركو Starter",
+      kpiTotalOneMonth: "إجمالي اشتراكات 1 شهر",
+      kpiTotalExpectedNextMonth: "إجمالي المتوقع الشهر القادم",
+      kpiSettledCount: "{count} تم تسويتها",
+      kpiPrepaidAdvance: "تم الدفع مسبقا: {amount} دج",
+      kpiStarterCumulative: "مجموع صيغ Starter",
+      kpiAveragePrice: "متوسط السعر الشهري",
+      kpiWeightedAverage: "المعدل لكل سباح",
+      kpiExpiringCurrent: "اشتراكات تنتهي هذا الشهر",
+      kpiClosing14Days: "نهاية الشهر خلال 14 يوم",
+      formulaBreakdownMatrix: "التوزيع حسب نوع الصيغة والتوقعات التفصيلية",
+      monthlyBillingCycle: "دورة فوترة شهرية",
+      subscribersBadge: "{count} مشترك",
+      ratePerMonth: "السعر: {amount} دج/ش",
+      percentOfTotal: "{percent}% من الإجمالي",
+      searchStarterPlaceholder: "بحث بالاسم، الهاتف، معرف السباح...",
+      filterAllStarter: "جميع Starter",
+      filterNextMonthPaid: "الشهر القادم مسوى ({count})",
+      filterPaid: "مدفوع (في وضع نظامي)",
+      filterPartial: "جزئي",
+      filterUnpaid: "غير مدفوع",
+      filterExpiring: "ينتهي قريبا ({count})",
+      tableHeaderSwimmer: "السباح",
+      tableHeaderGroupSchedule: "الفوج / التوقيت",
+      tableHeaderFormula: "الصيغة الشهرية",
+      tableHeaderPeriod: "الفترة الحالية",
+      tableHeaderDaysLeft: "الأيام المتبقية",
+      tableHeaderStatus: "حالة الشهر",
+      tableHeaderNextMonth: "توقعات الشهر القادم",
+      tableHeaderActions: "إجراءات",
+      noStarterMatches: "لا يوجد مشتركون في صيغة Starter يطابقون عوامل التصفية المحددة.",
+      unassigned: "غير معين",
+      coach: "المدرب",
+      oneMonth: "1 شهر",
+      daPerMonth: "{amount} دج/شهر",
+      to: "إلى",
+      expiredBadge: "منتهي",
+      monthEndClosing: "نهاية الشهر",
+      paidAmountLabel: "المدفوع: {amount} دج",
+      settledInAdvance: "تم الدفع مسبقا",
+      alreadyPaidAdvance: "مدفوع مسبقا ({amount} دج)",
+      renewalFrom: "التجديد ابتداء من {date}",
+      profileAction: "الملف",
+      renewAction: "تجديد",
+      nextMonthSettledBadge: "{month} مسوى",
+      collectAction: "+ تحصيل",
+      season2026: "موسم 2026/2027",
     },
     swimCalls: {
       title: "إدارة المكالمات وإعادة التسجيل",
@@ -3725,6 +3898,16 @@ const dictionaries = {
       nextMonthAlreadyPaidNotice: "الشهر القادم ({month}) مسدد بالفعل ({amount} دج).",
       nextMonthPromptTitle: "تجديد الاشتراك للشهر القادم؟",
       nextMonthPromptDesc: "الشهر الحالي مسدد. يمكنك تسجيل دفع تجديد شهر {month} قبل الأول من الشهر.",
+      nextMonthNotePlaceholder: "ملاحظات / مرجع (مثال: دفع مسبق لشهر {month})",
+      amountLabel: "المبلغ (دج) *",
+      methodLabel: "طريقة الدفع",
+      confirmPaymentFor: "تأكيد الدفع لشهر {month}",
+      recording: "جاري التسجيل...",
+      toSeparator: "إلى",
+      methodCash: "نقدا",
+      methodBaridiMob: "بريدي موب / بريد الجزائر",
+      methodVirement: "تحويل بنكي",
+      methodCheque: "شيك",
       paymentHistory: "سجل المدفوعات",
       paymentDate: "التاريخ",
       paymentAmount: "المبلغ",
@@ -4500,11 +4683,40 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
           if (fallback && typeof fallback === "object" && fKey in (fallback as Record<string, unknown>)) {
             fallback = (fallback as Record<string, unknown>)[fKey];
           } else {
-            return keyPath; // Return key path if not found in fallback
+            fallback = undefined;
+            break;
           }
         }
         current = fallback;
         break;
+      }
+    }
+
+    // Auto-search across namespaces if a single-token key wasn't found at root level
+    if (typeof current !== "string" && !keyPath.includes(".")) {
+      const activeDict = dictionaries[locale] as Record<string, unknown>;
+      for (const ns of Object.keys(activeDict)) {
+        const val = activeDict[ns];
+        if (val && typeof val === "object" && keyPath in (val as Record<string, unknown>)) {
+          const match = (val as Record<string, unknown>)[keyPath];
+          if (typeof match === "string") {
+            current = match;
+            break;
+          }
+        }
+      }
+      if (typeof current !== "string") {
+        const enDict = dictionaries.en as Record<string, unknown>;
+        for (const ns of Object.keys(enDict)) {
+          const val = enDict[ns];
+          if (val && typeof val === "object" && keyPath in (val as Record<string, unknown>)) {
+            const match = (val as Record<string, unknown>)[keyPath];
+            if (typeof match === "string") {
+              current = match;
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -4515,7 +4727,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     let result = current;
     if (replacements) {
       Object.entries(replacements).forEach(([k, v]) => {
-        result = result.replace(`{${k}}`, String(v));
+        result = result.replaceAll(`{${k}}`, String(v));
       });
     }
 
@@ -4543,8 +4755,19 @@ export function useTranslations(namespace?: string) {
 
   return {
     t: (key: string, replacements?: Record<string, string | number>) => {
+      if (namespace && key.includes(".")) {
+        const firstSegment = key.split(".")[0];
+        if (firstSegment in dictionaries.en) {
+          return context.t(key, replacements);
+        }
+      }
       const fullPath = namespace ? `${namespace}.${key}` : key;
-      return context.t(fullPath, replacements);
+      const res = context.t(fullPath, replacements);
+      if (res === fullPath && namespace) {
+        const fallbackRes = context.t(key, replacements);
+        if (fallbackRes !== key) return fallbackRes;
+      }
+      return res;
     },
     locale: context.locale,
     setLocale: context.setLocale,
