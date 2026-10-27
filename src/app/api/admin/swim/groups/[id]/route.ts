@@ -3,6 +3,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { decodeSolidNotes, encodeSolidNotes, decodeMemberGroupIds } from "@/lib/swim-groups";
+import { getEffectiveMemberPaymentStatus } from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,15 @@ export async function GET(
         swimmers: {
           include: {
             card: true,
+            payments: {
+              select: {
+                id: true,
+                amount: true,
+                notes: true,
+                paidAt: true,
+              },
+              orderBy: { paidAt: "desc" },
+            },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -40,6 +50,15 @@ export async function GET(
       },
       include: {
         card: true,
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            notes: true,
+            paidAt: true,
+          },
+          orderBy: { paidAt: "desc" },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -52,6 +71,18 @@ export async function GET(
     );
 
     const allSwimmers = [...group.swimmers, ...matchingSecondary];
+
+    // Compute effective payment status (Starter 25th cut-off rule)
+    const now = new Date();
+    const swimmersWithEffectiveStatus = allSwimmers.map((s) => {
+      const statusInfo = getEffectiveMemberPaymentStatus(s, now);
+      return {
+        ...s,
+        effectivePaymentStatus: statusInfo.effectiveStatus,
+        isNextMonthPaid: statusInfo.isNextMonthPaid,
+        isAfterCutoff: statusInfo.isAfterCutoff,
+      };
+    });
 
     const { isSolid, cleanNotes } = decodeSolidNotes(group.notes);
 
@@ -67,7 +98,7 @@ export async function GET(
     return NextResponse.json({
       ...group,
       schedule: cleanSchedule,
-      swimmers: allSwimmers,
+      swimmers: swimmersWithEffectiveStatus,
       isSolid,
       cleanNotes,
     });

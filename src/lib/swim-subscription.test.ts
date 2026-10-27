@@ -17,6 +17,8 @@ import {
   isMemberNextMonthPaid,
   encodeNextMonthPaidTag,
   getMemberNextMonthInfo,
+  getFormulaBadgeInfo,
+  getEffectiveMemberPaymentStatus,
 } from "./swim-subscription";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -347,5 +349,161 @@ describe("Next Month Subscription Utilities (Starter Formula)", () => {
     expect(info.isPaid).toBe(true);
     expect(info.paidAmount).toBe(7800);
     expect(info.paymentId).toBe("p-adv");
+  });
+});
+
+// ─── Formula Badge Resolver ───────────────────────────────────────────────────
+
+describe("getFormulaBadgeInfo", () => {
+  it("resolves Starter formula (1m)", () => {
+    const res = getFormulaBadgeInfo("1m", "G10");
+    expect(res.tier).toBe("starter");
+    expect(res.label).toBe("Starter");
+    expect(res.duration).toBe("1m");
+    expect(res.tone).toBe("sky");
+  });
+
+  it("resolves Silver formula (3m)", () => {
+    const res = getFormulaBadgeInfo("3m", "Silver Pass");
+    expect(res.tier).toBe("silver");
+    expect(res.label).toBe("Silver");
+    expect(res.duration).toBe("3m");
+    expect(res.tone).toBe("slate");
+  });
+
+  it("resolves Gold formula (6m)", () => {
+    const res = getFormulaBadgeInfo("6m", "Gold Pass");
+    expect(res.tier).toBe("gold");
+    expect(res.label).toBe("Gold");
+    expect(res.duration).toBe("6m");
+    expect(res.tone).toBe("amber");
+  });
+
+  it("resolves Diamond formula (9m)", () => {
+    const res = getFormulaBadgeInfo("9m", "Diamond Pass");
+    expect(res.tier).toBe("diamond");
+    expect(res.label).toBe("Diamond");
+    expect(res.duration).toBe("9m");
+    expect(res.tone).toBe("purple");
+  });
+});
+
+// ─── Effective Member Payment Status (25th Cut-off Rule) ──────────────────────
+
+describe("getEffectiveMemberPaymentStatus (25th Cut-off Rule)", () => {
+  const day24 = new Date("2026-10-24T12:00:00.000Z");
+  const day25 = new Date("2026-10-25T12:00:00.000Z");
+  const day28 = new Date("2026-10-28T12:00:00.000Z");
+
+  it("Starter client on day 24 with paid status stays 'paid'", () => {
+    const starterMember = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [],
+    };
+
+    const res = getEffectiveMemberPaymentStatus(starterMember, day24);
+    expect(res.isStarter).toBe(true);
+    expect(res.isAfterCutoff).toBe(false);
+    expect(res.effectiveStatus).toBe("paid");
+  });
+
+  it("Starter client on/after day 25 without next month payment changes to 'unpaid'", () => {
+    const starterMember = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [{ id: "p1", amount: 7800, notes: "Current month payment only" }],
+    };
+
+    const res25 = getEffectiveMemberPaymentStatus(starterMember, day25);
+    expect(res25.isStarter).toBe(true);
+    expect(res25.isAfterCutoff).toBe(true);
+    expect(res25.isNextMonthPaid).toBe(false);
+    expect(res25.effectiveStatus).toBe("unpaid");
+
+    const res28 = getEffectiveMemberPaymentStatus(starterMember, day28);
+    expect(res28.effectiveStatus).toBe("unpaid");
+  });
+
+  it("Starter client on/after day 25 with next month payment remains 'paid'", () => {
+    const starterMember = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [
+        { id: "p-adv", amount: 7800, notes: "[NEXT_MONTH:2026-11] Advance payment for Nov" },
+      ],
+    };
+
+    const res = getEffectiveMemberPaymentStatus(starterMember, day25);
+    expect(res.isStarter).toBe(true);
+    expect(res.isAfterCutoff).toBe(true);
+    expect(res.isNextMonthPaid).toBe(true);
+    expect(res.effectiveStatus).toBe("paid");
+  });
+
+  it("Starter client on/after day 25 with [NEXT_MONTH_PAID:YYYY-MM] notes tag remains 'paid'", () => {
+    const starterMember = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      notes: "Member notes | [NEXT_MONTH_PAID:2026-11]",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [],
+    };
+
+    const res = getEffectiveMemberPaymentStatus(starterMember, day28);
+    expect(res.isStarter).toBe(true);
+    expect(res.isAfterCutoff).toBe(true);
+    expect(res.isNextMonthPaid).toBe(true);
+    expect(res.effectiveStatus).toBe("paid");
+  });
+
+  it("Multi-month formula (Silver 3m) is unaffected by the monthly 25th cut-off", () => {
+    const silverMember = {
+      duration: "3m",
+      formula: "Silver Pass",
+      paymentStatus: "paid",
+      subscriptionEnd: "2026-12-31T00:00:00.000Z",
+      payments: [],
+    };
+
+    const res = getEffectiveMemberPaymentStatus(silverMember, day25);
+    expect(res.isStarter).toBe(false);
+    expect(res.isAfterCutoff).toBe(false);
+    expect(res.effectiveStatus).toBe("paid");
+  });
+
+  it("Multi-month formula (Gold 6m) remains 'paid' across cut-off", () => {
+    const goldMember = {
+      duration: "6m",
+      formula: "Gold Pass",
+      paymentStatus: "paid",
+      subscriptionEnd: "2027-03-31T00:00:00.000Z",
+      payments: [],
+    };
+
+    const res = getEffectiveMemberPaymentStatus(goldMember, day28);
+    expect(res.isStarter).toBe(false);
+    expect(res.effectiveStatus).toBe("paid");
+  });
+
+  it("Multi-month formula (Diamond 9m) remains 'paid' across cut-off", () => {
+    const diamondMember = {
+      duration: "9m",
+      formula: "Diamond Pass",
+      paymentStatus: "paid",
+      subscriptionEnd: "2027-06-30T00:00:00.000Z",
+      payments: [],
+    };
+
+    const res = getEffectiveMemberPaymentStatus(diamondMember, day28);
+    expect(res.isStarter).toBe(false);
+    expect(res.effectiveStatus).toBe("paid");
   });
 });

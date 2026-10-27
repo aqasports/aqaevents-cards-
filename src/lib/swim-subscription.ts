@@ -356,7 +356,7 @@ export function isMemberNextMonthPaid(
   member: {
     notes?: string | null;
     subscriptionEnd?: Date | string | null;
-    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string }>;
+    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
   } | null | undefined,
   targetMonthKey?: string,
   locale = "fr"
@@ -448,7 +448,7 @@ export function getMemberNextMonthInfo(
     formula?: string | null;
     notes?: string | null;
     subscriptionEnd?: Date | string | null;
-    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string }>;
+    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
   } | null | undefined,
   locale = "fr"
 ): SwimmerNextMonthInfo {
@@ -481,5 +481,176 @@ export function getMemberNextMonthInfo(
     isPaid: paidResult.isPaid,
     paidAmount: paidResult.amount,
     paymentId: paidResult.paymentId,
+  };
+}
+
+// ─── Formula Tier Badge & Effective Payment Status ────────────────────────────
+
+export type SwimFormulaTier = "starter" | "silver" | "gold" | "diamond";
+
+export interface FormulaBadgeInfo {
+  tier: SwimFormulaTier;
+  label: string;
+  duration: string;
+  pillClass: string;
+  tone: "sky" | "slate" | "amber" | "purple";
+}
+
+/**
+ * Resolves the formula tier badge info (label, duration code, styling).
+ * Starter: 1m (Sky Blue)
+ * Silver: 3m (Slate / Silver)
+ * Gold: 6m (Amber / Gold)
+ * Diamond: 9m (Purple / Diamond)
+ *
+ * Strictly Western Arabic numerals (0-9). No emojis.
+ */
+export function getFormulaBadgeInfo(
+  duration?: string | null,
+  formula?: string | null
+): FormulaBadgeInfo {
+  const d = (duration || "").toLowerCase().trim();
+  const f = (formula || "").toLowerCase().trim();
+
+  if (d === "9m" || f.includes("diamond") || f.includes("econom")) {
+    return {
+      tier: "diamond",
+      label: "Diamond",
+      duration: "9m",
+      pillClass: "bg-purple-950/80 text-purple-300 border-purple-500/40",
+      tone: "purple",
+    };
+  }
+  if (d === "6m" || f.includes("gold") || f.includes("recommand")) {
+    return {
+      tier: "gold",
+      label: "Gold",
+      duration: "6m",
+      pillClass: "bg-amber-950/80 text-amber-300 border-amber-500/40",
+      tone: "amber",
+    };
+  }
+  if (d === "3m" || f.includes("silver") || f.includes("decouverte")) {
+    return {
+      tier: "silver",
+      label: "Silver",
+      duration: "3m",
+      pillClass: "bg-slate-800 text-slate-200 border-slate-600/50",
+      tone: "slate",
+    };
+  }
+  // Default to Starter (1m)
+  return {
+    tier: "starter",
+    label: "Starter",
+    duration: "1m",
+    pillClass: "bg-sky-950/80 text-sky-300 border-sky-500/40",
+    tone: "sky",
+  };
+}
+
+export type EffectivePaymentStatus = "paid" | "partial" | "unpaid";
+
+export interface EffectivePaymentStatusResult {
+  effectiveStatus: EffectivePaymentStatus;
+  originalStatus: string;
+  isStarter: boolean;
+  isAfterCutoff: boolean;
+  isNextMonthPaid: boolean;
+  nextMonthKey: string;
+  nextMonthLabel: string;
+  nextMonthAmount?: number;
+}
+
+/**
+ * Evaluates the effective payment status for a swimmer.
+ *
+ * Rules:
+ * - Premium formulas (Silver 3m, Gold 6m, Diamond 9m) maintain their recorded paymentStatus (paid/partial/unpaid).
+ * - Starter formula (1m) follows a strict monthly cycle:
+ *   - On or after the 25th of the month:
+ *     If the member has NOT paid for the next month, their effective payment status becomes "unpaid".
+ *     If the member HAS paid for the next month (via [NEXT_MONTH:YYYY-MM] payment, [NEXT_MONTH_PAID:YYYY-MM] notes,
+ *     or active subscriptionEnd covering next month), they remain "paid".
+ *   - Before the 25th of the month:
+ *     Reflects their recorded paymentStatus (paid/partial/unpaid), or "paid" if advance payment was already recorded.
+ *
+ * Strictly Western Arabic numerals (0-9). No emojis.
+ */
+export function getEffectiveMemberPaymentStatus(
+  member: {
+    duration?: string | null;
+    formula?: string | null;
+    paymentStatus?: string | null;
+    notes?: string | null;
+    subscriptionEnd?: Date | string | null;
+    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
+  } | null | undefined,
+  referenceDate: Date = new Date(),
+  locale = "fr"
+): EffectivePaymentStatusResult {
+  const originalStatus = (member?.paymentStatus || "unpaid").toLowerCase().trim();
+  const isStarter = isStarterFormula(member?.duration, member?.formula);
+
+  const nextMonthDate = getNextMonthDate(referenceDate);
+  const nextMonthKey = formatMonthKey(nextMonthDate);
+  const nextMonthLabel = formatMonthLabel(nextMonthDate, locale);
+
+  if (!isStarter) {
+    const effectiveStatus: EffectivePaymentStatus =
+      originalStatus === "paid" ? "paid" : originalStatus === "partial" ? "partial" : "unpaid";
+    return {
+      effectiveStatus,
+      originalStatus,
+      isStarter: false,
+      isAfterCutoff: false,
+      isNextMonthPaid: false,
+      nextMonthKey,
+      nextMonthLabel,
+    };
+  }
+
+  // Starter formula
+  const nextMonthCheck = isMemberNextMonthPaid(member, nextMonthKey, locale);
+  let isNextMonthPaid = nextMonthCheck.isPaid;
+
+  // Also verify if subscriptionEnd date is already on or beyond next month start
+  if (!isNextMonthPaid && member?.subscriptionEnd) {
+    const subEnd = new Date(member.subscriptionEnd);
+    if (!isNaN(subEnd.getTime()) && subEnd >= nextMonthDate) {
+      isNextMonthPaid = true;
+    }
+  }
+
+  // 25th cut-off check
+  const isAfterCutoff = referenceDate.getUTCDate() >= 25 || referenceDate.getDate() >= 25;
+
+  let effectiveStatus: EffectivePaymentStatus;
+  if (isAfterCutoff) {
+    if (isNextMonthPaid) {
+      effectiveStatus = "paid";
+    } else {
+      // Must be changed to unpaid on or after 25th if next month is not paid
+      effectiveStatus = "unpaid";
+    }
+  } else {
+    // Before 25th
+    if (isNextMonthPaid) {
+      effectiveStatus = "paid";
+    } else {
+      effectiveStatus =
+        originalStatus === "paid" ? "paid" : originalStatus === "partial" ? "partial" : "unpaid";
+    }
+  }
+
+  return {
+    effectiveStatus,
+    originalStatus,
+    isStarter: true,
+    isAfterCutoff,
+    isNextMonthPaid,
+    nextMonthKey,
+    nextMonthLabel,
+    nextMonthAmount: nextMonthCheck.amount,
   };
 }

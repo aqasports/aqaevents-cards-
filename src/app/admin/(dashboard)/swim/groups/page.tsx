@@ -20,6 +20,11 @@ import {
   calculateTotalRemainingPlaces,
 } from "@/lib/swim-groups";
 import { formatWhatsAppNumber } from "@/lib/swim-whatsapp";
+import { useI18n } from "@/lib/i18n";
+import {
+  getFormulaBadgeInfo,
+  getEffectiveMemberPaymentStatus,
+} from "@/lib/swim-subscription";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -53,9 +58,18 @@ interface SwimmerInGroup {
   fullName: string;
   phone: string;
   level: string;
+  formula?: string | null;
+  duration?: string | null;
+  notes?: string | null;
+  subscriptionStart?: string | null;
+  subscriptionEnd?: string | null;
   paymentStatus: string;
   groupStatus: string;
   card: { cardCode: string } | null;
+  payments?: Array<{ id: string; amount: number; notes: string | null; paidAt: string | null }>;
+  effectivePaymentStatus?: "paid" | "partial" | "unpaid";
+  isNextMonthPaid?: boolean;
+  isAfterCutoff?: boolean;
 }
 
 interface GroupDetail extends SwimGroup {
@@ -126,6 +140,7 @@ function getGroupScheduleSortKey(g: SwimGroup): number {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function SwimGroupsPage() {
+  const { t } = useI18n();
   const [groups, setGroups] = useState<SwimGroup[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [locations, setLocations] = useState<string[]>([...DEFAULT_SWIM_LOCATIONS]);
@@ -932,7 +947,11 @@ export default function SwimGroupsPage() {
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                Nageurs Inscrits ({enrolledCount} / {capacity})
+                {t("swimGroups.enrolledSwimmersHeader", {
+                  count: enrolledCount,
+                  capacity,
+                  defaultValue: `Nageurs Inscrits (${enrolledCount} / ${capacity})`,
+                })}
               </span>
               <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded border ${
                 remainingInGroup > 0
@@ -953,13 +972,26 @@ export default function SwimGroupsPage() {
             </div>
           ) : enrolledCount === 0 ? (
             <div className="p-6 text-center text-xs text-slate-400 border border-dashed border-white/10 rounded-2xl">
-              Aucun nageur inscrit dans ce groupe pour le moment.
+              {t("swimGroups.noSwimmersInGroup", {
+                defaultValue: "Aucun nageur inscrit dans ce groupe pour le moment.",
+              })}
             </div>
           ) : (
             <div className="space-y-2">
               {selectedGroup.swimmers.map((s) => {
                 const waFormatted = formatWhatsAppNumber(s.phone);
                 const hasWhatsApp = Boolean(waFormatted && waFormatted.length >= 8);
+                const formulaBadge = getFormulaBadgeInfo(s.duration, s.formula);
+                const paymentInfo = getEffectiveMemberPaymentStatus(s);
+
+                const formulaLabel =
+                  formulaBadge.tier === "starter"
+                    ? t("swimGroups.formulaStarter", { defaultValue: "Starter" })
+                    : formulaBadge.tier === "silver"
+                    ? t("swimGroups.formulaSilver", { defaultValue: "Silver" })
+                    : formulaBadge.tier === "gold"
+                    ? t("swimGroups.formulaGold", { defaultValue: "Gold" })
+                    : t("swimGroups.formulaDiamond", { defaultValue: "Diamond" });
 
                 return (
                   <div
@@ -972,20 +1004,25 @@ export default function SwimGroupsPage() {
                           <Link
                             href={`/admin/swim/members/${s.swimId}`}
                             className="font-bold text-white text-sm hover:text-cyan-300 transition-colors"
-                            title="Modifier le profil admin du client"
+                            title={t("swimGroups.editClientProfile", { defaultValue: "Modifier le profil admin du client" })}
                           >
                             {s.fullName}
                           </Link>
                           <Link
                             href={`/admin/swim/members/${s.swimId}`}
                             className="font-mono text-[11px] text-cyan-400 font-semibold px-1.5 py-0.2 rounded bg-cyan-950/60 border border-cyan-800/40 hover:bg-cyan-900/60 transition-colors"
-                            title="Modifier le profil admin du client"
+                            title={t("swimGroups.editClientProfile", { defaultValue: "Modifier le profil admin du client" })}
                           >
                             {s.swimId}
                           </Link>
                         </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {getSwimLevelLabel(s.level)}
+                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border ${formulaBadge.pillClass}`}
+                          >
+                            <span>{formulaLabel}</span>
+                            <span className="text-[10px] opacity-75 font-mono">· {formulaBadge.duration}</span>
+                          </span>
                         </div>
                       </div>
 
@@ -996,7 +1033,7 @@ export default function SwimGroupsPage() {
                             href={`https://wa.me/${waFormatted}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="Ouvrir WhatsApp"
+                            title={t("swimGroups.openWhatsApp", { defaultValue: "Ouvrir WhatsApp" })}
                             className="p-1.5 rounded-lg bg-emerald-950/70 hover:bg-emerald-900 text-emerald-400 hover:text-emerald-300 border border-emerald-800/50 transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -1007,7 +1044,7 @@ export default function SwimGroupsPage() {
                         {s.phone && (
                           <a
                             href={`tel:${s.phone.replace(/\s+/g, "")}`}
-                            title="Appeler"
+                            title={t("swimGroups.call", { defaultValue: "Appeler" })}
                             className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-white border border-white/10 transition-colors"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1017,10 +1054,10 @@ export default function SwimGroupsPage() {
                         )}
                         <Link
                           href={`/admin/swim/members/${s.swimId}`}
-                          title="Modifier le profil admin du client"
+                          title={t("swimGroups.editClientProfile", { defaultValue: "Modifier le profil admin du client" })}
                           className="px-2 py-1 rounded-lg bg-cyan-950/70 hover:bg-cyan-900 text-[10px] font-semibold text-cyan-300 border border-cyan-800/50 transition-colors"
                         >
-                          Modifier
+                          {t("swimGroups.edit", { defaultValue: "Modifier" })}
                         </Link>
                         <Link
                           href={`/swim/profile/${s.swimId}`}
@@ -1028,7 +1065,7 @@ export default function SwimGroupsPage() {
                           title="Fiche Nageur & Pass"
                           className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[10px] font-semibold text-cyan-300 border border-white/10 transition-colors"
                         >
-                          Pass ↗
+                          {t("swimGroups.passPublic", { defaultValue: "Pass ↗" })}
                         </Link>
                       </div>
                     </div>
@@ -1036,9 +1073,35 @@ export default function SwimGroupsPage() {
                     {/* Badges & Remove */}
                     <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {s.paymentStatus === "paid" && <Badge tone="success">Payé</Badge>}
-                        {s.paymentStatus === "partial" && <Badge tone="warning">Partiel</Badge>}
-                        {s.paymentStatus === "unpaid" && <Badge tone="danger">Non payé</Badge>}
+                        {paymentInfo.effectiveStatus === "paid" && (
+                          <Badge tone="success">
+                            {paymentInfo.isStarter && paymentInfo.isNextMonthPaid
+                              ? t("swimGroups.paidNextMonthBadge", { defaultValue: "Payé (Mois Prochain)" })
+                              : t("swimGroups.paidBadge", { defaultValue: "Payé" })}
+                          </Badge>
+                        )}
+                        {paymentInfo.effectiveStatus === "partial" && (
+                          <Badge tone="warning">
+                            {t("swimGroups.partialBadge", { defaultValue: "Partiel" })}
+                          </Badge>
+                        )}
+                        {paymentInfo.effectiveStatus === "unpaid" && (
+                          <span
+                            title={
+                              paymentInfo.isStarter && paymentInfo.isAfterCutoff && paymentInfo.originalStatus === "paid"
+                                ? t("swimGroups.cutoffWarningTooltip", {
+                                    defaultValue: "Cotisation du mois prochain exigée depuis le 25",
+                                  })
+                                : undefined
+                            }
+                          >
+                            <Badge tone="danger">
+                              {paymentInfo.isStarter && paymentInfo.isAfterCutoff && paymentInfo.originalStatus === "paid"
+                                ? t("swimGroups.unpaidNextMonthBadge", { defaultValue: "Non payé (Mois Prochain)" })
+                                : t("swimGroups.unpaidBadge", { defaultValue: "Non payé" })}
+                            </Badge>
+                          </span>
+                        )}
 
                         {s.groupStatus === "accepted" && <Badge tone="success">Confirmé</Badge>}
                         {s.groupStatus === "proposed" && <Badge tone="warning">Proposé</Badge>}
@@ -1051,7 +1114,9 @@ export default function SwimGroupsPage() {
                         onClick={() => handleRemoveSwimmer(s.id)}
                         className="text-[11px] text-rose-400 hover:text-rose-300 hover:underline transition-colors"
                       >
-                        {removingMemberId === s.id ? "Retrait..." : "Désassigner"}
+                        {removingMemberId === s.id
+                          ? t("swimGroups.unassigning", { defaultValue: "Retrait..." })
+                          : t("swimGroups.unassign", { defaultValue: "Désassigner" })}
                       </button>
                     </div>
                   </div>
