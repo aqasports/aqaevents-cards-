@@ -263,3 +263,223 @@ export function computeMemberSubscriptionDates(
   const subscriptionEnd = computeSubscriptionEnd(subscriptionStart, duration, periods, formula);
   return { subscriptionStart, subscriptionEnd };
 }
+
+// ─── Next Month Subscription Utilities (Starter Formula) ─────────────────────
+
+export const NEXT_MONTH_TAG_PREFIX = "[NEXT_MONTH:";
+
+/**
+ * Returns a new Date set to the 1st of the next calendar month (at UTC midnight)
+ * relative to the given reference date (or current date if omitted/invalid).
+ */
+export function getNextMonthDate(referenceDate?: Date | string | null): Date {
+  let base: Date;
+  if (!referenceDate) {
+    base = new Date();
+  } else {
+    base = typeof referenceDate === "string" ? new Date(referenceDate) : referenceDate;
+    if (isNaN(base.getTime())) base = new Date();
+  }
+  const utc = toUTCMidnight(base);
+  return new Date(Date.UTC(utc.getUTCFullYear(), utc.getUTCMonth() + 1, 1));
+}
+
+/**
+ * Returns the last day of the next month (at UTC midnight) relative to referenceDate.
+ */
+export function getNextMonthEnd(referenceDate?: Date | string | null): Date {
+  const nextMonthStart = getNextMonthDate(referenceDate);
+  return getLastDayOfSameMonth(nextMonthStart);
+}
+
+/**
+ * Returns a YYYY-MM formatted key for a given date (e.g. "2026-11").
+ */
+export function formatMonthKey(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+const MONTH_NAMES_FR = [
+  "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre"
+];
+
+const MONTH_NAMES_EN = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+const MONTH_NAMES_AR = [
+  "يناير", "فبراير", "مارس", "أفريل", "ماي", "جوان",
+  "جويلية", "أوت", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+];
+
+/**
+ * Formats month and year label, e.g. "Novembre 2026", "November 2026", "نوفمبر 2026".
+ * Always uses Western Arabic numerals (0-9). No emojis.
+ */
+export function formatMonthLabel(
+  date: Date | string,
+  locale: "en" | "fr" | "ar" | string = "fr"
+): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const monthIdx = d.getUTCMonth();
+  const year = d.getUTCFullYear();
+
+  let name = MONTH_NAMES_FR[monthIdx] || "";
+  if (locale === "en") {
+    name = MONTH_NAMES_EN[monthIdx] || "";
+  } else if (locale === "ar") {
+    name = MONTH_NAMES_AR[monthIdx] || "";
+  }
+  return `${name} ${year}`;
+}
+
+export interface NextMonthPaidResult {
+  isPaid: boolean;
+  amount: number;
+  monthKey: string;
+  monthLabel: string;
+  paymentId?: string;
+  paidAt?: string;
+  notes?: string;
+}
+
+/**
+ * Checks whether a member has a payment recorded for the next month
+ * or has notes tagged with [NEXT_MONTH:YYYY-MM].
+ */
+export function isMemberNextMonthPaid(
+  member: {
+    notes?: string | null;
+    subscriptionEnd?: Date | string | null;
+    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string }>;
+  } | null | undefined,
+  targetMonthKey?: string,
+  locale = "fr"
+): NextMonthPaidResult {
+  const defaultNextMonthDate = getNextMonthDate(member?.subscriptionEnd);
+  const expectedMonthKey = targetMonthKey || formatMonthKey(defaultNextMonthDate);
+  const monthLabel = formatMonthLabel(
+    targetMonthKey ? new Date(`${targetMonthKey}-01T00:00:00.000Z`) : defaultNextMonthDate,
+    locale
+  );
+
+  if (!member) {
+    return { isPaid: false, amount: 0, monthKey: expectedMonthKey, monthLabel };
+  }
+
+  // 1. Look in payments array
+  if (Array.isArray(member.payments) && member.payments.length > 0) {
+    for (const p of member.payments) {
+      const pNotes = p.notes || "";
+      if (pNotes.includes(`[NEXT_MONTH:${expectedMonthKey}]`)) {
+        return {
+          isPaid: true,
+          amount: p.amount || 0,
+          monthKey: expectedMonthKey,
+          monthLabel,
+          paymentId: p.id,
+          paidAt: p.paidAt ? new Date(p.paidAt).toISOString() : undefined,
+          notes: p.notes || undefined,
+        };
+      }
+    }
+  }
+
+  // 2. Look in member.notes for [NEXT_MONTH_PAID:YYYY-MM]
+  const memberNotes = member.notes || "";
+  const match = memberNotes.match(/\[NEXT_MONTH_PAID:([0-9]{4}-[0-9]{2})\]/);
+  if (match && match[1] === expectedMonthKey) {
+    return {
+      isPaid: true,
+      amount: 0,
+      monthKey: expectedMonthKey,
+      monthLabel,
+    };
+  }
+
+  return {
+    isPaid: false,
+    amount: 0,
+    monthKey: expectedMonthKey,
+    monthLabel,
+  };
+}
+
+/**
+ * Encodes or updates the [NEXT_MONTH_PAID:YYYY-MM] tag in member notes.
+ */
+export function encodeNextMonthPaidTag(
+  notes: string | null | undefined,
+  monthKey: string
+): string {
+  const tag = `[NEXT_MONTH_PAID:${monthKey}]`;
+  const base = (notes || "").trim();
+  if (!base) return tag;
+  if (base.includes("[NEXT_MONTH_PAID:")) {
+    return base.replace(/\[NEXT_MONTH_PAID:[0-9]{4}-[0-9]{2}\]/, tag);
+  }
+  return `${base} | ${tag}`;
+}
+
+export interface SwimmerNextMonthInfo {
+  isStarter: boolean;
+  targetMonthKey: string;
+  targetMonthLabel: string;
+  targetMonthDate: Date;
+  targetMonthEndDate: Date;
+  targetMonthStartDisplay: string;
+  targetMonthEndDisplay: string;
+  isPaid: boolean;
+  paidAmount: number;
+  paymentId?: string;
+}
+
+/**
+ * Provides comprehensive next-month projection and payment status for a swimmer.
+ */
+export function getMemberNextMonthInfo(
+  member: {
+    duration?: string | null;
+    formula?: string | null;
+    notes?: string | null;
+    subscriptionEnd?: Date | string | null;
+    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string }>;
+  } | null | undefined,
+  locale = "fr"
+): SwimmerNextMonthInfo {
+  const isStarter = isStarterFormula(member?.duration, member?.formula);
+  const targetMonthDate = getNextMonthDate(member?.subscriptionEnd);
+  const targetMonthEndDate = getLastDayOfSameMonth(targetMonthDate);
+  const targetMonthKey = formatMonthKey(targetMonthDate);
+  const targetMonthLabel = formatMonthLabel(targetMonthDate, locale);
+
+  const startDay = String(targetMonthDate.getUTCDate()).padStart(2, "0");
+  const startMonth = String(targetMonthDate.getUTCMonth() + 1).padStart(2, "0");
+  const startYear = targetMonthDate.getUTCFullYear();
+  const targetMonthStartDisplay = `${startDay}/${startMonth}/${startYear}`;
+
+  const endDay = String(targetMonthEndDate.getUTCDate()).padStart(2, "0");
+  const endMonth = String(targetMonthEndDate.getUTCMonth() + 1).padStart(2, "0");
+  const endYear = targetMonthEndDate.getUTCFullYear();
+  const targetMonthEndDisplay = `${endDay}/${endMonth}/${endYear}`;
+
+  const paidResult = isMemberNextMonthPaid(member, targetMonthKey, locale);
+
+  return {
+    isStarter,
+    targetMonthKey,
+    targetMonthLabel,
+    targetMonthDate,
+    targetMonthEndDate,
+    targetMonthStartDisplay,
+    targetMonthEndDisplay,
+    isPaid: paidResult.isPaid,
+    paidAmount: paidResult.amount,
+    paymentId: paidResult.paymentId,
+  };
+}

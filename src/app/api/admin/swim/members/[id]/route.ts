@@ -17,6 +17,8 @@ import {
   computeSubscriptionEnd,
   subscriptionDaysLeft,
   getSubscriptionStatus,
+  isStarterFormula,
+  getMemberNextMonthInfo,
 } from "@/lib/swim-subscription";
 import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
@@ -97,6 +99,11 @@ export async function GET(
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 
+    const nextMonthInfo = getMemberNextMonthInfo({
+      ...member,
+      subscriptionEnd: subEnd,
+    });
+
     return NextResponse.json({
       ...member,
       groups: allGroups,
@@ -113,6 +120,8 @@ export async function GET(
       subscriptionEnd: subEnd,
       subscriptionDaysLeft: daysLeft,
       subscriptionStatus: subStatus,
+      isStarter: nextMonthInfo.isStarter,
+      nextMonthInfo,
     });
   } catch (err: unknown) {
     logger.error("GET admin swim member detail error:", err);

@@ -10,6 +10,13 @@ import {
   getLastDayOfSameMonth,
   SUBSCRIPTION_FLOOR,
   DEFAULT_EXCLUDED_PERIODS,
+  getNextMonthDate,
+  getNextMonthEnd,
+  formatMonthKey,
+  formatMonthLabel,
+  isMemberNextMonthPaid,
+  encodeNextMonthPaidTag,
+  getMemberNextMonthInfo,
 } from "./swim-subscription";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -244,5 +251,101 @@ describe("computeMemberSubscriptionDates", () => {
       []
     );
     expect(subscriptionStart.toISOString().slice(0, 10)).toBe("2026-11-01");
+  });
+});
+
+// ─── Next Month Subscription Utilities ───────────────────────────────────────
+
+describe("Next Month Subscription Utilities (Starter Formula)", () => {
+  it("getNextMonthDate computes 1st of next month correctly", () => {
+    const next1 = getNextMonthDate("2026-10-15T00:00:00.000Z");
+    expect(next1.toISOString().slice(0, 10)).toBe("2026-11-01");
+
+    const next2 = getNextMonthDate("2026-10-31T00:00:00.000Z");
+    expect(next2.toISOString().slice(0, 10)).toBe("2026-11-01");
+
+    const nextDec = getNextMonthDate("2026-12-10T00:00:00.000Z");
+    expect(nextDec.toISOString().slice(0, 10)).toBe("2027-01-01");
+  });
+
+  it("getNextMonthEnd returns the last day of next month", () => {
+    const endNov = getNextMonthEnd("2026-10-27T00:00:00.000Z");
+    expect(endNov.toISOString().slice(0, 10)).toBe("2026-11-30");
+
+    const endFeb = getNextMonthEnd("2027-01-05T00:00:00.000Z");
+    expect(endFeb.toISOString().slice(0, 10)).toBe("2027-02-28");
+  });
+
+  it("formatMonthKey and formatMonthLabel work as expected", () => {
+    const date = new Date("2026-11-01T00:00:00.000Z");
+    expect(formatMonthKey(date)).toBe("2026-11");
+    expect(formatMonthLabel(date, "fr")).toBe("Novembre 2026");
+    expect(formatMonthLabel(date, "en")).toBe("November 2026");
+    expect(formatMonthLabel(date, "ar")).toBe("نوفمبر 2026");
+  });
+
+  it("isMemberNextMonthPaid identifies payment tagged with [NEXT_MONTH:YYYY-MM]", () => {
+    const member = {
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [
+        { id: "p1", amount: 7800, notes: "Regular October payment" },
+        { id: "p2", amount: 7800, notes: "[NEXT_MONTH:2026-11] Paiement Novembre 2026" },
+      ],
+    };
+
+    const res = isMemberNextMonthPaid(member, "2026-11");
+    expect(res.isPaid).toBe(true);
+    expect(res.amount).toBe(7800);
+    expect(res.paymentId).toBe("p2");
+    expect(res.monthKey).toBe("2026-11");
+  });
+
+  it("isMemberNextMonthPaid identifies tag in member notes", () => {
+    const member = {
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      notes: "VIP Member | [NEXT_MONTH_PAID:2026-11]",
+      payments: [],
+    };
+
+    const res = isMemberNextMonthPaid(member, "2026-11");
+    expect(res.isPaid).toBe(true);
+    expect(res.monthKey).toBe("2026-11");
+  });
+
+  it("isMemberNextMonthPaid returns false when not paid", () => {
+    const member = {
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [{ id: "p1", amount: 7800, notes: "Only October" }],
+    };
+
+    const res = isMemberNextMonthPaid(member, "2026-11");
+    expect(res.isPaid).toBe(false);
+  });
+
+  it("encodeNextMonthPaidTag appends or updates tag properly", () => {
+    expect(encodeNextMonthPaidTag(null, "2026-11")).toBe("[NEXT_MONTH_PAID:2026-11]");
+    expect(encodeNextMonthPaidTag("Existing notes", "2026-11")).toBe("Existing notes | [NEXT_MONTH_PAID:2026-11]");
+    expect(encodeNextMonthPaidTag("Existing | [NEXT_MONTH_PAID:2026-10]", "2026-11")).toBe("Existing | [NEXT_MONTH_PAID:2026-11]");
+  });
+
+  it("getMemberNextMonthInfo returns complete projection object", () => {
+    const member = {
+      formula: "G10",
+      duration: "1m",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [
+        { id: "p-adv", amount: 7800, notes: "[NEXT_MONTH:2026-11] Advance payment" },
+      ],
+    };
+
+    const info = getMemberNextMonthInfo(member, "fr");
+    expect(info.isStarter).toBe(true);
+    expect(info.targetMonthKey).toBe("2026-11");
+    expect(info.targetMonthLabel).toBe("Novembre 2026");
+    expect(info.targetMonthStartDisplay).toBe("01/11/2026");
+    expect(info.targetMonthEndDisplay).toBe("30/11/2026");
+    expect(info.isPaid).toBe(true);
+    expect(info.paidAmount).toBe(7800);
+    expect(info.paymentId).toBe("p-adv");
   });
 });

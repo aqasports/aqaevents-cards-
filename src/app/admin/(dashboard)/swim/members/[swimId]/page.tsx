@@ -21,6 +21,8 @@ import {
   getSubscriptionStatus,
   durationToDays,
   isStarterFormula,
+  getMemberNextMonthInfo,
+  type SwimmerNextMonthInfo,
 } from "@/lib/swim-subscription";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,6 +85,8 @@ interface SwimMemberDetail {
   subscriptionEnd?: string | null;
   subscriptionDaysLeft?: number | null;
   subscriptionStatus?: "active" | "expiring_soon" | "expired" | null;
+  isStarter?: boolean;
+  nextMonthInfo?: SwimmerNextMonthInfo;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -203,7 +207,17 @@ export default function AdminSwimmerProfilePage({
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
+  const [isPaymentForNextMonth, setIsPaymentForNextMonth] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  // Dedicated Next Month Payment state (Starter formula 1m)
+  const [showAddNextMonthPayment, setShowAddNextMonthPayment] = useState(false);
+  const [nextMonthAmount, setNextMonthAmount] = useState("");
+  const [nextMonthMethod, setNextMonthMethod] = useState("cash");
+  const [nextMonthNotes, setNextMonthNotes] = useState("");
+  const [nextMonthExtendSub, setNextMonthExtendSub] = useState(true);
+  const [submittingNextMonth, setSubmittingNextMonth] = useState(false);
+  const [nextMonthSuccessMsg, setNextMonthSuccessMsg] = useState<string | null>(null);
 
   // Add Debt state (ancien unsettled payment)
   const [showAddDebt, setShowAddDebt] = useState(false);
@@ -550,6 +564,7 @@ export default function AdminSwimmerProfilePage({
     if (!member || !paymentAmount) return;
     setSubmittingPayment(true);
     try {
+      const derivedNextMonth = getMemberNextMonthInfo(member, locale);
       const res = await fetch("/api/admin/swim/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -558,16 +573,64 @@ export default function AdminSwimmerProfilePage({
           amount: parseInt(paymentAmount, 10),
           method: paymentMethod,
           notes: paymentNotes || null,
+          isNextMonth: isPaymentForNextMonth,
+          targetMonth: isPaymentForNextMonth ? derivedNextMonth.targetMonthKey : undefined,
+          extendSubscription: isPaymentForNextMonth,
         }),
       });
       if (res.ok) {
         setShowAddPayment(false);
         setPaymentAmount("");
         setPaymentNotes("");
+        if (isPaymentForNextMonth) {
+          setIsPaymentForNextMonth(false);
+          setNextMonthSuccessMsg(
+            t("nextMonthSuccess")
+              .replace("{month}", derivedNextMonth.targetMonthLabel)
+              .replace("{end}", derivedNextMonth.targetMonthEndDisplay)
+          );
+          setTimeout(() => setNextMonthSuccessMsg(null), 5000);
+        }
         await loadMember();
       }
     } finally {
       setSubmittingPayment(false);
+    }
+  }
+
+  async function handleAddNextMonthPayment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!member || !nextMonthAmount) return;
+    setSubmittingNextMonth(true);
+    setNextMonthSuccessMsg(null);
+    try {
+      const derivedNextMonth = getMemberNextMonthInfo(member, locale);
+      const res = await fetch("/api/admin/swim/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberId: member.id,
+          amount: parseInt(nextMonthAmount, 10),
+          method: nextMonthMethod,
+          notes: nextMonthNotes || null,
+          targetMonth: derivedNextMonth.targetMonthKey,
+          isNextMonth: true,
+          extendSubscription: nextMonthExtendSub,
+        }),
+      });
+      if (res.ok) {
+        setShowAddNextMonthPayment(false);
+        setNextMonthNotes("");
+        setNextMonthSuccessMsg(
+          t("nextMonthSuccess")
+            .replace("{month}", derivedNextMonth.targetMonthLabel)
+            .replace("{end}", derivedNextMonth.targetMonthEndDisplay)
+        );
+        setTimeout(() => setNextMonthSuccessMsg(null), 5000);
+        await loadMember();
+      }
+    } finally {
+      setSubmittingNextMonth(false);
     }
   }
 
@@ -769,6 +832,7 @@ export default function AdminSwimmerProfilePage({
     : subscriptionDaysLeft(subEndVal);
   const subStatus = member.subscriptionStatus || getSubscriptionStatus(subEndVal);
   const isStarter = isStarterFormula(member.duration, member.formula);
+  const nextMonthInfo = getMemberNextMonthInfo(member, locale);
   const nominalDays = isStarter && subStartVal && subEndVal
     ? Math.max(1, Math.round((new Date(subEndVal).getTime() - new Date(subStartVal).getTime()) / (24 * 60 * 60 * 1000)) + 1)
     : durationToDays(member.duration);
@@ -1470,6 +1534,20 @@ export default function AdminSwimmerProfilePage({
                     </div>
                   )}
 
+                  {isStarter && nextMonthInfo.isPaid && (
+                    <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-[11px] text-emerald-300 flex items-center justify-between gap-2 shadow-[0_0_12px_rgba(16,185,129,0.1)]">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        <span className="font-semibold">
+                          {t("nextMonthPaidTitle").replace("{month}", nextMonthInfo.targetMonthLabel)}
+                        </span>
+                      </div>
+                      <span className="font-mono text-emerald-300 font-bold shrink-0">
+                        {nextMonthInfo.targetMonthStartDisplay} - {nextMonthInfo.targetMonthEndDisplay}
+                      </span>
+                    </div>
+                  )}
+
                   <p className="text-[10px] text-slate-500 italic pt-1 border-t border-white/5">
                     {isStarter ? tPortal("subscriptionStarterNote") : tPortal("subscriptionExclusionNote")}
                   </p>
@@ -1560,7 +1638,21 @@ export default function AdminSwimmerProfilePage({
                     </div>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {isStarter && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => {
+                        setShowAddNextMonthPayment(!showAddNextMonthPayment);
+                        setShowAddPayment(false);
+                        setNextMonthAmount(String(priceDA || 7800));
+                      }}
+                      className={nextMonthInfo.isPaid ? "bg-emerald-700 hover:bg-emerald-600 border-emerald-500/50" : "bg-sky-600 hover:bg-sky-500"}
+                    >
+                      {nextMonthInfo.isPaid ? t("nextMonthPaidBadge") : t("payNextMonthBtn")}
+                    </Button>
+                  )}
                   <Button size="sm" variant="secondary" onClick={() => setShowAddDebt(true)}>
                     + Dette
                   </Button>
@@ -1570,11 +1662,143 @@ export default function AdminSwimmerProfilePage({
                   <Button size="sm" variant="secondary" onClick={() => setShowSetPrice(!showSetPrice)}>
                     Manual Price
                   </Button>
-                  <Button size="sm" variant="primary" onClick={() => setShowAddPayment(!showAddPayment)}>
+                  <Button size="sm" variant={isStarter ? "secondary" : "primary"} onClick={() => { setShowAddPayment(!showAddPayment); setShowAddNextMonthPayment(false); }}>
                     + Payment
                   </Button>
                 </div>
               </div>
+
+              {/* Next Month Success Alert */}
+              {nextMonthSuccessMsg && (
+                <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-xs text-emerald-300 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>{nextMonthSuccessMsg}</span>
+                </div>
+              )}
+
+              {/* Next Month Paid Banner (Starter formula) */}
+              {isStarter && nextMonthInfo.isPaid && (
+                <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 space-y-1.5 shadow-[0_0_15px_rgba(16,185,129,0.12)]">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-xs font-black uppercase tracking-wide">
+                        {t("nextMonthPaidTitle").replace("{month}", nextMonthInfo.targetMonthLabel)}
+                      </span>
+                    </div>
+                    <span className="text-sm font-mono font-black text-emerald-400">
+                      {nextMonthInfo.paidAmount > 0 ? `${nextMonthInfo.paidAmount.toLocaleString("fr-DZ")} DA` : `${priceDA.toLocaleString("fr-DZ")} DA`}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-300/80 leading-relaxed">
+                    {t("nextMonthPaidDesc")
+                      .replace("{month}", nextMonthInfo.targetMonthLabel)
+                      .replace("{end}", nextMonthInfo.targetMonthEndDisplay)}
+                  </p>
+                </div>
+              )}
+
+              {/* Next Month Renewal Prompt (Starter formula, current month paid, next month not yet paid) */}
+              {isStarter && !nextMonthInfo.isPaid && isFullyPaid && (
+                <div className="p-3 rounded-xl bg-sky-950/30 border border-sky-500/30 text-xs text-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold text-white">
+                      {t("nextMonthPromptTitle")}
+                    </span>
+                    <p className="text-[11px] text-sky-300/80 mt-0.5">
+                      {t("nextMonthPromptDesc").replace("{month}", nextMonthInfo.targetMonthLabel)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => {
+                      setShowAddNextMonthPayment(true);
+                      setShowAddPayment(false);
+                      setNextMonthAmount(String(priceDA || 7800));
+                    }}
+                    className="bg-sky-600 hover:bg-sky-500 shrink-0 text-white font-semibold"
+                  >
+                    {t("payNextMonthBtn")}
+                  </Button>
+                </div>
+              )}
+
+              {/* Dedicated Next Month Payment Form (Starter formula) */}
+              {showAddNextMonthPayment && (
+                <form onSubmit={handleAddNextMonthPayment} className="p-3.5 rounded-xl bg-slate-900/90 border border-sky-500/40 space-y-3 shadow-[0_0_15px_rgba(14,165,233,0.15)]">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-950 text-sky-300 border border-sky-500/30">
+                        Starter 1m
+                      </span>
+                      <span className="text-xs font-bold text-white">
+                        {t("nextMonthModalTitle").replace("{month}", nextMonthInfo.targetMonthLabel)}
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono text-cyan-300 font-bold">
+                      {nextMonthInfo.targetMonthStartDisplay} au {nextMonthInfo.targetMonthEndDisplay}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    {t("nextMonthModalDesc").replace(/\{month\}/g, nextMonthInfo.targetMonthLabel)}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">Amount (DA) *</label>
+                      <Input
+                        type="number"
+                        required
+                        value={nextMonthAmount}
+                        onChange={(e) => setNextMonthAmount(e.target.value)}
+                        placeholder="e.g. 7800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1 font-semibold">Method</label>
+                      <select
+                        value={nextMonthMethod}
+                        onChange={(e) => setNextMonthMethod(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="baridi_mob">Baridi Mob / CCP</option>
+                        <option value="virement">Virement Bancaire</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <Input
+                    value={nextMonthNotes}
+                    onChange={(e) => setNextMonthNotes(e.target.value)}
+                    placeholder={t("nextMonthNotePlaceholder").replace("{month}", nextMonthInfo.targetMonthLabel)}
+                  />
+
+                  <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={nextMonthExtendSub}
+                      onChange={(e) => setNextMonthExtendSub(e.target.checked)}
+                      className="h-4 w-4 accent-cyan-500 rounded"
+                    />
+                    <span>
+                      {t("nextMonthExtendCheckbox").replace("{end}", nextMonthInfo.targetMonthEndDisplay)}
+                    </span>
+                  </label>
+
+                  <div className="flex gap-2 pt-1 border-t border-white/10">
+                    <Button type="submit" variant="primary" size="sm" disabled={submittingNextMonth}>
+                      {submittingNextMonth ? "Recording..." : `Confirm Payment for ${nextMonthInfo.targetMonthLabel}`}
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setShowAddNextMonthPayment(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              )}
 
               {/* Official Tariff Configurator inline */}
               {showTariffConfig && (
@@ -1773,7 +1997,25 @@ export default function AdminSwimmerProfilePage({
                     onChange={(e) => setPaymentNotes(e.target.value)}
                     placeholder="Receipt note (optional)"
                   />
-                  <div className="flex gap-2">
+                  {isStarter && (
+                    <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+                      <input
+                        type="checkbox"
+                        checked={isPaymentForNextMonth}
+                        onChange={(e) => {
+                          setIsPaymentForNextMonth(e.target.checked);
+                          if (e.target.checked && (!paymentAmount || paymentAmount === "0")) {
+                            setPaymentAmount(String(priceDA || 7800));
+                          }
+                        }}
+                        className="h-4 w-4 accent-cyan-500 rounded"
+                      />
+                      <span>
+                        {t("nextMonthOptionLabel").replace("{month}", nextMonthInfo.targetMonthLabel)}
+                      </span>
+                    </label>
+                  )}
+                  <div className="flex gap-2 pt-1">
                     <Button type="submit" variant="primary" size="sm" disabled={submittingPayment}>
                       {submittingPayment ? "Recording..." : "Confirm Payment"}
                     </Button>
@@ -1784,19 +2026,32 @@ export default function AdminSwimmerProfilePage({
 
               {/* Payment History */}
               {member.payments.length > 0 ? (
-                <div className="divide-y divide-white/5 max-h-48 overflow-y-auto">
-                  {member.payments.map((p) => (
-                    <div key={p.id} className="py-2 flex items-center justify-between text-xs font-mono">
-                      <div>
-                        <span className="text-emerald-400 font-bold">+{p.amount.toLocaleString("fr-DZ")} DA</span>
-                        <span className="text-[var(--muted)] ml-2 capitalize">({paymentMethodLabel(p.method)})</span>
-                        {p.notes && <span className="text-slate-500 ml-2">- {p.notes}</span>}
+                <div className="divide-y divide-white/5 max-h-56 overflow-y-auto">
+                  {member.payments.map((p) => {
+                    const isNextMonthReceipt = (p.notes || "").includes("[NEXT_MONTH:");
+                    const nextMonthMatch = (p.notes || "").match(/\[NEXT_MONTH:([0-9]{4}-[0-9]{2})\]/);
+                    const cleanNotes = (p.notes || "").replace(/\[NEXT_MONTH:[^\]]+\]\s*/, "").trim();
+
+                    return (
+                      <div key={p.id} className="py-2 flex items-center justify-between text-xs font-mono">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-emerald-400 font-bold">+{p.amount.toLocaleString("fr-DZ")} DA</span>
+                            <span className="text-[var(--muted)] capitalize">({paymentMethodLabel(p.method)})</span>
+                            {isNextMonthReceipt && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-950/90 text-sky-300 border border-sky-500/40 shadow-[0_0_8px_rgba(14,165,233,0.2)]">
+                                {t("nextMonthPaidBadge")} {nextMonthMatch ? `(${nextMonthMatch[1]})` : ""}
+                              </span>
+                            )}
+                          </div>
+                          {cleanNotes && <div className="text-slate-400 text-[11px] mt-0.5">{cleanNotes}</div>}
+                        </div>
+                        <span className="text-[var(--muted)] text-[11px] shrink-0 ml-2">
+                          {new Date(p.paidAt).toLocaleDateString("fr-DZ")}
+                        </span>
                       </div>
-                      <span className="text-[var(--muted)] text-[11px]">
-                        {new Date(p.paidAt).toLocaleDateString("fr-DZ")}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs italic text-[var(--muted)]">No payment receipts logged yet.</p>

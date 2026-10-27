@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { Input } from "@/components/admin/ui";
 import { isMemberAssignedToGroup } from "@/lib/swim-groups";
+import { isMemberNextMonthPaid, formatMonthKey } from "@/lib/swim-subscription";
 
 export interface StarterMemberRow {
   id: string;
@@ -26,6 +28,8 @@ export interface StarterMemberRow {
   isStarter: boolean;
   isAssigned?: boolean;
   effectivelyUnassigned?: boolean;
+  notes?: string | null;
+  payments?: Array<{ id?: string; amount?: number; notes?: string | null; paidAt?: Date | string }>;
   groups?: Array<{ id: string; active?: boolean }>;
   group?: {
     id: string;
@@ -43,7 +47,7 @@ interface SwimStarterDeskProps {
 
 export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "expiring">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "partial" | "unpaid" | "expiring" | "next_month_paid">("all");
 
   // Filter only Starter formula subscribers
   const starterMembers = useMemo(() => {
@@ -55,6 +59,20 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
     });
   }, [members]);
 
+  // Next month label calculation
+  const nextMonthInfo = useMemo(() => {
+    const now = new Date();
+    const nextMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const monthKey = formatMonthKey(nextMonthDate);
+    const monthName = nextMonthDate.toLocaleDateString("fr-DZ", { month: "long", year: "numeric", timeZone: "UTC" });
+    const capitalized = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    return {
+      monthKey,
+      monthLabel: capitalized,
+      firstDayDisplay: `01/${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}/${nextMonthDate.getUTCFullYear()}`,
+    };
+  }, []);
+
   // Compute Next Month Expectation Totals
   const totalStarterCount = starterMembers.length;
   const totalExpectedNextMonth = useMemo(() => {
@@ -64,6 +82,20 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
   const totalCollectedCurrentMonth = useMemo(() => {
     return starterMembers.reduce((sum, m) => sum + (m.totalPaid || 0), 0);
   }, [starterMembers]);
+
+  // Pre-payment metrics for next month
+  const nextMonthPaidMembers = useMemo(() => {
+    return starterMembers.filter((m) => isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid);
+  }, [starterMembers, nextMonthInfo.monthKey]);
+
+  const nextMonthPaidCount = nextMonthPaidMembers.length;
+
+  const totalCollectedNextMonth = useMemo(() => {
+    return nextMonthPaidMembers.reduce((sum, m) => {
+      const s = isMemberNextMonthPaid(m, nextMonthInfo.monthKey);
+      return sum + (s.amount > 0 ? s.amount : m.effectivePriceDA);
+    }, 0);
+  }, [nextMonthPaidMembers, nextMonthInfo.monthKey]);
 
   const averageMonthlyPrice =
     totalStarterCount > 0 ? Math.round(totalExpectedNextMonth / totalStarterCount) : 0;
@@ -111,21 +143,10 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
       if (statusFilter === "partial") return m.paymentStatus === "partial";
       if (statusFilter === "unpaid") return m.paymentStatus === "unpaid";
       if (statusFilter === "expiring") return m.daysLeft <= 14;
+      if (statusFilter === "next_month_paid") return isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid;
       return true;
     });
-  }, [starterMembers, searchTerm, statusFilter]);
-
-  // Next month label calculation
-  const nextMonthInfo = useMemo(() => {
-    const now = new Date();
-    const nextMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    const monthName = nextMonthDate.toLocaleDateString("fr-DZ", { month: "long", year: "numeric", timeZone: "UTC" });
-    const capitalized = monthName.charAt(0).toUpperCase() + monthName.slice(1);
-    return {
-      monthLabel: capitalized,
-      firstDayDisplay: `01/${String(nextMonthDate.getUTCMonth() + 1).padStart(2, "0")}/${nextMonthDate.getUTCFullYear()}`,
-    };
-  }, []);
+  }, [starterMembers, searchTerm, statusFilter, nextMonthInfo.monthKey]);
 
   function getStarterWhatsAppUrl(m: StarterMemberRow): string {
     const cleanPhone = m.phone.replace(/[^0-9]/g, "");
@@ -191,12 +212,22 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
         <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-sky-500/20 space-y-1 shadow-[0_0_15px_rgba(14,165,233,0.1)]">
           <div className="flex items-center justify-between">
             <p className="text-[10px] text-sky-400 uppercase font-semibold tracking-wider">Total Attendu Mois Prochain</p>
-            <span className="text-[10px] text-sky-300 font-mono font-bold">100%</span>
+            {nextMonthPaidCount > 0 ? (
+              <span className="text-[10px] text-emerald-400 font-mono font-bold">
+                {nextMonthPaidCount} réglé{nextMonthPaidCount > 1 ? "s" : ""}
+              </span>
+            ) : (
+              <span className="text-[10px] text-sky-300 font-mono font-bold">100%</span>
+            )}
           </div>
           <p className="text-xl font-bold font-mono text-cyan-300">
             {totalExpectedNextMonth.toLocaleString("fr-DZ")} DA
           </p>
-          <p className="text-[11px] text-slate-400">Cumul des formules Starter</p>
+          <p className="text-[11px] text-slate-400">
+            {nextMonthPaidCount > 0
+              ? `Déjà réglé en avance : ${totalCollectedNextMonth.toLocaleString("fr-DZ")} DA`
+              : "Cumul des formules Starter"}
+          </p>
         </div>
 
         <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-white/8 space-y-1">
@@ -263,6 +294,7 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
         <div className="flex gap-1.5 flex-wrap">
           {([
             { key: "all", label: "Tous les Starter" },
+            { key: "next_month_paid", label: `Mois Prochain Réglé (${nextMonthPaidCount})` },
             { key: "paid", label: "Payés (En Règle)" },
             { key: "partial", label: "Partiels" },
             { key: "unpaid", label: "Non Payés" },
@@ -273,7 +305,9 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
               onClick={() => setStatusFilter(f)}
               className={`px-3 py-1 rounded-lg text-[11px] font-semibold uppercase tracking-wide transition-colors ${
                 statusFilter === f
-                  ? f === "paid"
+                  ? f === "next_month_paid"
+                    ? "bg-emerald-800 text-white shadow-md shadow-emerald-900/40"
+                    : f === "paid"
                     ? "bg-emerald-700 text-white"
                     : f === "partial"
                     ? "bg-amber-700 text-white"
@@ -412,22 +446,46 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
 
                   {/* Next Month Projection */}
                   <td className="px-3 py-2.5">
-                    <div className="p-1.5 rounded-lg bg-sky-950/40 border border-sky-500/20 space-y-0.5">
-                      <div className="flex items-center justify-between text-[10px] text-sky-300 font-semibold">
-                        <span>{nextMonthInfo.monthLabel}</span>
-                        <span className="font-mono text-cyan-300 font-bold">
-                          +{m.effectivePriceDA.toLocaleString("fr-DZ")} DA
-                        </span>
-                      </div>
-                      <div className="text-[9px] text-slate-400">
-                        Renouvellement dès le {nextMonthInfo.firstDayDisplay}
-                      </div>
-                    </div>
+                    {(() => {
+                      const nextMonthStatus = isMemberNextMonthPaid(m, nextMonthInfo.monthKey);
+                      if (nextMonthStatus.isPaid) {
+                        return (
+                          <div className="p-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 space-y-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold">
+                              <span>{nextMonthInfo.monthLabel}</span>
+                              <span className="font-mono text-emerald-400">RÉGLÉ EN AVANCE</span>
+                            </div>
+                            <div className="text-[9px] text-emerald-300/80">
+                              Déjà payé ({m.effectivePriceDA.toLocaleString("fr-DZ")} DA)
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="p-1.5 rounded-lg bg-sky-950/40 border border-sky-500/20 space-y-0.5">
+                          <div className="flex items-center justify-between text-[10px] text-sky-300 font-semibold">
+                            <span>{nextMonthInfo.monthLabel}</span>
+                            <span className="font-mono text-cyan-300 font-bold">
+                              +{m.effectivePriceDA.toLocaleString("fr-DZ")} DA
+                            </span>
+                          </div>
+                          <div className="text-[9px] text-slate-400">
+                            Renouvellement dès le {nextMonthInfo.firstDayDisplay}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Actions */}
                   <td className="px-3 py-2.5 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1.5">
+                      <Link
+                        href={`/admin/swim/members/${m.swimId}`}
+                        className="px-2 py-1 rounded-lg bg-slate-800 border border-white/10 text-slate-300 hover:text-white hover:bg-slate-700 text-[10px] font-bold transition-colors"
+                      >
+                        Profil
+                      </Link>
                       <a
                         href={waUrl}
                         target="_blank"
@@ -441,14 +499,18 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                         </svg>
                         Renouveler
                       </a>
-                      {onRecordPayment && (
+                      {isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid ? (
+                        <span className="px-2 py-1 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                          {nextMonthInfo.monthLabel} Réglé
+                        </span>
+                      ) : onRecordPayment ? (
                         <button
                           onClick={() => onRecordPayment(m)}
                           className="px-2 py-1 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-300 hover:bg-sky-900/60 text-[10px] font-bold transition-colors"
                         >
                           + Encaisser
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   </td>
                 </tr>
