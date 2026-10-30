@@ -494,7 +494,9 @@ export function getSwimmerDispatchGroupDisplay(row: {
   }
   if (
     row.billingMode === "session" ||
-    (typeof row.sessionsConsumed === "number" && row.sessionsConsumed > 0)
+    (row.billingMode !== "monthly" &&
+      typeof row.sessionsConsumed === "number" &&
+      row.sessionsConsumed > 0)
   ) {
     const count =
       typeof row.sessionsConsumed === "number" && row.sessionsConsumed > 0
@@ -821,7 +823,9 @@ export function buildPoolDispatchRows(
     const effectiveBillingMode =
       swimmerBilling?.mode || (isSessionFormula ? "session" : calculated.billingMode);
     const effectiveSessions =
-      swimmerBilling?.sessionsConsumed || (isSessionFormula ? 1 : undefined);
+      effectiveBillingMode === "session"
+        ? swimmerBilling?.sessionsConsumed || (isSessionFormula ? 1 : undefined)
+        : undefined;
 
     const rowMonth =
       monthOverrides[m.swimId] || monthOverrides[m.id] || currentMonthLabel;
@@ -844,7 +848,8 @@ export function buildPoolDispatchRows(
       formulaLabel,
       billingMode: effectiveBillingMode,
       sessionsConsumed: effectiveSessions,
-      hoursConsumed: swimmerBilling?.hoursConsumed,
+      hoursConsumed:
+        effectiveBillingMode === "session" ? swimmerBilling?.hoursConsumed : undefined,
       hasPriceOverride: hasOverride,
       currentMonth: rowMonth,
       isCustom: false,

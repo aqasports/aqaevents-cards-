@@ -506,7 +506,7 @@ export function SwimPoolDesk({
       [rowId]: {
         ...current,
         mode: (isCurrentlySession ? "monthly" : "session") as "monthly" | "session",
-        sessionsConsumed: current?.sessionsConsumed || 1,
+        sessionsConsumed: isCurrentlySession ? undefined : (current?.sessionsConsumed || 1),
         hoursConsumed: undefined,
       },
     };

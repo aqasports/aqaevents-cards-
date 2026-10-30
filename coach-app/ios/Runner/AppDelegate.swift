@@ -53,6 +53,13 @@ import UserNotifications
               result(true)
             }
           }
+        case "openNotificationSettings":
+          if let url = URL(string: UIApplication.openSettingsURLString),
+            UIApplication.shared.canOpenURL(url)
+          {
+            UIApplication.shared.open(url)
+          }
+          result(true)
         default:
           result(FlutterMethodNotImplemented)
         }

@@ -15,7 +15,7 @@ function getMetadataBase(): URL {
 export const metadata: Metadata = {
   title: {
     default: "AQA ERP",
-    template: "%s · AQA ERP",
+    template: "%s | AQA ERP",
   },
   description: "AQA ERP — Enterprise Resource Planning for 1. AQA Sports Academy (AQA Swim), 2. AQA Events, and 3. AQA Store.",
   metadataBase: getMetadataBase(),

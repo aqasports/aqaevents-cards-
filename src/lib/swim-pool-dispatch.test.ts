@@ -21,6 +21,8 @@ import {
   getProposedBordereauTitle,
   getSwimmerDispatchGroupDisplay,
   STORAGE_KEYS,
+  SwimMemberReference,
+  SwimGroupReference,
 } from "./swim-pool-dispatch";
 
 describe("swim-pool-dispatch domain utilities", () => {
@@ -541,6 +543,39 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(csv).toContain("\"AQA KIDS\";\"Section Enfants\";\"80500\";\"Juillet\"");
       expect(csv).toContain(";\"Total\";;\"91100\";"); // 6600 + 4000 + 80500 = 91100
     });
+
+    it("resets sessionsConsumed and displays group name when switched back to monthly mode", () => {
+      const swimmerMember: SwimMemberReference = {
+        id: "mem-toggle-1",
+        swimId: "SWM-TOGGLE-1",
+        fullName: "Test Swimmer",
+        category: "Adultes",
+        level: "L3",
+        phone: "0555000000",
+        paymentStatus: "paid",
+        groupId: "g-test",
+        formula: "Mensuel",
+        notes: "",
+      };
+      const group: SwimGroupReference = {
+        id: "g-test",
+        name: "Groupe Adultes Soir",
+        schedule: "Lundi 19:00 - 20:30",
+      };
+
+      // In monthly mode with stale sessionsConsumed (e.g. from prior session mode)
+      const rows = buildPoolDispatchRows(
+        [swimmerMember],
+        [group],
+        { "SWM-TOGGLE-1": { mode: "monthly", sessionsConsumed: 2 } },
+        "Octobre 2026"
+      );
+
+      expect(rows[0].billingMode).toBe("monthly");
+      expect(rows[0].sessionsConsumed).toBeUndefined();
+      expect(rows[0].assignedGroupNames).toEqual(["Groupe Adultes Soir"]);
+      expect(getSwimmerDispatchGroupDisplay(rows[0])).toBe("Groupe Adultes Soir");
+    });
   });
 
   describe("Azal Automated Pool Pricing Engine", () => {
@@ -649,6 +684,15 @@ describe("swim-pool-dispatch domain utilities", () => {
           billingMode: "monthly",
         })
       ).toBe("G10 Lundi Soir + G10 Mercredi Soir");
+
+      // Swimmer returned from session mode back to month mode with residual sessionsConsumed
+      expect(
+        getSwimmerDispatchGroupDisplay({
+          assignedGroupNames: ["G10 Lundi Soir"],
+          billingMode: "monthly",
+          sessionsConsumed: 1,
+        })
+      ).toBe("G10 Lundi Soir");
 
       // Single session swimmer
       expect(

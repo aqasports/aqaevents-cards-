@@ -4714,6 +4714,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     if (saved && (saved === "en" || saved === "fr" || saved === "ar")) {
       setLocaleState(saved);
       document.documentElement.dir = saved === "ar" ? "rtl" : "ltr";
+      document.documentElement.lang = saved;
     }
   }, []);
 
@@ -4721,6 +4722,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     setLocaleState(l);
     localStorage.setItem("aqa_locale", l);
     document.documentElement.dir = l === "ar" ? "rtl" : "ltr";
+    document.documentElement.lang = l;
   };
 
   const t = (keyPath: string, replacements?: Record<string, string | number>): string => {
