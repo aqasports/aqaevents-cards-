@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import { formatApneaDuration } from "@/lib/swim-apnea";
+import { ConfirmModal } from "@/components/admin/ui";
 
 interface DeskPack {
   id: string;
@@ -104,6 +105,7 @@ export function SwimApneaDesk() {
   const [recordValue, setRecordValue] = useState("");
   const [terminalCoachId, setTerminalCoachId] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmDeleteRecordId, setConfirmDeleteRecordId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -604,9 +606,7 @@ export function SwimApneaDesk() {
                           </span>
                           <button
                             disabled={busy}
-                            onClick={() => {
-                              if (window.confirm(t("confirmDelete"))) act({ action: "delete_record", recordId: r.id });
-                            }}
+                            onClick={() => setConfirmDeleteRecordId(r.id)}
                             className="text-[11px] font-semibold text-red-300 hover:text-red-200"
                           >
                             {t("delete")}
@@ -644,6 +644,22 @@ export function SwimApneaDesk() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmDeleteRecordId !== null}
+        title={t("delete")}
+        message={t("confirmDelete")}
+        confirmLabel={t("delete")}
+        cancelLabel={t("cancel")}
+        isDanger
+        onConfirm={() => {
+          if (confirmDeleteRecordId) {
+            act({ action: "delete_record", recordId: confirmDeleteRecordId });
+          }
+          setConfirmDeleteRecordId(null);
+        }}
+        onCancel={() => setConfirmDeleteRecordId(null)}
+      />
     </div>
   );
 }

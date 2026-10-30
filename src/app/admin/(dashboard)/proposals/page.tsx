@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Button, Card, PageHeader, StatCard } from "@/components/admin/ui";
+import { Alert, Badge, Button, Card, ConfirmModal, PageHeader, StatCard } from "@/components/admin/ui";
+import { useTranslations } from "@/lib/i18n";
 
 type ActivityProposal = {
   id: string;
@@ -16,11 +17,14 @@ type ActivityProposal = {
 };
 
 export default function AdminProposalsPage() {
+  const { t } = useTranslations("proposalsPage");
   const [proposals, setProposals] = useState<ActivityProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"all" | "pending" | "reviewed" | "archived">("all");
   const [pendingCount, setPendingCount] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   async function fetchProposals() {
     setLoading(true);
@@ -55,6 +59,7 @@ export default function AdminProposalsPage() {
   }, [activeTab]);
 
   async function handleStatusChange(id: string, status: "pending" | "reviewed" | "archived") {
+    setMessage(null);
     try {
       const res = await fetch(`/api/admin/proposals/${id}`, {
         method: "PATCH",
@@ -65,27 +70,28 @@ export default function AdminProposalsPage() {
         fetchProposals();
         fetchStats();
       } else {
-        alert("Failed to update proposal.");
+        setMessage({ text: t("updateError"), tone: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error occurred.");
+      setMessage({ text: t("genericError"), tone: "danger" });
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Are you sure you want to delete this proposal?")) return;
+    setConfirmDeleteId(null);
+    setMessage(null);
     try {
       const res = await fetch(`/api/admin/proposals/${id}`, { method: "DELETE" });
       if (res.ok) {
         fetchProposals();
         fetchStats();
       } else {
-        alert("Failed to delete proposal.");
+        setMessage({ text: t("deleteError"), tone: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error occurred.");
+      setMessage({ text: t("genericError"), tone: "danger" });
     }
   }
 
@@ -95,10 +101,10 @@ export default function AdminProposalsPage() {
 
   const TABS = ["all", "pending", "reviewed", "archived"] as const;
   const TAB_LABELS: Record<typeof TABS[number], string> = {
-    all: "All",
-    pending: "Pending",
-    reviewed: "Reviewed",
-    archived: "Archived",
+    all: t("tabAll"),
+    pending: t("tabPending"),
+    reviewed: t("tabReviewed"),
+    archived: t("tabArchived"),
   };
   const STATUS_TONE: Record<ActivityProposal["status"], "warning" | "success" | "default"> = {
     pending: "warning",
@@ -109,16 +115,18 @@ export default function AdminProposalsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Activity Proposals"
-        description="View and manage user-submitted proposals for new activities and events on the AQA platform."
+        title={t("title")}
+        description={t("description")}
       />
+
+      {message && <Alert tone={message.tone}>{message.text}</Alert>}
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-2">
         <StatCard
-          label="Pending Proposals"
+          label={t("pendingProposals")}
           value={pendingCount}
-          hint="Proposals waiting to be reviewed by the team"
+          hint={t("pendingHint")}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -126,9 +134,9 @@ export default function AdminProposalsPage() {
           }
         />
         <StatCard
-          label="Total Proposals"
+          label={t("totalProposals")}
           value={proposals.length}
-          hint="All proposals in the current filtered view"
+          hint={t("totalHint")}
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -157,30 +165,30 @@ export default function AdminProposalsPage() {
       {/* Data Table */}
       <Card padding={false}>
         {loading ? (
-          <div className="py-20 text-center text-slate-400">
+          <div className="py-20 text-center text-[var(--muted)]">
             <svg className="h-8 w-8 animate-spin mx-auto text-[var(--primary)] mb-3" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <p className="text-xs">Loading proposals...</p>
+            <p className="text-xs">{t("loading")}</p>
           </div>
         ) : proposals.length === 0 ? (
-          <div className="py-20 text-center text-slate-400 space-y-2">
-            <svg className="h-12 w-12 mx-auto text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="py-20 text-center text-[var(--muted)] space-y-2">
+            <svg className="h-12 w-12 mx-auto text-[var(--muted-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
-            <p className="font-semibold text-slate-700">No proposals found.</p>
+            <p className="font-semibold text-[var(--foreground)]">{t("empty")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm text-left">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--surface-2)]/30">
-                  <th className="py-3 px-4 font-bold text-[var(--muted)]">Proposer</th>
-                  <th className="py-3 px-4 font-bold text-[var(--muted)]">Title</th>
-                  <th className="py-3 px-4 font-bold text-[var(--muted)]">Status</th>
-                  <th className="py-3 px-4 font-bold text-[var(--muted)]">Date</th>
-                  <th className="py-3 px-4 font-bold text-[var(--muted)] text-right">Actions</th>
+                  <th className="py-3 px-4 font-bold text-[var(--muted)]">{t("colProposer")}</th>
+                  <th className="py-3 px-4 font-bold text-[var(--muted)]">{t("colTitle")}</th>
+                  <th className="py-3 px-4 font-bold text-[var(--muted)]">{t("colStatus")}</th>
+                  <th className="py-3 px-4 font-bold text-[var(--muted)]">{t("colDate")}</th>
+                  <th className="py-3 px-4 font-bold text-[var(--muted)] text-right">{t("colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
@@ -210,7 +218,7 @@ export default function AdminProposalsPage() {
                       </td>
                       <td className="py-4 px-4">
                         <Badge tone={STATUS_TONE[proposal.status]}>
-                          {proposal.status.charAt(0).toUpperCase() + proposal.status.slice(1)}
+                          {TAB_LABELS[proposal.status]}
                         </Badge>
                       </td>
                       <td className="py-4 px-4 text-xs text-[var(--muted)]">
@@ -226,7 +234,7 @@ export default function AdminProposalsPage() {
                             variant="primary"
                             onClick={() => handleStatusChange(proposal.id, "reviewed")}
                           >
-                            Mark Reviewed
+                            {t("markReviewed")}
                           </Button>
                         )}
                         {proposal.status === "reviewed" && (
@@ -236,7 +244,7 @@ export default function AdminProposalsPage() {
                             onClick={() => handleStatusChange(proposal.id, "archived")}
                             className="text-[var(--muted)]"
                           >
-                            Archive
+                            {t("archive")}
                           </Button>
                         )}
                         <a
@@ -248,14 +256,15 @@ export default function AdminProposalsPage() {
                           onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold border border-emerald-500/30 text-emerald-400 bg-emerald-500/5 hover:bg-emerald-500/10 transition"
                         >
-                          WhatsApp
+                          {t("whatsapp")}
                         </a>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleDelete(proposal.id)}
+                          onClick={() => setConfirmDeleteId(proposal.id)}
                           className="text-[var(--muted)] hover:text-red-400"
-                          title="Delete Proposal"
+                          title={t("deleteTitle")}
+                          aria-label={t("deleteTitle")}
                         >
                           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -270,7 +279,7 @@ export default function AdminProposalsPage() {
                         <td colSpan={5} className="px-6 py-4">
                           <div className="bg-[var(--surface-2)]/30 border border-[var(--border)] rounded-xl p-4">
                             <p className="text-xs font-bold text-[var(--muted)] uppercase tracking-wider mb-2">
-                              Full Proposal Description
+                              {t("fullDescription")}
                             </p>
                             <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">
                               {proposal.description}
@@ -286,6 +295,19 @@ export default function AdminProposalsPage() {
           </div>
         )}
       </Card>
+
+      <ConfirmModal
+        isOpen={confirmDeleteId !== null}
+        title={t("deleteTitle")}
+        message={t("deleteConfirm")}
+        confirmLabel={t("deleteBtn")}
+        cancelLabel={t("cancelBtn")}
+        isDanger
+        onConfirm={() => {
+          if (confirmDeleteId) handleDelete(confirmDeleteId);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

@@ -83,6 +83,7 @@ export function SwimPvcPrintDialog({
 
   // QR state
   const [generatedQr, setGeneratedQr] = useState<string | null>(precomputedQr || null);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   // Generate QR if not precomputed
   useEffect(() => {
@@ -468,9 +469,10 @@ export function SwimPvcPrintDialog({
   };
 
   const handlePrint = () => {
+    setPrintError(null);
     const printWindow = window.open("", "_blank", "width=960,height=800");
     if (!printWindow) {
-      alert("Please allow popups to print.");
+      setPrintError("Please allow popups in your browser to print.");
       return;
     }
 
@@ -547,6 +549,7 @@ export function SwimPvcPrintDialog({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -554,6 +557,12 @@ export function SwimPvcPrintDialog({
             </svg>
           </button>
         </div>
+
+        {printError && (
+          <div role="alert" className="mx-5 mt-3 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-xs font-medium text-rose-300">
+            {printError}
+          </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-y-auto min-h-0 divide-y lg:divide-y-0 lg:divide-x divide-white/10">

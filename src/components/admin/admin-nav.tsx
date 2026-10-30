@@ -563,7 +563,7 @@ function AdminNavInner() {
               key={tab.id}
               type="button"
               onClick={() => setSelectedFiliere(tab.id)}
-              className={`relative flex items-center justify-between gap-1 rounded-lg px-2.5 py-2 text-[11px] font-bold transition-all cursor-pointer text-left ${
+              className={`relative flex items-center justify-between gap-1 rounded-lg px-2.5 py-2 text-[11px] font-bold transition-all cursor-pointer text-start ${
                 isSelected
                   ? "bg-[var(--primary)]/15 text-[var(--accent)] border border-[var(--accent)]/30 shadow-[0_0_12px_rgba(0,242,255,0.12)]"
                   : "text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface)]/60 border border-transparent"
@@ -663,7 +663,7 @@ function AdminNavInner() {
   return (
     <>
       {/* 1. DESKTOP SIDEBAR PANEL */}
-      <aside className="hidden lg:flex print:hidden flex-col w-72 h-screen sticky top-0 shrink-0 border-r border-[var(--border)] bg-[var(--surface)]/60 backdrop-blur-lg shadow-xl z-20 justify-between select-none">
+      <aside className="hidden lg:flex print:hidden flex-col w-72 h-screen sticky top-0 shrink-0 border-e border-[var(--border)] bg-[var(--surface)]/60 backdrop-blur-lg shadow-xl z-20 justify-between select-none">
         {/* Top Header, Brand & Filiere Switcher */}
         <div className="p-4 border-b border-[var(--border)] space-y-3">
           <div className="flex items-center justify-between gap-2">
@@ -831,7 +831,7 @@ function AdminNavInner() {
               {ICONS.academy}
             </div>
             {pendingSwimCount > 0 && (
-              <span className="absolute top-0 right-3.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[8px] font-black text-slate-950 animate-pulse leading-none">
+              <span className="absolute top-0 end-3.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-full bg-cyan-400 px-1 text-[8px] font-black text-slate-950 animate-pulse leading-none">
                 {pendingSwimCount}
               </span>
             )}
@@ -871,7 +871,7 @@ function AdminNavInner() {
               {ICONS.users}
             </div>
             {eventsTotalBadges > 0 && (
-              <span className="absolute top-0 right-3.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-1 text-[8px] font-black text-white animate-pulse leading-none">
+              <span className="absolute top-0 end-3.5 inline-flex h-4 min-w-[14px] items-center justify-center rounded-full bg-amber-500 px-1 text-[8px] font-black text-white animate-pulse leading-none">
                 {eventsTotalBadges}
               </span>
             )}
@@ -1012,7 +1012,7 @@ function AdminNavInner() {
 
 export function AdminNav() {
   return (
-    <Suspense fallback={<aside className="hidden lg:flex w-72 h-screen border-r border-[var(--border)] bg-[var(--surface)]/60" />}>
+    <Suspense fallback={<aside className="hidden lg:flex w-72 h-screen border-e border-[var(--border)] bg-[var(--surface)]/60" />}>
       <AdminNavInner />
     </Suspense>
   );

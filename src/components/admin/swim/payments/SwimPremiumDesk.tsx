@@ -585,8 +585,14 @@ export function SwimPremiumDesk({ members, onReload }: SwimPremiumDeskProps) {
                           >
                             <span className={`w-1.5 h-1.5 rounded-full ${isDelivered ? "bg-emerald-400" : isInProgress ? "bg-sky-400" : "bg-amber-400"}`} />
                             <span className="truncate max-w-[130px]">{perk.title}</span>
-                            <span className="text-[9px] opacity-70 group-hover:opacity-100">
-                              {isDelivered ? "✓" : "○"}
+                            <span className="text-[9px] opacity-70 group-hover:opacity-100 inline-flex items-center">
+                              {isDelivered ? (
+                                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : (
+                                "○"
+                              )}
                             </span>
                           </button>
                         );
@@ -601,7 +607,10 @@ export function SwimPremiumDesk({ members, onReload }: SwimPremiumDeskProps) {
                       className="px-2.5 py-1 rounded-lg bg-purple-950/60 border border-purple-500/30 text-purple-200 hover:bg-purple-900/60 text-[10px] font-bold transition-colors inline-flex items-center gap-1"
                     >
                       <span>Gérer Avantages</span>
-                      <span className="text-[9px]">⚙</span>
+                      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
                     </button>
                   </td>
                 </tr>
@@ -633,9 +642,12 @@ export function SwimPremiumDesk({ members, onReload }: SwimPremiumDeskProps) {
               <button
                 type="button"
                 onClick={() => setSelectedMember(null)}
+                aria-label="Close"
                 className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-lg hover:bg-slate-800"
               >
-                ✕
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -711,10 +723,13 @@ export function SwimPremiumDesk({ members, onReload }: SwimPremiumDeskProps) {
                           <button
                             type="button"
                             onClick={() => handleRemovePerk(perk.id)}
-                            className="text-rose-400 hover:text-rose-200 text-xs px-1.5 py-1"
+                            className="text-rose-400 hover:text-rose-200 text-xs px-1.5 py-1 inline-flex items-center"
                             title="Supprimer cet avantage sur-mesure"
+                            aria-label="Supprimer cet avantage sur-mesure"
                           >
-                            ✕
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                           </button>
                         )}
                       </div>

@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import {
+  Alert,
   Badge,
   Button,
   Card,
+  ConfirmModal,
   Input,
   PageHeader,
   StatCard,
@@ -44,6 +46,8 @@ export default function AdminDemandsPage() {
   const [inputCardCode, setInputCardCode] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ type: "reject" | "delete"; demandId: string } | null>(null);
 
   // Stats
   const [totalMoneyInQueue, setTotalMoneyInQueue] = useState(0);
@@ -119,8 +123,8 @@ export default function AdminDemandsPage() {
 
   // Handle Reject
   async function handleReject(demandId: string) {
-    if (!confirm(t("rejectConfirm"))) return;
-
+    setConfirmAction(null);
+    setMessage(null);
     try {
       const res = await fetch(`/api/admin/demands/${demandId}`, {
         method: "PATCH",
@@ -132,18 +136,18 @@ export default function AdminDemandsPage() {
         fetchDemands();
         fetchStats();
       } else {
-        alert("Failed to reject demand.");
+        setMessage({ text: "Failed to reject demand.", tone: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error occurred.");
+      setMessage({ text: "Error occurred.", tone: "danger" });
     }
   }
 
   // Handle Delete
   async function handleDelete(demandId: string) {
-    if (!confirm(locale === "ar" ? "هل أنت متأكد من الحذف؟" : "Are you sure you want to delete this record?")) return;
-
+    setConfirmAction(null);
+    setMessage(null);
     try {
       const res = await fetch(`/api/admin/demands/${demandId}`, {
         method: "DELETE",
@@ -153,11 +157,11 @@ export default function AdminDemandsPage() {
         fetchDemands();
         fetchStats();
       } else {
-        alert("Failed to delete record.");
+        setMessage({ text: "Failed to delete record.", tone: "danger" });
       }
     } catch (err) {
       console.error(err);
-      alert("Error occurred.");
+      setMessage({ text: "Error occurred.", tone: "danger" });
     }
   }
 
@@ -211,6 +215,8 @@ export default function AdminDemandsPage() {
         title={t("title")}
         description={t("description")}
       />
+
+      {message && <Alert tone={message.tone}>{message.text}</Alert>}
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2">
@@ -270,11 +276,11 @@ export default function AdminDemandsPage() {
             <p className="text-xs">{locale === "ar" ? "جاري التحميل..." : "Loading demands..."}</p>
           </div>
         ) : demands.length === 0 ? (
-          <div className="py-20 text-center text-slate-400 space-y-2">
-            <svg className="h-12 w-12 mx-auto text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="py-20 text-center text-[var(--muted)] space-y-2">
+            <svg className="h-12 w-12 mx-auto text-[var(--muted-light)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <p className="font-semibold text-slate-700">{t("emptyState")}</p>
+            <p className="font-semibold text-[var(--foreground)]">{t("emptyState")}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -353,7 +359,7 @@ export default function AdminDemandsPage() {
                           <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => handleReject(demand.id)}
+                            onClick={() => setConfirmAction({ type: "reject", demandId: demand.id })}
                             className="text-[var(--danger-text)] border-[var(--danger)]/30 hover:bg-[var(--danger-bg)]"
                           >
                             {t("reject")}
@@ -393,9 +399,10 @@ export default function AdminDemandsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDelete(demand.id)}
+                        onClick={() => setConfirmAction({ type: "delete", demandId: demand.id })}
                         className="text-[var(--muted)] hover:text-red-400"
                         title="Delete Record"
+                        aria-label="Delete Record"
                       >
                         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -418,6 +425,7 @@ export default function AdminDemandsPage() {
               <h2 className="text-lg font-bold text-[var(--foreground)]">{t("linkCardTitle")}</h2>
               <button
                 onClick={() => setProcessingDemand(null)}
+                aria-label="Close"
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-slate-100/10 font-bold"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -504,6 +512,27 @@ export default function AdminDemandsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmAction !== null}
+        title={confirmAction?.type === "reject" ? t("reject") : (locale === "ar" ? "حذف الطلب" : "Delete Record")}
+        message={
+          confirmAction?.type === "reject"
+            ? t("rejectConfirm")
+            : locale === "ar"
+            ? "هل أنت متأكد من الحذف؟"
+            : "Are you sure you want to delete this record?"
+        }
+        confirmLabel={confirmAction?.type === "reject" ? t("reject") : (locale === "ar" ? "حذف" : "Delete")}
+        cancelLabel={t("cancelBtn")}
+        isDanger
+        onConfirm={() => {
+          if (!confirmAction) return;
+          if (confirmAction.type === "reject") handleReject(confirmAction.demandId);
+          else handleDelete(confirmAction.demandId);
+        }}
+        onCancel={() => setConfirmAction(null)}
+      />
     </div>
   );
 }

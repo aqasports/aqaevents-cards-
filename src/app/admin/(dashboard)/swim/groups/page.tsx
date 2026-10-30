@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useId, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { PageHeader, Badge, Button, Input } from "@/components/admin/ui";
+import { PageHeader, Badge, Button, Input, Alert, ConfirmModal } from "@/components/admin/ui";
 import {
   FRENCH_DAYS,
   SWIM_GROUP_TYPES,
@@ -212,6 +212,8 @@ export default function SwimGroupsPage() {
   const [searchingAssign, setSearchingAssign] = useState(false);
   const [assigningMemberId, setAssigningMemberId] = useState<string | null>(null);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [rosterMessage, setRosterMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
+  const [confirmRemoveMemberId, setConfirmRemoveMemberId] = useState<string | null>(null);
 
   // Accessible Form IDs
   const addCategoryId = useId();
@@ -615,6 +617,7 @@ export default function SwimGroupsPage() {
   async function handleAssignSwimmer(memberId: string) {
     if (!selectedGroup) return;
     setAssigningMemberId(memberId);
+    setRosterMessage(null);
     try {
       const res = await fetch(`/api/admin/swim/groups/${selectedGroup.id}/assign`, {
         method: "POST",
@@ -628,7 +631,7 @@ export default function SwimGroupsPage() {
         await loadData();
       } else {
         const d = await res.json();
-        alert(d.error || "Failed to assign swimmer.");
+        setRosterMessage({ text: d.error || "Failed to assign swimmer.", tone: "danger" });
       }
     } finally {
       setAssigningMemberId(null);
@@ -637,8 +640,9 @@ export default function SwimGroupsPage() {
 
   async function handleRemoveSwimmer(memberId: string) {
     if (!selectedGroup) return;
-    if (!confirm("Remove this swimmer from the group?")) return;
+    setConfirmRemoveMemberId(null);
     setRemovingMemberId(memberId);
+    setRosterMessage(null);
     try {
       const res = await fetch(`/api/admin/swim/groups/${selectedGroup.id}/assign?memberId=${memberId}`, {
         method: "DELETE",
@@ -648,7 +652,7 @@ export default function SwimGroupsPage() {
         await loadData();
       } else {
         const d = await res.json().catch(() => ({}));
-        alert(d.error || "Failed to remove swimmer from group.");
+        setRosterMessage({ text: d.error || "Failed to remove swimmer from group.", tone: "danger" });
       }
     } finally {
       setRemovingMemberId(null);
@@ -797,6 +801,8 @@ export default function SwimGroupsPage() {
     return (
       <div className="space-y-4">
         {/* Selected Group Header Card */}
+        {rosterMessage && <Alert tone={rosterMessage.tone}>{rosterMessage.text}</Alert>}
+
         <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-950 border border-cyan-500/30 shadow-[0_0_15px_rgba(0,242,255,0.08)] space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -1111,7 +1117,7 @@ export default function SwimGroupsPage() {
                       <button
                         type="button"
                         disabled={removingMemberId === s.id}
-                        onClick={() => handleRemoveSwimmer(s.id)}
+                        onClick={() => setConfirmRemoveMemberId(s.id)}
                         className="text-[11px] text-rose-400 hover:text-rose-300 hover:underline transition-colors"
                       >
                         {removingMemberId === s.id
@@ -1551,9 +1557,12 @@ export default function SwimGroupsPage() {
                 <button
                   type="button"
                   onClick={() => setShowMobileDrawer(false)}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 text-xs text-slate-300 hover:text-white"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 text-xs text-slate-300 hover:text-white"
                 >
-                  Fermer ✕
+                  <span>Fermer</span>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
               {renderRosterPanelContent()}
@@ -2292,9 +2301,12 @@ export default function SwimGroupsPage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteCoach(c.id)}
+                          aria-label={`Remove ${c.name}`}
                           className="text-slate-400 hover:text-rose-400 text-xs px-1"
                         >
-                          ✕
+                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                         </button>
                       </div>
                     </div>
@@ -2334,9 +2346,12 @@ export default function SwimGroupsPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteLocation(loc)}
-                      className="text-slate-400 hover:text-rose-400 ml-1 font-bold"
+                      aria-label={`Remove ${loc}`}
+                      className="text-slate-400 hover:text-rose-400 ms-1 font-bold"
                     >
-                      ✕
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </button>
                   </div>
                 ))}
@@ -2345,6 +2360,18 @@ export default function SwimGroupsPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmRemoveMemberId !== null}
+        title={t("swimGroups.unassign", { defaultValue: "Désassigner" })}
+        message="Remove this swimmer from the group?"
+        confirmLabel={t("swimGroups.unassign", { defaultValue: "Désassigner" })}
+        isDanger
+        onConfirm={() => {
+          if (confirmRemoveMemberId) handleRemoveSwimmer(confirmRemoveMemberId);
+        }}
+        onCancel={() => setConfirmRemoveMemberId(null)}
+      />
     </div>
   );
 }

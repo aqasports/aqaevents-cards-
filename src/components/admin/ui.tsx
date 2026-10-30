@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLocale } from "@/lib/i18n";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Sparkline } from "@/components/ui/sparkline";
@@ -331,7 +331,7 @@ export function Alert({
   };
 
   return (
-    <div className={`rounded-lg border-l-4 px-4 py-3 text-sm transition-all duration-200 animate-fade-in ${tones[tone]}`}>
+    <div role="alert" className={`rounded-lg border-s-4 px-4 py-3 text-sm transition-all duration-200 animate-fade-in ${tones[tone]}`}>
       {children}
     </div>
   );
@@ -462,14 +462,28 @@ export function ConfirmModal({
   onCancel: () => void;
   isDanger?: boolean;
 }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onCancel]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm p-0 sm:p-4 animate-fade-in"
+    >
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-hidden animate-slide-up sm:animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-[var(--surface-2)]/40">
-          <h3 className="font-bold text-[var(--foreground)] flex items-center gap-2">
+          <h3 id="confirm-modal-title" className="font-bold text-[var(--foreground)] flex items-center gap-2">
             {isDanger ? (
               <svg className="h-5 w-5 text-[var(--danger)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -484,6 +498,7 @@ export function ConfirmModal({
           <button
             onClick={onCancel}
             type="button"
+            aria-label="Close"
             className="h-7 w-7 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] transition"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import { PoolDispatchSnapshot } from "@/lib/swim-pool-dispatch";
+import { ConfirmModal } from "@/components/admin/ui";
 
 interface PoolSnapshotDrawerProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ export function PoolSnapshotDrawer({
   onDeleteSnapshot,
 }: PoolSnapshotDrawerProps) {
   const { t } = useTranslations("swimPool");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -122,11 +124,7 @@ export function PoolSnapshotDrawer({
 
                   <button
                     type="button"
-                    onClick={() => {
-                      if (window.confirm(t("confirmDeleteSnapshot"))) {
-                        onDeleteSnapshot(item.id);
-                      }
-                    }}
+                    onClick={() => setConfirmDeleteId(item.id)}
                     className="text-[11px] text-red-400 hover:text-red-300 transition-colors"
                   >
                     {t("deleteSnapshot")}
@@ -148,6 +146,20 @@ export function PoolSnapshotDrawer({
           </button>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmDeleteId !== null}
+        title={t("deleteSnapshot")}
+        message={t("confirmDeleteSnapshot")}
+        confirmLabel={t("deleteSnapshot")}
+        cancelLabel={t("close")}
+        isDanger
+        onConfirm={() => {
+          if (confirmDeleteId) onDeleteSnapshot(confirmDeleteId);
+          setConfirmDeleteId(null);
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
 }

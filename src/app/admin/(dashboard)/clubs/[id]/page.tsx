@@ -3,7 +3,7 @@
 import { use, useEffect, useState, FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Card, PageHeader, Input, Alert, Badge } from "@/components/admin/ui";
+import { Button, Card, PageHeader, Input, Alert, Badge, ConfirmModal } from "@/components/admin/ui";
 import QRCode from "qrcode";
 
 type ClubSession = {
@@ -52,6 +52,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [qrUrl, setQrUrl] = useState("");
 
@@ -151,10 +152,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
   }
 
   async function handleDelete() {
-    if (!window.confirm("Are you sure you want to delete this partner club? This cannot be undone.")) {
-      return;
-    }
-
+    setShowDeleteConfirm(false);
     setDeleting(true);
     setMessage(null);
 
@@ -217,13 +215,13 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
   );
 
   if (loading) {
-    return <div className="h-96 rounded-xl bg-slate-50 border animate-pulse" />;
+    return <div className="h-96 rounded-xl bg-[var(--surface-2)] border border-[var(--border)] animate-pulse" />;
   }
 
   if (!club) {
     return (
       <Card className="py-12 text-center">
-        <p className="text-sm font-semibold text-slate-700">Club not found</p>
+        <p className="text-sm font-semibold text-[var(--foreground)]">Club not found</p>
         <Link href="/admin/clubs" className="mt-4 inline-block">
           <Button size="sm">Back to Clubs</Button>
         </Link>
@@ -302,7 +300,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
                 <Button
                   type="button"
                   variant="danger"
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteConfirm(true)}
                   disabled={saving || deleting}
                 >
                   Delete Club
@@ -372,7 +370,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
               <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface)]">
                 <table className="w-full border-collapse text-left text-sm text-[var(--foreground)]">
                   <thead>
-                    <tr className="border-b border-[var(--border)] bg-slate-50/50 font-semibold text-[var(--muted)]">
+                    <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] font-semibold text-[var(--muted)]">
                       <th className="px-4 py-3">Client</th>
                       <th className="px-4 py-3">Activity</th>
                       <th className="px-4 py-3">Session Date</th>
@@ -381,7 +379,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
                   </thead>
                   <tbody className="divide-y divide-[var(--border)]">
                     {filteredCheckIns.map((ci) => (
-                      <tr key={ci.id} className="hover:bg-slate-50/30">
+                      <tr key={ci.id} className="hover:bg-[var(--surface-2)]/50">
                         <td className="px-4 py-3 font-semibold">{ci.client.fullName}</td>
                         <td className="px-4 py-3">{ci.activity.name}</td>
                         <td className="px-4 py-3 text-xs">
@@ -420,7 +418,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
                 <img src={qrUrl} alt="Terminal QR Code" className="mx-auto" />
               </div>
             ) : (
-              <div className="h-[200px] w-[200px] mx-auto bg-slate-100 rounded-2xl mb-4 animate-pulse" />
+              <div className="h-[200px] w-[200px] mx-auto bg-[var(--surface-2)] rounded-2xl mb-4 animate-pulse" />
             )}
 
             <div className="space-y-2">
@@ -459,7 +457,7 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
                 {club.sessions.map((s) => (
                   <div
                     key={s.id}
-                    className="p-3 rounded-lg border border-[var(--border)] bg-slate-50 flex items-center justify-between"
+                    className="p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between"
                   >
                     <div>
                       <span className="font-semibold text-xs block">{s.activity.name}</span>
@@ -474,6 +472,16 @@ export default function ClubDetailPage({ params }: { params: Promise<{ id: strin
           </Card>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        title="Delete Partner Club"
+        message="Are you sure you want to delete this partner club? This cannot be undone."
+        confirmLabel="Delete Club"
+        isDanger
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

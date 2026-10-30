@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Button, Badge, Alert } from "@/components/admin/ui";
+import { Card, Badge, Alert } from "@/components/admin/ui";
+import { useTranslations } from "@/lib/i18n";
 
 type ClientProfile = {
   id: string;
@@ -21,6 +22,7 @@ type ClientProfile = {
 };
 
 export default function ClientDashboardPage() {
+  const { t } = useTranslations("clientOverview");
   const [profile, setProfile] = useState<ClientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -41,21 +43,22 @@ export default function ClientDashboardPage() {
             redemptions: data.redemptions ?? [],
           });
         } else {
-          setError("Please open your personal card link or login to view your balance.");
+          setError(t("openLinkPrompt"));
         }
       } catch {
-        setError("Network error loading profile.");
+        setError(t("networkError"));
       } finally {
         setLoading(false);
       }
     }
     loadProfile();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--surface-2)] p-4">
-        <p className="text-sm font-semibold text-[var(--muted)]">Loading client portal...</p>
+        <p className="text-sm font-semibold text-[var(--muted)]">{t("loading")}</p>
       </div>
     );
   }
@@ -64,10 +67,10 @@ export default function ClientDashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--surface-2)] p-4">
         <Card className="max-w-md w-full text-center space-y-4">
-          <h2 className="text-lg font-bold">AQA Client Portal</h2>
-          <Alert tone="danger">{error || "Access restricted"}</Alert>
+          <h2 className="text-lg font-bold">{t("portalTitle")}</h2>
+          <Alert tone="danger">{error || t("accessRestricted")}</Alert>
           <p className="text-xs text-[var(--muted)]">
-            To view your balance, enter your card QR code link or request a login PIN.
+            {t("pinHint")}
           </p>
         </Card>
       </div>
@@ -78,32 +81,32 @@ export default function ClientDashboardPage() {
     <div className="min-h-screen bg-[var(--surface-2)] p-4 sm:p-6 space-y-6 max-w-3xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-[var(--foreground)]">Welcome, {profile.fullName}</h1>
-          <p className="text-xs text-[var(--muted)]">{profile.email || profile.phone || "AQA Member Account"}</p>
+          <h1 className="text-2xl font-black text-[var(--foreground)]">{t("welcome", { name: profile.fullName })}</h1>
+          <p className="text-xs text-[var(--muted)]">{profile.email || profile.phone || t("memberAccount")}</p>
         </div>
-        <Badge tone="success">Client Self-Service</Badge>
+        <Badge tone="success">{t("selfServiceBadge")}</Badge>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-0 shadow-xl">
-          <p className="text-xs font-extrabold uppercase tracking-wider opacity-80">Available Credit Balance</p>
-          <p className="text-4xl font-black mt-2">{profile.balance} <span className="text-base font-medium">Credits</span></p>
-          <p className="text-[11px] opacity-75 mt-3">Valid for all AQA Sports sessions & events</p>
+          <p className="text-xs font-extrabold uppercase tracking-wider opacity-80">{t("availableBalance")}</p>
+          <p className="text-4xl font-black mt-2">{profile.balance} <span className="text-base font-medium">{t("creditsUnit")}</span></p>
+          <p className="text-[11px] opacity-75 mt-3">{t("validForAll")}</p>
         </Card>
 
         <Card className="space-y-2">
-          <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] font-mono">My Event Card Code</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] font-mono">{t("cardCodeLabel")}</p>
           <p className="text-xl font-black font-mono text-[var(--primary)]">
-            {profile.cards[0]?.cardCode || "No Card Issued"}
+            {profile.cards[0]?.cardCode || t("noCardIssued")}
           </p>
-          <p className="text-xs text-[var(--muted)]">Show this code or QR code at check-in terminals.</p>
+          <p className="text-xs text-[var(--muted)]">{t("showCodeHint")}</p>
         </Card>
       </div>
 
       <Card className="space-y-4">
-        <h3 className="text-base font-bold">Recent Session Redemptions</h3>
+        <h3 className="text-base font-bold">{t("recentRedemptions")}</h3>
         {profile.redemptions.length === 0 ? (
-          <p className="text-xs text-[var(--muted)] py-4">No activity redemptions yet.</p>
+          <p className="text-xs text-[var(--muted)] py-4">{t("noRedemptions")}</p>
         ) : (
           <div className="divide-y divide-[var(--border)] text-xs">
             {profile.redemptions.map((r) => {
@@ -118,16 +121,16 @@ export default function ClientDashboardPage() {
                     <p className="text-[11px] text-[var(--muted)]">
                       {checkIn ? (
                         <>
-                          Event: {eventDateStr} · Checked in: {new Date(checkIn.scannedAt).toLocaleString()}
+                          {t("eventLabel")}: {eventDateStr} · {t("checkedInLabel")}: {new Date(checkIn.scannedAt).toLocaleString()}
                         </>
                       ) : (
                         <>
-                          Event: {eventDateStr}
+                          {t("eventLabel")}: {eventDateStr}
                         </>
                       )}
                     </p>
                   </div>
-                  <Badge tone="warning">-{r.creditsUsed} Credit</Badge>
+                  <Badge tone="warning">{t("creditDeducted", { count: r.creditsUsed })}</Badge>
                 </div>
               );
             })}

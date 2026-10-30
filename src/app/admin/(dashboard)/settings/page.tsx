@@ -170,11 +170,11 @@ export default function SettingsPage() {
   }
 
   const getActionColor = (action: string) => {
-    if (action.startsWith("CREATE_")) return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (action.startsWith("DELETE_") || action === "RESET_DATA") return "bg-rose-50 text-rose-700 border-rose-200";
-    if (action.startsWith("UPDATE_") || action.startsWith("EDIT_")) return "bg-sky-50 text-sky-700 border-sky-200";
-    if (action.startsWith("ARCHIVE_")) return "bg-amber-50 text-amber-700 border-amber-200";
-    return "bg-slate-50 text-slate-700 border-slate-200";
+    if (action.startsWith("CREATE_")) return "bg-[var(--success-bg)] text-[var(--success-text)] border-[var(--success)]/30";
+    if (action.startsWith("DELETE_") || action === "RESET_DATA") return "bg-[var(--danger-bg)] text-[var(--danger-text)] border-[var(--danger)]/30";
+    if (action.startsWith("UPDATE_") || action.startsWith("EDIT_")) return "bg-[var(--info-bg)] text-[var(--info-text)] border-[var(--primary)]/30";
+    if (action.startsWith("ARCHIVE_")) return "bg-[var(--warning-bg)] text-[var(--warning-text)] border-[var(--warning)]/30";
+    return "bg-[var(--surface-2)] text-[var(--muted)] border-[var(--border)]";
   };
 
   return (
@@ -185,14 +185,14 @@ export default function SettingsPage() {
       />
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+      <div className="border-b border-[var(--border)]">
+        <nav className="-mb-px flex gap-8" aria-label="Tabs">
           <button
             onClick={() => setActiveTab("account")}
             className={`whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-colors ${
               activeTab === "account"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                ? "border-[var(--primary)] text-[var(--primary)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)]"
             }`}
           >
             Account Settings
@@ -203,8 +203,8 @@ export default function SettingsPage() {
                 onClick={() => setActiveTab("audit")}
                 className={`whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-colors ${
                   activeTab === "audit"
-                    ? "border-indigo-600 text-indigo-600"
-                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    ? "border-[var(--primary)] text-[var(--primary)]"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 System Audit Logs
@@ -213,8 +213,8 @@ export default function SettingsPage() {
                 onClick={() => setActiveTab("flags")}
                 className={`whitespace-nowrap py-4 px-1 border-b-2 font-bold text-sm transition-colors ${
                   activeTab === "flags"
-                    ? "border-indigo-600 text-indigo-600"
-                    : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    ? "border-[var(--primary)] text-[var(--primary)]"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 Feature Flags
@@ -249,11 +249,11 @@ export default function SettingsPage() {
                   <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Role</dt>
                   <dd className="mt-0.5">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                      isSuperAdmin ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-600"
+                      isSuperAdmin ? "bg-purple-500/15 text-purple-300 border border-purple-500/30" : "bg-[var(--surface-2)] text-[var(--muted)] border border-[var(--border)]"
                     }`}>
                       {isSuperAdmin ? (
                         <span className="flex items-center gap-1">
-                          <svg className="h-3 w-3 text-purple-700 fill-current shrink-0" viewBox="0 0 24 24">
+                          <svg className="h-3 w-3 text-purple-300 fill-current shrink-0" viewBox="0 0 24 24">
                             <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                           </svg>
                           <span>Super Admin</span>
@@ -268,7 +268,7 @@ export default function SettingsPage() {
               <div className="mt-6 border-t border-[var(--border)] pt-4">
                 <Button
                   variant="ghost"
-                  className="text-[var(--danger)] hover:bg-red-50 w-full justify-center"
+                  className="text-[var(--danger)] hover:bg-[var(--danger-bg)] w-full justify-center"
                   onClick={() => signOut({ callbackUrl: "/admin/login" })}
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -293,8 +293,8 @@ export default function SettingsPage() {
             {/* Platform Credit Rate (Super Admin Only) */}
             {isSuperAdmin && (
               <Card>
-                <h3 className="mb-2 text-base font-semibold text-slate-800">Platform Credit Rate</h3>
-                <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                <h3 className="mb-2 text-base font-semibold text-[var(--foreground)]">Platform Credit Rate</h3>
+                <p className="text-xs text-[var(--muted)] mb-4 leading-relaxed">
                   Configure the base pricing conversion rate (DA per 1 credit). This affects default package pricing, credit conversions, and customer segments.
                 </p>
                 <form
@@ -344,17 +344,17 @@ export default function SettingsPage() {
             {/* Database Backup */}
             {isSuperAdmin && (
               <Card>
-                <h3 className="mb-4 text-base font-semibold text-slate-800">Database Backup</h3>
-                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                <h3 className="mb-4 text-base font-semibold text-[var(--foreground)]">Database Backup</h3>
+                <p className="text-xs text-[var(--muted)] mb-6 leading-relaxed">
                   Export all client accounts, cards, ledger entries, redemptions, and invoices into a secure JSON backup file.
                 </p>
                 <Button
                   onClick={() => {
                     window.location.href = "/api/admin/backup";
                   }}
-                  className="w-full justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                  className="w-full justify-center font-bold"
                 >
-                  <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-4 w-4 me-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 043 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Download Full Backup (.json)
@@ -370,15 +370,15 @@ export default function SettingsPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-widest text-indigo-500 mb-1">System Audit Logs</h2>
-              <p className="text-sm text-slate-500">Track and review administrative actions performed on the platform.</p>
+              <h2 className="text-sm font-black uppercase tracking-widest text-[var(--primary)] mb-1">System Audit Logs</h2>
+              <p className="text-sm text-[var(--muted)]">Track and review administrative actions performed on the platform.</p>
             </div>
             <button
               onClick={fetchLogs}
               disabled={loadingLogs}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition disabled:opacity-50"
             >
-              <svg className={`h-4 w-4 text-slate-500 ${loadingLogs ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className={`h-4 w-4 text-[var(--muted)] ${loadingLogs ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
               <span>Refresh</span>
@@ -386,36 +386,34 @@ export default function SettingsPage() {
           </div>
 
           {loadingLogs ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <svg className="h-8 w-8 animate-spin mb-3 text-slate-400" viewBox="0 0 24 24" fill="none">
+            <div className="flex flex-col items-center justify-center py-12 text-[var(--muted)]">
+              <svg className="h-8 w-8 animate-spin mb-3 text-[var(--primary)]" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               <p className="text-sm font-medium">Fetching audit logs...</p>
             </div>
           ) : logsError ? (
-            <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-              {logsError}
-            </div>
+            <Alert tone="danger">{logsError}</Alert>
           ) : logs.length === 0 ? (
             <Card>
-              <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
-                <svg className="h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="flex flex-col items-center justify-center py-12 text-center text-[var(--muted)]">
+                <svg className="h-12 w-12 text-[var(--muted)] opacity-50 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="font-semibold text-slate-700">No logs found</p>
-                <p className="text-sm text-slate-400 mt-0.5">No administrative operations have been logged yet.</p>
+                <p className="font-semibold text-[var(--foreground)]">No logs found</p>
+                <p className="text-sm text-[var(--muted)] mt-0.5">No administrative operations have been logged yet.</p>
               </div>
             </Card>
           ) : (
             <div className="space-y-4">
               {/* Filter controls */}
               <div className="flex items-center gap-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Filter By Action:</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Filter By Action:</span>
                 <select
                   value={filterAction}
                   onChange={(e) => handleFilterChange(e.target.value)}
-                  className="text-xs font-semibold rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-700 focus:outline-none"
+                  className="text-xs font-semibold rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-[var(--foreground)] focus:outline-none focus:border-[var(--primary)]"
                 >
                   <option value="">All Actions</option>
                   {Array.from(new Set(logs.map(l => l.action))).map(act => (
@@ -425,21 +423,21 @@ export default function SettingsPage() {
               </div>
 
               {/* Timeline */}
-              <div className="flow-root bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <div className="flow-root bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-6 shadow-[var(--shadow-sm)]">
                 <ul className="-mb-8">
                   {filteredLogs.map((log, logIdx) => (
                     <li key={log.id}>
                       <div className="relative pb-8">
                         {logIdx !== filteredLogs.length - 1 ? (
-                          <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-slate-200" aria-hidden="true" />
+                          <span className="absolute top-4 start-4 -ms-px h-full w-0.5 bg-[var(--border)]" aria-hidden="true" />
                         ) : null}
-                        <div className="relative flex space-x-3">
+                        <div className="relative flex gap-3">
                           <div>
-                            <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white ${
-                              log.action === "RESET_DATA" ? 'bg-red-100 text-red-600' :
-                              log.action.startsWith("CREATE_") ? 'bg-emerald-100 text-emerald-600' :
-                              log.action.startsWith("DELETE_") ? 'bg-red-100 text-red-600' :
-                              'bg-slate-100 text-slate-600'
+                            <span className={`h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-[var(--surface)] ${
+                              log.action === "RESET_DATA" ? 'bg-[var(--danger-bg)] text-[var(--danger-text)]' :
+                              log.action.startsWith("CREATE_") ? 'bg-[var(--success-bg)] text-[var(--success-text)]' :
+                              log.action.startsWith("DELETE_") ? 'bg-[var(--danger-bg)] text-[var(--danger-text)]' :
+                              'bg-[var(--surface-2)] text-[var(--muted)]'
                             }`}>
                               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 {log.action === "RESET_DATA" ? (
@@ -452,25 +450,25 @@ export default function SettingsPage() {
                               </svg>
                             </span>
                           </div>
-                          <div className="flex-1 min-w-0 pt-1.5 flex justify-between space-x-4">
+                          <div className="flex-1 min-w-0 pt-1.5 flex justify-between gap-4">
                             <div>
-                              <p className="text-sm font-semibold text-slate-800">
-                                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold border mr-2 ${getActionColor(log.action)}`}>
+                              <p className="text-sm font-semibold text-[var(--foreground)]">
+                                <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold border me-2 ${getActionColor(log.action)}`}>
                                   {log.action}
                                 </span>
                                 {log.target}
                               </p>
-                              <p className="text-xs text-slate-500 mt-1">
-                                By <span className="font-bold text-slate-700">{log.user?.name ?? "System"}</span> ({log.user?.email ?? "system@aqasports.com"})
-                                {log.ipAddress && <span className="ml-2 font-mono bg-slate-100 text-slate-600 rounded px-1 text-[10px]">IP: {log.ipAddress}</span>}
+                              <p className="text-xs text-[var(--muted)] mt-1">
+                                By <span className="font-bold text-[var(--foreground)]">{log.user?.name ?? "System"}</span> ({log.user?.email ?? "system@aqasports.com"})
+                                {log.ipAddress && <span className="ms-2 font-mono bg-[var(--surface-2)] text-[var(--muted)] rounded px-1 text-[10px]">IP: {log.ipAddress}</span>}
                               </p>
                               {log.details && (
-                                <div className="mt-2 text-xs text-slate-600 bg-slate-50 rounded-xl p-3 border border-slate-150 font-mono whitespace-pre-wrap">
+                                <div className="mt-2 text-xs text-[var(--muted)] bg-[var(--surface-2)] rounded-xl p-3 border border-[var(--border)] font-mono whitespace-pre-wrap">
                                   {log.details}
                                 </div>
                               )}
                             </div>
-                            <div className="text-right text-xs whitespace-nowrap text-slate-500 font-medium">
+                            <div className="text-end text-xs whitespace-nowrap text-[var(--muted)] font-medium">
                               <time dateTime={log.createdAt}>{new Date(log.createdAt).toLocaleString()}</time>
                             </div>
                           </div>
@@ -490,15 +488,15 @@ export default function SettingsPage() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-black uppercase tracking-widest text-indigo-500 mb-1">Feature Flags</h2>
-              <p className="text-sm text-slate-500">Toggle platform features on or off. Adding a flag to FLAG_REGISTRY in src/lib/feature-flags.ts makes it appear here automatically.</p>
+              <h2 className="text-sm font-black uppercase tracking-widest text-[var(--primary)] mb-1">Feature Flags</h2>
+              <p className="text-sm text-[var(--muted)]">Toggle platform features on or off. Adding a flag to FLAG_REGISTRY in src/lib/feature-flags.ts makes it appear here automatically.</p>
             </div>
             <button
               onClick={fetchFlags}
               disabled={loadingFlags}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--surface-2)] transition disabled:opacity-50"
             >
-              <svg className={`h-4 w-4 text-slate-500 ${loadingFlags ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className={`h-4 w-4 text-[var(--muted)] ${loadingFlags ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
               </svg>
               <span>Refresh</span>
@@ -508,34 +506,34 @@ export default function SettingsPage() {
           {flagMessage && <Alert tone={flagMessage.tone}>{flagMessage.text}</Alert>}
 
           {loadingFlags ? (
-            <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <svg className="h-8 w-8 animate-spin mb-3" viewBox="0 0 24 24" fill="none">
+            <div className="flex flex-col items-center justify-center py-12 text-[var(--muted)]">
+              <svg className="h-8 w-8 animate-spin mb-3 text-[var(--primary)]" viewBox="0 0 24 24" fill="none">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
               <p className="text-sm font-medium">Loading flags...</p>
             </div>
           ) : flagsError ? (
-            <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">{flagsError}</div>
+            <Alert tone="danger">{flagsError}</Alert>
           ) : flags.length === 0 ? (
             <Card>
-              <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
-                <svg className="h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div className="flex flex-col items-center justify-center py-12 text-center text-[var(--muted)]">
+                <svg className="h-12 w-12 text-[var(--muted)] opacity-50 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <p className="font-semibold text-slate-700">No flags defined</p>
-                <p className="text-sm text-slate-400 mt-0.5">Add entries to FLAG_REGISTRY in src/lib/feature-flags.ts to manage them here.</p>
+                <p className="font-semibold text-[var(--foreground)]">No flags defined</p>
+                <p className="text-sm text-[var(--muted)] mt-0.5">Add entries to FLAG_REGISTRY in src/lib/feature-flags.ts to manage them here.</p>
               </div>
             </Card>
           ) : (
-            <div className="rounded-2xl border border-slate-100 bg-white shadow-sm divide-y divide-slate-100">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] divide-y divide-[var(--border)]">
               {flags.map((flag) => (
                 <div key={flag.key} className="flex items-center justify-between px-6 py-4 gap-4">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 font-mono">{flag.key}</p>
-                    <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{flag.description}</p>
+                    <p className="text-sm font-semibold text-[var(--foreground)] font-mono">{flag.key}</p>
+                    <p className="text-xs text-[var(--muted)] mt-0.5 leading-relaxed">{flag.description}</p>
                     {flag.value === flag.default && (
-                      <span className="inline-flex mt-1 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">Default</span>
+                      <span className="inline-flex mt-1 items-center rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Default</span>
                     )}
                   </div>
                   <button
@@ -544,8 +542,8 @@ export default function SettingsPage() {
                     disabled={togglingFlag === flag.key}
                     aria-pressed={flag.value}
                     aria-label={`Toggle ${flag.key}`}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${
-                      flag.value ? "bg-indigo-600" : "bg-slate-200"
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2 disabled:opacity-50 ${
+                      flag.value ? "bg-[var(--primary)]" : "bg-[var(--surface-2)]"
                     }`}
                   >
                     <span

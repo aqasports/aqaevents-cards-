@@ -637,6 +637,7 @@ export default function AdminSwimmerProfilePage({
   async function handleChangeGroup() {
     if (!member || selectedGroupIds.length === 0) return;
     setSavingGroup(true);
+    setError(null);
     try {
       const selectedGroupObjs = selectedGroupIds
         .map((id) => groups.find((g) => g.id === id))
@@ -664,7 +665,7 @@ export default function AdminSwimmerProfilePage({
       });
       if (!res.ok) {
         const d = await res.json();
-        alert(d.error || "Failed to change group.");
+        setError(d.error || "Failed to change group.");
         return;
       }
       setShowChangeGroup(false);

@@ -780,9 +780,12 @@ export default function EquipmentPage() {
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
+                aria-label="Clear search"
+                className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
               >
-                ✕
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             )}
           </div>
@@ -1162,9 +1165,12 @@ export default function EquipmentPage() {
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
+                aria-label="Close"
                 className="text-[var(--muted)] hover:text-[var(--foreground)] p-1 rounded-lg transition"
               >
-                ✕
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -1347,9 +1353,12 @@ export default function EquipmentPage() {
               <button
                 type="button"
                 onClick={() => setEditingAsset(null)}
+                aria-label="Close"
                 className="text-[var(--muted)] hover:text-[var(--foreground)] p-1 rounded-lg transition"
               >
-                ✕
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -1496,9 +1505,12 @@ export default function EquipmentPage() {
               <button
                 type="button"
                 onClick={() => setLoggingUsageAsset(null)}
+                aria-label="Close"
                 className="text-[var(--muted)] hover:text-[var(--foreground)] p-1 rounded-lg transition"
               >
-                ✕
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -1587,9 +1599,12 @@ export default function EquipmentPage() {
               <button
                 type="button"
                 onClick={() => setDetailAsset(null)}
+                aria-label="Close"
                 className="text-[var(--muted)] hover:text-[var(--foreground)] p-1 rounded-lg transition"
               >
-                ✕
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -1717,9 +1732,12 @@ export default function EquipmentPage() {
                             <button
                               type="button"
                               onClick={() => setDeleteUsageId(log.id)}
-                              className="text-[var(--danger)] hover:underline text-[11px]"
+                              aria-label="Delete usage log"
+                              className="text-[var(--danger)] hover:underline text-[11px] inline-flex items-center"
                             >
-                              ✕
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
                             </button>
                           </td>
                         </tr>

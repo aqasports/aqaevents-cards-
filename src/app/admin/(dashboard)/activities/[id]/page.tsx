@@ -207,13 +207,14 @@ function EditSessionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-bold text-slate-800">Edit Event</h2>
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
+          <h2 className="text-lg font-bold text-[var(--foreground)]">Edit Event</h2>
           <button
             type="button"
+            aria-label="Close"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 font-bold"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] font-bold"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -241,13 +242,13 @@ function EditSessionModal({
             />
             {predefinedPlaces.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-1">
-                <span className="text-[10px] text-slate-400 font-medium self-center">Quick Select:</span>
+                <span className="text-[10px] text-[var(--muted)] font-medium self-center">Quick Select:</span>
                 {predefinedPlaces.map((place, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setLocation(place)}
-                    className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded transition"
+                    className="text-[10px] bg-[var(--surface-2)] hover:bg-[var(--border)] text-[var(--foreground)] px-2 py-0.5 rounded transition"
                   >
                     {place}
                   </button>
@@ -300,7 +301,7 @@ function EditSessionModal({
             <option value="false">Cancelled</option>
           </Select>
 
-          <div className="flex gap-3 pt-4 border-t border-slate-100">
+          <div className="flex gap-3 pt-4 border-t border-[var(--border)]">
             <Button
               type="submit"
               className="flex-1"
@@ -349,10 +350,10 @@ function ImageEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h3 className="font-bold">Edit Cover Image</h3>
-          <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+          <h3 className="font-bold text-[var(--foreground)]">Edit Cover Image</h3>
+          <button onClick={onClose} aria-label="Close" className="h-7 w-7 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)]">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -360,7 +361,7 @@ function ImageEditModal({
         </div>
         <div className="p-5 space-y-4">
           {preview && (
-            <div className="h-44 rounded-xl overflow-hidden bg-slate-100">
+            <div className="h-44 rounded-xl overflow-hidden bg-[var(--surface-2)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview} alt="preview" className="w-full h-full object-cover" onError={() => setPreview("")} />
             </div>
@@ -372,10 +373,10 @@ function ImageEditModal({
             onChange={(e) => { setUrl(e.target.value); setPreview(e.target.value); }}
             className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
           />
-          <p className="text-[11px] text-slate-400">Paste any direct image URL (Unsplash, Imgur, etc.)</p>
+          <p className="text-[11px] text-[var(--muted)]">Paste any direct image URL (Unsplash, Imgur, etc.)</p>
           <div className="flex gap-3">
-            <button onClick={onClose} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancel</button>
-            <button onClick={save} disabled={saving} className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+            <button onClick={onClose} className="flex-1 rounded-xl border border-[var(--border)] py-2.5 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">Cancel</button>
+            <button onClick={save} disabled={saving} className="flex-1 rounded-xl bg-[var(--primary)] py-2.5 text-sm font-bold text-white hover:opacity-90 disabled:opacity-60">
               {saving ? "Saving…" : "Save"}
             </button>
           </div>
@@ -428,13 +429,13 @@ function GalleryManager({
   return (
     <div className="space-y-4">
       {/* Add form */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-        <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Add Media</p>
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3">
+        <p className="text-xs font-bold text-[var(--muted)] uppercase tracking-wide">Add Media</p>
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setNewType("image")}
-            className={`rounded-lg py-2 text-xs font-semibold transition ${newType === "image" ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+            className={`rounded-lg py-2 text-xs font-semibold transition ${newType === "image" ? "bg-[var(--primary)] text-white" : "border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface)]"}`}
           >
             <span className="flex items-center justify-center gap-1.5">
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -446,7 +447,7 @@ function GalleryManager({
           <button
             type="button"
             onClick={() => setNewType("video")}
-            className={`rounded-lg py-2 text-xs font-semibold transition ${newType === "video" ? "bg-purple-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-white"}`}
+            className={`rounded-lg py-2 text-xs font-semibold transition ${newType === "video" ? "bg-purple-600 text-white" : "border border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface)]"}`}
           >
             <span className="flex items-center justify-center gap-1.5">
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -475,7 +476,7 @@ function GalleryManager({
         <button
           onClick={addItem}
           disabled={!newUrl.trim() || saving}
-          className="w-full rounded-lg bg-blue-600 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-50 transition"
+          className="w-full rounded-lg bg-[var(--primary)] py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition"
         >
           {saving ? "Saving…" : "Add to Gallery"}
         </button>
@@ -483,11 +484,11 @@ function GalleryManager({
 
       {/* Gallery grid */}
       {items.length === 0 ? (
-        <p className="text-center text-sm text-slate-400 py-6 italic">No gallery items yet. Add images or videos above.</p>
+        <p className="text-center text-sm text-[var(--muted)] py-6 italic">No gallery items yet. Add images or videos above.</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {items.map((item, idx) => (
-            <div key={idx} className="group relative aspect-square rounded-xl overflow-hidden bg-slate-100 cursor-pointer" onClick={() => setLightbox(item)}>
+            <div key={idx} className="group relative aspect-square rounded-xl overflow-hidden bg-[var(--surface-2)] cursor-pointer" onClick={() => setLightbox(item)}>
               {item.type === "image" ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={item.url} alt={item.caption ?? ""} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
@@ -502,6 +503,8 @@ function GalleryManager({
               )}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-center justify-center">
                 <button
+                  type="button"
+                  aria-label="Remove item"
                   onClick={(e) => { e.stopPropagation(); removeItem(idx); }}
                   className="opacity-0 group-hover:opacity-100 transition rounded-full bg-red-600 text-white h-7 w-7 flex items-center justify-center text-sm font-bold shadow-lg"
                 >
@@ -519,7 +522,7 @@ function GalleryManager({
       {/* Lightbox */}
       {lightbox && (
         <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setLightbox(null)}>
-          <button className="absolute top-4 right-4 text-white text-3xl font-bold hover:text-slate-300">×</button>
+          <button type="button" aria-label="Close" className="absolute top-4 end-4 text-white text-3xl font-bold hover:text-slate-300">×</button>
           {lightbox.type === "image" ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={lightbox.url} alt={lightbox.caption ?? ""} className="max-w-full max-h-full rounded-xl object-contain" />
@@ -583,7 +586,7 @@ function EquipmentManager({
   const typeConfig = {
     provided: {
       label: "Provided",
-      color: "bg-emerald-100 text-emerald-700 border-emerald-200",
+      color: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
       icon: (
         <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -592,7 +595,7 @@ function EquipmentManager({
     },
     rent: {
       label: "Rent",
-      color: "bg-amber-100 text-amber-700 border-amber-200",
+      color: "bg-amber-500/15 text-amber-400 border-amber-500/30",
       icon: (
         <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
@@ -601,7 +604,7 @@ function EquipmentManager({
     },
     buy: {
       label: "Buy",
-      color: "bg-blue-100 text-blue-700 border-blue-200",
+      color: "bg-blue-500/15 text-blue-400 border-blue-500/30",
       icon: (
         <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
@@ -613,8 +616,8 @@ function EquipmentManager({
   return (
     <div className="space-y-4">
       {/* Add form */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-        <p className="text-xs font-bold text-slate-600 uppercase tracking-wide">Add Equipment</p>
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 space-y-3">
+        <p className="text-xs font-bold text-[var(--muted)] uppercase tracking-wide">Add Equipment</p>
 
         <div className="grid grid-cols-3 gap-2">
           {(["provided", "rent", "buy"] as const).map((t) => (
@@ -623,7 +626,7 @@ function EquipmentManager({
               type="button"
               onClick={() => setNewType(t)}
               className={`rounded-lg py-1.5 text-xs font-semibold border transition ${
-                newType === t ? typeConfig[t].color : "border-slate-200 text-slate-500 hover:bg-white"
+                newType === t ? typeConfig[t].color : "border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface)]"
               }`}
             >
               <span className="flex items-center justify-center gap-1.5">
@@ -662,7 +665,7 @@ function EquipmentManager({
         <button
           onClick={addItem}
           disabled={!newName.trim() || saving}
-          className="w-full rounded-lg bg-slate-800 py-2 text-sm font-bold text-white hover:bg-slate-700 disabled:opacity-50 transition"
+          className="w-full rounded-lg bg-[var(--primary)] py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50 transition"
         >
           {saving ? "Saving…" : "Add Equipment"}
         </button>
@@ -670,7 +673,7 @@ function EquipmentManager({
 
       {/* Equipment list */}
       {items.length === 0 ? (
-        <p className="text-center text-sm text-slate-400 py-4 italic">No equipment listed yet.</p>
+        <p className="text-center text-sm text-[var(--muted)] py-4 italic">No equipment listed yet.</p>
       ) : (
         <div className="space-y-2">
           {items.map((item, idx) => {
@@ -689,6 +692,8 @@ function EquipmentManager({
                   </div>
                 </div>
                 <button
+                  type="button"
+                  aria-label="Remove equipment"
                   onClick={() => removeItem(idx)}
                   className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-black/10 text-current font-bold transition"
                 >
@@ -1489,13 +1494,13 @@ export default function ActivityDetailPage() {
       <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Price / Session</p>
-          <p className="mt-2 text-xl md:text-2xl font-black text-blue-700">{(activity.creditCost * creditRate).toLocaleString()} DZD</p>
-          <p className="text-xs text-slate-400 mt-1">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {creditRate.toLocaleString()} DZD</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-[var(--primary)]">{(activity.creditCost * creditRate).toLocaleString()} DZD</p>
+          <p className="text-xs text-[var(--muted)] mt-1">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {creditRate.toLocaleString()} DZD</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Attendance</p>
-          <p className="mt-2 text-xl md:text-2xl font-black text-indigo-700">{activity._count.redemptions.toLocaleString()} claims</p>
-          <p className="text-xs text-slate-400 mt-1">Total check-ins</p>
+          <p className="mt-2 text-xl md:text-2xl font-black text-indigo-400">{activity._count.redemptions.toLocaleString()} claims</p>
+          <p className="text-xs text-[var(--muted)] mt-1">Total check-ins</p>
         </Card>
         <Card>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Revenue</p>
@@ -1554,9 +1559,9 @@ export default function ActivityDetailPage() {
             ) : (
               upcomingSessions.map((session) => (
                 <div key={session.id} className={`rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] ${expandedEventId === session.id ? "" : "overflow-hidden"}`}>
-                  <div onClick={() => toggleExpandEvent(session.id)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition ${expandedEventId === session.id ? "rounded-t-xl" : "rounded-xl"}`}>
+                  <div onClick={() => toggleExpandEvent(session.id)} className={`p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--surface-2)] transition ${expandedEventId === session.id ? "rounded-t-xl" : "rounded-xl"}`}>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-light)] text-[var(--primary)]">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
@@ -1576,16 +1581,16 @@ export default function ActivityDetailPage() {
                       {session.coach && <Badge tone="primary">Coach: {session.coach.name}</Badge>}
                       <Badge tone="default">{session.redemptions.length} attendee{session.redemptions.length === 1 ? "" : "s"}</Badge>
                       {session.capacity && <span className="text-xs text-[var(--muted)]">Cap: {session.capacity}</span>}
-                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditingSession(session); }} className="text-indigo-600 hover:text-indigo-800 font-bold">
+                      <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setEditingSession(session); }} className="text-[var(--primary)] hover:opacity-80 font-bold">
                         Edit
                       </Button>
-                      <Button variant="ghost" size="sm" loading={deletingSessionId === session.id} onClick={(e) => { e.stopPropagation(); handleDeleteEvent(session.id, session.redemptions.length); }} className="text-red-500 hover:text-red-700 font-bold">
+                      <Button variant="ghost" size="sm" loading={deletingSessionId === session.id} onClick={(e) => { e.stopPropagation(); handleDeleteEvent(session.id, session.redemptions.length); }} className="text-red-400 hover:text-red-300 font-bold">
                         Cancel
                       </Button>
                     </div>
                   </div>
                   {expandedEventId === session.id && (
-                    <div className="border-t border-[var(--border)] bg-slate-50/50 p-4 space-y-4">
+                    <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/50 p-4 space-y-4">
                       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
                         <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] mb-3">Add Client</h4>
                         <div className="flex flex-col sm:flex-row gap-3">
@@ -1607,7 +1612,7 @@ export default function ActivityDetailPage() {
                                   return matching.map((c) => (
                                     <button key={c.id} type="button"
                                       onClick={() => { setSelectedClientForEvent((p) => ({ ...p, [session.id]: c.id })); setSearchQueryForEvent((p) => ({ ...p, [session.id]: c.fullName })); setShowEventDropdown((p) => ({ ...p, [session.id]: false })); }}
-                                      className="w-full px-3 py-2.5 text-left text-xs hover:bg-slate-50 transition flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                                      className="w-full px-3 py-2.5 text-start text-xs hover:bg-[var(--surface-2)] transition flex items-center justify-between border-b border-[var(--border)] last:border-0"
                                     >
                                       <span className="font-bold">{c.fullName}</span>
                                       <Badge tone={c.balance === 0 ? "danger" : c.balance <= 2 ? "warning" : "success"} size="sm">{c.balance} credits</Badge>
@@ -1632,7 +1637,7 @@ export default function ActivityDetailPage() {
                             <button
                               type="button"
                               onClick={() => loadSessionCheckIns(session.id)}
-                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
+                              className="text-[10px] font-bold text-[var(--primary)] hover:opacity-80 uppercase tracking-wider"
                             >
                               Refresh
                             </button>
@@ -1644,12 +1649,12 @@ export default function ActivityDetailPage() {
                           ) : (
                             <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
                               {sessionCheckIns[session.id].map((ci) => (
-                                <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
+                                <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-[var(--surface-2)]/50">
                                   <div>
-                                    <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
+                                    <p className="font-bold text-[var(--foreground)]">{ci.client?.fullName || "Unknown Client"}</p>
                                   </div>
-                                  <div className="text-right">
-                                    <span className="text-slate-500 font-medium">
+                                  <div className="text-end">
+                                    <span className="text-[var(--muted)] font-medium">
                                       {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                   </div>
@@ -1685,13 +1690,13 @@ export default function ActivityDetailPage() {
                                   <p className="font-bold flex items-center gap-1.5">
                                     {red.client.fullName}
                                     {red.creditsUsed === 0.7 && (
-                                      <span className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 font-semibold">Kid</span>
+                                      <span className="text-[10px] bg-[var(--surface-2)] text-[var(--muted)] border border-[var(--border)] rounded px-1.5 py-0.5 font-semibold">Kid</span>
                                     )}
                                   </p>
                                   <p className="text-[10px] text-[var(--muted)] mt-0.5 flex items-center flex-wrap gap-2">
                                     {red.client.phone && (
                                       <span className="inline-flex items-center gap-0.5">
-                                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <svg className="h-3 w-3 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                         </svg>
                                         {red.client.phone}
@@ -1699,7 +1704,7 @@ export default function ActivityDetailPage() {
                                     )}
                                     {red.client.email && (
                                       <span className="inline-flex items-center gap-0.5">
-                                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <svg className="h-3 w-3 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                         </svg>
                                         {red.client.email}
@@ -1727,7 +1732,7 @@ export default function ActivityDetailPage() {
                       <div className="pt-4 border-t border-[var(--border)]">
                         <div className="flex items-center justify-between mb-2">
                           <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Event Expenses</h4>
-                          <span className="text-xs font-semibold text-slate-700">
+                          <span className="text-xs font-semibold text-[var(--foreground)]">
                             Total: {session.sessionExpenses?.reduce((sum, exp) => sum + exp.amount, 0).toLocaleString("fr-DZ")} DA
                           </span>
                         </div>
@@ -1738,24 +1743,24 @@ export default function ActivityDetailPage() {
                             No expenses recorded for this event.
                           </p>
                         ) : (
-                          <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-white mb-3">
-                            <table className="w-full text-left border-collapse text-xs">
+                          <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--surface)] mb-3">
+                            <table className="w-full text-start border-collapse text-xs">
                               <thead>
-                                <tr className="border-b border-[var(--border)] bg-slate-50 font-semibold text-slate-500">
+                                <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] font-semibold text-[var(--muted)]">
                                   <th className="px-3 py-2">Item</th>
-                                  <th className="px-3 py-2 text-right">Unit Price</th>
+                                  <th className="px-3 py-2 text-end">Unit Price</th>
                                   <th className="px-3 py-2 text-center">Qty</th>
-                                  <th className="px-3 py-2 text-right">Total</th>
-                                  <th className="px-3 py-2 text-right">Action</th>
+                                  <th className="px-3 py-2 text-end">Total</th>
+                                  <th className="px-3 py-2 text-end">Action</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-[var(--border)]">
                                 {session.sessionExpenses.map((exp) => {
                                   const isEditing = editingSessionExpenseId === exp.id;
                                   return (
-                                    <tr key={exp.id} className="hover:bg-slate-50/50">
-                                      <td className="px-3 py-2 font-medium text-slate-800">{exp.activityExpense.name}</td>
-                                      <td className="px-3 py-2 text-right text-slate-500">
+                                    <tr key={exp.id} className="hover:bg-[var(--surface-2)]/50">
+                                      <td className="px-3 py-2 font-medium text-[var(--foreground)]">{exp.activityExpense.name}</td>
+                                      <td className="px-3 py-2 text-end text-[var(--muted)]">
                                         {exp.activityExpense.amount > 0 ? `${exp.activityExpense.amount.toLocaleString()} DA` : "Variable"}
                                       </td>
                                       <td className="px-3 py-2 text-center">
@@ -1778,37 +1783,37 @@ export default function ActivityDetailPage() {
                                             className="w-16 rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-1.5 py-1 text-xs text-center focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                                           />
                                         ) : (
-                                          <span className="text-slate-600">{exp.quantity}</span>
+                                          <span className="text-[var(--muted)]">{exp.quantity}</span>
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
+                                      <td className="px-3 py-2 text-end">
                                         {isEditing ? (
                                           <input
                                             type="number"
                                             min="0"
                                             value={editingSessionExpenseAmount}
                                             onChange={(e) => setEditingSessionExpenseAmount(e.target.value)}
-                                            className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-1.5 py-1 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[var(--primary)] font-semibold"
+                                            className="w-24 rounded border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-1.5 py-1 text-xs text-end focus:outline-none focus:ring-1 focus:ring-[var(--primary)] font-semibold"
                                           />
                                         ) : (
-                                          <span className="font-semibold text-slate-900">{exp.amount.toLocaleString()} DA</span>
+                                          <span className="font-semibold text-[var(--foreground)]">{exp.amount.toLocaleString()} DA</span>
                                         )}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
+                                      <td className="px-3 py-2 text-end">
                                         {isEditing ? (
                                           <div className="flex justify-end gap-2">
                                             <button
                                               type="button"
                                               disabled={savingSessionExpenseId === exp.id}
                                               onClick={() => handleUpdateSessionExpense(session.id, exp.id)}
-                                              className="text-emerald-600 hover:text-emerald-800 font-semibold disabled:opacity-50"
+                                              className="text-emerald-400 hover:text-emerald-300 font-semibold disabled:opacity-50"
                                             >
                                               {savingSessionExpenseId === exp.id ? "Saving..." : "Save"}
                                             </button>
                                             <button
                                               type="button"
                                               onClick={cancelEditSessionExpense}
-                                              className="text-slate-500 hover:text-slate-700 font-semibold"
+                                              className="text-[var(--muted)] hover:text-[var(--foreground)] font-semibold"
                                             >
                                               Cancel
                                             </button>
@@ -1818,7 +1823,7 @@ export default function ActivityDetailPage() {
                                             <button
                                               type="button"
                                               onClick={() => startEditSessionExpense(exp)}
-                                              className="text-blue-600 hover:text-blue-800 font-semibold"
+                                              className="text-[var(--primary)] hover:opacity-80 font-semibold"
                                             >
                                               Edit
                                             </button>
@@ -1826,7 +1831,7 @@ export default function ActivityDetailPage() {
                                               type="button"
                                               disabled={deletingSessionExpenseId === exp.id}
                                               onClick={() => handleDeleteSessionExpense(session.id, exp.id)}
-                                              className="text-red-500 hover:text-red-700 font-semibold disabled:opacity-50"
+                                              className="text-red-400 hover:text-red-300 font-semibold disabled:opacity-50"
                                             >
                                               Delete
                                             </button>
@@ -1854,14 +1859,14 @@ export default function ActivityDetailPage() {
                               No clients on waitlist for this session.
                             </p>
                           ) : (
-                            <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-white">
-                              <table className="w-full text-left text-xs">
+                            <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--surface)]">
+                              <table className="w-full text-start text-xs">
                                 <thead>
-                                  <tr className="border-b border-[var(--border)] bg-slate-50 font-semibold text-slate-500">
+                                  <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] font-semibold text-[var(--muted)]">
                                     <th className="px-3 py-2">Pos</th>
                                     <th className="px-3 py-2">Client</th>
                                     <th className="px-3 py-2">Requested At</th>
-                                    <th className="px-3 py-2 text-right">Status</th>
+                                    <th className="px-3 py-2 text-end">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
@@ -1870,8 +1875,8 @@ export default function ActivityDetailPage() {
                                       <td className="px-3 py-2 font-bold font-mono text-[var(--primary)]">#{w.position || wIdx + 1}</td>
                                       <td className="px-3 py-2 font-medium">{w.client?.fullName || "Client"}</td>
                                       <td className="px-3 py-2 text-[var(--muted)]">{new Date(w.createdAt || Date.now()).toLocaleDateString()}</td>
-                                      <td className="px-3 py-2 text-right">
-                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                      <td className="px-3 py-2 text-end">
+                                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400">
                                           {w.status || "WAITING"}
                                         </span>
                                       </td>
@@ -1893,7 +1898,7 @@ export default function ActivityDetailPage() {
                           ) : (
                             <div className="flex flex-col md:flex-row gap-3 items-end">
                               <div className="flex-1 w-full">
-                                <label className="block text-[10px] text-slate-500 mb-1">Expense Element</label>
+                                <label className="block text-[10px] text-[var(--muted)] mb-1">Expense Element</label>
                                 <select
                                   value={selectedExpenseTemplate[session.id] || ""}
                                   onChange={(e) => {
@@ -1912,7 +1917,7 @@ export default function ActivityDetailPage() {
                               </div>
 
                               <div className="w-20 shrink-0">
-                                <label className="block text-[10px] text-slate-500 mb-1">Quantity</label>
+                                <label className="block text-[10px] text-[var(--muted)] mb-1">Quantity</label>
                                 <input
                                   type="number"
                                   min="0.01"
@@ -1930,7 +1935,7 @@ export default function ActivityDetailPage() {
                                 if (isVariable) {
                                   return (
                                     <div className="w-28 shrink-0">
-                                      <label className="block text-[10px] text-slate-500 mb-1">Total Cost (DA)</label>
+                                      <label className="block text-[10px] text-[var(--muted)] mb-1">Total Cost (DA)</label>
                                       <input
                                         type="number"
                                         min="0"
@@ -2057,7 +2062,7 @@ export default function ActivityDetailPage() {
               ) : scheduleMode === "bulk" ? (
                 <form onSubmit={handleScheduleBulkEvents} className="space-y-4">
                   <div className="space-y-2">
-                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide block">Days of the Week</span>
+                    <span className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wide block">Days of the Week</span>
                     <div className="flex flex-wrap gap-2">
                       {DAYS_OF_WEEK.map((day) => {
                         const isSelected = selectedDays.includes(day.value);
@@ -2075,7 +2080,7 @@ export default function ActivityDetailPage() {
                             className={`flex-1 min-w-[50px] py-1.5 px-2 rounded-lg text-xs font-bold text-center border transition-all ${
                               isSelected
                                 ? "bg-[var(--primary)] border-[var(--primary)] text-white"
-                                : "bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] hover:bg-slate-50"
+                                : "bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] hover:bg-[var(--surface-2)]"
                             }`}
                           >
                             {day.label}
@@ -2239,24 +2244,24 @@ export default function ActivityDetailPage() {
 
             {/* Price reference mini-card */}
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Price Reference</p>
-              <div className="rounded-xl bg-blue-50 border border-blue-100 px-4 py-3">
-                <p className="text-2xl font-extrabold text-blue-700">{(activity.creditCost * creditRate).toLocaleString()} DZD</p>
-                <p className="text-xs text-blue-500 mt-0.5">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {creditRate.toLocaleString()} DZD/credit</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">Price Reference</p>
+              <div className="rounded-xl bg-[var(--primary-light)] border border-[var(--primary)]/20 px-4 py-3">
+                <p className="text-2xl font-extrabold text-[var(--primary)]">{(activity.creditCost * creditRate).toLocaleString()} DZD</p>
+                <p className="text-xs text-[var(--muted)] mt-0.5">{activity.creditCost} credit{activity.creditCost > 1 ? "s" : ""} × {creditRate.toLocaleString()} DZD/credit</p>
               </div>
               {activity.duration && (
-                <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                  <svg className="h-4 w-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <div className="mt-2 flex items-center gap-2 text-sm text-[var(--muted)]">
+                  <svg className="h-4 w-4 text-[var(--muted)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="font-semibold">{activity.duration}</span>
+                  <span className="font-semibold text-[var(--foreground)]">{activity.duration}</span>
                 </div>
               )}
-              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                <svg className="h-4 w-4 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <div className="mt-2 flex items-center gap-2 text-sm text-[var(--muted)]">
+                <svg className="h-4 w-4 text-[var(--muted)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="font-semibold">
+                <span className="font-semibold text-[var(--foreground)]">
                   {(activity.eventType === "whatsapp" || activity.eventType === "variable") ? "Variable (announced via WhatsApp group)" : "Fixed (e.g., each Sunday)"}
                 </span>
               </div>
@@ -2291,18 +2296,18 @@ export default function ActivityDetailPage() {
                   {/* Session header */}
                   <div
                     onClick={() => toggleExpandEvent(session.id)}
-                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50 transition"
+                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-[var(--surface-2)] transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                        session.active ? "bg-slate-100 text-slate-500" : "bg-red-50 text-red-400"
+                        session.active ? "bg-[var(--surface-2)] text-[var(--muted)]" : "bg-red-500/15 text-red-400"
                       }`}>
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
                       <div>
-                        <p className="font-bold text-slate-700">{formatDate(session.sessionDate, locale, true)}</p>
+                        <p className="font-bold text-[var(--foreground)]">{formatDate(session.sessionDate, locale, true)}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs text-[var(--muted)] flex items-center gap-1">
                             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -2328,7 +2333,7 @@ export default function ActivityDetailPage() {
                           e.stopPropagation();
                           setEditingSession(session);
                         }}
-                        className="text-indigo-600 hover:text-indigo-800 font-bold"
+                        className="text-[var(--primary)] hover:opacity-80 font-bold"
                       >
                         Edit
                       </Button>
@@ -2340,7 +2345,7 @@ export default function ActivityDetailPage() {
 
                   {/* Expanded attendee list */}
                   {expandedEventId === session.id && (
-                    <div className="border-t border-[var(--border)] bg-slate-50/50 p-4 space-y-4">
+                    <div className="border-t border-[var(--border)] bg-[var(--surface-2)]/50 p-4 space-y-4">
 
                       {/* Add Client to past event */}
                       <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
@@ -2364,7 +2369,7 @@ export default function ActivityDetailPage() {
                                   return matching.map((c) => (
                                     <button key={c.id} type="button"
                                       onClick={() => { setSelectedClientForEvent((p) => ({ ...p, [session.id]: c.id })); setSearchQueryForEvent((p) => ({ ...p, [session.id]: c.fullName })); setShowEventDropdown((p) => ({ ...p, [session.id]: false })); }}
-                                      className="w-full px-3 py-2.5 text-left text-xs hover:bg-slate-50 transition flex items-center justify-between border-b border-[var(--border)] last:border-0"
+                                      className="w-full px-3 py-2.5 text-start text-xs hover:bg-[var(--surface-2)] transition flex items-center justify-between border-b border-[var(--border)] last:border-0"
                                     >
                                       <span className="font-bold">{c.fullName}</span>
                                       <Badge tone={c.balance === 0 ? "danger" : c.balance <= 2 ? "warning" : "success"} size="sm">{c.balance} credits</Badge>
@@ -2389,7 +2394,7 @@ export default function ActivityDetailPage() {
                             <button
                               type="button"
                               onClick={() => loadSessionCheckIns(session.id)}
-                              className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider"
+                              className="text-[10px] font-bold text-[var(--primary)] hover:opacity-80 uppercase tracking-wider"
                             >
                               Refresh
                             </button>
@@ -2401,12 +2406,12 @@ export default function ActivityDetailPage() {
                           ) : (
                             <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-lg overflow-hidden max-h-36 overflow-y-auto">
                               {sessionCheckIns[session.id].map((ci) => (
-                                <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-slate-50/50">
+                                <li key={ci.id} className="flex items-center justify-between px-2.5 py-1.5 text-xs hover:bg-[var(--surface-2)]/50">
                                   <div>
-                                    <p className="font-bold text-slate-800">{ci.client?.fullName || "Unknown Client"}</p>
+                                    <p className="font-bold text-[var(--foreground)]">{ci.client?.fullName || "Unknown Client"}</p>
                                   </div>
-                                  <div className="text-right">
-                                    <span className="text-slate-500 font-medium">
+                                  <div className="text-end">
+                                    <span className="text-[var(--muted)] font-medium">
                                       {new Date(ci.checkedAt).toLocaleTimeString("fr-DZ", { hour: "2-digit", minute: "2-digit" })}
                                     </span>
                                   </div>
@@ -2433,13 +2438,13 @@ export default function ActivityDetailPage() {
                                   <p className="font-bold flex items-center gap-1.5">
                                     {red.client.fullName}
                                     {red.creditsUsed === 0.7 && (
-                                      <span className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 rounded px-1.5 py-0.5 font-semibold">Kid</span>
+                                      <span className="text-[10px] bg-[var(--surface-2)] text-[var(--muted)] border border-[var(--border)] rounded px-1.5 py-0.5 font-semibold">Kid</span>
                                     )}
                                   </p>
                                   <p className="text-[10px] text-[var(--muted)] mt-0.5 flex items-center flex-wrap gap-2">
                                     {red.client.phone && (
                                       <span className="inline-flex items-center gap-0.5">
-                                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <svg className="h-3 w-3 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                         </svg>
                                         {red.client.phone}
@@ -2447,7 +2452,7 @@ export default function ActivityDetailPage() {
                                     )}
                                     {red.client.email && (
                                       <span className="inline-flex items-center gap-0.5">
-                                        <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <svg className="h-3 w-3 text-[var(--muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                         </svg>
                                         {red.client.email}
@@ -2478,7 +2483,7 @@ export default function ActivityDetailPage() {
                           size="sm"
                           loading={deletingSessionId === session.id}
                           onClick={() => handleHardDeleteEvent(session.id, session.redemptions.length)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/15 font-bold"
                         >
                           <span className="flex items-center gap-1">
                             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2507,7 +2512,7 @@ export default function ActivityDetailPage() {
           <div>
             <h2 className="text-lg font-bold mb-4">Tips</h2>
             <Card>
-              <ul className="space-y-2.5 text-sm text-slate-500">
+              <ul className="space-y-2.5 text-sm text-[var(--muted)]">
                 {[
                   "Use Unsplash links for high quality photos",
                   "For videos, use YouTube embed URLs (youtube.com/embed/…)",
@@ -2516,7 +2521,7 @@ export default function ActivityDetailPage() {
                   "Click × on an item to remove it",
                 ].map((tip, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="text-blue-500 mt-0.5 shrink-0">•</span>
+                    <span className="text-[var(--primary)] mt-0.5 shrink-0">•</span>
                     <span>{tip}</span>
                   </li>
                 ))}
@@ -2546,7 +2551,7 @@ export default function ActivityDetailPage() {
                     ),
                     label: "Provided",
                     desc: "Included in the activity price. Client does not pay extra.",
-                    color: "text-emerald-600"
+                    color: "text-emerald-400"
                   },
                   {
                     icon: (
@@ -2556,7 +2561,7 @@ export default function ActivityDetailPage() {
                     ),
                     label: "Rent",
                     desc: "Client can rent this item on-site. Set the rental price.",
-                    color: "text-amber-600"
+                    color: "text-amber-400"
                   },
                   {
                     icon: (
@@ -2566,22 +2571,22 @@ export default function ActivityDetailPage() {
                     ),
                     label: "Buy",
                     desc: "Client must purchase. Available at location or bring their own.",
-                    color: "text-blue-600"
+                    color: "text-[var(--primary)]"
                   },
                 ].map((t) => (
                   <div key={t.label} className="flex items-start gap-3">
                     <span className={`mt-0.5 ${t.color}`}>{t.icon}</span>
                     <div>
                       <p className={`font-semibold text-sm ${t.color}`}>{t.label}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{t.desc}</p>
+                      <p className="text-xs text-[var(--muted)] mt-0.5">{t.desc}</p>
                     </div>
                   </div>
                 ))}
               </div>
             </Card>
             <Card>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Coming Soon</p>
-              <p className="text-sm text-slate-400">Rental booking system and equipment inventory tracking will be available in a future update.</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">Coming Soon</p>
+              <p className="text-sm text-[var(--muted)]">Rental booking system and equipment inventory tracking will be available in a future update.</p>
             </Card>
           </div>
         </div>
@@ -2597,28 +2602,28 @@ export default function ActivityDetailPage() {
                 <p className="py-8 text-center text-sm text-[var(--muted)]">No predefined expense elements yet.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left text-sm">
+                  <table className="w-full border-collapse text-start text-sm">
                     <thead>
-                      <tr className="border-b border-[var(--border)] bg-slate-50 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+                      <tr className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
                         <th className="px-5 py-3">Expense Item</th>
                         <th className="px-5 py-3">Unit Cost</th>
                         <th className="px-5 py-3">Notes</th>
-                        <th className="px-5 py-3 text-right">Actions</th>
+                        <th className="px-5 py-3 text-end">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--border)]">
                       {activity.expenses.map((exp) => (
-                        <tr key={exp.id} className="hover:bg-slate-50/50">
+                        <tr key={exp.id} className="hover:bg-[var(--surface-2)]/50">
                           <td className="px-5 py-3">
                             <p className="font-bold">{exp.name}</p>
                             <p className="text-[10px] text-[var(--muted)]">{formatDate(exp.createdAt, locale)}</p>
                           </td>
-                          <td className="px-5 py-3 font-bold tabular-nums text-slate-700">
+                          <td className="px-5 py-3 font-bold tabular-nums text-[var(--foreground)]">
                             {exp.amount > 0 ? `${exp.amount.toLocaleString()} DA` : "Variable"}
                           </td>
                           <td className="px-5 py-3 text-xs text-[var(--muted)] max-w-xs truncate">{exp.notes ?? "—"}</td>
-                          <td className="px-5 py-3 text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleDeleteExpense(exp.id)} loading={deletingExpenseId === exp.id} className="text-red-500 hover:text-red-700">Delete</Button>
+                          <td className="px-5 py-3 text-end">
+                            <Button variant="ghost" size="sm" onClick={() => handleDeleteExpense(exp.id)} loading={deletingExpenseId === exp.id} className="text-red-400 hover:text-red-300">Delete</Button>
                           </td>
                         </tr>
                       ))}

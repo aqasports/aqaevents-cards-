@@ -4,8 +4,10 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 import { Alert, Button, Input } from "@/components/admin/ui";
+import { useTranslations } from "@/lib/i18n";
 
 function LoginForm() {
+  const { t } = useTranslations("adminLogin");
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/admin";
@@ -32,9 +34,9 @@ function LoginForm() {
         const parts = result.error.split(":");
         const seconds = parseInt(parts[1] || "900", 10);
         const minutes = Math.ceil(seconds / 60);
-        setError(`Too many failed attempts. This account is temporarily locked. Please try again in ${minutes} minute${minutes > 1 ? "s" : ""}.`);
+        setError(t("accountLocked", { minutes }));
       } else {
-        setError("Invalid email or password. Please try again.");
+        setError(t("invalidCredentials"));
       }
       return;
     }
@@ -56,9 +58,9 @@ function LoginForm() {
           <p className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)]">
             AQA ERP
           </p>
-          <h1 className="mt-1.5 text-2xl font-bold text-[var(--foreground)] tracking-tight">Enterprise Portal</h1>
+          <h1 className="mt-1.5 text-2xl font-bold text-[var(--foreground)] tracking-tight">{t("title")}</h1>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            1. AQA Sports Academy (Swim) · 2. AQA Events · 3. AQA Store
+            {t("subtitle")}
           </p>
         </div>
 
@@ -66,7 +68,7 @@ function LoginForm() {
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/80 backdrop-blur-md p-6 shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-glow)] transition-all duration-300">
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input
-              label="Email address"
+              label={t("emailLabel")}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -74,7 +76,7 @@ function LoginForm() {
               required
             />
             <Input
-              label="Password"
+              label={t("passwordLabel")}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -85,13 +87,13 @@ function LoginForm() {
             {error && <Alert tone="danger">{error}</Alert>}
 
             <Button type="submit" className="w-full" loading={loading}>
-              Sign in
+              {t("signInBtn")}
             </Button>
           </form>
         </div>
 
         <p className="mt-6 text-center text-xs text-[var(--muted)]">
-          AQA ERP · Sports Academy · Events · Store
+          {t("footer")}
         </p>
       </div>
     </div>

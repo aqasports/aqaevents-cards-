@@ -1137,7 +1137,7 @@ export default function ClientDetailPage() {
 
       {/* Top Banner Overview: Quick Stats */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-        <Card className="bg-slate-50 border-slate-200">
+        <Card className="bg-[var(--surface-2)] border-[var(--border)]">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Current Balance</p>
           <div className="flex items-baseline gap-2 mt-2">
             <span className={`text-4xl font-black tabular-nums ${
@@ -1153,7 +1153,7 @@ export default function ClientDetailPage() {
           </div>
         </Card>
 
-        <Card className="bg-slate-50 border-slate-200">
+        <Card className="bg-[var(--surface-2)] border-[var(--border)]">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Customer Segment</p>
           <div className="mt-2.5">
             <Badge
@@ -1172,9 +1172,9 @@ export default function ClientDetailPage() {
           </div>
         </Card>
 
-        <Card className="bg-slate-50 border-slate-200">
+        <Card className="bg-[var(--surface-2)] border-[var(--border)]">
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Total Spent</p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">
+          <p className="mt-2 text-2xl font-bold text-[var(--foreground)]">
             {(client.totalSpent ?? 0).toLocaleString()} DA
           </p>
         </Card>
@@ -1182,14 +1182,14 @@ export default function ClientDetailPage() {
         {/* Not Paid flag card */}
         <Card className={`border-2 transition-all duration-300 ${
           isNotPaid
-            ? "bg-red-50 border-red-300"
-            : "bg-slate-50 border-slate-200"
+            ? "bg-red-500/10 border-red-500/40"
+            : "bg-[var(--surface-2)] border-[var(--border)]"
         }`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)] mb-2">Payment Status</p>
           {isNotPaid && (
             <div className="flex items-center gap-1.5 mb-2">
               <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-sm font-black text-red-600 uppercase tracking-wide">Not Paid</span>
+              <span className="text-sm font-black text-red-400 uppercase tracking-wide">Not Paid</span>
             </div>
           )}
           <button
@@ -1198,8 +1198,8 @@ export default function ClientDetailPage() {
             disabled={togglingNotPaid}
             className={`w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition-all border ${
               isNotPaid
-                ? "bg-red-100 border-red-300 text-red-700 hover:bg-red-200"
-                : "bg-white border-slate-300 text-slate-700 hover:bg-slate-100"
+                ? "bg-red-500/20 border-red-500/40 text-red-300 hover:bg-red-500/30"
+                : "bg-[var(--surface)] border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--surface-2)]"
             } disabled:opacity-60`}
           >
             {togglingNotPaid ? (
@@ -1267,7 +1267,7 @@ export default function ClientDetailPage() {
                     <div className="mt-3 space-y-2.5 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-[var(--muted)]">Card Code:</span>
-                        <span className="font-mono font-bold bg-slate-100 px-2 py-0.5 rounded text-slate-800">{activeCard.cardCode}</span>
+                        <span className="font-mono font-bold bg-[var(--surface-2)] px-2 py-0.5 rounded text-[var(--foreground)] border border-[var(--border)]">{activeCard.cardCode}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[var(--muted)]">Date Issued:</span>
@@ -1280,7 +1280,7 @@ export default function ClientDetailPage() {
                             href={publicUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="text-[var(--primary)] hover:underline break-all font-mono text-xs bg-blue-50 px-2.5 py-1.5 rounded block border border-blue-100"
+                            className="text-[var(--primary)] hover:underline break-all font-mono text-xs bg-[var(--primary-light)] px-2.5 py-1.5 rounded block border border-[var(--primary)]/20"
                           >
                             {publicUrl}
                           </a>
@@ -1400,8 +1400,8 @@ export default function ClientDetailPage() {
 
           {/* Contact & CRM Info */}
           <Card>
-            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-2">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700">Client Details</h3>
+            <div className="flex items-center justify-between mb-4 border-b border-[var(--border)] pb-2">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Client Details</h3>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1424,7 +1424,7 @@ export default function ClientDetailPage() {
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-sm">
                 <div className="col-span-2">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Favorite Activity</dt>
-                  <dd className="mt-0.5 text-base font-bold text-slate-800">{client.favoriteActivity ?? "—"}</dd>
+                  <dd className="mt-0.5 text-base font-bold text-[var(--foreground)]">{client.favoriteActivity ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Lead Source</dt>
@@ -1440,7 +1440,7 @@ export default function ClientDetailPage() {
                 </div>
                 <div className="col-span-2">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Notes</dt>
-                  <dd className="mt-0.5 text-[var(--foreground)] bg-slate-50 border border-slate-100 p-2.5 rounded-lg text-xs italic break-words whitespace-pre-wrap">
+                  <dd className="mt-0.5 text-[var(--foreground)] bg-[var(--surface-2)] border border-[var(--border)] p-2.5 rounded-lg text-xs italic break-words whitespace-pre-wrap">
                     {client.notes ?? "No client notes added yet."}
                   </dd>
                 </div>
@@ -1561,8 +1561,8 @@ export default function ClientDetailPage() {
           <div className="lg:col-span-1">
             <Card>
               <div className="mb-4 flex items-center justify-between border-b border-[var(--border)] pb-2">
-                <h3 className="text-sm font-bold uppercase text-slate-800">Adjust Balance</h3>
-                <div className="flex rounded-md bg-slate-100 p-0.5 text-[10px] sm:text-xs">
+                <h3 className="text-sm font-bold uppercase text-[var(--foreground)]">Adjust Balance</h3>
+                <div className="flex rounded-md bg-[var(--surface-2)] p-0.5 text-[10px] sm:text-xs border border-[var(--border)]">
                   {(["package", "money", "manual"] as const).map((m) => (
                     <button
                       key={m}
@@ -1573,8 +1573,8 @@ export default function ClientDetailPage() {
                       }}
                       className={`rounded px-2.5 py-1 font-medium capitalize transition-all ${
                         adjustMode === m
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-500 hover:text-slate-900"
+                          ? "bg-[var(--primary)] text-white shadow-sm"
+                          : "text-[var(--muted)] hover:text-[var(--foreground)]"
                       }`}
                     >
                       {m === "package" ? "Package" : m === "money" ? "By Money" : "Manual"}
@@ -1630,7 +1630,7 @@ export default function ClientDetailPage() {
                       const pkg = packages.find((p) => p.id === selectedPackageId);
                       if (!pkg) return null;
                       return (
-                        <div className="rounded-lg bg-slate-50 p-3 text-xs space-y-1.5 border border-[var(--border)]">
+                        <div className="rounded-lg bg-[var(--surface-2)] p-3 text-xs space-y-1.5 border border-[var(--border)]">
                           <div className="flex justify-between font-medium">
                             <span>Invoice package price:</span>
                             <span>{pkg.price.toLocaleString()} DA</span>
@@ -1643,7 +1643,7 @@ export default function ClientDetailPage() {
                             <span>Bonus Credits:</span>
                             <span>+{pkg.bonusCredits} free</span>
                           </div>
-                          <div className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900 text-sm">
+                          <div className="border-t border-[var(--border)] pt-1.5 flex justify-between font-bold text-[var(--foreground)] text-sm">
                             <span>Total Credited:</span>
                             <span>{pkg.totalCredits} activities</span>
                           </div>
@@ -1733,7 +1733,7 @@ export default function ClientDetailPage() {
           <div className="lg:col-span-2">
             <Card padding={false}>
               <div className="px-5 py-4 border-b border-[var(--border)]">
-                <h3 className="text-sm font-bold uppercase text-slate-800">Ledger History</h3>
+                <h3 className="text-sm font-bold uppercase text-[var(--foreground)]">Ledger History</h3>
               </div>
               {client.ledgerEntries.length === 0 ? (
                 <p className="py-12 text-center text-sm text-[var(--muted)]">No ledger transactions found.</p>
@@ -1823,7 +1823,7 @@ export default function ClientDetailPage() {
       {tab === "invoices" && (
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-[var(--border)]">
-            <h3 className="text-sm font-bold uppercase text-slate-800">Billing Invoices</h3>
+            <h3 className="text-sm font-bold uppercase text-[var(--foreground)]">Billing Invoices</h3>
           </div>
           {client.invoices.length === 0 ? (
             <p className="py-12 text-center text-sm text-[var(--muted)]">No invoices have been generated for this client.</p>
@@ -1831,7 +1831,7 @@ export default function ClientDetailPage() {
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-[var(--border)] text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <tr className="bg-[var(--surface-2)] border-b border-[var(--border)] text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
                     <th className="px-5 py-3">Invoice Code</th>
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Item details</th>
@@ -1842,15 +1842,15 @@ export default function ClientDetailPage() {
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
                   {client.invoices.map((inv) => (
-                    <tr key={inv.id} className="hover:bg-slate-50/50">
-                      <td className="px-5 py-3.5 font-mono font-bold text-slate-700">{inv.invoiceCode}</td>
-                      <td className="px-5 py-3.5 text-xs text-slate-400">
+                    <tr key={inv.id} className="hover:bg-[var(--surface-2)]/50">
+                      <td className="px-5 py-3.5 font-mono font-bold text-[var(--foreground)]">{inv.invoiceCode}</td>
+                      <td className="px-5 py-3.5 text-xs text-[var(--muted)]">
                         {formatDate(inv.createdAt, locale)}
                       </td>
                       <td className="px-5 py-3.5 max-w-xs truncate">
-                        <p className="font-semibold text-slate-800">{inv.items}</p>
+                        <p className="font-semibold text-[var(--foreground)]">{inv.items}</p>
                         {inv.notes && (
-                          <p className="text-xs text-slate-400 truncate italic mt-0.5">
+                          <p className="text-xs text-[var(--muted)] truncate italic mt-0.5">
                             Notes: {(() => {
                               if (inv.notes.startsWith("{") && inv.notes.endsWith("}")) {
                                 try {
@@ -1865,7 +1865,7 @@ export default function ClientDetailPage() {
                           </p>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-right font-bold text-slate-900 tabular-nums">
+                      <td className="px-5 py-3.5 text-right font-bold text-[var(--foreground)] tabular-nums">
                         {inv.amount.toLocaleString()} DA
                       </td>
                       <td className="px-5 py-3.5 text-center">
@@ -1926,7 +1926,7 @@ export default function ClientDetailPage() {
       {tab === "notifications" && (
         <Card padding={false}>
           <div className="px-5 py-4 border-b border-[var(--border)] flex items-center justify-between">
-            <h3 className="text-sm font-bold uppercase text-slate-800">Notification Logs</h3>
+            <h3 className="text-sm font-bold uppercase text-[var(--foreground)]">Notification Logs</h3>
             <Button size="sm" variant="ghost" onClick={loadNotifications} loading={loadingNotifications}>
               Refresh Logs
             </Button>
@@ -1947,39 +1947,39 @@ export default function ClientDetailPage() {
               <svg className="h-12 w-12 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              <p className="font-semibold text-slate-700">No notifications sent</p>
-              <p className="text-xs text-slate-500">Welcome, recharge, or redemption logs will appear here.</p>
+              <p className="font-semibold text-[var(--foreground)]">No notifications sent</p>
+              <p className="text-xs text-[var(--muted)]">Welcome, recharge, or redemption logs will appear here.</p>
             </div>
           ) : (
             <ul className="divide-y divide-[var(--border)]">
               {notifications.map((notif) => (
-                <li key={notif.id} className="p-5 text-sm space-y-2 hover:bg-slate-50/20">
+                <li key={notif.id} className="p-5 text-sm space-y-2 hover:bg-[var(--surface-2)]/30">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-[10px] font-black ${
-                        notif.type === "email" ? "bg-blue-50 text-blue-700 border border-blue-200" :
-                        notif.type === "whatsapp" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                        "bg-teal-50 text-teal-700 border border-teal-200"
+                        notif.type === "email" ? "bg-blue-500/15 text-blue-400 border border-blue-500/30" :
+                        notif.type === "whatsapp" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" :
+                        "bg-teal-500/15 text-teal-400 border border-teal-500/30"
                       }`}>
                         {notif.type === "email" ? "EMAIL" : notif.type === "whatsapp" ? "WHATSAPP" : "SMS"}
                       </span>
-                      <span className="font-semibold text-slate-600 font-mono text-xs">{notif.recipient}</span>
+                      <span className="font-semibold text-[var(--muted)] font-mono text-xs">{notif.recipient}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded ${
-                        notif.status === "sent" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+                        notif.status === "sent" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
                       }`}>
                         {notif.status}
                       </span>
-                      <span className="text-xs text-slate-400 font-medium">
+                      <span className="text-xs text-[var(--muted)] font-medium">
                         {formatDate(notif.sentAt, locale, true)}
                       </span>
                     </div>
                   </div>
                   {notif.subject && (
-                    <p className="text-sm font-bold text-slate-800">Subject: {notif.subject}</p>
+                    <p className="text-sm font-bold text-[var(--foreground)]">Subject: {notif.subject}</p>
                   )}
-                  <p className="text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3.5 font-mono text-xs whitespace-pre-wrap">
+                  <p className="text-[var(--muted)] bg-[var(--surface-2)] border border-[var(--border)] rounded-xl p-3.5 font-mono text-xs whitespace-pre-wrap">
                     {notif.message}
                   </p>
                 </li>
@@ -1995,8 +1995,8 @@ export default function ClientDetailPage() {
           {/* Inline Redeem Activity Form */}
           <div className="lg:col-span-1">
             <Card>
-              <div className="mb-4 border-b border-slate-100 pb-2">
-                <h3 className="text-sm font-bold uppercase text-slate-800">Redeem Event Activity</h3>
+              <div className="mb-4 border-b border-[var(--border)] pb-2">
+                <h3 className="text-sm font-bold uppercase text-[var(--foreground)]">Redeem Event Activity</h3>
               </div>
 
               <form onSubmit={handleRedeemActivity} className="space-y-4">
@@ -2065,7 +2065,7 @@ export default function ClientDetailPage() {
           <div className="lg:col-span-2">
             <Card padding={false}>
               <div className="px-5 py-4 border-b border-[var(--border)]">
-                <h3 className="text-sm font-bold uppercase text-slate-800">Redemption History</h3>
+                <h3 className="text-sm font-bold uppercase text-[var(--foreground)]">Redemption History</h3>
               </div>
               {client.redemptions.length === 0 ? (
                 <p className="py-12 text-center text-sm text-[var(--muted)]">No activities redeemed yet.</p>
@@ -2074,7 +2074,7 @@ export default function ClientDetailPage() {
                   {client.redemptions.map((item) => (
                     <li key={item.id} className="flex flex-col gap-3 px-5 py-3.5 text-sm md:flex-row md:items-center md:justify-between">
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-slate-800 text-base">{item.activity.name}</p>
+                        <p className="font-semibold text-[var(--foreground)] text-base">{item.activity.name}</p>
                         <p className="text-xs text-[var(--muted)] mt-0.5">
                           {item.checkIns && item.checkIns.length > 0 ? (
                             <>
@@ -2534,7 +2534,7 @@ export default function ClientDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-slate-50/50">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)] bg-[var(--surface-2)]">
               <h3 className="font-bold text-[var(--foreground)] flex items-center gap-2">
                 <svg className="h-5 w-5 text-[var(--primary)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m-2 2a2 2 0 00-2-2m2-2a2 2 0 00-2 2m2 2h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2544,7 +2544,8 @@ export default function ClientDetailPage() {
               <button
                 onClick={() => setIsReissueModalOpen(false)}
                 type="button"
-                className="h-7 w-7 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)] transition"
+                aria-label="Close"
+                className="h-7 w-7 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface)] transition"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2564,9 +2565,9 @@ export default function ClientDetailPage() {
               )}
 
               <div className="space-y-2">
-                <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Card Issuance Mode</span>
+                <span className="block text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Card Issuance Mode</span>
                 <div className="flex flex-col gap-2 sm:flex-row sm:gap-6 mt-1.5">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
+                  <label className="flex items-center gap-2 cursor-pointer text-[var(--foreground)] font-medium">
                     <input
                       type="radio"
                       name="reissueMode"
@@ -2579,7 +2580,7 @@ export default function ClientDetailPage() {
                     />
                     Auto-generate code
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 font-medium">
+                  <label className="flex items-center gap-2 cursor-pointer text-[var(--foreground)] font-medium">
                     <input
                       type="radio"
                       name="reissueMode"
@@ -2611,7 +2612,7 @@ export default function ClientDetailPage() {
               )}
             </div>
             {/* Footer */}
-            <div className="flex gap-3 px-5 py-4 border-t border-[var(--border)] bg-slate-50/20">
+            <div className="flex gap-3 px-5 py-4 border-t border-[var(--border)] bg-[var(--surface-2)]">
               <Button
                 variant="secondary"
                 className="flex-1"

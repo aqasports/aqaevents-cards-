@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Badge, Button, Input } from "@/components/admin/ui";
+import { Alert, Badge, Button, Input } from "@/components/admin/ui";
 
 interface CoachItem {
   id: string;
@@ -157,6 +157,7 @@ export function SwimCoachingDesk() {
   >("staff");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
 
   const [kpis, setKpis] = useState({
     totalStaffCount: 0,
@@ -253,10 +254,11 @@ export function SwimCoachingDesk() {
   async function handleSaveCoachAccount() {
     if (!editingCoach) return;
     if (!coachEmail) {
-      alert("Email is required.");
+      setFeedback({ text: "Email is required.", tone: "danger" });
       return;
     }
     setSavingCoach(true);
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/swim/coaching/staff", {
         method: "POST",
@@ -275,7 +277,7 @@ export function SwimCoachingDesk() {
       setEditingCoach(null);
       await fetchData();
     } catch (err: any) {
-      alert(err?.message || "Failed to save coach account.");
+      setFeedback({ text: err?.message || "Failed to save coach account.", tone: "danger" });
     } finally {
       setSavingCoach(false);
     }
@@ -293,6 +295,7 @@ export function SwimCoachingDesk() {
   async function handleSaveGroupStaffing() {
     if (!editingGroup) return;
     setSavingStaffing(true);
+    setFeedback(null);
     try {
       const res = await fetch(`/api/admin/swim/coaching/groups/${editingGroup.id}/staff`, {
         method: "PUT",
@@ -307,7 +310,7 @@ export function SwimCoachingDesk() {
       setEditingGroup(null);
       await fetchData();
     } catch (err: any) {
-      alert(err?.message || "Failed to update group staffing.");
+      setFeedback({ text: err?.message || "Failed to update group staffing.", tone: "danger" });
     } finally {
       setSavingStaffing(false);
     }
@@ -315,6 +318,7 @@ export function SwimCoachingDesk() {
 
   // Handle absence decision
   async function handleDecideAbsence(absenceId: string, status: "approved" | "rejected") {
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/swim/coaching", {
         method: "POST",
@@ -329,13 +333,14 @@ export function SwimCoachingDesk() {
       if (!res.ok) throw new Error(data.error || "Failed to update absence");
       await fetchData();
     } catch (err: any) {
-      alert(err?.message || "Error updating absence.");
+      setFeedback({ text: err?.message || "Error updating absence.", tone: "danger" });
     }
   }
 
   // Handle save app config
   async function handleSaveAppConfig() {
     setSavingAppConfig(true);
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/swim/coaching", {
         method: "POST",
@@ -349,10 +354,10 @@ export function SwimCoachingDesk() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save settings");
-      alert("Paramètres de l'application AQA Coaches enregistrés.");
+      setFeedback({ text: "Paramètres de l'application AQA Coaches enregistrés.", tone: "success" });
       await fetchData();
     } catch (err: any) {
-      alert(err?.message || "Error saving app config.");
+      setFeedback({ text: err?.message || "Error saving app config.", tone: "danger" });
     } finally {
       setSavingAppConfig(false);
     }
@@ -369,6 +374,7 @@ export function SwimCoachingDesk() {
   async function handleSaveSwimmerBadge() {
     if (!awardingSwimmer) return;
     setSavingBadge(true);
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/swim/coaching", {
         method: "POST",
@@ -385,7 +391,7 @@ export function SwimCoachingDesk() {
       setAwardingSwimmer(null);
       await fetchData();
     } catch (err: any) {
-      alert(err?.message || "Error awarding badge.");
+      setFeedback({ text: err?.message || "Error awarding badge.", tone: "danger" });
     } finally {
       setSavingBadge(false);
     }
@@ -396,6 +402,7 @@ export function SwimCoachingDesk() {
     requestId: string,
     decision: "approved" | "rejected"
   ) {
+    setFeedback(null);
     try {
       const res = await fetch("/api/admin/swim/coaching", {
         method: "POST",
@@ -410,12 +417,13 @@ export function SwimCoachingDesk() {
       if (!res.ok) throw new Error(data.error || "Failed to process honor nomination");
       await fetchData();
     } catch (err: any) {
-      alert(err?.message || "Error processing honor nomination.");
+      setFeedback({ text: err?.message || "Error processing honor nomination.", tone: "danger" });
     }
   }
 
   return (
     <div className="space-y-6">
+      {feedback && <Alert tone={feedback.tone}>{feedback.text}</Alert>}
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="p-4 rounded-xl bg-slate-900 border border-white/10">

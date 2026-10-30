@@ -70,15 +70,15 @@ function PriceCalculator({ creditCost, creditRate }: { creditCost: number | stri
   const costNum = Number(creditCost) || 0;
   const price = costNum * creditRate;
   return (
-    <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs flex items-center gap-2">
-      <svg className="h-4 w-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    <div className="rounded-xl border border-[var(--primary)]/30 bg-[var(--primary-light)] px-3 py-2 text-xs flex items-center gap-2">
+      <svg className="h-4 w-4 text-[var(--primary)] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
       <div>
-        <span className="font-bold text-blue-800">
+        <span className="font-bold text-[var(--primary)]">
           {costNum} credit{costNum !== 1 ? "s" : ""} = {price.toLocaleString("fr-DZ")} DA
         </span>
-        <span className="text-blue-500 ml-1.5">({creditRate.toLocaleString()} DA/credit)</span>
+        <span className="text-[var(--muted)] ms-1.5">({creditRate.toLocaleString()} DA/credit)</span>
       </div>
     </div>
   );
@@ -113,10 +113,10 @@ function ImageEditModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h3 className="font-bold text-slate-800">Edit Cover Image</h3>
-          <button onClick={onClose} className="h-7 w-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100">
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+          <h3 className="font-bold text-[var(--foreground)]">Edit Cover Image</h3>
+          <button onClick={onClose} aria-label="Close" className="h-7 w-7 flex items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-2)]">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -124,13 +124,13 @@ function ImageEditModal({
         </div>
         <div className="p-5 space-y-4">
           {preview && (
-            <div className="h-40 rounded-xl overflow-hidden bg-slate-100">
+            <div className="h-40 rounded-xl overflow-hidden bg-[var(--surface-2)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview} alt="Preview" className="w-full h-full object-cover" onError={() => setPreview("")} />
             </div>
           )}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Image URL</label>
+            <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5 uppercase tracking-wide">Image URL</label>
             <input
               type="url"
               placeholder="https://images.unsplash.com/..."
@@ -138,11 +138,11 @@ function ImageEditModal({
               onChange={(e) => { setUrl(e.target.value); setPreview(e.target.value); }}
               className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
             />
-            <p className="text-[11px] text-slate-400 mt-1.5">Paste a direct image URL. Supports Unsplash, Imgur, etc.</p>
+            <p className="text-[11px] text-[var(--muted)] mt-1.5">Paste a direct image URL. Supports Unsplash, Imgur, etc.</p>
           </div>
           <div className="flex gap-3 pt-1">
-            <button onClick={onClose} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60 transition">
+            <button onClick={onClose} className="flex-1 rounded-xl border border-[var(--border)] py-2.5 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)] transition">Cancel</button>
+            <button onClick={handleSave} disabled={saving} className="flex-1 rounded-xl bg-[var(--primary)] py-2.5 text-sm font-bold text-white hover:opacity-90 disabled:opacity-60 transition">
               {saving ? "Saving…" : "Save Image"}
             </button>
           </div>
@@ -333,7 +333,7 @@ export default function ActivitiesPage() {
 
               {/* Credit Cost + Live Price Calculator */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5 uppercase tracking-wide">
                   Credits per session
                 </label>
                 <input
@@ -352,7 +352,7 @@ export default function ActivitiesPage() {
 
               {/* Duration */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Duration</label>
+                <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5 uppercase tracking-wide">Duration</label>
                 <select
                   name="duration"
                   className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
@@ -376,7 +376,7 @@ export default function ActivitiesPage() {
               />
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Event Frequency</label>
+                <label className="block text-xs font-semibold text-[var(--muted)] mb-1.5 uppercase tracking-wide">Event Frequency</label>
                 <select
                   name="eventType"
                   defaultValue="fixed"
@@ -416,17 +416,17 @@ export default function ActivitiesPage() {
                   <Button type="button" size="sm" onClick={handleAddTempExpense}>+</Button>
                 </div>
                 {tempExpenses.length > 0 && (
-                  <ul className="mb-3 space-y-1.5 rounded-lg border border-[var(--border)] bg-slate-50 p-2 text-xs max-h-36 overflow-y-auto">
+                  <ul className="mb-3 space-y-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2 text-xs max-h-36 overflow-y-auto">
                     {tempExpenses.map((exp, idx) => (
                       <li key={idx} className="flex items-center justify-between">
-                        <span className="font-medium text-slate-700">{exp.name}</span>
+                        <span className="font-medium text-[var(--foreground)]">{exp.name}</span>
                         <div className="flex items-center gap-2">
                           <span className="font-bold">{exp.amount.toLocaleString()} DA</span>
-                          <button type="button" onClick={() => handleRemoveTempExpense(idx)} className="text-red-500 hover:text-red-700 font-bold">×</button>
+                          <button type="button" aria-label="Remove expense" onClick={() => handleRemoveTempExpense(idx)} className="text-red-400 hover:text-red-300 font-bold">×</button>
                         </div>
                       </li>
                     ))}
-                    <li className="border-t border-slate-200 pt-1.5 flex justify-between font-bold text-slate-900">
+                    <li className="border-t border-[var(--border)] pt-1.5 flex justify-between font-bold text-[var(--foreground)]">
                       <span>Total:</span>
                       <span>{tempExpenses.reduce((s, e) => s + e.amount, 0).toLocaleString()} DA</span>
                     </li>
@@ -448,12 +448,12 @@ export default function ActivitiesPage() {
               </svg>
               Price Reference
             </h3>
-            <p className="text-xs text-slate-500 mb-3">Base rate: <span className="font-bold text-slate-800">{creditRate.toLocaleString()} DA</span> = 1 credit</p>
+            <p className="text-xs text-[var(--muted)] mb-3">Base rate: <span className="font-bold text-[var(--foreground)]">{creditRate.toLocaleString()} DA</span> = 1 credit</p>
             <div className="space-y-1.5">
               {[1, 2, 3, 4, 5, 10].map((c) => (
-                <div key={c} className="flex justify-between text-xs rounded-lg px-3 py-1.5 bg-slate-50">
-                  <span className="text-slate-500">{c} credit{c > 1 ? "s" : ""}</span>
-                  <span className="font-bold text-slate-800">{(c * creditRate).toLocaleString()} DA</span>
+                <div key={c} className="flex justify-between text-xs rounded-lg px-3 py-1.5 bg-[var(--surface-2)]">
+                  <span className="text-[var(--muted)]">{c} credit{c > 1 ? "s" : ""}</span>
+                  <span className="font-bold text-[var(--foreground)]">{(c * creditRate).toLocaleString()} DA</span>
                 </div>
               ))}
             </div>
@@ -605,8 +605,8 @@ export default function ActivitiesPage() {
                       {activity.places && (
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {activity.places.split(",").map((place, pIdx) => (
-                            <span key={pIdx} className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                              <svg className="h-3 w-3 text-slate-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <span key={pIdx} className="inline-flex items-center rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)] border border-[var(--border)]">
+                              <svg className="h-3 w-3 text-[var(--muted)] me-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                               </svg>
@@ -625,9 +625,9 @@ export default function ActivitiesPage() {
                             <div className="mt-2 flex flex-wrap gap-1">
                               {eq.slice(0, 3).map((e, i) => (
                                 <span key={i} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
-                                  e.type === "provided" ? "bg-green-50 text-green-700" :
-                                  e.type === "rent" ? "bg-amber-50 text-amber-700" :
-                                  "bg-slate-100 text-slate-600"
+                                  e.type === "provided" ? "bg-emerald-500/15 text-emerald-400" :
+                                  e.type === "rent" ? "bg-amber-500/15 text-amber-400" :
+                                  "bg-[var(--surface-2)] text-[var(--muted)]"
                                 }`}>
                                   {e.type === "provided" ? (
                                     <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -645,7 +645,7 @@ export default function ActivitiesPage() {
                                   {e.name}
                                 </span>
                               ))}
-                              {eq.length > 3 && <span className="text-[10px] text-slate-400">+{eq.length - 3} more</span>}
+                              {eq.length > 3 && <span className="text-[10px] text-[var(--muted)]">+{eq.length - 3} more</span>}
                             </div>
                           );
                         } catch { return null; }
@@ -665,10 +665,10 @@ export default function ActivitiesPage() {
                       if (galleryItems.length === 0) return null;
                       return (
                         <div className="mt-3 flex items-center gap-1.5 border-t border-[var(--border)] pt-2.5">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gallery:</span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">Gallery:</span>
                           <div className="flex gap-1 overflow-x-auto py-0.5">
                             {galleryItems.slice(0, 5).map((item: any, idx: number) => (
-                              <div key={idx} className="h-6 w-6 rounded-md overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                              <div key={idx} className="h-6 w-6 rounded-md overflow-hidden bg-[var(--surface-2)] border border-[var(--border)] shrink-0">
                                 {item.type === "image" ? (
                                   <img src={item.url} alt={item.caption ?? ""} className="w-full h-full object-cover" />
                                 ) : (
@@ -681,7 +681,7 @@ export default function ActivitiesPage() {
                               </div>
                             ))}
                             {galleryItems.length > 5 && (
-                              <span className="text-[10px] font-bold text-slate-400 flex items-center pl-1">
+                              <span className="text-[10px] font-bold text-[var(--muted)] flex items-center ps-1">
                                 +{galleryItems.length - 5}
                               </span>
                             )}
@@ -697,29 +697,29 @@ export default function ActivitiesPage() {
                       const netProfit = totalRev - totalExp;
                       const margin = totalRev > 0 ? Math.round((netProfit / totalRev) * 100) : 0;
                       return (
-                        <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 p-3 space-y-2 text-xs">
-                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                            <span className="font-bold text-slate-700">Profitability</span>
+                        <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 space-y-2 text-xs">
+                          <div className="flex items-center justify-between border-b border-[var(--border)] pb-1.5">
+                            <span className="font-bold text-[var(--foreground)]">Profitability</span>
                             <span className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
-                              margin >= 50 ? "bg-green-100 text-green-700 border border-green-200" :
-                              margin >= 0 ? "bg-amber-100 text-amber-700 border border-amber-200" :
-                              "bg-red-100 text-red-700 border border-red-200"
+                              margin >= 50 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                              margin >= 0 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                              "bg-red-500/20 text-red-400 border border-red-500/30"
                             }`}>
                               {margin}% Margin
                             </span>
                           </div>
                           <div className="grid grid-cols-2 gap-y-1.5 gap-x-4">
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Revenue:</span>
-                              <span className="font-bold text-slate-800 tabular-nums">{totalRev.toLocaleString()} DZD</span>
+                              <span className="text-[var(--muted)]">Revenue:</span>
+                              <span className="font-bold text-[var(--foreground)] tabular-nums">{totalRev.toLocaleString()} DZD</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Expenses:</span>
-                              <span className="font-bold text-slate-800 tabular-nums">{totalExp.toLocaleString()} DZD</span>
+                              <span className="text-[var(--muted)]">Expenses:</span>
+                              <span className="font-bold text-[var(--foreground)] tabular-nums">{totalExp.toLocaleString()} DZD</span>
                             </div>
-                            <div className="flex justify-between col-span-2 border-t border-slate-100 pt-1.5">
-                              <span className="font-semibold text-slate-600">Net Profit:</span>
-                              <span className={`font-black tabular-nums ${netProfit >= 0 ? "text-green-600" : "text-red-600"}`}>
+                            <div className="flex justify-between col-span-2 border-t border-[var(--border)] pt-1.5">
+                              <span className="font-semibold text-[var(--muted)]">Net Profit:</span>
+                              <span className={`font-black tabular-nums ${netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 {netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString()} DZD
                               </span>
                             </div>

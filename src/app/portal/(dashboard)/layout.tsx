@@ -117,8 +117,15 @@ export default function PortalDashboardLayout({ children }: { children: React.Re
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <span className="font-bold text-sm text-white">AQA Portal Navigation</span>
-                <button type="button" onClick={() => setMobileOpen(false)} className="text-slate-400 hover:text-white">
-                  ✕
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  aria-label="Close navigation"
+                  className="text-slate-400 hover:text-white p-1"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 
