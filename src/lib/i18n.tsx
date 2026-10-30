@@ -6,6 +6,11 @@ type Locale = "en" | "fr" | "ar";
 
 const dictionaries = {
   en: {
+    clubsEmpty: {
+      title: "No partner clubs yet",
+      description: "Create your first partner club to get started.",
+      action: "Create Club",
+    },
     nav: {
       dashboard: "Dashboard",
       clients: "Clients",
@@ -1561,6 +1566,11 @@ const dictionaries = {
 
 
   fr: {
+    clubsEmpty: {
+      title: "Aucun club partenaire pour le moment",
+      description: "Créez votre premier club partenaire pour commencer.",
+      action: "Créer un club",
+    },
     nav: {
       dashboard: "Tableau de bord",
       clients: "Clients",
@@ -3115,6 +3125,11 @@ const dictionaries = {
   },
 
   ar: {
+    clubsEmpty: {
+      title: "لا توجد أندية شريكة بعد",
+      description: "أنشئ أول نادٍ شريك للبدء.",
+      action: "إنشاء نادٍ",
+    },
     nav: {
       dashboard: "لوحة التحكم",
       clients: "الزبائن",

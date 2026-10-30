@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button, PageHeader, ConfirmModal, Alert } from "@/components/admin/ui";
+import { Button, PageHeader, ConfirmModal, Alert, EmptyState } from "@/components/admin/ui";
+import { useI18n } from "@/lib/i18n";
 
 type Club = {
   id: string;
@@ -45,6 +46,7 @@ import { fetchWithRetry } from "@/lib/fetch-utils";
 import { useDataCache, invalidateCache } from "@/lib/use-data-cache";
 
 export default function ClubsListPage() {
+  const { t } = useI18n();
   const [message, setMessage] = useState<{ text: string; tone: "success" | "danger" } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -151,17 +153,21 @@ export default function ClubsListPage() {
           ))}
         </div>
       ) : clubs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]">
-          <div className="h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-            <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-            </svg>
-          </div>
-          <p className="text-sm font-bold text-slate-700 mb-1">No partner clubs yet</p>
-          <p className="text-xs text-slate-400 mb-5">Create your first partner club to get started.</p>
-          <Link href="/admin/clubs/new">
-            <Button size="sm">Create Club</Button>
-          </Link>
+        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)]">
+          <EmptyState
+            icon={
+              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            }
+            title={t("clubsEmpty.title")}
+            description={t("clubsEmpty.description")}
+            action={
+              <Link href="/admin/clubs/new">
+                <Button size="sm">{t("clubsEmpty.action")}</Button>
+              </Link>
+            }
+          />
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
