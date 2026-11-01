@@ -416,6 +416,60 @@ describe("Swim Groups Utilities", () => {
       expect(situation.hasDebt).toBe(true);
       expect(situation.debtDetails.reason).toBe("Ancien impaye reste a payer");
     });
+
+    it("rule: assigned Starter subscriber past 25th cut-off owes renewal tariff and effectivePaymentStatus is 'unpaid'", () => {
+      const octoberStarter = {
+        groupId: "g-active-1",
+        category: "femme",
+        formula: "G10",
+        duration: "1m",
+        priceDA: 7800,
+        paymentStatus: "paid",
+        dateOfStart: "2026-10-01T00:00:00.000Z",
+        subscriptionStart: "2026-10-01T00:00:00.000Z",
+        subscriptionEnd: "2026-10-31T00:00:00.000Z",
+        payments: [{ id: "p1", amount: 7800, paidAt: "2026-10-02T00:00:00.000Z" }],
+      };
+
+      // Before 25th: paid, 0 debt
+      const oct20 = new Date("2026-10-20T10:00:00.000Z");
+      const sitOct20 = getMemberPaymentSituation(octoberStarter, oct20);
+      expect(sitOct20.effectivePaymentStatus).toBe("paid");
+      expect(sitOct20.debt).toBe(0);
+      expect(sitOct20.hasDebt).toBe(false);
+
+      // On 25th: unpaid, debt = 7800
+      const oct25 = new Date("2026-10-25T10:00:00.000Z");
+      const sitOct25 = getMemberPaymentSituation(octoberStarter, oct25);
+      expect(sitOct25.isAfterCutoff).toBe(true);
+      expect(sitOct25.isNextMonthPaid).toBe(false);
+      expect(sitOct25.effectivePaymentStatus).toBe("unpaid");
+      expect(sitOct25.debt).toBe(7800);
+      expect(sitOct25.hasDebt).toBe(true);
+
+      // On Nov 1 (calendar month rollover): STILL unpaid, debt = 7800
+      const nov1 = new Date("2026-11-01T10:00:00.000Z");
+      const sitNov1 = getMemberPaymentSituation(octoberStarter, nov1);
+      expect(sitNov1.isAfterCutoff).toBe(true);
+      expect(sitNov1.isNextMonthPaid).toBe(false);
+      expect(sitNov1.effectivePaymentStatus).toBe("unpaid");
+      expect(sitNov1.debt).toBe(7800);
+      expect(sitNov1.hasDebt).toBe(true);
+
+      // With renewal payment on Oct 26: paid, debt = 0
+      const octoberStarterRenewed = {
+        ...octoberStarter,
+        payments: [
+          { id: "p1", amount: 7800, paidAt: "2026-10-02T00:00:00.000Z" },
+          { id: "p2", amount: 7800, paidAt: "2026-10-26T14:00:00.000Z", notes: "[NEXT_MONTH:2026-11]" },
+        ],
+      };
+      const sitRenewed = getMemberPaymentSituation(octoberStarterRenewed, nov1);
+      expect(sitRenewed.isNextMonthPaid).toBe(true);
+      expect(sitRenewed.effectivePaymentStatus).toBe("paid");
+      expect(sitRenewed.debt).toBe(0);
+      expect(sitRenewed.hasDebt).toBe(false);
+    });
   });
 
   describe("calculateGroupRemainingPlaces & calculateTotalRemainingPlaces", () => {

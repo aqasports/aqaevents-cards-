@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
   isSubscriptionExpiringSoon,
   subscriptionDaysLeft,
@@ -505,6 +506,76 @@ describe("getEffectiveMemberPaymentStatus (25th Cut-off Rule)", () => {
 
     const res = getEffectiveMemberPaymentStatus(diamondMember, day28);
     expect(res.isStarter).toBe(false);
+    expect(res.effectiveStatus).toBe("paid");
+  });
+
+  it("Starter client who crossed 25th remains 'unpaid' after calendar month rolls over to Nov 1+", () => {
+    const starterMember = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      dateOfStart: "2026-10-01T00:00:00.000Z",
+      subscriptionStart: "2026-10-01T00:00:00.000Z",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [
+        { id: "p1", amount: 7800, paidAt: "2026-10-05T00:00:00.000Z", notes: "Oct initial" },
+      ],
+    };
+
+    const nov1 = d("2026-11-01T10:00:00.000Z");
+    const nov10 = d("2026-11-10T10:00:00.000Z");
+
+    const resNov1 = getEffectiveMemberPaymentStatus(starterMember, nov1);
+    expect(resNov1.isStarter).toBe(true);
+    expect(resNov1.isAfterCutoff).toBe(true);
+    expect(resNov1.isNextMonthPaid).toBe(false);
+    expect(resNov1.effectiveStatus).toBe("unpaid");
+
+    const resNov10 = getEffectiveMemberPaymentStatus(starterMember, nov10);
+    expect(resNov10.isAfterCutoff).toBe(true);
+    expect(resNov10.isNextMonthPaid).toBe(false);
+    expect(resNov10.effectiveStatus).toBe("unpaid");
+  });
+
+  it("Starter client with stale multi-month subscriptionEnd in DB is capped and marked 'unpaid' without renewal payment", () => {
+    const starterWithStaleEnd = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      dateOfStart: "2026-10-01T00:00:00.000Z",
+      subscriptionStart: "2026-10-01T00:00:00.000Z",
+      subscriptionEnd: "2026-12-29T00:00:00.000Z", // Stale 3m date from pre-assignment
+      payments: [
+        { id: "p1", amount: 7800, paidAt: "2026-10-05T00:00:00.000Z", notes: "Oct payment" },
+      ],
+    };
+
+    const effectiveEnd = getEffectiveSubscriptionEnd(starterWithStaleEnd);
+    expect(effectiveEnd.toISOString().slice(0, 10)).toBe("2026-10-31");
+
+    const nov1 = d("2026-11-01T10:00:00.000Z");
+    const res = getEffectiveMemberPaymentStatus(starterWithStaleEnd, nov1);
+    expect(res.effectiveStatus).toBe("unpaid");
+    expect(res.isNextMonthPaid).toBe(false);
+  });
+
+  it("Starter client who makes renewal payment after Oct 25 or tagged [NEXT_MONTH:2026-11] is 'paid'", () => {
+    const starterRenewed = {
+      duration: "1m",
+      formula: "Starter",
+      paymentStatus: "paid",
+      dateOfStart: "2026-10-01T00:00:00.000Z",
+      subscriptionStart: "2026-10-01T00:00:00.000Z",
+      subscriptionEnd: "2026-10-31T00:00:00.000Z",
+      payments: [
+        { id: "p1", amount: 7800, paidAt: "2026-10-05T00:00:00.000Z", notes: "Oct" },
+        { id: "p2", amount: 7800, paidAt: "2026-10-26T14:00:00.000Z", notes: "Renewal Nov" },
+      ],
+    };
+
+    const nov1 = d("2026-11-01T10:00:00.000Z");
+    const res = getEffectiveMemberPaymentStatus(starterRenewed, nov1);
+    expect(res.isNextMonthPaid).toBe(true);
     expect(res.effectiveStatus).toBe("paid");
   });
 

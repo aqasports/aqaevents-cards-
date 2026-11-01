@@ -83,6 +83,7 @@ interface SwimMemberData {
   subscriptionEnd?: string | null;
   subscriptionDaysLeft?: number | null;
   subscriptionStatus?: "active" | "expiring_soon" | "expired" | null;
+  debt?: number;
   apnea?: ApneaProfileViewData;
 }
 
@@ -402,9 +403,10 @@ export default function SwimmerProfilePage({
   // Payments calculation
   const paymentsList = member.payments || [];
   const totalPaid = paymentsList.reduce((acc, p) => acc + (p.amount || 0), 0);
-  const debt = isLinkedToPayment ? Math.max(0, priceDA - totalPaid) : 0;
-  const paymentPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : (isLinkedToPayment ? 0 : 100);
-  const isFullyPaid = !isLinkedToPayment || member.paymentStatus === "paid" || (priceDA > 0 && totalPaid >= priceDA);
+  const debt = typeof member.debt === "number" ? member.debt : (isLinkedToPayment ? Math.max(0, priceDA - totalPaid) : 0);
+  const effectivePaymentStatus = member.paymentStatus || "unpaid";
+  const isFullyPaid = !isLinkedToPayment || (effectivePaymentStatus === "paid" && debt === 0);
+  const paymentPct = priceDA > 0 ? Math.min(100, Math.round((Math.max(0, priceDA - debt) / priceDA) * 100)) : (isLinkedToPayment ? 0 : 100);
 
   const formattedDateOfStart = member.dateOfStart
     ? new Date(member.dateOfStart).toLocaleDateString(locale === "ar" ? "ar-DZ" : "fr-DZ", {
@@ -554,12 +556,12 @@ export default function SwimmerProfilePage({
                     className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                       isFullyPaid
                         ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
-                        : totalPaid > 0
+                        : effectivePaymentStatus === "partial"
                         ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
                         : "bg-rose-950/80 text-rose-300 border border-rose-500/30"
                     }`}
                   >
-                    {isFullyPaid ? t("statusPaid") : totalPaid > 0 ? t("statusPartial") : t("statusUnpaid")}
+                    {isFullyPaid ? t("statusPaid") : effectivePaymentStatus === "partial" ? t("statusPartial") : t("statusUnpaid")}
                   </span>
                 )}
               </div>
@@ -1082,14 +1084,14 @@ export default function SwimmerProfilePage({
                     className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                       isFullyPaid
                         ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/30"
-                        : totalPaid > 0
+                        : effectivePaymentStatus === "partial"
                         ? "bg-amber-950/80 text-amber-300 border border-amber-500/30"
                         : "bg-cyan-950/80 text-cyan-300 border border-cyan-500/30"
                     }`}
                   >
                     {isFullyPaid
                       ? t("statusPaid")
-                      : totalPaid > 0
+                      : effectivePaymentStatus === "partial"
                       ? t("statusPartial")
                       : t("statusUnpaid")}
                   </span>

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import QRCode from "qrcode";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { getMemberPaymentSituation } from "@/lib/swim-groups";
+import { getEffectiveSubscriptionEnd } from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,8 @@ export default async function SwimCardScanPage({ params }: Props) {
         include: {
           group: true,
           payments: {
-            select: { amount: true },
+            select: { amount: true, notes: true, paidAt: true },
+            orderBy: { paidAt: "desc" },
           },
         },
       },
@@ -82,9 +84,13 @@ export default async function SwimCardScanPage({ params }: Props) {
   }
 
   const member = card.member;
-  const sit = member ? getMemberPaymentSituation(member) : null;
-  const isPaid = member?.paymentStatus === "paid" || (sit ? sit.debt === 0 && sit.totalPaid > 0 : false);
-  const isPartial = member?.paymentStatus === "partial" || (sit ? sit.totalPaid > 0 && sit.debt > 0 : false);
+  const subEnd = member ? getEffectiveSubscriptionEnd(member) : null;
+  const sit = member ? getMemberPaymentSituation({ ...member, subscriptionEnd: subEnd }) : null;
+  const effectivePaymentStatus = sit?.isAssigned
+    ? sit.effectivePaymentStatus
+    : (member?.paymentStatus || "unpaid");
+  const isPaid = effectivePaymentStatus === "paid";
+  const isPartial = effectivePaymentStatus === "partial";
 
   // Generate QR code for the back of the card
   const cardUrl = `https://aqasports.com/swim/card/${card.publicToken}`;
@@ -130,7 +136,7 @@ export default async function SwimCardScanPage({ params }: Props) {
                 level: member.level,
                 formula: member.formula,
                 duration: member.duration,
-                paymentStatus: member.paymentStatus,
+                paymentStatus: effectivePaymentStatus,
                 isAssigned: sit?.isAssigned,
                 isDebtOnly: sit?.isDebtOnly,
                 isLinkedToPayment: sit?.isLinkedToPayment,
@@ -218,7 +224,7 @@ export default async function SwimCardScanPage({ params }: Props) {
                       <span className="text-sm font-black tracking-wide">DEBT / DETTE ANTERIEURE</span>
                     </div>
                     <span className="text-xs font-mono text-rose-400 font-bold">
-                      {sit.effectivePriceDA.toLocaleString("fr-DZ")} DA
+                      {(sit.debt > 0 ? sit.debt : sit.effectivePriceDA).toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
                 ) : isPaid ? (
@@ -248,7 +254,7 @@ export default async function SwimCardScanPage({ params }: Props) {
                       <span className="text-sm font-black tracking-wide">NOT PAID / NON REGLE</span>
                     </div>
                     <span className="text-xs font-mono text-rose-400 font-bold">
-                      {sit.effectivePriceDA.toLocaleString("fr-DZ")} DA
+                      {(sit.debt > 0 ? sit.debt : sit.effectivePriceDA).toLocaleString("fr-DZ")} DA
                     </span>
                   </div>
                 )}
