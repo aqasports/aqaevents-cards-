@@ -5,6 +5,7 @@ import { logger } from "@/lib/logger";
 import {
   computeMemberSubscriptionDates,
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
   subscriptionDaysLeft,
   getSubscriptionStatus,
@@ -37,10 +38,6 @@ export async function GET(request: NextRequest) {
         { swimId: { contains: q, mode: "insensitive" } },
       ];
     }
-    if (paymentFilter && paymentFilter !== "all") {
-      where.paymentStatus = paymentFilter;
-    }
-
     const members = await prisma.swimMember.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -51,17 +48,21 @@ export async function GET(request: NextRequest) {
     });
 
     const enriched = members.map((m) => {
-      const situation = getMemberPaymentSituation(m);
-      const totalPaid = situation.totalPaid;
-      const debt = situation.debt;
-
       // Compute subscription dates on the fly if not stored
       const subStart = m.subscriptionStart
         ? m.subscriptionStart
         : getEffectiveSubscriptionStart(m.dateOfStart);
-      const subEnd = m.subscriptionEnd
-        ? m.subscriptionEnd
-        : computeSubscriptionEnd(subStart, m.duration, undefined, m.formula);
+      const subEnd = getEffectiveSubscriptionEnd(m);
+
+      const situation = getMemberPaymentSituation({
+        ...m,
+        subscriptionEnd: subEnd,
+      });
+      const totalPaid = situation.totalPaid;
+      const debt = situation.debt;
+      const effectivePaymentStatus = situation.isAssigned
+        ? situation.effectivePaymentStatus
+        : m.paymentStatus;
 
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
@@ -69,6 +70,11 @@ export async function GET(request: NextRequest) {
 
       return {
         ...m,
+        paymentStatus: effectivePaymentStatus,
+        originalPaymentStatus: m.paymentStatus,
+        effectivePaymentStatus: situation.effectivePaymentStatus,
+        isAfterCutoff: situation.isAfterCutoff,
+        isNextMonthPaid: situation.isNextMonthPaid,
         priceDA: situation.effectivePriceDA,
         totalPaid,
         debt,
@@ -84,9 +90,14 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    const byPayment =
+      paymentFilter && paymentFilter !== "all"
+        ? enriched.filter((m) => m.paymentStatus === paymentFilter)
+        : enriched;
+
     const filtered = expiringOnly
-      ? enriched.filter((m) => m.expiringSoon)
-      : enriched;
+      ? byPayment.filter((m) => m.expiringSoon)
+      : byPayment;
 
     return NextResponse.json(filtered);
   } catch (err: unknown) {

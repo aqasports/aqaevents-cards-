@@ -16,6 +16,7 @@ import QRCode from "qrcode";
 import { SwimPvcPrintDialog } from "@/components/swim/SwimPvcPrintDialog";
 import {
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
   subscriptionDaysLeft,
   getSubscriptionStatus,
@@ -333,9 +334,7 @@ export default function AdminSwimmerProfilePage({
       const startStr = data.subscriptionStart
         ? data.subscriptionStart.split("T")[0]
         : getEffectiveSubscriptionStart(data.dateOfStart).toISOString().split("T")[0];
-      const endStr = data.subscriptionEnd
-        ? data.subscriptionEnd.split("T")[0]
-        : computeSubscriptionEnd(startStr, data.duration).toISOString().split("T")[0];
+      const endStr = getEffectiveSubscriptionEnd(data).toISOString().split("T")[0];
       setEditSubStart(startStr);
       setEditSubEnd(endStr);
       setIsSubEndManual(false);
@@ -775,12 +774,19 @@ export default function AdminSwimmerProfilePage({
   const totalPaid = paymentSituation.totalPaid;
   const priceDA = paymentSituation.effectivePriceDA;
   const debt = paymentSituation.debt;
-  const isFullyPaid = priceDA > 0 && totalPaid >= priceDA;
+  const effectivePaymentStatus = paymentSituation.isAssigned
+    ? paymentSituation.effectivePaymentStatus
+    : (member?.paymentStatus || "unpaid");
+  const isFullyPaid =
+    priceDA > 0 && !paymentSituation.hasDebt && effectivePaymentStatus === "paid";
   const hasDebt = paymentSituation.hasDebt;
   const isAssigned = paymentSituation.isAssigned;
   const isDebtOnly = paymentSituation.isDebtOnly;
   const debtDetails = paymentSituation.debtDetails;
-  const paymentProgressPct = priceDA > 0 ? Math.min(100, Math.round((totalPaid / priceDA) * 100)) : 0;
+  const paymentProgressPct =
+    priceDA > 0
+      ? Math.min(100, Math.round(((priceDA - debt) / priceDA) * 100))
+      : 0;
 
   const filteredGroups = groups.filter((g) => {
     if (member && g.category !== member.category) return false;
@@ -827,7 +833,7 @@ export default function AdminSwimmerProfilePage({
   const archivedGroupWarning = member.effectivelyUnassigned && Boolean(member.group || (member.groups && member.groups.length > 0));
 
   const subStartVal = member.subscriptionStart || getEffectiveSubscriptionStart(member.dateOfStart).toISOString();
-  const subEndVal = member.subscriptionEnd || computeSubscriptionEnd(subStartVal, member.duration, undefined, member.formula).toISOString();
+  const subEndVal = getEffectiveSubscriptionEnd(member).toISOString();
   const daysLeft = member.subscriptionDaysLeft !== undefined && member.subscriptionDaysLeft !== null
     ? member.subscriptionDaysLeft
     : subscriptionDaysLeft(subEndVal);
@@ -873,8 +879,8 @@ export default function AdminSwimmerProfilePage({
           <div className="flex flex-wrap items-center gap-2 mt-1">
             <Badge tone="info">{member.swimId}</Badge>
             <Badge tone="info">{categoryLabel(member.category)}</Badge>
-            <Badge tone={member.paymentStatus === "paid" ? "success" : member.paymentStatus === "partial" ? "warning" : "danger"}>
-              {member.paymentStatus === "paid" ? "Paid" : member.paymentStatus === "partial" ? "Partial" : "Unpaid"}
+            <Badge tone={effectivePaymentStatus === "paid" ? "success" : effectivePaymentStatus === "partial" ? "warning" : "danger"}>
+              {effectivePaymentStatus === "paid" ? "Paid" : effectivePaymentStatus === "partial" ? "Partial" : "Unpaid"}
             </Badge>
             {isMemberPoolPaid(member.notes) && (
               <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-cyan-950/90 text-cyan-300 border border-cyan-400/50 shadow-[0_0_10px_rgba(0,242,255,0.2)]">
@@ -1394,7 +1400,7 @@ export default function AdminSwimmerProfilePage({
               </div>
 
               {/* Real Card with 3D Flip Motion */}
-              <SwimFlipCard member={member} qrDataUrl={cardQrDataUrl} />
+              <SwimFlipCard member={{ ...member, paymentStatus: effectivePaymentStatus }} qrDataUrl={cardQrDataUrl} />
 
               {/* Card Actions & Print */}
               <div className="space-y-1.5 pt-2 border-t border-white/5 text-xs">
@@ -1700,7 +1706,7 @@ export default function AdminSwimmerProfilePage({
               )}
 
               {/* Next Month Renewal Prompt (Starter formula, current month paid, next month not yet paid) */}
-              {isStarter && !nextMonthInfo.isPaid && isFullyPaid && (
+              {isStarter && !nextMonthInfo.isPaid && isAssigned && (
                 <div className="p-3 rounded-xl bg-sky-950/30 border border-sky-500/30 text-xs text-sky-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <span className="font-semibold text-white">

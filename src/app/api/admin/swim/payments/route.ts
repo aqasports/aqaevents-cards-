@@ -11,6 +11,7 @@ import {
   formatMonthKey,
   formatMonthLabel,
   encodeNextMonthPaidTag,
+  getEffectiveMemberPaymentStatus,
 } from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
@@ -72,7 +73,16 @@ export async function POST(request: NextRequest) {
       }
 
       const isStarter = isStarterFormula(member.duration, member.formula);
-      const isAdvanceNextMonth = isNextMonth || Boolean(targetMonth);
+      const effStatus = getEffectiveMemberPaymentStatus(member);
+      const previousPaid = member.payments.reduce((sum, p) => sum + p.amount, 0);
+      const isImplicitStarterRenewal =
+        isStarter &&
+        effStatus.isAfterCutoff &&
+        !effStatus.isNextMonthPaid &&
+        (member.paymentStatus === "paid" ||
+          (member.priceDA > 0 && previousPaid >= member.priceDA));
+      const isAdvanceNextMonth =
+        isNextMonth || Boolean(targetMonth) || isImplicitStarterRenewal;
 
       let finalPaymentNotes = notes?.trim() || null;
       let newSubscriptionEnd: Date | undefined = undefined;
@@ -80,8 +90,10 @@ export async function POST(request: NextRequest) {
       let targetMonthKey: string | undefined = undefined;
 
       if (isAdvanceNextMonth) {
-        const targetDate = targetMonth
-          ? new Date(`${targetMonth}-01T00:00:00.000Z`)
+        const resolvedTargetMonth =
+          targetMonth || (isImplicitStarterRenewal ? effStatus.nextMonthKey : undefined);
+        const targetDate = resolvedTargetMonth
+          ? new Date(`${resolvedTargetMonth}-01T00:00:00.000Z`)
           : getNextMonthDate(member.subscriptionEnd);
 
         targetMonthKey = formatMonthKey(targetDate);

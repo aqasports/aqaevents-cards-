@@ -8,6 +8,7 @@ import {
   decodeMemberGroupIds,
   getMemberPaymentSituation,
 } from "@/lib/swim-groups";
+import { getEffectiveSubscriptionEnd } from "@/lib/swim-subscription";
 import { getSwimCardUrl } from "@/lib/swim-id";
 
 export const dynamic = "force-dynamic";
@@ -92,17 +93,31 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Member enrichment: calculate effectiveGroup, effectivelyUnassigned, and paymentSituation
+    const now = new Date();
     const members = rawMembers.map((m) => {
       const effectivelyUnassigned = Boolean(m.groupId && m.group && !m.group.active);
       const effectiveGroup = effectivelyUnassigned ? null : m.group;
-      const paymentSituation = getMemberPaymentSituation({
-        ...m,
-        effectiveGroup,
-        effectivelyUnassigned,
-      });
+      const effectiveSubEnd = getEffectiveSubscriptionEnd(m);
+      const paymentSituation = getMemberPaymentSituation(
+        {
+          ...m,
+          subscriptionEnd: effectiveSubEnd,
+          effectiveGroup,
+          effectivelyUnassigned,
+        },
+        now
+      );
 
       return {
         ...m,
+        paymentStatus: paymentSituation.isAssigned
+          ? paymentSituation.effectivePaymentStatus
+          : m.paymentStatus,
+        originalPaymentStatus: m.paymentStatus,
+        effectivePaymentStatus: paymentSituation.effectivePaymentStatus,
+        isAfterCutoff: paymentSituation.isAfterCutoff,
+        isNextMonthPaid: paymentSituation.isNextMonthPaid,
+        subscriptionEnd: effectiveSubEnd,
         effectiveGroup,
         effectivelyUnassigned,
         paymentSituation,

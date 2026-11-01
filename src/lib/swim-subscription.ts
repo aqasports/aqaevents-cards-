@@ -250,6 +250,20 @@ export function getSubscriptionStatus(
 }
 
 /**
+ * Payment Request eligibility rule:
+ * - Starter formula (1m): Eligible on its monthly billing cycle.
+ * - Other formulas (Silver 3m, Gold 6m, Diamond 9m):
+ *   Never show clients that still have more than 10 days to expiration (must have daysLeft <= 10).
+ */
+export function isEligibleForPaymentRequest(
+  isStarter: boolean,
+  daysLeft: number
+): boolean {
+  if (isStarter) return true;
+  return daysLeft <= 10;
+}
+
+/**
  * Given a member's dateOfStart, duration, and optional formula, computes and returns
  * both the effective subscription start and end dates.
  */
@@ -440,20 +454,99 @@ export interface SwimmerNextMonthInfo {
 }
 
 /**
+ * Resolves the effective subscription end date for a member.
+ * For Starter (1m) subscribers, enforces the strict month-end boundary rule
+ * (last day of the starting month, or last day of the latest paid [NEXT_MONTH:YYYY-MM] cycle),
+ * preventing stale multi-month end dates in the database from misrepresenting Starter periods.
+ */
+export function getEffectiveSubscriptionEnd(
+  member: {
+    duration?: string | null;
+    formula?: string | null;
+    dateOfStart?: Date | string | null;
+    subscriptionStart?: Date | string | null;
+    subscriptionEnd?: Date | string | null;
+    notes?: string | null;
+    payments?: Array<{ notes?: string | null; paidAt?: Date | string | null }>;
+  } | null | undefined,
+  periods: ExcludedPeriod[] = DEFAULT_EXCLUDED_PERIODS
+): Date {
+  const isStarter = isStarterFormula(member?.duration, member?.formula);
+  const hasStart = Boolean(member?.subscriptionStart || member?.dateOfStart);
+  const subStart = hasStart
+    ? getEffectiveSubscriptionStart(member?.subscriptionStart ?? member?.dateOfStart)
+    : member?.subscriptionEnd
+    ? toUTCMidnight(new Date(member.subscriptionEnd))
+    : getEffectiveSubscriptionStart(null);
+
+  if (!isStarter) {
+    if (member?.subscriptionEnd) {
+      const parsed = new Date(member.subscriptionEnd);
+      if (!isNaN(parsed.getTime())) {
+        return toUTCMidnight(parsed);
+      }
+    }
+    return computeSubscriptionEnd(subStart, member?.duration, periods, member?.formula);
+  }
+
+  let end = getLastDayOfSameMonth(subStart);
+
+  // Check if any [NEXT_MONTH:YYYY-MM] or [NEXT_MONTH_PAID:YYYY-MM] extends the Starter end date
+  const monthKeys: string[] = [];
+  const notesMatch = (member?.notes || "").match(/\[NEXT_MONTH_PAID:([0-9]{4}-[0-9]{2})\]/);
+  if (notesMatch && notesMatch[1]) {
+    monthKeys.push(notesMatch[1]);
+  }
+  if (Array.isArray(member?.payments)) {
+    for (const p of member.payments) {
+      const m = (p?.notes || "").match(/\[NEXT_MONTH:([0-9]{4}-[0-9]{2})\]/);
+      if (m && m[1]) {
+        monthKeys.push(m[1]);
+      }
+    }
+  }
+
+  for (const key of monthKeys) {
+    const paidMonthStart = new Date(`${key}-01T00:00:00.000Z`);
+    if (!isNaN(paidMonthStart.getTime())) {
+      const paidMonthEnd = getLastDayOfSameMonth(paidMonthStart);
+      if (paidMonthEnd.getTime() > end.getTime()) {
+        end = paidMonthEnd;
+      }
+    }
+  }
+
+  return end;
+}
+
+/**
  * Provides comprehensive next-month projection and payment status for a swimmer.
  */
 export function getMemberNextMonthInfo(
   member: {
     duration?: string | null;
     formula?: string | null;
+    paymentStatus?: string | null;
+    priceDA?: number | null;
     notes?: string | null;
+    dateOfStart?: Date | string | null;
+    subscriptionStart?: Date | string | null;
     subscriptionEnd?: Date | string | null;
     payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
   } | null | undefined,
-  locale = "fr"
+  locale = "fr",
+  referenceDate?: Date
 ): SwimmerNextMonthInfo {
   const isStarter = isStarterFormula(member?.duration, member?.formula);
-  const targetMonthDate = getNextMonthDate(member?.subscriptionEnd);
+
+  let targetMonthDate: Date;
+  if (isStarter && (referenceDate || member?.subscriptionStart || member?.dateOfStart)) {
+    const effStatus = getEffectiveMemberPaymentStatus(member, referenceDate ?? new Date(), locale);
+    targetMonthDate = new Date(`${effStatus.nextMonthKey}-01T00:00:00.000Z`);
+  } else {
+    targetMonthDate = getNextMonthDate(member?.subscriptionEnd);
+  }
+
   const targetMonthEndDate = getLastDayOfSameMonth(targetMonthDate);
   const targetMonthKey = formatMonthKey(targetMonthDate);
   const targetMonthLabel = formatMonthLabel(targetMonthDate, locale);
@@ -469,6 +562,11 @@ export function getMemberNextMonthInfo(
   const targetMonthEndDisplay = `${endDay}/${endMonth}/${endYear}`;
 
   const paidResult = isMemberNextMonthPaid(member, targetMonthKey, locale);
+  const effCheck = isStarter
+    ? getEffectiveMemberPaymentStatus(member, referenceDate ?? new Date(), locale)
+    : null;
+  const isPaid = paidResult.isPaid || Boolean(effCheck && effCheck.nextMonthKey === targetMonthKey && effCheck.isNextMonthPaid);
+  const paidAmount = paidResult.amount || effCheck?.nextMonthAmount || 0;
 
   return {
     isStarter,
@@ -478,8 +576,8 @@ export function getMemberNextMonthInfo(
     targetMonthEndDate,
     targetMonthStartDisplay,
     targetMonthEndDisplay,
-    isPaid: paidResult.isPaid,
-    paidAmount: paidResult.amount,
+    isPaid,
+    paidAmount,
     paymentId: paidResult.paymentId,
   };
 }
@@ -582,7 +680,10 @@ export function getEffectiveMemberPaymentStatus(
     duration?: string | null;
     formula?: string | null;
     paymentStatus?: string | null;
+    priceDA?: number | null;
     notes?: string | null;
+    dateOfStart?: Date | string | null;
+    subscriptionStart?: Date | string | null;
     subscriptionEnd?: Date | string | null;
     payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
   } | null | undefined,
@@ -592,9 +693,9 @@ export function getEffectiveMemberPaymentStatus(
   const originalStatus = (member?.paymentStatus || "unpaid").toLowerCase().trim();
   const isStarter = isStarterFormula(member?.duration, member?.formula);
 
-  const nextMonthDate = getNextMonthDate(referenceDate);
-  const nextMonthKey = formatMonthKey(nextMonthDate);
-  const nextMonthLabel = formatMonthLabel(nextMonthDate, locale);
+  const defaultNextMonthDate = getNextMonthDate(referenceDate);
+  const defaultNextMonthKey = formatMonthKey(defaultNextMonthDate);
+  const defaultNextMonthLabel = formatMonthLabel(defaultNextMonthDate, locale);
 
   if (!isStarter) {
     const effectiveStatus: EffectivePaymentStatus =
@@ -605,36 +706,109 @@ export function getEffectiveMemberPaymentStatus(
       isStarter: false,
       isAfterCutoff: false,
       isNextMonthPaid: false,
-      nextMonthKey,
-      nextMonthLabel,
+      nextMonthKey: defaultNextMonthKey,
+      nextMonthLabel: defaultNextMonthLabel,
     };
   }
 
-  // Starter formula
-  const nextMonthCheck = isMemberNextMonthPaid(member, nextMonthKey, locale);
-  let isNextMonthPaid = nextMonthCheck.isPaid;
+  // Starter formula (1m)
+  const refUTC = toUTCMidnight(referenceDate);
+  const isRefDay25OrLater = referenceDate.getUTCDate() >= 25 || referenceDate.getDate() >= 25;
 
-  // Also verify if subscriptionEnd date is already on or beyond next month start
-  if (!isNextMonthPaid && member?.subscriptionEnd) {
+  // Determine the member's base starting month and its 25th cutoff date
+  let baseMonthEnd: Date;
+  if (member?.subscriptionStart || member?.dateOfStart) {
+    const effStart = getEffectiveSubscriptionStart(member.subscriptionStart ?? member.dateOfStart);
+    baseMonthEnd = getLastDayOfSameMonth(effStart);
+  } else if (member?.subscriptionEnd) {
     const subEnd = new Date(member.subscriptionEnd);
-    if (!isNaN(subEnd.getTime()) && subEnd >= nextMonthDate) {
-      isNextMonthPaid = true;
-    }
+    baseMonthEnd = !isNaN(subEnd.getTime()) ? getLastDayOfSameMonth(subEnd) : getLastDayOfSameMonth(refUTC);
+  } else {
+    baseMonthEnd = getLastDayOfSameMonth(refUTC);
   }
 
-  // 25th cut-off check
-  const isAfterCutoff = referenceDate.getUTCDate() >= 25 || referenceDate.getDate() >= 25;
+  const baseCutoffDate = new Date(Date.UTC(baseMonthEnd.getUTCFullYear(), baseMonthEnd.getUTCMonth(), 25));
+  const isPastBaseCutoff = refUTC.getTime() >= baseCutoffDate.getTime();
+  const isAfterCutoff = isPastBaseCutoff || isRefDay25OrLater;
+
+  // Determine the target renewal month that must be settled once cutoff is reached:
+  // - On days 25..31 of referenceDate's month: next calendar month after referenceDate.
+  // - On days 1..24 of referenceDate's month when past baseCutoffDate (e.g. Nov 1..24 for an Oct subscriber):
+  //   the current month of referenceDate (which is the renewal month they crossed into after the 25th).
+  let targetMonthDate: Date;
+  if (isRefDay25OrLater) {
+    targetMonthDate = defaultNextMonthDate;
+  } else if (isPastBaseCutoff) {
+    targetMonthDate = new Date(Date.UTC(refUTC.getUTCFullYear(), refUTC.getUTCMonth(), 1));
+  } else {
+    targetMonthDate = defaultNextMonthDate;
+  }
+
+  const nextMonthKey = formatMonthKey(targetMonthDate);
+  const nextMonthLabel = formatMonthLabel(targetMonthDate, locale);
+
+  // 1. Check explicit next-month tags ([NEXT_MONTH:YYYY-MM] in payments or [NEXT_MONTH_PAID:YYYY-MM] in notes)
+  const nextMonthCheck = isMemberNextMonthPaid(member, nextMonthKey, locale);
+  let isNextMonthPaid = nextMonthCheck.isPaid;
+  let nextMonthAmount = nextMonthCheck.amount;
+  let isRenewalPartial = false;
+
+  // 2. Also recognize untagged renewal payments recorded on/after the 25th cutoff preceding targetMonthDate
+  if (!isNextMonthPaid && Array.isArray(member?.payments) && member.payments.length > 0) {
+    const renewalCutoffDate = new Date(
+      Date.UTC(targetMonthDate.getUTCFullYear(), targetMonthDate.getUTCMonth() - 1, 25)
+    );
+    const paymentsAfterCutoff = member.payments.filter((p) => {
+      if (!p?.paidAt) return false;
+      const pd = new Date(p.paidAt);
+      return !isNaN(pd.getTime()) && toUTCMidnight(pd).getTime() >= renewalCutoffDate.getTime();
+    });
+    const paymentsBeforeCutoff = member.payments.filter((p) => {
+      if (!p?.paidAt) return true;
+      const pd = new Date(p.paidAt);
+      return isNaN(pd.getTime()) || toUTCMidnight(pd).getTime() < renewalCutoffDate.getTime();
+    });
+
+    const expectedPrice = member?.priceDA ?? 0;
+    const totalAllPayments = member.payments.reduce((s, p) => s + (p?.amount || 0), 0);
+    const hasPaidInNewMonthAfterPriorStart = paymentsAfterCutoff.some((p) => {
+      if (!p?.paidAt) return false;
+      const pd = toUTCMidnight(new Date(p.paidAt));
+      return pd.getTime() >= targetMonthDate.getTime() && baseMonthEnd.getTime() < targetMonthDate.getTime();
+    });
+
+    if (
+      paymentsAfterCutoff.length > 0 &&
+      (paymentsBeforeCutoff.length > 0 ||
+        hasPaidInNewMonthAfterPriorStart ||
+        (expectedPrice > 0 && totalAllPayments >= expectedPrice * 2))
+    ) {
+      const renewalSum = paymentsAfterCutoff.reduce((s, p) => s + (p?.amount || 0), 0);
+      nextMonthAmount = renewalSum;
+      if (expectedPrice > 0) {
+        if (renewalSum >= expectedPrice) {
+          isNextMonthPaid = true;
+        } else if (renewalSum > 0) {
+          isRenewalPartial = true;
+        }
+      } else if (renewalSum > 0) {
+        isNextMonthPaid = true;
+      }
+    }
+  }
 
   let effectiveStatus: EffectivePaymentStatus;
   if (isAfterCutoff) {
     if (isNextMonthPaid) {
       effectiveStatus = "paid";
+    } else if (isRenewalPartial) {
+      effectiveStatus = "partial";
     } else {
-      // Must be changed to unpaid on or after 25th if next month is not paid
+      // Must be changed to unpaid on or after 25th if next/renewal month is not paid
       effectiveStatus = "unpaid";
     }
   } else {
-    // Before 25th
+    // Before 25th of the member's starting month
     if (isNextMonthPaid) {
       effectiveStatus = "paid";
     } else {
@@ -651,6 +825,6 @@ export function getEffectiveMemberPaymentStatus(
     isNextMonthPaid,
     nextMonthKey,
     nextMonthLabel,
-    nextMonthAmount: nextMonthCheck.amount,
+    nextMonthAmount,
   };
 }

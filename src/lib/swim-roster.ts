@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { decodeMemberGroupIds } from "@/lib/swim-groups";
+import {
+  getEffectiveSubscriptionEnd,
+  getEffectiveMemberPaymentStatus,
+} from "@/lib/swim-subscription";
 
 export interface ResolvedGroupMember {
   id: string;
@@ -40,6 +44,10 @@ export async function getGroupRoster(groupId: string): Promise<ResolvedGroupMemb
       card: {
         select: { cardCode: true, status: true },
       },
+      payments: {
+        select: { id: true, amount: true, notes: true, paidAt: true },
+        orderBy: { paidAt: "desc" },
+      },
     },
     orderBy: { fullName: "asc" },
   });
@@ -54,6 +62,10 @@ export async function getGroupRoster(groupId: string): Promise<ResolvedGroupMemb
       card: {
         select: { cardCode: true, status: true },
       },
+      payments: {
+        select: { id: true, amount: true, notes: true, paidAt: true },
+        orderBy: { paidAt: "desc" },
+      },
     },
     orderBy: { fullName: "asc" },
   });
@@ -63,6 +75,11 @@ export async function getGroupRoster(groupId: string): Promise<ResolvedGroupMemb
   // Add primary members
   for (const m of primaryMembers) {
     const assigned = decodeMemberGroupIds(m.notes, m.groupId);
+    const subEnd = getEffectiveSubscriptionEnd(m);
+    const effStatus = getEffectiveMemberPaymentStatus({
+      ...m,
+      subscriptionEnd: subEnd,
+    });
     memberMap.set(m.id, {
       id: m.id,
       swimId: m.swimId,
@@ -75,12 +92,12 @@ export async function getGroupRoster(groupId: string): Promise<ResolvedGroupMemb
       formula: m.formula,
       duration: m.duration,
       priceDA: m.priceDA,
-      paymentStatus: m.paymentStatus,
+      paymentStatus: effStatus.effectiveStatus,
       groupStatus: m.groupStatus,
       cardCode: m.card?.cardCode ?? null,
       cardStatus: m.card?.status ?? null,
       subscriptionStart: m.subscriptionStart,
-      subscriptionEnd: m.subscriptionEnd,
+      subscriptionEnd: subEnd,
       isMultiGroup: assigned.length > 1,
     });
   }
@@ -90,6 +107,11 @@ export async function getGroupRoster(groupId: string): Promise<ResolvedGroupMemb
     if (memberMap.has(m.id)) continue;
     const assigned = decodeMemberGroupIds(m.notes, m.groupId);
     if (assigned.includes(groupId)) {
+      const subEnd = getEffectiveSubscriptionEnd(m);
+      const effStatus = getEffectiveMemberPaymentStatus({
+        ...m,
+        subscriptionEnd: subEnd,
+      });
       memberMap.set(m.id, {
         id: m.id,
         swimId: m.swimId,
@@ -102,12 +124,12 @@ export async function getGroupRoster(groupId: string): Promise<ResolvedGroupMemb
         formula: m.formula,
         duration: m.duration,
         priceDA: m.priceDA,
-        paymentStatus: m.paymentStatus,
+        paymentStatus: effStatus.effectiveStatus,
         groupStatus: m.groupStatus,
         cardCode: m.card?.cardCode ?? null,
         cardStatus: m.card?.status ?? null,
         subscriptionStart: m.subscriptionStart,
-        subscriptionEnd: m.subscriptionEnd,
+        subscriptionEnd: subEnd,
         isMultiGroup: true,
       });
     }

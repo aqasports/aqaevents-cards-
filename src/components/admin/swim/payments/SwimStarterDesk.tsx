@@ -4,7 +4,12 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { Input } from "@/components/admin/ui";
 import { isMemberAssignedToGroup } from "@/lib/swim-groups";
-import { isMemberNextMonthPaid, formatMonthKey, formatMonthLabel } from "@/lib/swim-subscription";
+import {
+  isMemberNextMonthPaid,
+  getEffectiveMemberPaymentStatus,
+  formatMonthKey,
+  formatMonthLabel,
+} from "@/lib/swim-subscription";
 import { getSwimPaymentRequestWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { useLocale, useTranslations } from "@/lib/i18n";
 
@@ -57,18 +62,39 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
 
   // Filter only Starter formula subscribers
   const starterMembers = useMemo(() => {
-    return members.filter((m) => {
-      // STRICT RULE: Non-assigned clients never have a formula or expectations
-      const isAssigned = m.isAssigned !== undefined ? m.isAssigned : isMemberAssignedToGroup(m);
-      if (!isAssigned) return false;
-      return m.isStarter;
-    });
-  }, [members]);
+    return members
+      .filter((m) => {
+        // STRICT RULE: Non-assigned clients never have a formula or expectations
+        const isAssigned = m.isAssigned !== undefined ? m.isAssigned : isMemberAssignedToGroup(m);
+        if (!isAssigned) return false;
+        return m.isStarter;
+      })
+      .map((m) => {
+        const effStatus = getEffectiveMemberPaymentStatus(
+          {
+            ...m,
+            priceDA: m.effectivePriceDA,
+            subscriptionEnd: m.subEnd,
+            subscriptionStart: m.subStart,
+          },
+          new Date(),
+          locale
+        );
+        return {
+          ...m,
+          paymentStatus: effStatus.effectiveStatus,
+          effNextMonthPaid: effStatus.isNextMonthPaid,
+        };
+      });
+  }, [members, locale]);
 
   // Next month label calculation
   const nextMonthInfo = useMemo(() => {
     const now = new Date();
-    const nextMonthDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const isAfter25th = now.getUTCDate() >= 25 || now.getDate() >= 25;
+    const nextMonthDate = isAfter25th
+      ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+      : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const monthKey = formatMonthKey(nextMonthDate);
     const monthLabel = formatMonthLabel(nextMonthDate, locale);
     return {
@@ -90,7 +116,9 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
 
   // Pre-payment metrics for next month
   const nextMonthPaidMembers = useMemo(() => {
-    return starterMembers.filter((m) => isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid);
+    return starterMembers.filter(
+      (m) => m.effNextMonthPaid && isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid
+    );
   }, [starterMembers, nextMonthInfo.monthKey]);
 
   const nextMonthPaidCount = nextMonthPaidMembers.length;
@@ -148,7 +176,8 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
       if (statusFilter === "partial") return m.paymentStatus === "partial";
       if (statusFilter === "unpaid") return m.paymentStatus === "unpaid";
       if (statusFilter === "expiring") return m.daysLeft <= 14;
-      if (statusFilter === "next_month_paid") return isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid;
+      if (statusFilter === "next_month_paid")
+        return m.effNextMonthPaid && isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid;
       return true;
     });
   }, [starterMembers, searchTerm, statusFilter, nextMonthInfo.monthKey]);
@@ -456,7 +485,7 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
                   <td className="px-3 py-2.5">
                     {(() => {
                       const nextMonthStatus = isMemberNextMonthPaid(m, nextMonthInfo.monthKey);
-                      if (nextMonthStatus.isPaid) {
+                      if (m.effNextMonthPaid && nextMonthStatus.isPaid) {
                         return (
                           <div className="p-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 space-y-0.5">
                             <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold">
@@ -522,7 +551,7 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
                           {t("renewAction")}
                         </button>
                       )}
-                      {isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid ? (
+                      {m.effNextMonthPaid && isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid ? (
                         <span className="px-2 py-1 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
                           {t("nextMonthSettledBadge", { month: nextMonthInfo.monthLabel })}
                         </span>

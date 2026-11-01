@@ -32,6 +32,7 @@ import {
 } from "@/lib/swim-pricing";
 import {
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
   subscriptionDaysLeft,
   getSubscriptionStatus,
@@ -435,6 +436,7 @@ function SwimOverviewPageInner() {
       const matchCategory = categoryFilter === "all" || m.category === categoryFilter;
 
       const sit = getMemberPaymentSituation(m);
+      const effPayStatus = sit.isAssigned ? sit.effectivePaymentStatus : m.paymentStatus;
       let matchPayment = true;
       if (paymentFilter === "all") {
         matchPayment = true;
@@ -443,11 +445,11 @@ function SwimOverviewPageInner() {
       } else if (paymentFilter === "unassigned") {
         matchPayment = !sit.isAssigned && !sit.isDebtOnly;
       } else if (paymentFilter === "unpaid") {
-        matchPayment = sit.isLinkedToPayment && (m.paymentStatus === "unpaid" || sit.debt > 0);
+        matchPayment = sit.isLinkedToPayment && (effPayStatus === "unpaid" || sit.debt > 0);
       } else if (paymentFilter === "paid") {
-        matchPayment = sit.isLinkedToPayment && m.paymentStatus === "paid" && sit.debt === 0;
+        matchPayment = sit.isLinkedToPayment && effPayStatus === "paid" && sit.debt === 0;
       } else if (paymentFilter === "partial") {
-        matchPayment = sit.isLinkedToPayment && m.paymentStatus === "partial";
+        matchPayment = sit.isLinkedToPayment && effPayStatus === "partial";
       }
 
       return matchSearch && matchLevel && matchCategory && matchPayment;
@@ -501,15 +503,16 @@ function SwimOverviewPageInner() {
   const enrichedPaymentsMembers = useMemo(() => {
     if (!Array.isArray(members)) return [];
     return members.map((m) => {
-      const situation = getMemberPaymentSituation(m);
-      const totalPaid = situation.totalPaid;
-      const debt = situation.debt;
       const subStart = m.subscriptionStart
         ? getEffectiveSubscriptionStart(m.subscriptionStart)
         : getEffectiveSubscriptionStart(m.dateOfStart);
-      const subEnd = m.subscriptionEnd
-        ? new Date(m.subscriptionEnd)
-        : computeSubscriptionEnd(subStart, m.duration, excludedPeriods, m.formula);
+      const subEnd = getEffectiveSubscriptionEnd(m, excludedPeriods);
+      const situation = getMemberPaymentSituation({
+        ...m,
+        subscriptionEnd: subEnd,
+      });
+      const totalPaid = situation.totalPaid;
+      const debt = situation.debt;
       const daysLeft = subscriptionDaysLeft(subEnd);
       const subStatus = getSubscriptionStatus(subEnd);
       const expiringSoon = isSubscriptionExpiringSoon(subEnd, 14);
@@ -520,8 +523,16 @@ function SwimOverviewPageInner() {
       const nominalDays = isStarter
         ? Math.max(1, Math.round((subEnd.getTime() - subStart.getTime()) / (24 * 60 * 60 * 1000)) + 1)
         : durationToDays(m.duration);
+      const effectivePaymentStatus = isAssigned
+        ? situation.effectivePaymentStatus
+        : m.paymentStatus;
       return {
         ...m,
+        paymentStatus: effectivePaymentStatus,
+        originalPaymentStatus: m.paymentStatus,
+        effectivePaymentStatus: situation.effectivePaymentStatus,
+        isAfterCutoff: situation.isAfterCutoff,
+        isNextMonthPaid: situation.isNextMonthPaid,
         isStarter,
         isPremium,
         nominalDays,
@@ -1473,9 +1484,9 @@ function SwimOverviewPageInner() {
                                   }
                                   return (
                                     <>
-                                      {m.paymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
-                                      {m.paymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
-                                      {m.paymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
+                                      {sit.effectivePaymentStatus === "paid" && <Badge tone="success">Paid</Badge>}
+                                      {sit.effectivePaymentStatus === "partial" && <Badge tone="warning">Partial</Badge>}
+                                      {sit.effectivePaymentStatus === "unpaid" && <Badge tone="danger">Unpaid</Badge>}
                                     </>
                                   );
                                 })()}
@@ -2229,7 +2240,7 @@ function SwimOverviewPageInner() {
                 <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
                   paymentSubTab === "requests" ? "bg-white/20 text-white" : "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
                 }`}>
-                  {enrichedPaymentsMembers.filter((m) => m.isLinkedToPayment).length}
+                  {enrichedPaymentsMembers.filter((m) => m.isLinkedToPayment && (m.isStarter || m.daysLeft <= 10)).length}
                 </span>
               </button>
             </div>
@@ -2266,6 +2277,7 @@ function SwimOverviewPageInner() {
           {paymentSubTab === "requests" && (
             <SwimPaymentRequestsDesk
               members={enrichedPaymentsMembers}
+              groups={groups}
               onReload={loadAllData}
               initialPromptMember={initialPromptRequestMember}
               onClearInitialPromptMember={() => setInitialPromptRequestMember(null)}

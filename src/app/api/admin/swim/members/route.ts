@@ -6,9 +6,11 @@ import { generateSwimId, generateSwimToken, generateSwimCardCode } from "@/lib/s
 import {
   computeMemberSubscriptionDates,
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
+  getEffectiveMemberPaymentStatus,
 } from "@/lib/swim-subscription";
-import { decodeMemberGroupIds } from "@/lib/swim-groups";
+import { decodeMemberGroupIds, getMemberPaymentSituation } from "@/lib/swim-groups";
 import { recordSwimmerGroupChangeNotification } from "@/lib/swim-coach-notifications";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +37,7 @@ export async function GET(request: NextRequest) {
     }
     if (level && level !== "all") where.level = level;
     if (groupId && groupId !== "all") where.groupId = groupId;
-    if (paymentStatus && paymentStatus !== "all") where.paymentStatus = paymentStatus;
     if (category && category !== "all") where.category = category;
-
-    const includePayments = searchParams.get("includePayments") === "true";
 
     const members = await prisma.swimMember.findMany({
       where,
@@ -62,25 +61,53 @@ export async function GET(request: NextRequest) {
             status: true,
           },
         },
-        ...(includePayments
-          ? {
-              payments: {
-                orderBy: { paidAt: "desc" },
-              },
-            }
-          : {}),
+        payments: {
+          orderBy: { paidAt: "desc" },
+        },
       },
     });
 
-    // Enrich each member with effectiveGroup / effectivelyUnassigned
-    const enriched = members.map((m) => {
-      const effectivelyUnassigned = !!(m.groupId && m.group && !m.group.active);
-      return {
-        ...m,
-        effectiveGroup: effectivelyUnassigned ? null : m.group,
-        effectivelyUnassigned,
-      };
-    });
+    const now = new Date();
+    // Enrich each member with effectiveGroup, effectivelyUnassigned, and effective paymentStatus (25th cutoff rule)
+    const enriched = members
+      .map((m) => {
+        const effectivelyUnassigned = !!(m.groupId && m.group && !m.group.active);
+        const effectiveGroup = effectivelyUnassigned ? null : m.group;
+        const effectiveSubEnd = getEffectiveSubscriptionEnd(m);
+        const effStatus = getEffectiveMemberPaymentStatus(
+          { ...m, subscriptionEnd: effectiveSubEnd },
+          now
+        );
+        const paymentSituation = getMemberPaymentSituation(
+          {
+            ...m,
+            subscriptionEnd: effectiveSubEnd,
+            effectiveGroup,
+            effectivelyUnassigned,
+          },
+          now
+        );
+        const effectivePaymentStatus = paymentSituation.isAssigned
+          ? paymentSituation.effectivePaymentStatus
+          : effStatus.effectiveStatus;
+
+        return {
+          ...m,
+          paymentStatus: effectivePaymentStatus,
+          originalPaymentStatus: m.paymentStatus,
+          effectivePaymentStatus,
+          isAfterCutoff: effStatus.isAfterCutoff,
+          isNextMonthPaid: effStatus.isNextMonthPaid,
+          subscriptionEnd: effectiveSubEnd,
+          effectiveGroup,
+          effectivelyUnassigned,
+          paymentSituation,
+        };
+      })
+      .filter((m) => {
+        if (!paymentStatus || paymentStatus === "all") return true;
+        return m.paymentStatus === paymentStatus;
+      });
 
     return NextResponse.json(enriched);
   } catch (err: unknown) {

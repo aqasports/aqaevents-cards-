@@ -7,6 +7,34 @@ import { DEFAULT_SWIM_LOCATIONS } from "@/lib/swim-groups";
 export const dynamic = "force-dynamic";
 
 const LOCATIONS_SETTING_KEY = "swim_locations";
+const BARIDIMOB_RIP_SETTING_KEY = "swim_baridimob_rip";
+
+async function getStoredRip(): Promise<string> {
+  try {
+    const setting = await prisma.platformSetting.findUnique({
+      where: { key: BARIDIMOB_RIP_SETTING_KEY },
+    });
+    return setting?.value?.trim() || "";
+  } catch (err) {
+    logger.error("Failed to read swim_baridimob_rip from PlatformSetting:", err);
+    return "";
+  }
+}
+
+async function saveStoredRip(rip: string): Promise<string> {
+  const cleaned = rip.trim();
+  await prisma.platformSetting.upsert({
+    where: { key: BARIDIMOB_RIP_SETTING_KEY },
+    create: {
+      key: BARIDIMOB_RIP_SETTING_KEY,
+      value: cleaned,
+    },
+    update: {
+      value: cleaned,
+    },
+  });
+  return cleaned;
+}
 
 async function getStoredLocations(): Promise<string[]> {
   try {
@@ -56,7 +84,7 @@ export async function GET() {
   if (error || !session) return error;
 
   try {
-    const [coaches, locations] = await Promise.all([
+    const [coaches, locations, baridimobRip] = await Promise.all([
       prisma.coach.findMany({
         where: { active: true },
         orderBy: { name: "asc" },
@@ -69,9 +97,10 @@ export async function GET() {
         },
       }),
       getStoredLocations(),
+      getStoredRip(),
     ]);
 
-    return NextResponse.json({ coaches, locations });
+    return NextResponse.json({ coaches, locations, baridimobRip });
   } catch (err: unknown) {
     logger.error("GET swim preferences error:", err);
     return NextResponse.json({ error: "Failed to fetch swim preferences" }, { status: 500 });
@@ -85,6 +114,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action } = body;
+
+    if (action === "save_rip") {
+      const rip = typeof body.rip === "string" ? body.rip.trim() : "";
+      const saved = await saveStoredRip(rip);
+      return NextResponse.json({ success: true, baridimobRip: saved });
+    }
 
     if (action === "add_location") {
       const locationName = body.locationName?.trim();

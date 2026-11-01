@@ -19,6 +19,7 @@ import {
   getMemberNextMonthInfo,
   getFormulaBadgeInfo,
   getEffectiveMemberPaymentStatus,
+  isEligibleForPaymentRequest,
 } from "./swim-subscription";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -505,5 +506,36 @@ describe("getEffectiveMemberPaymentStatus (25th Cut-off Rule)", () => {
     const res = getEffectiveMemberPaymentStatus(diamondMember, day28);
     expect(res.isStarter).toBe(false);
     expect(res.effectiveStatus).toBe("paid");
+  });
+
+  describe("isEligibleForPaymentRequest: 10-day expiration rule for other formulas", () => {
+    it("never shows other formulas if they have more than 10 days to expiration", () => {
+      // 11 days or more left -> NOT eligible (hidden)
+      expect(isEligibleForPaymentRequest(false, 11)).toBe(false);
+      expect(isEligibleForPaymentRequest(false, 15)).toBe(false);
+      expect(isEligibleForPaymentRequest(false, 30)).toBe(false);
+      expect(isEligibleForPaymentRequest(false, 90)).toBe(false);
+    });
+
+    it("shows other formulas when they have 10 days or fewer to expiration", () => {
+      // Exactly 10 days left -> eligible
+      expect(isEligibleForPaymentRequest(false, 10)).toBe(true);
+      // 5 days left -> eligible
+      expect(isEligibleForPaymentRequest(false, 5)).toBe(true);
+      // 1 day left -> eligible
+      expect(isEligibleForPaymentRequest(false, 1)).toBe(true);
+      // Expired today (0 days left) -> eligible
+      expect(isEligibleForPaymentRequest(false, 0)).toBe(true);
+      // Expired in past (-5 days) -> eligible
+      expect(isEligibleForPaymentRequest(false, -5)).toBe(true);
+    });
+
+    it("Starter formulas remain eligible based on their monthly cycle regardless of daysLeft", () => {
+      expect(isEligibleForPaymentRequest(true, 25)).toBe(true);
+      expect(isEligibleForPaymentRequest(true, 12)).toBe(true);
+      expect(isEligibleForPaymentRequest(true, 3)).toBe(true);
+      expect(isEligibleForPaymentRequest(true, 0)).toBe(true);
+      expect(isEligibleForPaymentRequest(true, -1)).toBe(true);
+    });
   });
 });

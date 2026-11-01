@@ -11,6 +11,8 @@ import {
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import {
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
+  getEffectiveMemberPaymentStatus,
   computeSubscriptionEnd,
 } from "@/lib/swim-subscription";
 
@@ -104,7 +106,7 @@ export async function GET(
           include: {
             payments: {
               orderBy: { paidAt: "desc" },
-              select: { id: true, amount: true, method: true, paidAt: true },
+              select: { id: true, amount: true, method: true, notes: true, paidAt: true },
             },
             card: {
               select: { cardCode: true, status: true },
@@ -150,7 +152,7 @@ export async function GET(
         include: {
           payments: {
             orderBy: { paidAt: "desc" },
-            select: { id: true, amount: true, method: true, paidAt: true },
+            select: { id: true, amount: true, method: true, notes: true, paidAt: true },
           },
           card: {
             select: { cardCode: true, status: true },
@@ -216,10 +218,26 @@ export async function GET(
           }
         }
 
-        const remaining = Math.max(0, effectivePriceDA - totalPaid);
+        const subStart = s.subscriptionStart
+          ? s.subscriptionStart
+          : getEffectiveSubscriptionStart(s.dateOfStart);
+        const subEnd = getEffectiveSubscriptionEnd(s);
+
+        const effStatus = getEffectiveMemberPaymentStatus({
+          ...s,
+          priceDA: effectivePriceDA,
+          subscriptionEnd: subEnd,
+        });
+
+        let remaining = Math.max(0, effectivePriceDA - totalPaid);
 
         let effectivePaymentStatus: "paid" | "partial" | "unpaid" = "unpaid";
-        if (
+        if (effStatus.isStarter && effStatus.isAfterCutoff && !effStatus.isNextMonthPaid) {
+          effectivePaymentStatus = effStatus.effectiveStatus;
+          if (effectivePaymentStatus === "unpaid") {
+            remaining = effectivePriceDA;
+          }
+        } else if (
           s.paymentStatus === "paid" ||
           (effectivePriceDA > 0 && totalPaid >= effectivePriceDA)
         ) {
@@ -227,13 +245,6 @@ export async function GET(
         } else if (s.paymentStatus === "partial" || totalPaid > 0) {
           effectivePaymentStatus = "partial";
         }
-
-        const subStart = s.subscriptionStart
-          ? s.subscriptionStart
-          : getEffectiveSubscriptionStart(s.dateOfStart);
-        const subEnd = s.subscriptionEnd
-          ? s.subscriptionEnd
-          : computeSubscriptionEnd(subStart, s.duration, undefined, s.formula);
 
         return {
           id: s.id,

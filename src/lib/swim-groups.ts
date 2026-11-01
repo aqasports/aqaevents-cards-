@@ -2,6 +2,12 @@
 // Production-grade helpers for group naming, types, time slots, and solid tracking.
 // Standard Western Arabic numerals only. No emojis.
 
+import {
+  getEffectiveMemberPaymentStatus,
+  isStarterFormula,
+  type EffectivePaymentStatus,
+} from "./swim-subscription";
+
 export type SwimGroupType = "G10" | "MAX5" | "indiv";
 
 export const SWIM_GROUP_TYPES: readonly SwimGroupType[] = ["G10", "MAX5", "indiv"] as const;
@@ -546,14 +552,20 @@ export interface MemberPaymentSituation {
   debt: number;
   hasDebt: boolean;
   debtDetails: ParsedSwimDebt;
+  effectivePaymentStatus: EffectivePaymentStatus;
+  isAfterCutoff: boolean;
+  isNextMonthPaid: boolean;
 }
 
 /**
  * Calculates whether a member is in the payment situation, their effective tariff,
- * and their balance.
+ * their balance, and their effective payment status (including the Starter 25th cutoff rule).
  *
  * Rules:
  * 1. Assigned clients to a group are automatically linked to payment situation.
+ *    For Starter (1m) subscribers who have reached/crossed the 25th cutoff without paying
+ *    for the renewal month, effectivePaymentStatus becomes "unpaid" and debt reflects the
+ *    unpaid monthly renewal tariff.
  * 2. Non-assigned clients are NOT automatically linked to payment situation
  *    UNLESS an explicit debt is set (ancien unsettled payment).
  */
@@ -564,10 +576,17 @@ export function getMemberPaymentSituation(
     effectivelyUnassigned?: boolean;
     groups?: Array<{ id: string; active?: boolean }>;
     group?: { id: string; active?: boolean } | null;
+    duration?: string | null;
+    formula?: string | null;
+    paymentStatus?: string | null;
+    dateOfStart?: Date | string | null;
+    subscriptionStart?: Date | string | null;
+    subscriptionEnd?: Date | string | null;
     notes?: string | null;
     priceDA?: number;
-    payments?: Array<{ amount: number }>;
-  } | null | undefined
+    payments?: Array<{ id?: string; amount: number; notes?: string | null; paidAt?: Date | string | null }>;
+  } | null | undefined,
+  referenceDate: Date = new Date()
 ): MemberPaymentSituation {
   if (!member) {
     return {
@@ -579,6 +598,9 @@ export function getMemberPaymentSituation(
       debt: 0,
       hasDebt: false,
       debtDetails: { hasDebt: false, amount: 0, reason: "" },
+      effectivePaymentStatus: "unpaid",
+      isAfterCutoff: false,
+      isNextMonthPaid: false,
     };
   }
 
@@ -591,7 +613,80 @@ export function getMemberPaymentSituation(
   // Case 1: Assigned to a group -> automatically linked to payment situation
   if (isAssigned) {
     const effectivePriceDA = member.priceDA ?? 0;
+    const isStarter = isStarterFormula(member.duration, member.formula);
+
+    if (isStarter) {
+      const eff = getEffectiveMemberPaymentStatus(member, referenceDate);
+      if (eff.isAfterCutoff) {
+        if (eff.isNextMonthPaid) {
+          return {
+            isAssigned: true,
+            isLinkedToPayment: true,
+            isDebtOnly: false,
+            effectivePriceDA,
+            totalPaid,
+            debt: 0,
+            hasDebt: false,
+            debtDetails,
+            effectivePaymentStatus: "paid",
+            isAfterCutoff: true,
+            isNextMonthPaid: true,
+          };
+        }
+        const renewalPaid = eff.nextMonthAmount || 0;
+        const debt = effectivePriceDA > 0 ? Math.max(0, effectivePriceDA - renewalPaid) : 0;
+        return {
+          isAssigned: true,
+          isLinkedToPayment: true,
+          isDebtOnly: false,
+          effectivePriceDA,
+          totalPaid,
+          debt,
+          hasDebt: debt > 0 || eff.effectiveStatus !== "paid",
+          debtDetails,
+          effectivePaymentStatus: eff.effectiveStatus,
+          isAfterCutoff: true,
+          isNextMonthPaid: false,
+        };
+      }
+
+      const debt = Math.max(0, effectivePriceDA - totalPaid);
+      const effectivePaymentStatus: EffectivePaymentStatus =
+        debt === 0 && (totalPaid > 0 || eff.effectiveStatus === "paid")
+          ? "paid"
+          : totalPaid > 0 && debt > 0
+          ? "partial"
+          : eff.effectiveStatus;
+      return {
+        isAssigned: true,
+        isLinkedToPayment: true,
+        isDebtOnly: false,
+        effectivePriceDA,
+        totalPaid,
+        debt,
+        hasDebt: debt > 0,
+        debtDetails,
+        effectivePaymentStatus,
+        isAfterCutoff: false,
+        isNextMonthPaid: eff.isNextMonthPaid,
+      };
+    }
+
     const debt = Math.max(0, effectivePriceDA - totalPaid);
+    const rawStatus = (member.paymentStatus || "unpaid").toLowerCase().trim();
+    const effectivePaymentStatus: EffectivePaymentStatus =
+      effectivePriceDA > 0
+        ? debt === 0 && (totalPaid >= effectivePriceDA || rawStatus === "paid")
+          ? "paid"
+          : totalPaid > 0 || rawStatus === "partial"
+          ? "partial"
+          : "unpaid"
+        : rawStatus === "paid"
+        ? "paid"
+        : rawStatus === "partial"
+        ? "partial"
+        : "unpaid";
+
     return {
       isAssigned: true,
       isLinkedToPayment: true,
@@ -601,6 +696,9 @@ export function getMemberPaymentSituation(
       debt,
       hasDebt: debt > 0,
       debtDetails,
+      effectivePaymentStatus,
+      isAfterCutoff: false,
+      isNextMonthPaid: false,
     };
   }
 
@@ -620,6 +718,9 @@ export function getMemberPaymentSituation(
       debt,
       hasDebt: debt > 0,
       debtDetails,
+      effectivePaymentStatus: debt === 0 ? "paid" : totalPaid > 0 ? "partial" : "unpaid",
+      isAfterCutoff: false,
+      isNextMonthPaid: false,
     };
   }
 
@@ -633,6 +734,9 @@ export function getMemberPaymentSituation(
     debt: 0,
     hasDebt: false,
     debtDetails,
+    effectivePaymentStatus: "unpaid",
+    isAfterCutoff: false,
+    isNextMonthPaid: false,
   };
 }
 

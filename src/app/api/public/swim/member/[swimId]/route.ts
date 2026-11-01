@@ -7,6 +7,7 @@ import {
   isOldSwimMember,
   extractFirstName,
   parseDebtFromNotes,
+  getMemberPaymentSituation,
 } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { checkAndIncrement } from "@/lib/rate-limit";
@@ -15,6 +16,7 @@ import { generateSwimCardCode, generateSwimToken } from "@/lib/swim-id";
 import { loadApneaProfile } from "@/lib/swim-apnea-profile";
 import {
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
   subscriptionDaysLeft,
   getSubscriptionStatus,
@@ -361,14 +363,28 @@ export async function GET(
     const subStart = member.subscriptionStart
       ? member.subscriptionStart
       : getEffectiveSubscriptionStart(member.dateOfStart);
-    const subEnd = member.subscriptionEnd
-      ? member.subscriptionEnd
-      : computeSubscriptionEnd(subStart, member.duration, undefined, member.formula);
+    const subEnd = getEffectiveSubscriptionEnd(member);
     const daysLeft = subscriptionDaysLeft(subEnd);
     const subStatus = getSubscriptionStatus(subEnd);
 
+    const paymentSituation = getMemberPaymentSituation({
+      ...member,
+      priceDA: enriched.effectivePriceDA,
+      groups: enriched.allGroups,
+      subscriptionEnd: subEnd,
+    });
+    const effectivePaymentStatus = paymentSituation.isAssigned
+      ? paymentSituation.effectivePaymentStatus
+      : member.paymentStatus;
+
     const safeMember: Record<string, unknown> = {
       ...member,
+      paymentStatus: effectivePaymentStatus,
+      originalPaymentStatus: member.paymentStatus,
+      effectivePaymentStatus: paymentSituation.effectivePaymentStatus,
+      isAfterCutoff: paymentSituation.isAfterCutoff,
+      isNextMonthPaid: paymentSituation.isNextMonthPaid,
+      debt: paymentSituation.debt,
       phone: maskPhone(member.phone),
       email: null,
       group: enriched.allGroups[0] ?? null,
@@ -501,8 +517,25 @@ export async function POST(
       });
 
       const enriched = await enrichMemberGroups(updated);
+      const subEnd = getEffectiveSubscriptionEnd(updated);
+      const paymentSituation = getMemberPaymentSituation({
+        ...updated,
+        priceDA: enriched.effectivePriceDA,
+        groups: enriched.allGroups,
+        subscriptionEnd: subEnd,
+      });
+      const effectivePaymentStatus = paymentSituation.isAssigned
+        ? paymentSituation.effectivePaymentStatus
+        : updated.paymentStatus;
       const safeUpdated: Record<string, unknown> = {
         ...updated,
+        paymentStatus: effectivePaymentStatus,
+        originalPaymentStatus: updated.paymentStatus,
+        effectivePaymentStatus: paymentSituation.effectivePaymentStatus,
+        isAfterCutoff: paymentSituation.isAfterCutoff,
+        isNextMonthPaid: paymentSituation.isNextMonthPaid,
+        debt: paymentSituation.debt,
+        subscriptionEnd: subEnd,
         phone: maskPhone(updated.phone),
         email: null,
         group: enriched.allGroups[0] ?? null,

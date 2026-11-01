@@ -14,6 +14,7 @@ import {
 } from "@/lib/swim-groups";
 import {
   getEffectiveSubscriptionStart,
+  getEffectiveSubscriptionEnd,
   computeSubscriptionEnd,
   subscriptionDaysLeft,
   getSubscriptionStatus,
@@ -83,21 +84,20 @@ export async function GET(
     const effectivelyUnassigned = effectiveGroups.length === 0;
     const effectiveGroup = effectiveGroups[0] || null;
 
+    const subStart = member.subscriptionStart
+      ? member.subscriptionStart
+      : getEffectiveSubscriptionStart(member.dateOfStart);
+    const subEnd = getEffectiveSubscriptionEnd(member);
+    const daysLeft = subscriptionDaysLeft(subEnd);
+    const subStatus = getSubscriptionStatus(subEnd);
+
     const paymentSituation = getMemberPaymentSituation({
       ...member,
+      subscriptionEnd: subEnd,
       effectiveGroup,
       effectivelyUnassigned,
       groups: effectiveGroups,
     });
-
-    const subStart = member.subscriptionStart
-      ? member.subscriptionStart
-      : getEffectiveSubscriptionStart(member.dateOfStart);
-    const subEnd = member.subscriptionEnd
-      ? member.subscriptionEnd
-      : computeSubscriptionEnd(subStart, member.duration, undefined, member.formula);
-    const daysLeft = subscriptionDaysLeft(subEnd);
-    const subStatus = getSubscriptionStatus(subEnd);
 
     const nextMonthInfo = getMemberNextMonthInfo({
       ...member,
@@ -106,6 +106,13 @@ export async function GET(
 
     return NextResponse.json({
       ...member,
+      paymentStatus: paymentSituation.isAssigned
+        ? paymentSituation.effectivePaymentStatus
+        : member.paymentStatus,
+      originalPaymentStatus: member.paymentStatus,
+      effectivePaymentStatus: paymentSituation.effectivePaymentStatus,
+      isAfterCutoff: paymentSituation.isAfterCutoff,
+      isNextMonthPaid: paymentSituation.isNextMonthPaid,
       groups: allGroups,
       effectiveGroups,
       groupIds: allGroupIds,
@@ -453,24 +460,30 @@ export async function PATCH(
     const effectivelyUnassigned = effectiveGroups.length === 0;
     const effectiveGroup = effectiveGroups[0] || null;
 
+    const subStart = updated.subscriptionStart
+      ? updated.subscriptionStart
+      : getEffectiveSubscriptionStart(updated.dateOfStart);
+    const subEnd = getEffectiveSubscriptionEnd(updated);
+    const daysLeft = subscriptionDaysLeft(subEnd);
+    const subStatus = getSubscriptionStatus(subEnd);
+
     const paymentSituation = getMemberPaymentSituation({
       ...updated,
+      subscriptionEnd: subEnd,
       effectiveGroup,
       effectivelyUnassigned,
       groups: effectiveGroups,
     });
 
-    const subStart = updated.subscriptionStart
-      ? updated.subscriptionStart
-      : getEffectiveSubscriptionStart(updated.dateOfStart);
-    const subEnd = updated.subscriptionEnd
-      ? updated.subscriptionEnd
-      : computeSubscriptionEnd(subStart, updated.duration, undefined, updated.formula);
-    const daysLeft = subscriptionDaysLeft(subEnd);
-    const subStatus = getSubscriptionStatus(subEnd);
-
     return NextResponse.json({
       ...updated,
+      paymentStatus: paymentSituation.isAssigned
+        ? paymentSituation.effectivePaymentStatus
+        : updated.paymentStatus,
+      originalPaymentStatus: updated.paymentStatus,
+      effectivePaymentStatus: paymentSituation.effectivePaymentStatus,
+      isAfterCutoff: paymentSituation.isAfterCutoff,
+      isNextMonthPaid: paymentSituation.isNextMonthPaid,
       groups: allGroups,
       effectiveGroups,
       groupIds: allGroupIds,
