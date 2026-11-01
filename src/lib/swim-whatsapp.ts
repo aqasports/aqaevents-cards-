@@ -121,7 +121,8 @@ export function resolveSwimWhatsApp(entity: {
   }
 
   // 3. Fallback to phone
-  if (phoneFormatted) {
+  const phoneDigits = (entity.phone || "").replace(/[^0-9]/g, "");
+  if (phoneFormatted && phoneDigits.length >= 8 && phoneDigits !== "0000000000" && !/^0+$/.test(phoneDigits)) {
     return {
       whatsappNumber: entity.phone?.trim() || null,
       formattedNumber: phoneFormatted,
@@ -136,6 +137,18 @@ export function resolveSwimWhatsApp(entity: {
     hasDistinctWhatsApp: false,
     source: "none",
   };
+}
+
+/**
+ * Returns true if the swimmer or lead has a valid linked phone or WhatsApp number.
+ */
+export function hasValidSwimPhone(entity: {
+  phone?: string | null;
+  notes?: string | null;
+  whatsapp?: string | null;
+} | null | undefined): boolean {
+  if (!entity) return false;
+  return Boolean(resolveSwimWhatsApp(entity).formattedNumber);
 }
 
 export interface SwimWhatsAppMessagePayload {
@@ -195,9 +208,11 @@ export function getSwimWhatsAppUrl(
   return `https://wa.me/${formattedNumber}?text=${text}`;
 }
 
-// ─── Renewal Notification ─────────────────────────────────────────────────────
+// ─── Admin Payment Request & Renewal Notifications ───────────────────────────
 
-export interface SwimRenewalPayload {
+export type PaymentRequestOptionMode = "both" | "baridimob" | "cash_pool";
+
+export interface SwimPaymentRequestPayload {
   fullName: string;
   phone?: string | null;
   notes?: string | null;
@@ -205,42 +220,240 @@ export interface SwimRenewalPayload {
   swimId?: string | null;
   formula?: string | null;
   duration?: string | null;
+  isStarter?: boolean;
+  amount?: number | null;
   subscriptionEnd?: Date | string | null;
+  nextMonthLabel?: string | null;
+  groupName?: string | null;
+  paymentOption?: PaymentRequestOptionMode;
+  baridimobRip?: string | null;
+  locale?: "fr" | "ar" | "en";
+}
+
+export type SwimRenewalPayload = SwimPaymentRequestPayload;
+
+function detectIsStarter(duration?: string | null, formula?: string | null): boolean {
+  const d = (duration || "").toLowerCase().trim();
+  const f = (formula || "").toLowerCase().trim();
+  return d === "1m" || d.includes("starter") || f.includes("starter");
 }
 
 /**
- * Generates a WhatsApp click-to-chat URL with a pre-filled subscription
- * renewal reminder message in French (matches the operational language of AQA Swim).
+ * Builds the payment request message sent by admin to a swimmer.
+ *
+ * Rules:
+ * - Starter clients (1m): Message states that the payment should be done from the 25th to the 31st.
+ * - Other formulas (Silver 3m, Gold 6m, Diamond 9m): Message states "your subscription will expire soon".
+ * - Includes the payment options we use: BaridiMob and Pay at Pool.
+ * - Strictly Western Arabic numerals (0-9) and no emojis.
  */
-export function getSwimRenewalWhatsAppUrl(entity: SwimRenewalPayload): string | null {
-  const { formattedNumber } = resolveSwimWhatsApp(entity);
-  if (!formattedNumber) return null;
-
-  const formulaText = entity.formula ? ` (${entity.formula})` : "";
-  const durationText = entity.duration ? ` ${entity.duration}` : "";
+export function buildSwimPaymentRequestMessage(payload: SwimPaymentRequestPayload): string {
+  const locale = payload.locale || "fr";
+  const isStarter =
+    payload.isStarter !== undefined
+      ? payload.isStarter
+      : detectIsStarter(payload.duration, payload.formula);
+  const optionMode: PaymentRequestOptionMode = payload.paymentOption || "both";
+  const rip = payload.baridimobRip?.trim() || "";
+  const formulaText = payload.formula ? ` (${payload.formula})` : "";
+  const durationText = payload.duration && !isStarter ? ` ${payload.duration}` : "";
+  const validAmount =
+    typeof payload.amount === "number" && !isNaN(payload.amount) && payload.amount > 0
+      ? Math.round(payload.amount)
+      : null;
 
   let endDateText = "";
-  if (entity.subscriptionEnd) {
-    const d = typeof entity.subscriptionEnd === "string"
-      ? new Date(entity.subscriptionEnd)
-      : entity.subscriptionEnd;
+  if (payload.subscriptionEnd) {
+    const d =
+      typeof payload.subscriptionEnd === "string"
+        ? new Date(payload.subscriptionEnd)
+        : payload.subscriptionEnd;
     if (!isNaN(d.getTime())) {
       const day = String(d.getUTCDate()).padStart(2, "0");
       const month = String(d.getUTCMonth() + 1).padStart(2, "0");
       const year = d.getUTCFullYear();
-      endDateText = ` le ${day}/${month}/${year}`;
+      if (locale === "en") {
+        endDateText = ` on ${day}/${month}/${year}`;
+      } else if (locale === "ar") {
+        endDateText = ` بتاريخ ${day}/${month}/${year}`;
+      } else {
+        endDateText = ` le ${day}/${month}/${year}`;
+      }
     }
   }
 
-  const text = encodeURIComponent(
-    `Salam ${entity.fullName},\n\n` +
-    `Votre abonnement AQA Swim${formulaText}${durationText} arrive a echeance${endDateText}.\n\n` +
-    `Pour renouveler votre abonnement et continuer a nager, contactez-nous ou visitez :\n` +
-    `https://aqasports.com/swim\n\n` +
+  const portalUrl = payload.swimId
+    ? `https://aqasports.com/swim/profile/${payload.swimId}`
+    : "https://aqasports.com/swim";
+
+  if (locale === "en") {
+    const amountLine = validAmount ? `\nAmount due: ${validAmount} DA.` : "";
+    const baridiLine = rip
+      ? `- BaridiMob: Electronic transfer to official RIP ${rip} (send payment receipt on WhatsApp).`
+      : `- BaridiMob: Electronic transfer via BaridiMob (request our official RIP or send receipt on WhatsApp).`;
+    const poolLine = `- Pay at Pool: Cash payment directly at the pool reception desk.`;
+    const optionsBlock =
+      optionMode === "baridimob"
+        ? baridiLine
+        : optionMode === "cash_pool"
+        ? poolLine
+        : `${baridiLine}\n${poolLine}`;
+
+    if (isStarter) {
+      const monthInfo = payload.nextMonthLabel ? ` for ${payload.nextMonthLabel}` : "";
+      return (
+        `Hello ${payload.fullName},\n\n` +
+        `AQA Swim payment request (Starter Formula${formulaText}${monthInfo}).${amountLine}\n` +
+        `Please note that for Starter clients, the payment should be done from the 25th to the 31st of the month to keep your spot reserved in your group.\n\n` +
+        `Payment options:\n` +
+        `${optionsBlock}\n\n` +
+        `Swimmer profile: ${portalUrl}\n\n` +
+        `AQA Sports Team`
+      );
+    }
+
+    return (
+      `Hello ${payload.fullName},\n\n` +
+      `Your subscription will expire soon${endDateText} (AQA Swim${formulaText}${durationText}).${amountLine}\n` +
+      `To renew your subscription and continue your sessions, please complete your payment.\n\n` +
+      `Payment options:\n` +
+      `${optionsBlock}\n\n` +
+      `Swimmer profile: ${portalUrl}\n\n` +
+      `AQA Sports Team`
+    );
+  }
+
+  if (locale === "ar") {
+    const amountLine = validAmount ? `\nالمبلغ المطلوب: ${validAmount} دج.` : "";
+    const baridiLine = rip
+      ? `- بريدي موب (BaridiMob): تحويل إلى الحساب البريدي الجاري (RIP) الرسمي ${rip} (يرجى إرسال الوصل عبر واتساب).`
+      : `- بريدي موب (BaridiMob): دفع إلكتروني عبر تطبيق بريدي موب (اطلب رقم RIP الرسمي أو أرسل الوصل عبر واتساب).`;
+    const poolLine = `- الدفع في المسبح (Pay at Pool): الدفع نقدا مباشرة في مكتب الاستقبال بالمسبح.`;
+    const optionsBlock =
+      optionMode === "baridimob"
+        ? baridiLine
+        : optionMode === "cash_pool"
+        ? poolLine
+        : `${baridiLine}\n${poolLine}`;
+
+    if (isStarter) {
+      const monthInfo = payload.nextMonthLabel ? ` لشهر ${payload.nextMonthLabel}` : "";
+      return (
+        `مرحبا ${payload.fullName}،\n\n` +
+        `طلب تسديد اشتراك AQA Swim (صيغة Starter${formulaText}${monthInfo}).${amountLine}\n` +
+        `يرجى ملاحظة أنه بالنسبة لمشتركي صيغة Starter، يجب أن يتم الدفع من 25 إلى 31 من الشهر لتأكيد حجز مكانكم في الفوج.\n\n` +
+        `خيارات الدفع المتاحة:\n` +
+        `${optionsBlock}\n\n` +
+        `ملف السباح: ${portalUrl}\n\n` +
+        `فريق AQA Sports`
+      );
+    }
+
+    return (
+      `مرحبا ${payload.fullName}،\n\n` +
+      `اشتراكك سينتهي قريبا${endDateText} (Your subscription will expire soon - AQA Swim${formulaText}${durationText}).${amountLine}\n` +
+      `لتجديد اشتراككم ومواصلة الحصص، يرجى تسديد مستحقات التجديد.\n\n` +
+      `خيارات الدفع المتاحة:\n` +
+      `${optionsBlock}\n\n` +
+      `ملف السباح: ${portalUrl}\n\n` +
+      `فريق AQA Sports`
+    );
+  }
+
+  // Default: French ("fr")
+  const amountLine = validAmount ? `\nMontant a regler : ${validAmount} DA.` : "";
+  const baridiLine = rip
+    ? `- BaridiMob : Virement sur le RIP officiel ${rip} (envoyez le recu sur WhatsApp).`
+    : `- BaridiMob : Paiement electronique via BaridiMob (demandez notre RIP officiel ou envoyez le recu sur WhatsApp).`;
+  const poolLine = `- Paiement a la piscine (Pay at Pool) : Reglement en especes directement au bureau d'accueil du bassin.`;
+  const optionsBlock =
+    optionMode === "baridimob"
+      ? baridiLine
+      : optionMode === "cash_pool"
+      ? poolLine
+      : `${baridiLine}\n${poolLine}`;
+
+  if (isStarter) {
+    const monthInfo = payload.nextMonthLabel ? ` pour ${payload.nextMonthLabel}` : "";
+    return (
+      `Salam ${payload.fullName},\n\n` +
+      `Demande de paiement AQA Swim (Formule Starter${formulaText}${monthInfo}).${amountLine}\n` +
+      `Pour les clients Starter, le paiement doit etre effectue du 25 au 31 du mois (from 25th to 31st) afin de maintenir votre place reservee dans votre groupe.\n\n` +
+      `Options de paiement disponibles :\n` +
+      `${optionsBlock}\n\n` +
+      `Profil en ligne : ${portalUrl}\n\n` +
+      `Equipe AQA Sports`
+    );
+  }
+
+  return (
+    `Salam ${payload.fullName},\n\n` +
+    `Votre abonnement AQA Swim${formulaText}${durationText} arrive a echeance bientot${endDateText} (Your subscription will expire soon).${amountLine}\n` +
+    `Pour renouveler votre abonnement et continuer a nager, veuillez proceder au reglement.\n\n` +
+    `Options de paiement disponibles :\n` +
+    `${optionsBlock}\n\n` +
+    `Profil en ligne : ${portalUrl}\n\n` +
     `Equipe AQA Sports`
   );
+}
 
-  return `https://wa.me/${formattedNumber}?text=${text}`;
+/**
+ * Generates a WhatsApp click-to-chat URL for sending a payment request to a client.
+ * Returns null if the client has no valid phone or WhatsApp number linked.
+ */
+export function getSwimPaymentRequestWhatsAppUrl(
+  payload: SwimPaymentRequestPayload
+): string | null {
+  const { formattedNumber } = resolveSwimWhatsApp(payload);
+  if (!formattedNumber) return null;
+
+  const message = buildSwimPaymentRequestMessage(payload);
+  return `https://wa.me/${formattedNumber}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Generates a WhatsApp click-to-chat URL with a pre-filled subscription
+ * renewal / payment request reminder.
+ */
+export function getSwimRenewalWhatsAppUrl(entity: SwimRenewalPayload): string | null {
+  return getSwimPaymentRequestWhatsAppUrl(entity);
+}
+
+export interface ParsedPaymentRequestRecord {
+  sentAt: string;
+  option: PaymentRequestOptionMode;
+}
+
+/**
+ * Extracts the last sent payment request tag [PAY_REQ_SENT:YYYY-MM-DD:option] from member notes.
+ */
+export function parsePaymentRequestFromNotes(
+  notes?: string | null
+): ParsedPaymentRequestRecord | null {
+  if (!notes || typeof notes !== "string") return null;
+  const match = notes.match(/\[PAY_REQ_SENT:([0-9]{4}-[0-9]{2}-[0-9]{2})(?::(both|baridimob|cash_pool))?\]/);
+  if (!match) return null;
+  return {
+    sentAt: match[1],
+    option: (match[2] as PaymentRequestOptionMode) || "both",
+  };
+}
+
+/**
+ * Encodes or updates the [PAY_REQ_SENT:YYYY-MM-DD:option] tag in member notes.
+ */
+export function encodePaymentRequestInNotes(
+  notes: string | null | undefined,
+  dateStr: string,
+  option: PaymentRequestOptionMode = "both"
+): string {
+  const tag = `[PAY_REQ_SENT:${dateStr}:${option}]`;
+  const base = (notes || "").trim();
+  if (!base) return tag;
+  if (base.includes("[PAY_REQ_SENT:")) {
+    return base.replace(/\[PAY_REQ_SENT:[0-9]{4}-[0-9]{2}-[0-9]{2}(?::(?:both|baridimob|cash_pool))?\]/g, tag);
+  }
+  return `${base} | ${tag}`;
 }
 
 // ─── Public Portal Payment Link Generation ───────────────────────────────────

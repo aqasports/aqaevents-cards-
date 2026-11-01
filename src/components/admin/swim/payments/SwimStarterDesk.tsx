@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Input } from "@/components/admin/ui";
 import { isMemberAssignedToGroup } from "@/lib/swim-groups";
 import { isMemberNextMonthPaid, formatMonthKey, formatMonthLabel } from "@/lib/swim-subscription";
+import { getSwimPaymentRequestWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { useLocale, useTranslations } from "@/lib/i18n";
 
 export interface StarterMemberRow {
@@ -44,9 +45,10 @@ export interface StarterMemberRow {
 interface SwimStarterDeskProps {
   members: StarterMemberRow[];
   onRecordPayment?: (member: StarterMemberRow) => void;
+  onRequestMissingPhone?: (member: StarterMemberRow) => void;
 }
 
-export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskProps) {
+export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhone }: SwimStarterDeskProps) {
   const { locale } = useLocale();
   const { t } = useTranslations("swimPaymentsDesk");
 
@@ -151,21 +153,22 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
     });
   }, [starterMembers, searchTerm, statusFilter, nextMonthInfo.monthKey]);
 
-  function getStarterWhatsAppUrl(m: StarterMemberRow): string {
-    const cleanPhone = m.phone.replace(/[^0-9]/g, "");
-    const intlPhone = cleanPhone.startsWith("0")
-      ? "213" + cleanPhone.slice(1)
-      : cleanPhone.startsWith("213")
-      ? cleanPhone
-      : "213" + cleanPhone;
-
-    const subEndDisplay = `${String(m.subEnd.getUTCDate()).padStart(2, "0")}/${String(m.subEnd.getUTCMonth() + 1).padStart(2, "0")}/${m.subEnd.getUTCFullYear()}`;
-    const groupName = m.group?.name ? `groupe ${m.group.name}` : "groupe d'entraînement";
-    const amountStr = `${m.effectivePriceDA.toLocaleString("fr-DZ")} DA`;
-
-    const message = `Salam ${m.fullName}, nous espérons que vos séances AQA Swim se passent bien. Votre abonnement Starter (${m.formula}) arrive à échéance le ${subEndDisplay}. Votre place dans le ${groupName} est réservée pour le mois prochain (${nextMonthInfo.monthLabel}). Souhaitez-vous renouveler votre abonnement (Tarif: ${amountStr}) ?`;
-
-    return `https://wa.me/${intlPhone}?text=${encodeURIComponent(message)}`;
+  function getStarterWhatsAppUrl(m: StarterMemberRow): string | null {
+    return getSwimPaymentRequestWhatsAppUrl({
+      fullName: m.fullName,
+      phone: m.phone,
+      notes: m.notes,
+      swimId: m.swimId,
+      formula: m.formula,
+      duration: m.duration || "1m",
+      isStarter: true,
+      amount: m.debt > 0 ? m.debt : m.effectivePriceDA,
+      subscriptionEnd: m.subEnd,
+      nextMonthLabel: nextMonthInfo.monthLabel,
+      groupName: m.group?.name || null,
+      paymentOption: "both",
+      locale,
+    });
   }
 
   return (
@@ -491,19 +494,34 @@ export function SwimStarterDesk({ members, onRecordPayment }: SwimStarterDeskPro
                       >
                         {t("profileAction")}
                       </Link>
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/60 text-[10px] font-bold transition-colors inline-flex items-center gap-1"
-                        title="Envoyer une invitation de renouvellement pour le mois prochain sur WhatsApp"
-                      >
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-                          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.554 4.107 1.527 5.832L0 24l6.335-1.509A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.98 0-3.831-.545-5.415-1.49l-.388-.233-3.763.897.934-3.676-.253-.398A9.786 9.786 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
-                        </svg>
-                        {t("renewAction")}
-                      </a>
+                      {waUrl ? (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/60 text-[10px] font-bold transition-colors inline-flex items-center gap-1"
+                          title="Envoyer une demande de paiement (du 25 au 31) sur WhatsApp"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.554 4.107 1.527 5.832L0 24l6.335-1.509A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.98 0-3.831-.545-5.415-1.49l-.388-.233-3.763.897.934-3.676-.253-.398A9.786 9.786 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+                          </svg>
+                          {t("renewAction")}
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onRequestMissingPhone?.(m)}
+                          className="px-2 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/60 text-[10px] font-bold transition-colors inline-flex items-center gap-1"
+                          title="Renseigner le numéro et envoyer la demande de paiement"
+                        >
+                          <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            <path d="M12 0C5.373 0 0 5.373 0 12c0 2.119.554 4.107 1.527 5.832L0 24l6.335-1.509A11.954 11.954 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.818c-1.98 0-3.831-.545-5.415-1.49l-.388-.233-3.763.897.934-3.676-.253-.398A9.786 9.786 0 0 1 2.182 12C2.182 6.57 6.57 2.182 12 2.182c5.43 0 9.818 4.388 9.818 9.818 0 5.43-4.388 9.818-9.818 9.818z"/>
+                          </svg>
+                          {t("renewAction")}
+                        </button>
+                      )}
                       {isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid ? (
                         <span className="px-2 py-1 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
                           {t("nextMonthSettledBadge", { month: nextMonthInfo.monthLabel })}

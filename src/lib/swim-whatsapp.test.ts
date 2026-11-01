@@ -3,8 +3,13 @@ import {
   extractWhatsAppNumber,
   formatWhatsAppNumber,
   resolveSwimWhatsApp,
+  hasValidSwimPhone,
   getSwimWhatsAppUrl,
   getSwimPaymentWhatsAppUrl,
+  buildSwimPaymentRequestMessage,
+  getSwimPaymentRequestWhatsAppUrl,
+  parsePaymentRequestFromNotes,
+  encodePaymentRequestInNotes,
 } from "./swim-whatsapp";
 
 describe("AQA Swim WhatsApp Utilities", () => {
@@ -244,6 +249,115 @@ describe("AQA Swim WhatsApp Utilities", () => {
       expect(url).toContain(encodeURIComponent("30000 DA"));
       expect(url).toContain(encodeURIComponent("cash at the pool"));
       expect(url).toContain(encodeURIComponent("appointment"));
+    });
+  });
+
+  describe("hasValidSwimPhone", () => {
+    it("returns false when phone is missing, placeholder, or non-numeric", () => {
+      expect(hasValidSwimPhone(null)).toBe(false);
+      expect(hasValidSwimPhone({ phone: "" })).toBe(false);
+      expect(hasValidSwimPhone({ phone: "Non renseigne" })).toBe(false);
+      expect(hasValidSwimPhone({ phone: "0000000000" })).toBe(false);
+      expect(hasValidSwimPhone({ phone: "12345" })).toBe(false);
+    });
+
+    it("returns true when phone or notes whatsapp is valid", () => {
+      expect(hasValidSwimPhone({ phone: "0555123456" })).toBe(true);
+      expect(hasValidSwimPhone({ phone: "Non renseigne", notes: "WhatsApp: 0661223344" })).toBe(true);
+    });
+  });
+
+  describe("buildSwimPaymentRequestMessage & getSwimPaymentRequestWhatsAppUrl", () => {
+    it("sends Starter clients a message that payment should be done from 25 to 31 with BaridiMob & Pay at Pool options", () => {
+      const msgFr = buildSwimPaymentRequestMessage({
+        fullName: "Amine Khelil",
+        swimId: "SWM-5001",
+        formula: "G10",
+        duration: "1m",
+        isStarter: true,
+        amount: 8000,
+        nextMonthLabel: "Novembre 2026",
+        paymentOption: "both",
+        locale: "fr",
+      });
+
+      expect(msgFr).toContain("Amine Khelil");
+      expect(msgFr).toContain("25 au 31");
+      expect(msgFr).toContain("25th to 31st");
+      expect(msgFr).toContain("8000 DA");
+      expect(msgFr).toContain("BaridiMob");
+      expect(msgFr).toContain("Pay at Pool");
+
+      const msgEn = buildSwimPaymentRequestMessage({
+        fullName: "Amine Khelil",
+        swimId: "SWM-5001",
+        formula: "G10",
+        duration: "1m",
+        isStarter: true,
+        amount: 8000,
+        paymentOption: "both",
+        locale: "en",
+      });
+
+      expect(msgEn).toContain("from the 25th to the 31st");
+      expect(msgEn).toContain("BaridiMob");
+      expect(msgEn).toContain("Pay at Pool");
+    });
+
+    it("sends other formulas a message that subscription will expire soon with payment options", () => {
+      const msgFr = buildSwimPaymentRequestMessage({
+        fullName: "Nadia Mansouri",
+        swimId: "SWM-5002",
+        formula: "MAX5",
+        duration: "3m",
+        isStarter: false,
+        amount: 24000,
+        subscriptionEnd: "2026-11-15T00:00:00.000Z",
+        paymentOption: "both",
+        locale: "fr",
+      });
+
+      expect(msgFr).toContain("Nadia Mansouri");
+      expect(msgFr).toContain("Your subscription will expire soon");
+      expect(msgFr).toContain("15/11/2026");
+      expect(msgFr).toContain("24000 DA");
+      expect(msgFr).toContain("BaridiMob");
+      expect(msgFr).toContain("Pay at Pool");
+
+      const msgAr = buildSwimPaymentRequestMessage({
+        fullName: "نادية منصوري",
+        swimId: "SWM-5002",
+        formula: "MAX5",
+        duration: "6m",
+        isStarter: false,
+        amount: 45000,
+        paymentOption: "both",
+        locale: "ar",
+      });
+
+      expect(msgAr).toContain("اشتراكك سينتهي قريبا");
+      expect(msgAr).toContain("Your subscription will expire soon");
+      expect(msgAr).toContain("45000 دج");
+      expect(msgAr).toContain("BaridiMob");
+      expect(msgAr).toContain("Pay at Pool");
+    });
+
+    it("returns null URL when client has no linked phone number", () => {
+      const url = getSwimPaymentRequestWhatsAppUrl({
+        fullName: "No Phone Client",
+        phone: "Non renseigne",
+        swimId: "SWM-5003",
+        formula: "G10",
+        duration: "1m",
+      });
+      expect(url).toBeNull();
+    });
+
+    it("encodes and parses payment request sent metadata in notes", () => {
+      const notes = encodePaymentRequestInNotes("Existing note", "2026-11-01", "baridimob");
+      expect(notes).toContain("[PAY_REQ_SENT:2026-11-01:baridimob]");
+      const parsed = parsePaymentRequestFromNotes(notes);
+      expect(parsed).toEqual({ sentAt: "2026-11-01", option: "baridimob" });
     });
   });
 });
