@@ -18,6 +18,8 @@ import {
   DEFAULT_REAL_FINAL_COLUMNS,
   exportOfficialCorrespondenceToCSV,
   createDefaultBordereau,
+  createDefaultPreReservation,
+  DEFAULT_DOCUMENT_META,
   getProposedBordereauTitle,
   getSwimmerDispatchGroupDisplay,
   STORAGE_KEYS,
@@ -376,6 +378,34 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(g1Slot?.memberNames).toContain("Ali Baba");
       expect(g1Slot?.memberNames).toContain("Nadir Test");
       expect(g1Slot?.actualAssignedCount).toBe(2);
+    });
+
+    it("should never show more member names than reserved places when place count is reduced", () => {
+      const overrides = { g1_slot_0: 1 };
+      const res = buildPoolSlotReservations(groups, members, overrides);
+      const g1Slot = res.find((r) => r.id === "g1_slot_0");
+      expect(g1Slot?.reservedPlaces).toBe(1);
+      expect(g1Slot?.memberNames?.length).toBe(1);
+      expect(g1Slot?.allMemberNames?.length).toBe(2);
+    });
+
+    it("should allow editing which names stay via slotMemberNames override", () => {
+      const overrides = { g1_slot_0: 1 };
+      const slotMemberNames = { g1_slot_0: ["Nadir Test"] };
+      const res = buildPoolSlotReservations(groups, members, overrides, slotMemberNames);
+      const g1Slot = res.find((r) => r.id === "g1_slot_0");
+      expect(g1Slot?.reservedPlaces).toBe(1);
+      expect(g1Slot?.memberNames).toEqual(["Nadir Test"]);
+      expect(g1Slot?.allMemberNames).toContain("Ali Baba");
+      expect(g1Slot?.allMemberNames).toContain("Nadir Test");
+    });
+
+    it("should create default pre-reservation properly with draft status and month", () => {
+      const pres = createDefaultPreReservation(DEFAULT_DOCUMENT_META, "azal", 1);
+      expect(pres.id).toBeDefined();
+      expect(pres.status).toBe("draft");
+      expect(pres.referenceNumber).toContain("PR:0001");
+      expect(pres.month).toBeDefined();
     });
 
     it("should export CSV with places and without client names by default", () => {

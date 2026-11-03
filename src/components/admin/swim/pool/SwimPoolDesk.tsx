@@ -23,8 +23,11 @@ import {
   SwimMemberReference,
   SwimGroupReference,
   PoolBordereau,
+  PoolPreReservation,
   createDefaultBordereau,
+  createDefaultPreReservation,
   getProposedBordereauTitle,
+  getProposedPreReservationTitle,
   getSwimmerDispatchGroupDisplay,
   FRENCH_MONTHS,
   getCurrentFrenchMonth,
@@ -34,6 +37,7 @@ import { isMemberPoolPaid, encodePoolPaidNotes } from "@/lib/swim-groups";
 import { PoolCustomRowModal } from "./PoolCustomRowModal";
 import { PoolPrintTemplate } from "./PoolPrintTemplate";
 import { PoolAddBordereauModal } from "./PoolAddBordereauModal";
+import { PoolAddPreReservationModal } from "./PoolAddPreReservationModal";
 import { PoolAddClientModal } from "./PoolAddClientModal";
 import { PoolAddGroupBulkModal } from "./PoolAddGroupBulkModal";
 import { PoolPaymentConfirmationModal } from "./PoolPaymentConfirmationModal";
@@ -140,14 +144,53 @@ export function SwimPoolDesk({
     return found || bordereaux[0] || createDefaultBordereau(DEFAULT_DOCUMENT_META, selectedPoolId);
   }, [bordereaux, activeBordereauId, selectedPoolId]);
 
+  // ─── 4c. PRE-RESERVATIONS MANAGEMENT (ACTIVE PRE-RESERVATION WORKFLOW) ────────
+  const [preReservations, setPreReservations] = useState<PoolPreReservation[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEYS.PRE_RESERVATIONS);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return [createDefaultPreReservation(DEFAULT_DOCUMENT_META, "azal")];
+  });
+
+  const [activePreReservationId, setActivePreReservationId] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_PRE_RESERVATION_ID);
+        if (saved) return saved;
+      } catch {
+        // ignore
+      }
+    }
+    return preReservations[0]?.id || "pres_default";
+  });
+
+  const activePreReservation: PoolPreReservation = useMemo(() => {
+    const found = preReservations.find((p) => p.id === activePreReservationId);
+    return (
+      found ||
+      preReservations[0] ||
+      createDefaultPreReservation(DEFAULT_DOCUMENT_META, selectedPoolId)
+    );
+  }, [preReservations, activePreReservationId, selectedPoolId]);
+
   // ─── 4b. DATE & MONTH CONTEXT & DUPLICATE PROTECTION ────────────────────────
   const [targetDate] = useState<Date>(() => new Date());
   const monthLabel = useMemo(() => {
+    const activeMonth =
+      mode === "preview" ? activePreReservation.month : activeBordereau.month;
     return (
-      activeBordereau.month ||
+      activeMonth ||
       formatMonthLabel(targetDate.getFullYear(), targetDate.getMonth(), locale)
     );
-  }, [activeBordereau.month, targetDate, locale]);
+  }, [mode, activePreReservation.month, activeBordereau.month, targetDate, locale]);
 
   // Strict duplicate pool payment prevention for the same month
   const alreadyPoolPaidIdsThisMonth = useMemo(() => {
@@ -285,6 +328,144 @@ export function SwimPoolDesk({
       return b;
     });
     saveBordereaux(updated);
+  };
+
+  const savePreReservations = useCallback((updatedList: PoolPreReservation[]) => {
+    setPreReservations(updatedList);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRE_RESERVATIONS, JSON.stringify(updatedList));
+    } catch {
+      // ignore
+    }
+    fetch("/api/admin/swim/pool/prereservations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preReservations: updatedList }),
+    }).catch(() => {});
+  }, []);
+
+  // Fetch persisted pre-reservations from server on mount
+  useEffect(() => {
+    fetch("/api/admin/swim/pool/prereservations")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.preReservations) && data.preReservations.length > 0) {
+          setPreReservations(data.preReservations);
+          try {
+            localStorage.setItem(
+              STORAGE_KEYS.PRE_RESERVATIONS,
+              JSON.stringify(data.preReservations)
+            );
+          } catch {
+            // ignore
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSelectPreReservation = (id: string) => {
+    setActivePreReservationId(id);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_PRE_RESERVATION_ID, id);
+    } catch {
+      // ignore
+    }
+    const target = preReservations.find((p) => p.id === id);
+    if (target?.poolId) {
+      setSelectedPoolId(target.poolId);
+    }
+  };
+
+  const handleCreatePreReservation = (data: {
+    title: string;
+    referenceNumber: string;
+    poolId: string;
+    date: string;
+    month: string;
+    year: string;
+  }) => {
+    const newP: PoolPreReservation = {
+      id: `pres_${Date.now()}`,
+      title: data.title,
+      referenceNumber: data.referenceNumber,
+      poolId: data.poolId,
+      date: data.date,
+      month: data.month,
+      year: data.year,
+      status: "draft",
+      placeOverrides: {},
+      slotMemberNames: {},
+      selectedReservationIds: [],
+      showNamesInPreview: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const updated = [newP, ...preReservations];
+    savePreReservations(updated);
+    setActivePreReservationId(newP.id);
+    setSelectedPoolId(data.poolId);
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_PRE_RESERVATION_ID, newP.id);
+    } catch {
+      // ignore
+    }
+    showToast(`Pré-réservation "${data.referenceNumber}" créée`);
+  };
+
+  const handleDeletePreReservation = (idToDelete: string) => {
+    if (preReservations.length <= 1) {
+      showToast("Impossible de supprimer la seule pré-réservation restante");
+      return;
+    }
+    const remaining = preReservations.filter((p) => p.id !== idToDelete);
+    savePreReservations(remaining);
+    if (activePreReservationId === idToDelete) {
+      const nextActive = remaining[0]?.id || "";
+      setActivePreReservationId(nextActive);
+      try {
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_PRE_RESERVATION_ID, nextActive);
+      } catch {
+        // ignore
+      }
+    }
+    showToast("Pré-réservation supprimée");
+  };
+
+  const handleUpdateActivePreReservationMeta = <K extends keyof PoolPreReservation>(
+    field: K,
+    value: PoolPreReservation[K]
+  ) => {
+    const updated = preReservations.map((p) => {
+      if (p.id === activePreReservation.id) {
+        return { ...p, [field]: value, updatedAt: new Date().toISOString() };
+      }
+      return p;
+    });
+    savePreReservations(updated);
+  };
+
+  const handleToggleConfirmActivePreReservation = () => {
+    const nextStatus: "draft" | "confirmed" =
+      activePreReservation.status === "confirmed" ? "draft" : "confirmed";
+    const nowIso = new Date().toISOString();
+    const updated = preReservations.map((p) => {
+      if (p.id === activePreReservation.id) {
+        return {
+          ...p,
+          status: nextStatus,
+          confirmedAt: nextStatus === "confirmed" ? nowIso : undefined,
+          updatedAt: nowIso,
+        };
+      }
+      return p;
+    });
+    savePreReservations(updated);
+    showToast(
+      nextStatus === "confirmed"
+        ? "Pré-réservation validée et confirmée !"
+        : "Pré-réservation repassée en brouillon."
+    );
   };
 
   const handleAddMembersToActiveBordereau = (newIds: string[]) => {
@@ -461,18 +642,30 @@ export function SwimPoolDesk({
     showToast("Paiement validé ! Label 'poolpaid' appliqué aux adhérents du bordereau.");
   };
 
-  // Derive document metadata from active bordereau
+  // Derive document metadata from active bordereau or pre-reservation
   const docMeta: PoolDocumentMeta = useMemo(() => {
+    if (mode === "preview") {
+      return {
+        title: activePreReservation.title || "Demande de réservation de créneaux",
+        referenceNumber: activePreReservation.referenceNumber || "PR:0010/26",
+        date: activePreReservation.date || "08/10/2026",
+        year: activePreReservation.year || "2026",
+      };
+    }
     return {
       title: activeBordereau.title || "Demande d'accès",
       referenceNumber: activeBordereau.referenceNumber || "n:0010/26",
       date: activeBordereau.date || "08/10/2026",
       year: activeBordereau.year || "2026",
     };
-  }, [activeBordereau]);
+  }, [mode, activePreReservation, activeBordereau]);
 
   const handleUpdateDocMeta = (field: keyof PoolDocumentMeta, value: string) => {
-    handleUpdateActiveBordereauMeta(field, value);
+    if (mode === "preview") {
+      handleUpdateActivePreReservationMeta(field as keyof PoolPreReservation, value as any);
+    } else {
+      handleUpdateActiveBordereauMeta(field, value);
+    }
   };
 
   // ─── 5. BILLING CONFIGS (MONTHLY VS SESSION CONVERTOR) ───────────────────────
@@ -595,29 +788,114 @@ export function SwimPoolDesk({
     showToast("Prix réinitialisé au calcul automatique");
   };
 
-  // ─── 8. PRE-RESERVATION OVERRIDES (PLACES COUNT) ─────────────────────────────
-  const [placeOverrides, setPlaceOverrides] = useState<Record<string, number>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEYS.RESERVATION_OVERRIDES);
-        if (saved) return JSON.parse(saved);
-      } catch {
-        // ignore
-      }
-    }
-    return {};
-  });
+  // ─── 8. PRE-RESERVATION OVERRIDES (PLACES COUNT & RETENTION NAMES) ───────────
+  const slotReservations: PoolSlotReservation[] = useMemo(() => {
+    return buildPoolSlotReservations(
+      rawGroups,
+      rawMembers,
+      activePreReservation.placeOverrides || {},
+      activePreReservation.slotMemberNames || {}
+    );
+  }, [
+    rawGroups,
+    rawMembers,
+    activePreReservation.placeOverrides,
+    activePreReservation.slotMemberNames,
+  ]);
 
   const handleUpdatePlaceCount = (resId: string, delta: number) => {
-    const current = placeOverrides[resId] ?? 0;
-    const nextVal = Math.max(0, current + delta);
-    const updated = { ...placeOverrides, [resId]: nextVal };
-    setPlaceOverrides(updated);
-    try {
-      localStorage.setItem(STORAGE_KEYS.RESERVATION_OVERRIDES, JSON.stringify(updated));
-    } catch {
-      // ignore
+    const currentOverrides = activePreReservation.placeOverrides || {};
+    const currentSlot = slotReservations.find((r) => r.id === resId);
+    const defaultPlaces = currentSlot
+      ? currentSlot.actualAssignedCount > 0
+        ? currentSlot.actualAssignedCount
+        : currentSlot.capacity
+      : 10;
+    const currentVal =
+      currentOverrides[resId] !== undefined ? currentOverrides[resId] : defaultPlaces;
+    const nextVal = Math.max(0, currentVal + delta);
+
+    // Synchronize memberNames with the new place count
+    const currentSlotMemberNames = activePreReservation.slotMemberNames || {};
+    const allMembers = currentSlot?.allMemberNames || [];
+    const currentChosen =
+      currentSlotMemberNames[resId] ||
+      currentSlot?.memberNames ||
+      allMembers.slice(0, currentVal);
+
+    let nextChosen: string[];
+    if (nextVal < currentChosen.length) {
+      // Trim to match new place count (e.g. 10 -> 8 places: keep first 8)
+      nextChosen = currentChosen.slice(0, nextVal);
+    } else if (nextVal > currentChosen.length && allMembers.length > currentChosen.length) {
+      // Add more available assigned members if available
+      const remainingCandidates = allMembers.filter((n) => !currentChosen.includes(n));
+      const toAdd = remainingCandidates.slice(0, nextVal - currentChosen.length);
+      nextChosen = [...currentChosen, ...toAdd];
+    } else {
+      nextChosen = currentChosen;
     }
+
+    const updatedOverrides = { ...currentOverrides, [resId]: nextVal };
+    const updatedMemberNames = { ...currentSlotMemberNames, [resId]: nextChosen };
+
+    const updated = preReservations.map((p) => {
+      if (p.id === activePreReservation.id) {
+        return {
+          ...p,
+          placeOverrides: updatedOverrides,
+          slotMemberNames: updatedMemberNames,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return p;
+    });
+    savePreReservations(updated);
+  };
+
+  const handleToggleMemberInSlot = (resId: string, memberName: string, shouldInclude: boolean) => {
+    const currentSlot = slotReservations.find((r) => r.id === resId);
+    if (!currentSlot) return;
+
+    const currentSlotMemberNames = activePreReservation.slotMemberNames || {};
+    const currentOverrides = activePreReservation.placeOverrides || {};
+    const currentPlaces = currentSlot.reservedPlaces;
+    const currentIncluded = currentSlot.memberNames || [];
+
+    let nextIncluded: string[];
+    let nextPlaces = currentPlaces;
+
+    if (shouldInclude) {
+      if (!currentIncluded.includes(memberName)) {
+        nextIncluded = [...currentIncluded, memberName];
+        if (nextIncluded.length > currentPlaces) {
+          nextPlaces = nextIncluded.length;
+        }
+      } else {
+        nextIncluded = currentIncluded;
+      }
+    } else {
+      nextIncluded = currentIncluded.filter((n) => n !== memberName);
+      if (currentPlaces === currentIncluded.length) {
+        nextPlaces = Math.max(0, nextIncluded.length);
+      }
+    }
+
+    const updatedOverrides = { ...currentOverrides, [resId]: nextPlaces };
+    const updatedMemberNames = { ...currentSlotMemberNames, [resId]: nextIncluded };
+
+    const updated = preReservations.map((p) => {
+      if (p.id === activePreReservation.id) {
+        return {
+          ...p,
+          placeOverrides: updatedOverrides,
+          slotMemberNames: updatedMemberNames,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return p;
+    });
+    savePreReservations(updated);
   };
 
   // ─── 9. DATE & MONTH CONTEXT (DEFINED ABOVE IN 4b) ──────────────────────────
@@ -662,11 +940,7 @@ export function SwimPoolDesk({
     return computeRealFinalPoolSummary(finalRows, selectedSwimmerIds);
   }, [finalRows, selectedSwimmerIds]);
 
-  // ─── 11. BUILD PRE-RESERVATION SLOTS (WITHOUT PRICING) ───────────────────────
-  const slotReservations: PoolSlotReservation[] = useMemo(() => {
-    return buildPoolSlotReservations(rawGroups, rawMembers, placeOverrides);
-  }, [rawGroups, rawMembers, placeOverrides]);
-
+  // ─── 11. PRE-RESERVATION SELECTIONS & FILTERING ──────────────────────────────
   const [selectedReservationIds, setSelectedReservationIds] = useState<Set<string>>(new Set());
   const [hasInitializedResIds, setHasInitializedResIds] = useState(false);
 
@@ -690,17 +964,42 @@ export function SwimPoolDesk({
     } catch {
       // ignore
     }
+    handleUpdateActivePreReservationMeta("showNamesInPreview", val);
   };
 
   useEffect(() => {
+    if (activePreReservation) {
+      if (
+        Array.isArray(activePreReservation.selectedReservationIds) &&
+        activePreReservation.selectedReservationIds.length > 0
+      ) {
+        setSelectedReservationIds(new Set(activePreReservation.selectedReservationIds));
+      } else if (slotReservations.length > 0) {
+        const activeIds = slotReservations
+          .filter((r) => r.reservedPlaces > 0)
+          .map((r) => r.id);
+        setSelectedReservationIds(new Set(activeIds));
+      }
+      if (activePreReservation.showNamesInPreview !== undefined) {
+        setShowNamesInPreview(activePreReservation.showNamesInPreview);
+      }
+    }
+  }, [activePreReservationId]);
+
+  useEffect(() => {
     if (!hasInitializedResIds && slotReservations.length > 0) {
-      const activeIds = slotReservations
-        .filter((r) => r.reservedPlaces > 0)
-        .map((r) => r.id);
-      setSelectedReservationIds(new Set(activeIds));
+      if (
+        !activePreReservation.selectedReservationIds ||
+        activePreReservation.selectedReservationIds.length === 0
+      ) {
+        const activeIds = slotReservations
+          .filter((r) => r.reservedPlaces > 0)
+          .map((r) => r.id);
+        setSelectedReservationIds(new Set(activeIds));
+      }
       setHasInitializedResIds(true);
     }
-  }, [slotReservations, hasInitializedResIds]);
+  }, [slotReservations, hasInitializedResIds, activePreReservation.selectedReservationIds]);
 
   const handleToggleReservation = (resId: string) => {
     setSelectedReservationIds((prev) => {
@@ -710,6 +1009,7 @@ export function SwimPoolDesk({
       } else {
         next.add(resId);
       }
+      handleUpdateActivePreReservationMeta("selectedReservationIds", Array.from(next));
       return next;
     });
   };
@@ -723,12 +1023,14 @@ export function SwimPoolDesk({
       setSelectedReservationIds((prev) => {
         const next = new Set(prev);
         activeFiltered.forEach((r) => next.delete(r.id));
+        handleUpdateActivePreReservationMeta("selectedReservationIds", Array.from(next));
         return next;
       });
     } else {
       setSelectedReservationIds((prev) => {
         const next = new Set(prev);
         activeFiltered.forEach((r) => next.add(r.id));
+        handleUpdateActivePreReservationMeta("selectedReservationIds", Array.from(next));
         return next;
       });
     }
@@ -765,6 +1067,7 @@ export function SwimPoolDesk({
 
   // ─── 12. MODALS & PREVIEW CONTROLS ───────────────────────────────────────────
   const [isAddBordereauModalOpen, setIsAddBordereauModalOpen] = useState(false);
+  const [isAddPreReservationModalOpen, setIsAddPreReservationModalOpen] = useState(false);
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isAddGroupBulkModalOpen, setIsAddGroupBulkModalOpen] = useState(false);
   const [isPaymentConfirmationModalOpen, setIsPaymentConfirmationModalOpen] = useState(false);
@@ -781,11 +1084,13 @@ export function SwimPoolDesk({
   const handlePrint = () => {
     const originalTitle = typeof document !== "undefined" ? document.title : "";
     const proposedName =
-      activeBordereau.title ||
-      getProposedBordereauTitle(
-        activeBordereau.poolId,
-        bordereaux.findIndex((b) => b.id === activeBordereau.id) + 1
-      );
+      mode === "preview"
+        ? (activePreReservation.title || `PreReservation_${docMeta.referenceNumber}`)
+        : (activeBordereau.title ||
+            getProposedBordereauTitle(
+              activeBordereau.poolId,
+              bordereaux.findIndex((b) => b.id === activeBordereau.id) + 1
+            ));
     if (typeof document !== "undefined") {
       document.title = proposedName;
     }
@@ -806,7 +1111,8 @@ export function SwimPoolDesk({
         selectedReservationIds,
         showNamesInPreview
       );
-      downloadBlob(csv, `PreReservation_AQA_${docMeta.year}.csv`);
+      const filename = `${(activePreReservation.title || `PreReservation_${docMeta.referenceNumber}`).replace(/[^a-zA-Z0-9_\-]/g, "_")}.csv`;
+      downloadBlob(csv, filename);
     } else {
       const csv = exportOfficialCorrespondenceToCSV(
         finalRows,
@@ -980,8 +1286,98 @@ export function SwimPoolDesk({
           </div>
         )}
 
-        {/* Row 2: Document Metadata Bar (Title, Ref, Date, Year) */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/60 p-3 rounded-xl border border-white/5 text-xs">
+        {/* Pré-réservation Dedicated Selection Bar */}
+        {mode === "preview" && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                {t("activePreReservation") || "Pré-réservation active"} :
+              </span>
+              <select
+                value={activePreReservation.id}
+                onChange={(e) => handleSelectPreReservation(e.target.value)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-cyan-500/40 text-white font-bold text-xs focus:outline-none focus:border-cyan-400 cursor-pointer"
+              >
+                {preReservations.map((pr) => {
+                  const totalPlaces = Object.values(pr.placeOverrides || {}).reduce(
+                    (sum, val) => sum + (typeof val === "number" ? val : 0),
+                    0
+                  );
+                  return (
+                    <option key={pr.id} value={pr.id}>
+                      {pr.referenceNumber} - {pr.title} ({pr.month || "Mois"}) [
+                      {totalPlaces > 0 ? `${totalPlaces} places` : "Nouveau"}
+                      {pr.status === "confirmed" ? " - Confirmé" : ""}]
+                    </option>
+                  );
+                })}
+              </select>
+
+              {/* Confirmation status badge */}
+              {activePreReservation.status === "confirmed" ? (
+                <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <span>{t("preReservationConfirmed") || "Confirmé"}</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                  {t("pendingConfirmation") || "En attente de confirmation"}
+                </span>
+              )}
+
+              {/* Add Pre-reservation button */}
+              <button
+                type="button"
+                onClick={() => setIsAddPreReservationModalOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs border border-cyan-500/30 transition-colors cursor-pointer"
+              >
+                + {t("addPreReservation") || "Nouvelle Pré-réservation"}
+              </button>
+
+              {/* Delete button if multiple exist */}
+              {preReservations.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleDeletePreReservation(activePreReservation.id)}
+                  className="px-2.5 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/80 text-rose-400 font-semibold text-xs border border-rose-800/30 transition-colors cursor-pointer"
+                  title="Supprimer cette pré-réservation"
+                >
+                  Supprimer
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleConfirmActivePreReservation}
+                className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 cursor-pointer ${
+                  activePreReservation.status === "confirmed"
+                    ? "bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900"
+                    : "bg-emerald-500 hover:bg-emerald-400 text-slate-950"
+                }`}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  className="w-3.5 h-3.5"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>
+                  {activePreReservation.status === "confirmed"
+                    ? t("preReservationConfirmed") || "Pré-réservation Confirmée"
+                    : t("confirmPreReservation") || "Confirmer la Pré-réservation"}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Row 2: Document Metadata Bar (Title, Ref, Date, Month, Year) */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-950/60 p-3 rounded-xl border border-white/5 text-xs">
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
               Titre Document
@@ -1017,28 +1413,40 @@ export function SwimPoolDesk({
           </div>
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
-              {mode === "real_final" ? "Mois de Référence" : "Année"}
+              {t("referenceMonth") || "Mois de Référence"}
             </label>
-            {mode === "real_final" ? (
-              <select
-                value={activeBordereau.month || getCurrentFrenchMonth()}
-                onChange={(e) => handleUpdateActiveBordereauMeta("month", e.target.value)}
-                className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-cyan-400"
-              >
-                {FRENCH_MONTHS.map((m) => (
-                  <option key={m} value={m} className="bg-slate-900 text-white">
-                    {m}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type="text"
-                value={docMeta.year}
-                onChange={(e) => handleUpdateDocMeta("year", e.target.value)}
-                className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
-              />
-            )}
+            <select
+              value={
+                mode === "real_final"
+                  ? (activeBordereau.month || getCurrentFrenchMonth())
+                  : (activePreReservation.month || getCurrentFrenchMonth())
+              }
+              onChange={(e) => {
+                if (mode === "real_final") {
+                  handleUpdateActiveBordereauMeta("month", e.target.value);
+                } else {
+                  handleUpdateActivePreReservationMeta("month", e.target.value);
+                }
+              }}
+              className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-bold focus:outline-none focus:border-cyan-400 cursor-pointer"
+            >
+              {FRENCH_MONTHS.map((m) => (
+                <option key={m} value={m} className="bg-slate-900 text-white">
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
+              Année
+            </label>
+            <input
+              type="text"
+              value={docMeta.year}
+              onChange={(e) => handleUpdateDocMeta("year", e.target.value)}
+              className="w-full px-2.5 py-1 rounded-lg bg-slate-900 border border-white/10 text-white text-xs font-mono font-bold focus:outline-none focus:border-cyan-400"
+            />
           </div>
         </div>
 
@@ -1213,22 +1621,66 @@ export function SwimPoolDesk({
                         </td>
                         <td className="p-3 font-medium text-slate-300">{r.groupName}</td>
                         {showNamesInPreview && (
-                          <td className="p-3">
-                            {r.memberNames && r.memberNames.length > 0 ? (
-                              <div className="space-y-1">
-                                <div className="flex flex-wrap gap-1 max-w-sm">
-                                  {r.memberNames.map((name, i) => (
-                                    <span
-                                      key={i}
-                                      className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-200 border border-white/5 font-medium"
-                                    >
-                                      {name}
+                          <td className="p-3 max-w-md">
+                            {r.allMemberNames && r.allMemberNames.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {/* Retained / included names */}
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between gap-1 text-[10px]">
+                                    <span className="font-bold text-cyan-300">
+                                      {t("retainedSwimmers") || "Adhérents retenus"} ({r.memberNames?.length || 0}/{r.reservedPlaces}) :
                                     </span>
-                                  ))}
+                                    {r.allMemberNames.length > (r.memberNames?.length || 0) && (
+                                      <span className="text-slate-400">
+                                        {r.allMemberNames.length} total
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {(r.memberNames || []).map((name, i) => (
+                                      <button
+                                        key={`inc_${i}`}
+                                        type="button"
+                                        onClick={() => handleToggleMemberInSlot(r.id, name, false)}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/15 hover:bg-rose-500/20 text-cyan-200 hover:text-rose-300 border border-cyan-500/30 hover:border-rose-500/40 transition-colors group cursor-pointer font-medium"
+                                        title={`Retirer ${name} de ce créneau`}
+                                      >
+                                        <span>{name}</span>
+                                        <span className="text-cyan-400 group-hover:text-rose-400 font-bold ml-0.5">x</span>
+                                      </button>
+                                    ))}
+                                    {(!r.memberNames || r.memberNames.length === 0) && (
+                                      <span className="text-[10px] text-amber-400 italic">
+                                        Aucun nom retenu
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                                <span className="text-[10px] text-slate-400">
-                                  {r.memberNames.length} adhérent{r.memberNames.length > 1 ? "s" : ""}
-                                </span>
+
+                                {/* Excluded names (if any) */}
+                                {r.allMemberNames.length > (r.memberNames?.length || 0) && (
+                                  <div className="pt-1 border-t border-white/5 space-y-0.5">
+                                    <span className="block text-[9px] text-slate-400 font-medium">
+                                      {t("excludedSwimmers") || "Non retenus"} ({r.allMemberNames.length - (r.memberNames?.length || 0)}) :
+                                    </span>
+                                    <div className="flex flex-wrap gap-1">
+                                      {r.allMemberNames
+                                        .filter((n) => !(r.memberNames || []).includes(n))
+                                        .map((name, i) => (
+                                          <button
+                                            key={`exc_${i}`}
+                                            type="button"
+                                            onClick={() => handleToggleMemberInSlot(r.id, name, true)}
+                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-slate-900/80 hover:bg-emerald-500/20 text-slate-400 hover:text-emerald-300 border border-white/5 hover:border-emerald-500/30 transition-colors cursor-pointer"
+                                            title={`Ajouter ${name} aux retenus`}
+                                          >
+                                            <span className="line-through">{name}</span>
+                                            <span className="text-emerald-400 font-bold ml-0.5">+</span>
+                                          </button>
+                                        ))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-slate-500 italic text-[11px]">Aucun adhérent assigné</span>
@@ -1717,6 +2169,14 @@ export function SwimPoolDesk({
         onClose={() => setIsAddBordereauModalOpen(false)}
         onAdd={handleCreateBordereau}
         existingCount={bordereaux.length}
+      />
+
+      {/* ─── MODAL: ADD PRE-RESERVATION ───────────────────────────────────────── */}
+      <PoolAddPreReservationModal
+        isOpen={isAddPreReservationModalOpen}
+        onClose={() => setIsAddPreReservationModalOpen(false)}
+        onAdd={handleCreatePreReservation}
+        existingCount={preReservations.length}
       />
 
       {/* ─── MODAL: ADD CLIENT TO BORDEREAU ──────────────────────────────────── */}

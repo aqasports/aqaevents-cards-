@@ -428,6 +428,70 @@ export interface PoolBordereau {
   updatedAt: string;
 }
 
+export interface PoolPreReservation {
+  id: string; // e.g. "pres_1728412345678"
+  title: string; // e.g. "Demande de réservation de créneaux"
+  referenceNumber: string; // e.g. "PR:0001/26"
+  date: string; // e.g. "08/10/2026"
+  month: string; // e.g. "Novembre"
+  year: string; // e.g. "2026"
+  poolId: string; // "azal" | "kouba" | "mouradia"
+  status: "draft" | "confirmed";
+  confirmedAt?: string;
+  placeOverrides: Record<string, number>;
+  slotMemberNames: Record<string, string[]>;
+  selectedReservationIds: string[];
+  showNamesInPreview: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getProposedPreReservationTitle(
+  poolId: string = "azal",
+  presNumber: number = 1
+): string {
+  const pool = DEFAULT_POOLS.find((p) => p.id === poolId);
+  let poolName = pool?.name?.replace(/^Piscine\s+/i, "").trim();
+  if (!poolName) {
+    if (poolId && poolId.trim().length > 0) {
+      poolName = poolId
+        .split(/[_\-\s]+/)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(" ");
+    } else {
+      poolName = "Azal";
+    }
+  }
+  return `${poolName} Pré-réservation ${presNumber}`;
+}
+
+export function createDefaultPreReservation(
+  meta: PoolDocumentMeta = DEFAULT_DOCUMENT_META,
+  poolId: string = "azal",
+  presNumber: number = 1
+): PoolPreReservation {
+  const proposedTitle = getProposedPreReservationTitle(poolId, presNumber);
+  const now = new Date();
+  const shortYear = meta.year ? meta.year.slice(-2) : String(now.getFullYear()).slice(-2);
+  const refNum = `PR:00${String(presNumber).padStart(2, "0")}/${shortYear}`;
+  return {
+    id: `pres_${Date.now()}`,
+    title: proposedTitle,
+    referenceNumber: refNum,
+    date: meta.date || "08/10/2026",
+    month: getCurrentFrenchMonth(),
+    year: meta.year || String(now.getFullYear()),
+    poolId: poolId || "azal",
+    status: "draft",
+    placeOverrides: {},
+    slotMemberNames: {},
+    selectedReservationIds: [],
+    showNamesInPreview: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function getProposedBordereauTitle(
   poolId: string = "azal",
   bordereauNumber: number = 1
@@ -580,6 +644,7 @@ export interface PoolSlotReservation {
   actualAssignedCount: number;
   hasCustomPlaces: boolean;
   memberNames?: string[];
+  allMemberNames?: string[];
   assignedMembers?: Array<{ id: string; swimId?: string; fullName: string; phone?: string }>;
 }
 
@@ -625,6 +690,8 @@ export const STORAGE_KEYS = {
   PREVIEW_SHOW_NAMES: "aqa_swim_pool_preview_show_names_v1",
   BORDEREAUX: "aqa_swim_pool_bordereaux_v2",
   ACTIVE_BORDEREAU_ID: "aqa_swim_pool_active_bordereau_id_v2",
+  PRE_RESERVATIONS: "aqa_swim_pool_prereservations_v2",
+  ACTIVE_PRE_RESERVATION_ID: "aqa_swim_pool_active_prereservation_id_v2",
 };
 
 /**
@@ -1095,7 +1162,8 @@ export function generatePoolDispatchMessage(params: {
 export function buildPoolSlotReservations(
   groups: SwimGroupReference[],
   members: SwimMemberReference[],
-  placeOverrides: Record<string, number> = {}
+  placeOverrides: Record<string, number> = {},
+  slotMemberNames: Record<string, string[]> = {}
 ): PoolSlotReservation[] {
   // Collect assigned members per group
   const membersByGroup = new Map<string, SwimMemberReference[]>();
@@ -1115,7 +1183,7 @@ export function buildPoolSlotReservations(
     const slots = parseScheduleSlots(g.schedule);
     const assignedList = membersByGroup.get(g.id) || [];
     const assignedCount = assignedList.length;
-    const memberNames = assignedList.map((m) => m.fullName.trim()).filter(Boolean);
+    const allMemberNames = assignedList.map((m) => m.fullName.trim()).filter(Boolean);
     const assignedMembers = assignedList.map((m) => ({
       id: m.id,
       swimId: m.swimId,
@@ -1129,6 +1197,20 @@ export function buildPoolSlotReservations(
       const defaultPlaces = assignedCount > 0 ? assignedCount : (g.capacity || 10);
       const hasCustom = placeOverrides[resId] !== undefined;
       const reservedPlaces = hasCustom ? Math.max(0, placeOverrides[resId]) : defaultPlaces;
+
+      // Ensure that if names are toggled on, only the chosen / retained names stay.
+      // It is not logical to set the number of places to 8 and show 10 names.
+      let memberNames: string[];
+      if (slotMemberNames[resId] && Array.isArray(slotMemberNames[resId])) {
+        const chosen = slotMemberNames[resId].filter((name) => allMemberNames.includes(name));
+        if (reservedPlaces < chosen.length) {
+          memberNames = chosen.slice(0, reservedPlaces);
+        } else {
+          memberNames = chosen;
+        }
+      } else {
+        memberNames = allMemberNames.slice(0, reservedPlaces);
+      }
 
       reservations.push({
         id: resId,
@@ -1145,6 +1227,7 @@ export function buildPoolSlotReservations(
         actualAssignedCount: assignedCount,
         hasCustomPlaces: hasCustom,
         memberNames,
+        allMemberNames,
         assignedMembers,
       });
     });
