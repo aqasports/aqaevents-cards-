@@ -12,18 +12,37 @@ import {
   formatMonthLabel,
   encodeNextMonthPaidTag,
   getEffectiveMemberPaymentStatus,
+  getStarterBillingCycles,
+  parseSidePocketBalance,
+  encodeSidePocketBalance,
+  encodeLinkedEventCard,
+  computeSubscriptionEnd,
+  getEffectiveSubscriptionStart,
 } from "@/lib/swim-subscription";
 
 export const dynamic = "force-dynamic";
 
 const recordSwimPaymentSchema = z.object({
   memberId: z.string().min(1),
-  amount: z.coerce.number().int().positive().max(10_000_000),
+  amount: z.coerce.number().int().min(0).max(10_000_000),
   method: z.string().trim().min(1).max(60).optional().default("cash"),
   notes: z.string().trim().max(500).nullable().optional(),
   targetMonth: z.string().trim().regex(/^\d{4}-\d{2}$/).optional(),
   isNextMonth: z.boolean().optional().default(false),
   extendSubscription: z.boolean().optional().default(true),
+  action: z.enum([
+    "settle",
+    "cover_month",
+    "upgrade_formula",
+    "side_pocket",
+    "use_side_pocket",
+    "link_event_card",
+  ]).optional().default("settle"),
+  targetDuration: z.enum(["1m", "3m", "6m", "9m"]).optional(),
+  targetFormula: z.string().trim().max(100).optional(),
+  targetPriceDA: z.coerce.number().int().min(0).max(10_000_000).optional(),
+  sidePocketAmount: z.coerce.number().int().min(0).max(10_000_000).optional(),
+  eventCardCode: z.string().trim().max(100).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -48,6 +67,12 @@ export async function POST(request: NextRequest) {
       targetMonth,
       isNextMonth,
       extendSubscription,
+      action = "settle",
+      targetDuration,
+      targetFormula,
+      targetPriceDA,
+      sidePocketAmount,
+      eventCardCode,
     } = parsed.data;
 
     const executePayment = async (tx: typeof prisma) => {
@@ -73,37 +98,48 @@ export async function POST(request: NextRequest) {
       }
 
       const isStarter = isStarterFormula(member.duration, member.formula);
+      const billing = isStarter ? getStarterBillingCycles(member, new Date()) : null;
       const effStatus = getEffectiveMemberPaymentStatus(member);
       const previousPaid = member.payments.reduce((sum, p) => sum + p.amount, 0);
-      const isImplicitStarterRenewal =
-        isStarter &&
-        effStatus.isAfterCutoff &&
-        !effStatus.isNextMonthPaid &&
-        (member.paymentStatus === "paid" ||
-          (member.priceDA > 0 && previousPaid >= member.priceDA));
-      const isAdvanceNextMonth =
-        isNextMonth || Boolean(targetMonth) || isImplicitStarterRenewal;
 
-      let finalPaymentNotes = notes?.trim() || null;
+      let finalPaymentNotes = notes?.trim() || "";
       let newSubscriptionEnd: Date | undefined = undefined;
-      let updatedMemberNotes: string | undefined = undefined;
+      let updatedMemberNotes: string = member.notes || "";
       let targetMonthKey: string | undefined = undefined;
+      let updatedFormula: string | undefined = undefined;
+      let updatedDuration: string | undefined = undefined;
+      let updatedPriceDA: number | undefined = undefined;
 
-      if (isAdvanceNextMonth) {
+      // Handle Smart Actions
+      if (action === "upgrade_formula" && targetDuration && targetDuration !== "1m") {
+        updatedDuration = targetDuration;
+        updatedFormula = targetFormula || `${member.formula} (${targetDuration})`;
+        updatedPriceDA = targetPriceDA && targetPriceDA > 0 ? targetPriceDA : member.priceDA;
+
+        const subStart = getEffectiveSubscriptionStart(member.subscriptionStart ?? member.dateOfStart);
+        newSubscriptionEnd = computeSubscriptionEnd(subStart, targetDuration, undefined, updatedFormula);
+
+        const upgradeTag = `[UPGRADE:${targetDuration}]`;
+        finalPaymentNotes = `${upgradeTag} ${finalPaymentNotes}`.trim();
+      } else if (action === "side_pocket") {
+        const deposit = sidePocketAmount ?? paymentAmount;
+        const currentPocket = parseSidePocketBalance(member.notes);
+        updatedMemberNotes = encodeSidePocketBalance(updatedMemberNotes, currentPocket + deposit);
+        finalPaymentNotes = `[SIDE_POCKET_DEPOSIT:${deposit}] ${finalPaymentNotes}`.trim();
+      } else if (action === "link_event_card" && eventCardCode) {
+        updatedMemberNotes = encodeLinkedEventCard(updatedMemberNotes, eventCardCode, paymentAmount);
+        finalPaymentNotes = `[AQA_EVENT_CARD:${eventCardCode}] ${finalPaymentNotes}`.trim();
+      } else if (action === "cover_month" || isNextMonth || Boolean(targetMonth)) {
         const resolvedTargetMonth =
-          targetMonth || (isImplicitStarterRenewal ? effStatus.nextMonthKey : undefined);
-        const targetDate = resolvedTargetMonth
-          ? new Date(`${resolvedTargetMonth}-01T00:00:00.000Z`)
-          : getNextMonthDate(member.subscriptionEnd);
+          targetMonth || billing?.nextUpcomingMonthKey || effStatus.nextMonthKey;
+        const targetDate = new Date(`${resolvedTargetMonth}-01T00:00:00.000Z`);
 
         targetMonthKey = formatMonthKey(targetDate);
         const tag = `[NEXT_MONTH:${targetMonthKey}]`;
         const monthLabel = formatMonthLabel(targetDate, "fr");
 
-        if (!finalPaymentNotes) {
-          finalPaymentNotes = `${tag} Paiement abonnement mois prochain (${monthLabel})`;
-        } else if (!finalPaymentNotes.includes(tag)) {
-          finalPaymentNotes = `${tag} ${finalPaymentNotes}`;
+        if (!finalPaymentNotes.includes(tag)) {
+          finalPaymentNotes = `${tag} Paiement abonnement mois prochain (${monthLabel}) ${finalPaymentNotes}`.trim();
         }
 
         if (extendSubscription && isStarter) {
@@ -111,25 +147,62 @@ export async function POST(request: NextRequest) {
           if (!member.subscriptionEnd || nextEnd > new Date(member.subscriptionEnd)) {
             newSubscriptionEnd = nextEnd;
           }
-          updatedMemberNotes = encodeNextMonthPaidTag(member.notes, targetMonthKey);
+          updatedMemberNotes = encodeNextMonthPaidTag(updatedMemberNotes, targetMonthKey);
+        }
+      } else {
+        // Standard settlement (action === "settle")
+        if (isStarter && billing) {
+          const dueKey = billing.currentDueMonthKey;
+          targetMonthKey = dueKey;
+          const monthTag = `[MONTH:${dueKey}]`;
+          if (!finalPaymentNotes.includes(monthTag)) {
+            finalPaymentNotes = `${monthTag} Règlement ${billing.currentDueMonthLabel} ${finalPaymentNotes}`.trim();
+          }
         }
       }
 
-      const payment = await tx.swimPayment.create({
-        data: {
-          memberId,
-          amount: paymentAmount,
-          method: method || "cash",
-          notes: finalPaymentNotes,
-          paidAt: new Date(),
-        },
-      });
+      // Handle Side Pocket deduction if specified
+      if (action === "use_side_pocket" && sidePocketAmount && sidePocketAmount > 0) {
+        const currentPocket = parseSidePocketBalance(member.notes);
+        updatedMemberNotes = encodeSidePocketBalance(
+          updatedMemberNotes,
+          Math.max(0, currentPocket - sidePocketAmount)
+        );
+        finalPaymentNotes = `[USED_SIDE_POCKET:${sidePocketAmount}] ${finalPaymentNotes}`.trim();
+      }
 
-      const totalPaid =
-        member.payments.reduce((sum, p) => sum + p.amount, 0) + paymentAmount;
+      // Create Payment Record (only if paymentAmount > 0)
+      let payment = null;
+      if (paymentAmount > 0) {
+        payment = await tx.swimPayment.create({
+          data: {
+            memberId,
+            amount: paymentAmount,
+            method: method || "cash",
+            notes: finalPaymentNotes || null,
+            paidAt: new Date(),
+          },
+        });
+      } else {
+        // If amount is 0 (e.g. metadata-only update or 100% side pocket deduction), use a synthetic receipt
+        payment = {
+          id: `adj_${Date.now()}`,
+          memberId,
+          amount: 0,
+          method: method || "cash",
+          notes: finalPaymentNotes || null,
+          paidAt: new Date(),
+          createdAt: new Date(),
+        };
+      }
+
+      const totalPaid = previousPaid + paymentAmount;
+      const targetTariff = updatedPriceDA ?? member.priceDA;
 
       let newStatus = member.paymentStatus;
-      if (isAdvanceNextMonth || totalPaid >= member.priceDA) {
+      if (action === "upgrade_formula") {
+        newStatus = totalPaid >= targetTariff ? "paid" : "partial";
+      } else if (action === "cover_month" || isNextMonth || totalPaid >= targetTariff) {
         newStatus = "paid";
       } else if (totalPaid > 0) {
         newStatus = "partial";
@@ -139,8 +212,11 @@ export async function POST(request: NextRequest) {
         where: { id: memberId },
         data: {
           paymentStatus: newStatus,
+          ...(updatedDuration ? { duration: updatedDuration } : {}),
+          ...(updatedFormula ? { formula: updatedFormula } : {}),
+          ...(updatedPriceDA !== undefined ? { priceDA: updatedPriceDA } : {}),
           ...(newSubscriptionEnd ? { subscriptionEnd: newSubscriptionEnd } : {}),
-          ...(updatedMemberNotes ? { notes: updatedMemberNotes } : {}),
+          notes: updatedMemberNotes,
         },
         include: { payments: { orderBy: { paidAt: "desc" } }, group: true },
       });

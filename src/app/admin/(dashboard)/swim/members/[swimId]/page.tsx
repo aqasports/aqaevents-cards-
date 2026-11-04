@@ -14,6 +14,7 @@ import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { useLocale, useTranslations } from "@/lib/i18n";
 import QRCode from "qrcode";
 import { SwimPvcPrintDialog } from "@/components/swim/SwimPvcPrintDialog";
+import { SmartSwimPaymentModal } from "@/components/admin/swim/payments/SmartSwimPaymentModal";
 import {
   getEffectiveSubscriptionStart,
   getEffectiveSubscriptionEnd,
@@ -23,6 +24,9 @@ import {
   durationToDays,
   isStarterFormula,
   getMemberNextMonthInfo,
+  getStarterBillingCycles,
+  parseSidePocketBalance,
+  parseLinkedEventCard,
   type SwimmerNextMonthInfo,
 } from "@/lib/swim-subscription";
 
@@ -210,6 +214,7 @@ export default function AdminSwimmerProfilePage({
   const [paymentNotes, setPaymentNotes] = useState("");
   const [isPaymentForNextMonth, setIsPaymentForNextMonth] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [showSmartPaymentModal, setShowSmartPaymentModal] = useState(false);
 
   // Dedicated Next Month Payment state (Starter formula 1m)
   const [showAddNextMonthPayment, setShowAddNextMonthPayment] = useState(false);
@@ -843,6 +848,10 @@ export default function AdminSwimmerProfilePage({
   const nominalDays = isStarter && subStartVal && subEndVal
     ? Math.max(1, Math.round((new Date(subEndVal).getTime() - new Date(subStartVal).getTime()) / (24 * 60 * 60 * 1000)) + 1)
     : durationToDays(member.duration);
+
+  const starterBillingSituation = isStarter ? getStarterBillingCycles(member, new Date(), locale) : null;
+  const sidePocketCredit = parseSidePocketBalance(member.notes);
+  const linkedEventCardInfo = parseLinkedEventCard(member.notes);
 
   const formattedSubStart = subStartVal
     ? new Date(subStartVal).toLocaleDateString(
@@ -1644,22 +1653,19 @@ export default function AdminSwimmerProfilePage({
                       <span>Pool Status: poolpaid</span>
                     </div>
                   )}
+                  {sidePocketCredit > 0 && (
+                    <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 ml-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                      <span>Avoir Club : {sidePocketCredit.toLocaleString("fr-DZ")} DA</span>
+                    </div>
+                  )}
+                  {linkedEventCardInfo && (
+                    <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-950/80 border border-indigo-500/40 text-indigo-300 ml-1.5">
+                      <span>Carte Event : {linkedEventCardInfo.cardCode}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {isStarter && (
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => {
-                        setShowAddNextMonthPayment(!showAddNextMonthPayment);
-                        setShowAddPayment(false);
-                        setNextMonthAmount(String(priceDA || 7800));
-                      }}
-                      className={nextMonthInfo.isPaid ? "bg-emerald-700 hover:bg-emerald-600 border-emerald-500/50" : "bg-sky-600 hover:bg-sky-500"}
-                    >
-                      {nextMonthInfo.isPaid ? t("nextMonthPaidBadge") : t("payNextMonthBtn")}
-                    </Button>
-                  )}
                   <Button size="sm" variant="secondary" onClick={() => setShowAddDebt(true)}>
                     + Dette
                   </Button>
@@ -1669,8 +1675,13 @@ export default function AdminSwimmerProfilePage({
                   <Button size="sm" variant="secondary" onClick={() => setShowSetPrice(!showSetPrice)}>
                     Manual Price
                   </Button>
-                  <Button size="sm" variant={isStarter ? "secondary" : "primary"} onClick={() => { setShowAddPayment(!showAddPayment); setShowAddNextMonthPayment(false); }}>
-                    + Payment
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => setShowSmartPaymentModal(true)}
+                    className="font-bold bg-sky-600 hover:bg-sky-500 shadow-sm"
+                  >
+                    + Encaisser / Options
                   </Button>
                 </div>
               </div>
@@ -1719,15 +1730,85 @@ export default function AdminSwimmerProfilePage({
                   <Button
                     size="sm"
                     variant="primary"
-                    onClick={() => {
-                      setShowAddNextMonthPayment(true);
-                      setShowAddPayment(false);
-                      setNextMonthAmount(String(priceDA || 7800));
-                    }}
+                    onClick={() => setShowSmartPaymentModal(true)}
                     className="bg-sky-600 hover:bg-sky-500 shrink-0 text-white font-semibold"
                   >
                     {t("payNextMonthBtn")}
                   </Button>
+                </div>
+              )}
+
+              {/* Starter Monthly Billing Cycles Timeline */}
+              {isStarter && starterBillingSituation && (
+                <div className="p-3.5 rounded-xl bg-slate-900/90 border border-white/10 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Cycles Mensuels Starter (Saison 2026/2027)
+                    </span>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Règle du 25 : activation automatique
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {starterBillingSituation.cycles.map((c) => (
+                      <div
+                        key={c.monthKey}
+                        className={`p-2 rounded-xl border flex items-center justify-between text-xs transition-colors ${
+                          c.isCurrentDue
+                            ? "border-cyan-500/50 bg-cyan-950/30 shadow-[0_0_12px_rgba(0,242,255,0.1)]"
+                            : c.status === "paid"
+                            ? "border-emerald-500/20 bg-emerald-950/20"
+                            : "border-white/5 bg-slate-800/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              c.status === "paid"
+                                ? "bg-emerald-400"
+                                : c.status === "partial"
+                                ? "bg-amber-400"
+                                : "bg-rose-500"
+                            }`}
+                          />
+                          <div>
+                            <span className="font-bold text-white">{c.monthLabel}</span>
+                            {c.isCurrentDue && (
+                              <span className="ml-2 text-[10px] font-mono text-cyan-300 font-bold uppercase">
+                                [Cycle Actif]
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 font-mono">
+                          <span className="text-slate-400 text-[11px]">
+                            Tarif : {c.tariffDA.toLocaleString("fr-DZ")} DA
+                          </span>
+                          <span className={c.paidAmount > 0 ? "text-emerald-400 font-bold text-[11px]" : "text-slate-500 text-[11px]"}>
+                            Payé : {c.paidAmount.toLocaleString("fr-DZ")} DA
+                          </span>
+                          {c.debtDA > 0 && (
+                            <span className="text-rose-400 font-bold text-[11px]">
+                              Reste : {c.debtDA.toLocaleString("fr-DZ")} DA
+                            </span>
+                          )}
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              c.status === "paid"
+                                ? "bg-emerald-950 text-emerald-300 border border-emerald-500/30"
+                                : c.status === "partial"
+                                ? "bg-amber-950 text-amber-300 border border-amber-500/30"
+                                : "bg-rose-950 text-rose-300 border border-rose-500/30"
+                            }`}
+                          >
+                            {c.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -2417,6 +2498,17 @@ export default function AdminSwimmerProfilePage({
           qrDataUrl={cardQrDataUrl}
         />
       )}
+
+      {/* Smart Dynamic Swim Payment Modal */}
+      <SmartSwimPaymentModal
+        isOpen={showSmartPaymentModal}
+        member={member}
+        onClose={() => setShowSmartPaymentModal(false)}
+        onSuccess={async () => {
+          setShowSmartPaymentModal(false);
+          await loadMember();
+        }}
+      />
     </div>
   );
 }

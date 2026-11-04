@@ -9,6 +9,8 @@ import {
   getEffectiveMemberPaymentStatus,
   formatMonthKey,
   formatMonthLabel,
+  parseSidePocketBalance,
+  parseLinkedEventCard,
 } from "@/lib/swim-subscription";
 import { getSwimPaymentRequestWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { useLocale, useTranslations } from "@/lib/i18n";
@@ -409,6 +411,25 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
                     <div className="font-semibold text-white leading-tight">{m.fullName}</div>
                     <div className="text-[10px] text-slate-400 font-mono">{m.swimId}</div>
                     <div className="text-[10px] text-slate-500">{m.phone}</div>
+                    {(() => {
+                      const pocket = parseSidePocketBalance(m.notes);
+                      const linked = parseLinkedEventCard(m.notes);
+                      if (!pocket && !linked) return null;
+                      return (
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          {pocket > 0 && (
+                            <span className="text-[9px] font-mono font-bold text-cyan-300 px-1 rounded bg-cyan-950/80 border border-cyan-500/30">
+                              Avoir: {pocket.toLocaleString("fr-DZ")} DA
+                            </span>
+                          )}
+                          {linked && (
+                            <span className="text-[9px] font-mono text-indigo-300 px-1 rounded bg-indigo-950/80 border border-indigo-500/30">
+                              Event: {linked.cardCode}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Group / Schedule */}
@@ -552,9 +573,21 @@ export function SwimStarterDesk({ members, onRecordPayment, onRequestMissingPhon
                         </button>
                       )}
                       {m.effNextMonthPaid && isMemberNextMonthPaid(m, nextMonthInfo.monthKey).isPaid ? (
-                        <span className="px-2 py-1 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
-                          {t("nextMonthSettledBadge", { month: nextMonthInfo.monthLabel })}
-                        </span>
+                        <div className="inline-flex items-center gap-1">
+                          <span className="px-2 py-1 rounded-lg bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                            {t("nextMonthSettledBadge", { month: nextMonthInfo.monthLabel })}
+                          </span>
+                          {onRecordPayment && (
+                            <button
+                              type="button"
+                              onClick={() => onRecordPayment(m)}
+                              className="px-2 py-1 rounded-lg bg-sky-950/60 border border-sky-500/30 text-sky-300 hover:bg-sky-900/60 text-[10px] font-bold transition-colors"
+                              title="Avancer un mois supplémentaire ou options de gestion"
+                            >
+                              +
+                            </button>
+                          )}
+                        </div>
                       ) : onRecordPayment ? (
                         <button
                           onClick={() => onRecordPayment(m)}

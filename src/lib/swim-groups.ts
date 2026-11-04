@@ -4,6 +4,7 @@
 
 import {
   getEffectiveMemberPaymentStatus,
+  getStarterBillingCycles,
   isStarterFormula,
   type EffectivePaymentStatus,
 } from "./swim-subscription";
@@ -555,6 +556,12 @@ export interface MemberPaymentSituation {
   effectivePaymentStatus: EffectivePaymentStatus;
   isAfterCutoff: boolean;
   isNextMonthPaid: boolean;
+  sidePocketDA?: number;
+  linkedEventCard?: string | null;
+  currentDueMonthKey?: string;
+  currentDueMonthLabel?: string;
+  nextUpcomingMonthKey?: string;
+  nextUpcomingMonthLabel?: string;
 }
 
 /**
@@ -617,6 +624,9 @@ export function getMemberPaymentSituation(
 
     if (isStarter) {
       const eff = getEffectiveMemberPaymentStatus(member, referenceDate);
+      const billing = getStarterBillingCycles(member, referenceDate);
+      const ancientDebt = debtDetails.hasDebt ? debtDetails.amount : 0;
+
       if (eff.isAfterCutoff) {
         if (eff.isNextMonthPaid) {
           return {
@@ -625,16 +635,23 @@ export function getMemberPaymentSituation(
             isDebtOnly: false,
             effectivePriceDA,
             totalPaid,
-            debt: 0,
-            hasDebt: false,
+            debt: ancientDebt,
+            hasDebt: ancientDebt > 0,
             debtDetails,
             effectivePaymentStatus: "paid",
             isAfterCutoff: true,
             isNextMonthPaid: true,
+            sidePocketDA: billing.sidePocketDA,
+            linkedEventCard: billing.linkedEventCard,
+            currentDueMonthKey: billing.currentDueMonthKey,
+            currentDueMonthLabel: billing.currentDueMonthLabel,
+            nextUpcomingMonthKey: billing.nextUpcomingMonthKey,
+            nextUpcomingMonthLabel: billing.nextUpcomingMonthLabel,
           };
         }
         const renewalPaid = eff.nextMonthAmount || 0;
-        const debt = effectivePriceDA > 0 ? Math.max(0, effectivePriceDA - renewalPaid) : 0;
+        const monthlyTariff = effectivePriceDA > 0 ? effectivePriceDA : 7800;
+        const debt = Math.max(0, monthlyTariff - renewalPaid) + ancientDebt;
         return {
           isAssigned: true,
           isLinkedToPayment: true,
@@ -647,10 +664,16 @@ export function getMemberPaymentSituation(
           effectivePaymentStatus: eff.effectiveStatus,
           isAfterCutoff: true,
           isNextMonthPaid: false,
+          sidePocketDA: billing.sidePocketDA,
+          linkedEventCard: billing.linkedEventCard,
+          currentDueMonthKey: billing.currentDueMonthKey,
+          currentDueMonthLabel: billing.currentDueMonthLabel,
+          nextUpcomingMonthKey: billing.nextUpcomingMonthKey,
+          nextUpcomingMonthLabel: billing.nextUpcomingMonthLabel,
         };
       }
 
-      const debt = Math.max(0, effectivePriceDA - totalPaid);
+      const debt = billing.totalDebtDA + ancientDebt;
       const effectivePaymentStatus: EffectivePaymentStatus =
         debt === 0 && (totalPaid > 0 || eff.effectiveStatus === "paid")
           ? "paid"
@@ -669,6 +692,12 @@ export function getMemberPaymentSituation(
         effectivePaymentStatus,
         isAfterCutoff: false,
         isNextMonthPaid: eff.isNextMonthPaid,
+        sidePocketDA: billing.sidePocketDA,
+        linkedEventCard: billing.linkedEventCard,
+        currentDueMonthKey: billing.currentDueMonthKey,
+        currentDueMonthLabel: billing.currentDueMonthLabel,
+        nextUpcomingMonthKey: billing.nextUpcomingMonthKey,
+        nextUpcomingMonthLabel: billing.nextUpcomingMonthLabel,
       };
     }
 

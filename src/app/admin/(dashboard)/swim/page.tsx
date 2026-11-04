@@ -50,6 +50,7 @@ import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
 import { SwimFinanceDesk } from "@/components/admin/swim/finance/SwimFinanceDesk";
 import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
 import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
+import { SmartSwimPaymentModal } from "@/components/admin/swim/payments/SmartSwimPaymentModal";
 import {
   SwimPaymentRequestsDesk,
   type PaymentRequestMemberRow,
@@ -2932,80 +2933,16 @@ function SwimOverviewPageInner() {
         </div>
       )}
 
-      {/* ─── QUICK PAYMENT MODAL ─────────────────────────────────────── */}
-      {payingMember && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-slate-900 border border-white/10 rounded-2xl p-6 shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-white">
-              Record Swim Payment: {payingMember.fullName}
-            </h3>
-            <p className="text-xs text-slate-400">
-              Swimmer ID: <span className="font-mono text-cyan-300">{payingMember.swimId}</span>
-            </p>
-
-            <form onSubmit={handlePaymentSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Payment Amount (DA) *
-                </label>
-                <Input
-                  type="number"
-                  required
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  placeholder="e.g. 21900"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Payment Method
-                </label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-800 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
-                >
-                  <option value="cash">Especes (Cash at Reception)</option>
-                  <option value="baridi_mob">Baridi Mob / CCP</option>
-                  <option value="virement">Virement Bancaire</option>
-                  <option value="cheque">Cheque</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Receipt Note (Optional)
-                </label>
-                <Input
-                  value={paymentNotes}
-                  onChange={(e) => setPaymentNotes(e.target.value)}
-                  placeholder="e.g. Recu No. 042 / Tranche 1"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setPayingMember(null)}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={submittingPayment}
-                  className="flex-1"
-                >
-                  Confirm Payment
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* ─── SMART DYNAMIC PAYMENT MODAL ─────────────────────────────── */}
+      <SmartSwimPaymentModal
+        isOpen={Boolean(payingMember)}
+        member={payingMember}
+        onClose={() => setPayingMember(null)}
+        onSuccess={async () => {
+          setPayingMember(null);
+          await loadAllData({ silent: true });
+        }}
+      />
 
       {/* ─── PROMOTE LEAD MODAL ──────────────────────────────────────── */}
       {promotingLead && (

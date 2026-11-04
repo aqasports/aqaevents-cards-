@@ -1,3 +1,5 @@
+import { calculateSwimPrice } from "./swim-pricing";
+
 /**
  * AQA Swim Subscription Date Calculator
  *
@@ -390,7 +392,10 @@ export function isMemberNextMonthPaid(
   if (Array.isArray(member.payments) && member.payments.length > 0) {
     for (const p of member.payments) {
       const pNotes = p.notes || "";
-      if (pNotes.includes(`[NEXT_MONTH:${expectedMonthKey}]`)) {
+      if (
+        pNotes.includes(`[NEXT_MONTH:${expectedMonthKey}]`) ||
+        pNotes.includes(`[MONTH:${expectedMonthKey}]`)
+      ) {
         return {
           isPaid: true,
           amount: p.amount || 0,
@@ -416,6 +421,21 @@ export function isMemberNextMonthPaid(
     };
   }
 
+  // 3. Look in chronological billing cycle calculation for Starter subscribers
+  const mAny = member as { duration?: string | null; formula?: string | null } | null | undefined;
+  if (isStarterFormula(mAny?.duration, mAny?.formula)) {
+    const sit = getStarterBillingCycles(member as any, new Date(), locale);
+    const targetCycle = sit.cycles.find((c) => c.monthKey === expectedMonthKey);
+    if (targetCycle && targetCycle.status === "paid") {
+      return {
+        isPaid: true,
+        amount: targetCycle.paidAmount,
+        monthKey: expectedMonthKey,
+        monthLabel,
+      };
+    }
+  }
+
   return {
     isPaid: false,
     amount: 0,
@@ -438,6 +458,409 @@ export function encodeNextMonthPaidTag(
     return base.replace(/\[NEXT_MONTH_PAID:[0-9]{4}-[0-9]{2}\]/, tag);
   }
   return `${base} | ${tag}`;
+}
+
+// ─── Side Pocket (Avoir Club) Utilities ───────────────────────────────────────
+
+export const SIDE_POCKET_TAG_PREFIX = "[SIDE_POCKET:";
+
+/**
+ * Parses the side pocket credit balance stored in member notes.
+ * Format: [SIDE_POCKET:amount]
+ */
+export function parseSidePocketBalance(notes?: string | null): number {
+  if (!notes) return 0;
+  const match = notes.match(/\[SIDE_POCKET:([0-9]+)\]/);
+  if (!match || !match[1]) return 0;
+  const parsed = parseInt(match[1], 10);
+  return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+}
+
+/**
+ * Encodes or updates the [SIDE_POCKET:amount] tag in member notes.
+ * If balance is 0 or negative, removes the tag cleanly.
+ */
+export function encodeSidePocketBalance(
+  notes: string | null | undefined,
+  balance: number
+): string {
+  const cleanedBalance = Math.max(0, Math.round(balance));
+  const base = (notes || "").trim();
+  const hasTag = /\[SIDE_POCKET:[0-9]+\]/.test(base);
+
+  if (cleanedBalance <= 0) {
+    if (!hasTag) return base;
+    return base
+      .replace(/\[SIDE_POCKET:[0-9]+\]/g, "")
+      .replace(/\|\s*\|/g, "|")
+      .replace(/^\s*\|\s*/, "")
+      .replace(/\s*\|\s*$/, "")
+      .trim();
+  }
+
+  const newTag = `[SIDE_POCKET:${cleanedBalance}]`;
+  if (hasTag) {
+    return base.replace(/\[SIDE_POCKET:[0-9]+\]/, newTag);
+  }
+  return base ? `${base} | ${newTag}` : newTag;
+}
+
+// ─── AQA Event Card Linking Utilities ─────────────────────────────────────────
+
+export const AQA_EVENT_CARD_TAG_PREFIX = "[AQA_EVENT_CARD:";
+
+export interface LinkedEventCardInfo {
+  cardCode: string;
+  amount?: number;
+}
+
+/**
+ * Parses any linked AQA Event Card code stored in notes.
+ * Format: [AQA_EVENT_CARD:CRD-12345] or [AQA_EVENT_CARD:CRD-12345:amount]
+ */
+export function parseLinkedEventCard(notes?: string | null): LinkedEventCardInfo | null {
+  if (!notes) return null;
+  const match = notes.match(/\[AQA_EVENT_CARD:([A-Za-z0-9_-]+)(?::([0-9]+))?\]/);
+  if (!match || !match[1]) return null;
+  const cardCode = match[1].trim();
+  const amount = match[2] ? parseInt(match[2], 10) : undefined;
+  return { cardCode, amount: !isNaN(amount as number) ? amount : undefined };
+}
+
+/**
+ * Encodes or updates the [AQA_EVENT_CARD:code] tag in notes.
+ */
+export function encodeLinkedEventCard(
+  notes: string | null | undefined,
+  cardCode: string,
+  amount?: number
+): string {
+  const code = (cardCode || "").trim();
+  const base = (notes || "").trim();
+  if (!code) return base;
+  const newTag = amount && amount > 0
+    ? `[AQA_EVENT_CARD:${code}:${amount}]`
+    : `[AQA_EVENT_CARD:${code}]`;
+  if (/\[AQA_EVENT_CARD:[^\]]+\]/.test(base)) {
+    return base.replace(/\[AQA_EVENT_CARD:[^\]]+\]/, newTag);
+  }
+  return base ? `${base} | ${newTag}` : newTag;
+}
+
+// ─── Formula Upgrade Options ──────────────────────────────────────────────────
+
+export interface FormulaUpgradeTier {
+  targetTier: "silver" | "gold" | "diamond";
+  targetDuration: "3m" | "6m" | "9m";
+  targetFormula: string;
+  totalPriceDA: number;
+  currentPaidDA: number;
+  complementDA: number;
+  nominalMonths: number;
+  savingsDA: number;
+}
+
+/**
+ * Calculates dynamic formula upgrade options from Starter (1m) to higher tiers
+ * (Silver 3m, Gold 6m, Diamond 9m), deducting what was already paid in the current cycle.
+ */
+export function getFormulaUpgradeOptions(member: {
+  category?: string | null;
+  formula?: string | null;
+  duration?: string | null;
+  priceDA?: number | null;
+  payments?: Array<{ amount?: number | null }> | null;
+}): FormulaUpgradeTier[] {
+  const cat = member.category || "homme";
+  const formulaName = (member.formula || "G10").trim();
+  const currentPriceDA = member.priceDA && member.priceDA > 0 ? member.priceDA : 7800;
+
+  // Amount paid in the current month / cycle (capped to monthly price)
+  const totalPaid = Array.isArray(member.payments)
+    ? member.payments.reduce((s, p) => s + (p?.amount || 0), 0)
+    : 0;
+  const currentPaidDA = Math.min(currentPriceDA, totalPaid > 0 ? currentPriceDA : 0);
+
+  const tiers: Array<{
+    targetTier: "silver" | "gold" | "diamond";
+    targetDuration: "3m" | "6m" | "9m";
+    months: number;
+    suffix: string;
+  }> = [
+    { targetTier: "silver", targetDuration: "3m", months: 3, suffix: "Silver (3m)" },
+    { targetTier: "gold", targetDuration: "6m", months: 6, suffix: "Gold (6m)" },
+    { targetTier: "diamond", targetDuration: "9m", months: 9, suffix: "Diamond (9m)" },
+  ];
+
+  return tiers.map(({ targetTier, targetDuration, months, suffix }) => {
+    const totalPriceDA = calculateSwimPrice({
+      category: cat,
+      groupType: formulaName,
+      duration: targetDuration,
+    });
+    const complementDA = Math.max(0, totalPriceDA - currentPaidDA);
+    const unbundledTotal = currentPriceDA * months;
+    const savingsDA = Math.max(0, unbundledTotal - totalPriceDA);
+
+    return {
+      targetTier,
+      targetDuration,
+      targetFormula: `${formulaName} ${suffix}`,
+      totalPriceDA,
+      currentPaidDA,
+      complementDA,
+      nominalMonths: months,
+      savingsDA,
+    };
+  });
+}
+
+// ─── Starter Billing Cycles Engine ───────────────────────────────────────────
+
+export interface StarterBillingCycle {
+  monthKey: string;
+  monthLabel: string;
+  firstDay: Date;
+  lastDay: Date;
+  cutoffDate: Date;
+  tariffDA: number;
+  paidAmount: number;
+  debtDA: number;
+  status: "paid" | "partial" | "unpaid";
+  isCurrentDue: boolean;
+  isUpcoming: boolean;
+  isPastCutoff: boolean;
+}
+
+export interface StarterBillingSituation {
+  cycles: StarterBillingCycle[];
+  activeCycles: StarterBillingCycle[];
+  totalExpectedDA: number;
+  totalPaidDA: number;
+  totalDebtDA: number;
+  effectiveStatus: EffectivePaymentStatus;
+  currentDueMonthKey: string;
+  currentDueMonthLabel: string;
+  nextUpcomingMonthKey: string;
+  nextUpcomingMonthLabel: string;
+  isAfterCutoff: boolean;
+  isNextMonthPaid: boolean;
+  nextMonthAmount: number;
+  sidePocketDA: number;
+  linkedEventCard: string | null;
+}
+
+/**
+ * Computes the complete chronological sequence of monthly billing cycles
+ * for a Starter (1m) subscriber.
+ *
+ * Rules:
+ * - Season floor: 1 October 2026.
+ * - Each calendar month has a tariff (e.g. 7,800 DA).
+ * - On the 25th of month M-1, month M is activated and becomes due.
+ *   All Starter subscribers must settle month M or they turn "unpaid".
+ * - Payments are attributed to explicit tagged months first, then chronologically
+ *   cover unpaid active months.
+ * - Works seamlessly across October, November, December, January, etc.
+ */
+export function getStarterBillingCycles(
+  member: {
+    duration?: string | null;
+    formula?: string | null;
+    priceDA?: number | null;
+    paymentStatus?: string | null;
+    notes?: string | null;
+    dateOfStart?: Date | string | null;
+    subscriptionStart?: Date | string | null;
+    subscriptionEnd?: Date | string | null;
+    payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
+  } | null | undefined,
+  referenceDate: Date = new Date(),
+  locale = "fr"
+): StarterBillingSituation {
+  const refUTC = toUTCMidnight(referenceDate);
+  const isRefDay25OrLater = referenceDate.getUTCDate() >= 25 || referenceDate.getDate() >= 25;
+  const sidePocketBalance = parseSidePocketBalance(member?.notes);
+  const linkedCardInfo = parseLinkedEventCard(member?.notes);
+
+  const effStart = getEffectiveSubscriptionStart(member?.subscriptionStart ?? member?.dateOfStart);
+  const startMonthDate = new Date(Date.UTC(effStart.getUTCFullYear(), effStart.getUTCMonth(), 1));
+
+  const monthlyTariff = member?.priceDA && member.priceDA > 0 ? member.priceDA : 7800;
+
+  const refMonthDate = new Date(Date.UTC(refUTC.getUTCFullYear(), refUTC.getUTCMonth(), 1));
+  const nextMonthAfterRef = getNextMonthDate(refUTC);
+
+  // The latest active due month: if on or after 25th, includes next calendar month
+  const maxDueMonthDate = isRefDay25OrLater ? nextMonthAfterRef : refMonthDate;
+
+  // Check if member has explicit future month tags beyond maxDueMonthDate
+  const allFutureMonthKeys = new Set<string>();
+  const payments = Array.isArray(member?.payments) ? member.payments : [];
+  for (const p of payments) {
+    const notesStr = p?.notes || "";
+    const m = notesStr.match(/\[(?:NEXT_MONTH|MONTH):([0-9]{4}-[0-9]{2})\]/);
+    if (m && m[1]) allFutureMonthKeys.add(m[1]);
+  }
+  const memberNotesStr = member?.notes || "";
+  const notesMatch = memberNotesStr.match(/\[NEXT_MONTH_PAID:([0-9]{4}-[0-9]{2})\]/);
+  if (notesMatch && notesMatch[1]) allFutureMonthKeys.add(notesMatch[1]);
+
+  let endMonthDate = new Date(maxDueMonthDate.getTime());
+  for (const fKey of allFutureMonthKeys) {
+    const d = new Date(`${fKey}-01T00:00:00.000Z`);
+    if (!isNaN(d.getTime()) && d.getTime() > endMonthDate.getTime()) {
+      endMonthDate = d;
+    }
+  }
+
+  // Generate sequence of cycles from startMonthDate to endMonthDate
+  const cycles: StarterBillingCycle[] = [];
+  let cursor = new Date(startMonthDate.getTime());
+  while (cursor.getTime() <= endMonthDate.getTime()) {
+    const mKey = formatMonthKey(cursor);
+    const mLabel = formatMonthLabel(cursor, locale);
+    const firstDay = new Date(cursor.getTime());
+    const lastDay = getLastDayOfSameMonth(cursor);
+
+    const cutoffDate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() - 1, 25));
+    const isPastCutoff = refUTC.getTime() >= cutoffDate.getTime();
+    const isDue = cursor.getTime() <= maxDueMonthDate.getTime();
+    const isUpcoming = cursor.getTime() > refMonthDate.getTime();
+    const isCurrentDue = mKey === formatMonthKey(refMonthDate);
+
+    cycles.push({
+      monthKey: mKey,
+      monthLabel: mLabel,
+      firstDay,
+      lastDay,
+      cutoffDate,
+      tariffDA: monthlyTariff,
+      paidAmount: 0,
+      debtDA: monthlyTariff,
+      status: "unpaid",
+      isCurrentDue,
+      isUpcoming,
+      isPastCutoff,
+    });
+
+    cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1));
+  }
+
+  if (cycles.length === 0) {
+    const mKey = formatMonthKey(refMonthDate);
+    const mLabel = formatMonthLabel(refMonthDate, locale);
+    cycles.push({
+      monthKey: mKey,
+      monthLabel: mLabel,
+      firstDay: refMonthDate,
+      lastDay: getLastDayOfSameMonth(refMonthDate),
+      cutoffDate: new Date(Date.UTC(refMonthDate.getUTCFullYear(), refMonthDate.getUTCMonth() - 1, 25)),
+      tariffDA: monthlyTariff,
+      paidAmount: 0,
+      debtDA: monthlyTariff,
+      status: "unpaid",
+      isCurrentDue: true,
+      isUpcoming: false,
+      isPastCutoff: true,
+    });
+  }
+
+  // Payment allocation
+  const allocatedPerMonth: Record<string, number> = {};
+  let unallocatedPool = 0;
+
+  // Pass 0: If member has no payments array or empty payments, but has paymentStatus === "paid",
+  // credit the starting cycle as covered by the DB recorded status.
+  const originalStatus = (member?.paymentStatus || "").toLowerCase().trim();
+  if (payments.length === 0 && (originalStatus === "paid" || (member?.priceDA ?? 0) === 0)) {
+    allocatedPerMonth[formatMonthKey(startMonthDate)] = monthlyTariff;
+  }
+
+  // Pass 1: Explicit tagged payments
+  for (const p of payments) {
+    const pAmt = p?.amount || 0;
+    if (pAmt <= 0) continue;
+    const notesStr = p?.notes || "";
+    const m = notesStr.match(/\[(?:NEXT_MONTH|MONTH):([0-9]{4}-[0-9]{2})\]/);
+    if (m && m[1]) {
+      const targetK = m[1];
+      allocatedPerMonth[targetK] = (allocatedPerMonth[targetK] || 0) + pAmt;
+    } else {
+      unallocatedPool += pAmt;
+    }
+  }
+
+  // Pass 2: Note tag [NEXT_MONTH_PAID:YYYY-MM]
+  if (notesMatch && notesMatch[1]) {
+    const targetK = notesMatch[1];
+    if ((allocatedPerMonth[targetK] || 0) < monthlyTariff) {
+      const needed = monthlyTariff - (allocatedPerMonth[targetK] || 0);
+      const grant = unallocatedPool >= needed ? needed : needed;
+      allocatedPerMonth[targetK] = (allocatedPerMonth[targetK] || 0) + grant;
+      unallocatedPool = Math.max(0, unallocatedPool - grant);
+    }
+  }
+
+  // Pass 3: Chronological allocation across cycles
+  for (const cycle of cycles) {
+    if (unallocatedPool <= 0) break;
+    const currentAlloc = allocatedPerMonth[cycle.monthKey] || 0;
+    const needed = Math.max(0, cycle.tariffDA - currentAlloc);
+    if (needed > 0) {
+      const take = Math.min(needed, unallocatedPool);
+      allocatedPerMonth[cycle.monthKey] = currentAlloc + take;
+      unallocatedPool -= take;
+    }
+  }
+
+  // Compute final amounts per cycle
+  for (const cycle of cycles) {
+    const paidAmt = allocatedPerMonth[cycle.monthKey] || 0;
+    cycle.paidAmount = paidAmt;
+    cycle.debtDA = Math.max(0, cycle.tariffDA - paidAmt);
+    cycle.status = paidAmt >= cycle.tariffDA ? "paid" : paidAmt > 0 ? "partial" : "unpaid";
+  }
+
+  const activeCycles = cycles.filter((c) => c.firstDay.getTime() <= maxDueMonthDate.getTime());
+  const totalExpectedDA = activeCycles.reduce((sum, c) => sum + c.tariffDA, 0);
+  const totalPaidForActive = activeCycles.reduce((sum, c) => sum + c.paidAmount, 0);
+  const totalPaidAll = payments.reduce((sum, p) => sum + (p?.amount || 0), 0);
+  const totalDebtDA = Math.max(0, totalExpectedDA - totalPaidForActive);
+
+  const upcomingCycle = cycles.find((c) => c.firstDay.getTime() > refMonthDate.getTime()) || cycles[cycles.length - 1];
+  const currentMonthCycle = cycles.find((c) => c.monthKey === formatMonthKey(refMonthDate)) || cycles[0];
+  const currentDueCycle = isRefDay25OrLater && upcomingCycle ? upcomingCycle : currentMonthCycle;
+
+  const isNextMonthPaid = upcomingCycle ? upcomingCycle.status === "paid" : false;
+  const nextMonthAmount = upcomingCycle ? upcomingCycle.paidAmount : 0;
+
+  let effectiveStatus: EffectivePaymentStatus;
+  if (totalDebtDA === 0) {
+    effectiveStatus = "paid";
+  } else if (totalPaidForActive > 0 || (currentDueCycle && currentDueCycle.paidAmount > 0)) {
+    effectiveStatus = "partial";
+  } else {
+    effectiveStatus = "unpaid";
+  }
+
+  return {
+    cycles,
+    activeCycles,
+    totalExpectedDA,
+    totalPaidDA: totalPaidAll,
+    totalDebtDA,
+    effectiveStatus,
+    currentDueMonthKey: currentDueCycle.monthKey,
+    currentDueMonthLabel: currentDueCycle.monthLabel,
+    nextUpcomingMonthKey: upcomingCycle ? upcomingCycle.monthKey : formatMonthKey(getNextMonthDate(refUTC)),
+    nextUpcomingMonthLabel: upcomingCycle ? upcomingCycle.monthLabel : formatMonthLabel(getNextMonthDate(refUTC), locale),
+    isAfterCutoff: isRefDay25OrLater,
+    isNextMonthPaid,
+    nextMonthAmount,
+    sidePocketDA: sidePocketBalance + unallocatedPool,
+    linkedEventCard: linkedCardInfo ? linkedCardInfo.cardCode : null,
+  };
 }
 
 export interface SwimmerNextMonthInfo {
@@ -731,10 +1154,6 @@ export function getEffectiveMemberPaymentStatus(
   const isPastBaseCutoff = refUTC.getTime() >= baseCutoffDate.getTime();
   const isAfterCutoff = isPastBaseCutoff || isRefDay25OrLater;
 
-  // Determine the target renewal month that must be settled once cutoff is reached:
-  // - On days 25..31 of referenceDate's month: next calendar month after referenceDate.
-  // - On days 1..24 of referenceDate's month when past baseCutoffDate (e.g. Nov 1..24 for an Oct subscriber):
-  //   the current month of referenceDate (which is the renewal month they crossed into after the 25th).
   let targetMonthDate: Date;
   if (isRefDay25OrLater) {
     targetMonthDate = defaultNextMonthDate;
@@ -747,13 +1166,13 @@ export function getEffectiveMemberPaymentStatus(
   const nextMonthKey = formatMonthKey(targetMonthDate);
   const nextMonthLabel = formatMonthLabel(targetMonthDate, locale);
 
-  // 1. Check explicit next-month tags ([NEXT_MONTH:YYYY-MM] in payments or [NEXT_MONTH_PAID:YYYY-MM] in notes)
+  // 1. Check explicit next-month tags
   const nextMonthCheck = isMemberNextMonthPaid(member, nextMonthKey, locale);
   let isNextMonthPaid = nextMonthCheck.isPaid;
   let nextMonthAmount = nextMonthCheck.amount;
   let isRenewalPartial = false;
 
-  // 2. Also recognize untagged renewal payments recorded on/after the 25th cutoff preceding targetMonthDate
+  // 2. Also recognize payments recorded on/after the 25th cutoff preceding targetMonthDate or multi-month totals
   if (!isNextMonthPaid && Array.isArray(member?.payments) && member.payments.length > 0) {
     const renewalCutoffDate = new Date(
       Date.UTC(targetMonthDate.getUTCFullYear(), targetMonthDate.getUTCMonth() - 1, 25)
@@ -769,7 +1188,7 @@ export function getEffectiveMemberPaymentStatus(
       return isNaN(pd.getTime()) || toUTCMidnight(pd).getTime() < renewalCutoffDate.getTime();
     });
 
-    const expectedPrice = member?.priceDA ?? 0;
+    const expectedPrice = member?.priceDA && member.priceDA > 0 ? member.priceDA : 7800;
     const totalAllPayments = member.payments.reduce((s, p) => s + (p?.amount || 0), 0);
     const hasPaidInNewMonthAfterPriorStart = paymentsAfterCutoff.some((p) => {
       if (!p?.paidAt) return false;
@@ -777,11 +1196,18 @@ export function getEffectiveMemberPaymentStatus(
       return pd.getTime() >= targetMonthDate.getTime() && baseMonthEnd.getTime() < targetMonthDate.getTime();
     });
 
+    const effStart = getEffectiveSubscriptionStart(member?.subscriptionStart ?? member?.dateOfStart);
+    const startMonthDate = new Date(Date.UTC(effStart.getUTCFullYear(), effStart.getUTCMonth(), 1));
+    const monthsDiff =
+      (targetMonthDate.getUTCFullYear() - startMonthDate.getUTCFullYear()) * 12 +
+      (targetMonthDate.getUTCMonth() - startMonthDate.getUTCMonth()) + 1;
+    const monthsNeeded = Math.max(1, monthsDiff);
+
     if (
       paymentsAfterCutoff.length > 0 &&
       (paymentsBeforeCutoff.length > 0 ||
         hasPaidInNewMonthAfterPriorStart ||
-        (expectedPrice > 0 && totalAllPayments >= expectedPrice * 2))
+        (expectedPrice > 0 && totalAllPayments >= expectedPrice * monthsNeeded))
     ) {
       const renewalSum = paymentsAfterCutoff.reduce((s, p) => s + (p?.amount || 0), 0);
       nextMonthAmount = renewalSum;
@@ -794,6 +1220,9 @@ export function getEffectiveMemberPaymentStatus(
       } else if (renewalSum > 0) {
         isNextMonthPaid = true;
       }
+    } else if (expectedPrice > 0 && totalAllPayments >= expectedPrice * monthsNeeded) {
+      isNextMonthPaid = true;
+      nextMonthAmount = expectedPrice;
     }
   }
 
@@ -804,11 +1233,9 @@ export function getEffectiveMemberPaymentStatus(
     } else if (isRenewalPartial) {
       effectiveStatus = "partial";
     } else {
-      // Must be changed to unpaid on or after 25th if next/renewal month is not paid
       effectiveStatus = "unpaid";
     }
   } else {
-    // Before 25th of the member's starting month
     if (isNextMonthPaid) {
       effectiveStatus = "paid";
     } else {

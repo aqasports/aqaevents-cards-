@@ -21,6 +21,11 @@ import {
   getFormulaBadgeInfo,
   getEffectiveMemberPaymentStatus,
   isEligibleForPaymentRequest,
+  parseSidePocketBalance,
+  encodeSidePocketBalance,
+  parseLinkedEventCard,
+  encodeLinkedEventCard,
+  getFormulaUpgradeOptions,
 } from "./swim-subscription";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -607,6 +612,125 @@ describe("getEffectiveMemberPaymentStatus (25th Cut-off Rule)", () => {
       expect(isEligibleForPaymentRequest(true, 3)).toBe(true);
       expect(isEligibleForPaymentRequest(true, 0)).toBe(true);
       expect(isEligibleForPaymentRequest(true, -1)).toBe(true);
+    });
+  });
+
+  describe("Starter Multi-Month Business Logic & Dynamic Cycle Tracking", () => {
+    it("in November: expects same amount paid in October to be paid in November", () => {
+      // Swimmer started Oct 1, paid 7800 for Oct
+      const octSubscriber = {
+        duration: "1m",
+        formula: "G10",
+        priceDA: 7800,
+        paymentStatus: "paid",
+        subscriptionStart: "2026-10-01T00:00:00.000Z",
+        subscriptionEnd: "2026-10-31T00:00:00.000Z",
+        payments: [
+          { id: "p1", amount: 7800, paidAt: "2026-10-02T10:00:00.000Z" },
+        ],
+      };
+
+      // In October (Oct 20): fully paid
+      const oct20 = d("2026-10-20T10:00:00.000Z");
+      const sitOct = getEffectiveMemberPaymentStatus(octSubscriber, oct20);
+      expect(sitOct.effectiveStatus).toBe("paid");
+
+      // In November (Nov 4): system expects 7800 for November! Status must be unpaid
+      const nov4 = d("2026-11-04T12:00:00.000Z");
+      const sitNov = getEffectiveMemberPaymentStatus(octSubscriber, nov4);
+      expect(sitNov.effectiveStatus).toBe("unpaid");
+      expect(sitNov.isNextMonthPaid).toBe(false);
+      expect(sitNov.nextMonthKey).toBe("2026-11");
+
+      // When November payment of 7800 is added: status becomes paid!
+      const novSubscriberPaid = {
+        ...octSubscriber,
+        payments: [
+          { id: "p1", amount: 7800, paidAt: "2026-10-02T10:00:00.000Z" },
+          { id: "p2", amount: 7800, paidAt: "2026-11-04T14:00:00.000Z", notes: "Nov payment" },
+        ],
+      };
+      const sitNovPaid = getEffectiveMemberPaymentStatus(novSubscriberPaid, nov4);
+      expect(sitNovPaid.effectiveStatus).toBe("paid");
+      expect(sitNovPaid.isNextMonthPaid).toBe(true);
+
+      // On November 25: turns to unpaid for December!
+      const nov25 = d("2026-11-25T10:00:00.000Z");
+      const sitNov25 = getEffectiveMemberPaymentStatus(novSubscriberPaid, nov25);
+      expect(sitNov25.isAfterCutoff).toBe(true);
+      expect(sitNov25.isNextMonthPaid).toBe(false);
+      expect(sitNov25.effectiveStatus).toBe("unpaid");
+      expect(sitNov25.nextMonthKey).toBe("2026-12");
+    });
+  });
+
+  describe("Side Pocket (Avoir Club) & Event Card Utilities", () => {
+    it("parses and encodes side pocket balance", () => {
+      expect(parseSidePocketBalance(null)).toBe(0);
+      expect(parseSidePocketBalance("Some note | [SIDE_POCKET:2500]")).toBe(2500);
+      expect(parseSidePocketBalance("No pocket here")).toBe(0);
+
+      const encoded = encodeSidePocketBalance("Old note", 3000);
+      expect(encoded).toContain("[SIDE_POCKET:3000]");
+      expect(parseSidePocketBalance(encoded)).toBe(3000);
+
+      const updated = encodeSidePocketBalance(encoded, 5000);
+      expect(updated).toContain("[SIDE_POCKET:5000]");
+      expect(updated).not.toContain("[SIDE_POCKET:3000]");
+
+      const cleared = encodeSidePocketBalance(updated, 0);
+      expect(cleared).not.toContain("[SIDE_POCKET:");
+      expect(parseSidePocketBalance(cleared)).toBe(0);
+    });
+
+    it("parses and encodes linked AQA Event card", () => {
+      expect(parseLinkedEventCard(null)).toBeNull();
+      expect(parseLinkedEventCard("Swimmer note | [AQA_EVENT_CARD:CRD-90021]")).toEqual({
+        cardCode: "CRD-90021",
+        amount: undefined,
+      });
+      expect(parseLinkedEventCard("Swimmer note | [AQA_EVENT_CARD:CRD-90021:1500]")).toEqual({
+        cardCode: "CRD-90021",
+        amount: 1500,
+      });
+
+      const encoded = encodeLinkedEventCard("Note", "CRD-12345", 2000);
+      expect(encoded).toContain("[AQA_EVENT_CARD:CRD-12345:2000]");
+    });
+
+    it("computes dynamic formula upgrade options from Starter", () => {
+      const starterMember = {
+        category: "homme",
+        formula: "G10",
+        duration: "1m",
+        priceDA: 7800,
+        payments: [{ amount: 7800 }],
+      };
+
+      const options = getFormulaUpgradeOptions(starterMember);
+      expect(options).toHaveLength(3);
+
+      const silver = options.find((o) => o.targetTier === "silver");
+      expect(silver).toBeDefined();
+      expect(silver?.targetDuration).toBe("3m");
+      expect(silver?.totalPriceDA).toBe(21900);
+      expect(silver?.currentPaidDA).toBe(7800);
+      expect(silver?.complementDA).toBe(14100); // 21900 - 7800 = 14100 DA
+      expect(silver?.savingsDA).toBe(1500); // 7800*3 - 21900 = 1500 DA saved
+
+      const gold = options.find((o) => o.targetTier === "gold");
+      expect(gold).toBeDefined();
+      expect(gold?.targetDuration).toBe("6m");
+      expect(gold?.totalPriceDA).toBe(43500);
+      expect(gold?.complementDA).toBe(35700); // 43500 - 7800 = 35700 DA
+      expect(gold?.savingsDA).toBe(3300);
+
+      const diamond = options.find((o) => o.targetTier === "diamond");
+      expect(diamond).toBeDefined();
+      expect(diamond?.targetDuration).toBe("9m");
+      expect(diamond?.totalPriceDA).toBe(65200);
+      expect(diamond?.complementDA).toBe(57400); // 65200 - 7800 = 57400 DA
+      expect(diamond?.savingsDA).toBe(5000);
     });
   });
 });
