@@ -763,7 +763,7 @@ describe("swim-pool-dispatch domain utilities", () => {
           category: "homme",
           level: "G10",
           paymentStatus: "paid" as const,
-          notes: "[POOLPAID] Ligne 2",
+          notes: "[POOLPAID:Octobre] Ligne 2",
         },
         {
           id: "sw2",

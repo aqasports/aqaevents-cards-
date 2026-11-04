@@ -6,6 +6,7 @@ interface PoolPaymentConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirmPayment: () => Promise<void>;
+  onRevertPayment?: () => Promise<void>;
   bordereauRef: string;
   bordereauTitle: string;
   poolName: string;
@@ -21,6 +22,7 @@ export function PoolPaymentConfirmationModal({
   isOpen,
   onClose,
   onConfirmPayment,
+  onRevertPayment,
   bordereauRef,
   bordereauTitle,
   poolName,
@@ -39,6 +41,17 @@ export function PoolPaymentConfirmationModal({
     setSubmitting(true);
     try {
       await onConfirmPayment();
+      onClose();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRevert = async () => {
+    if (!onRevertPayment) return;
+    setSubmitting(true);
+    try {
+      await onRevertPayment();
       onClose();
     } finally {
       setSubmitting(false);
@@ -134,7 +147,7 @@ export function PoolPaymentConfirmationModal({
             sur les fiches administratives de ces {swimmerCount} adherents.
           </p>
           <p className="text-[10px] text-slate-400 font-medium">
-            Conformement a la regle metier, ce label est strictement interne a l&apos;administration et n&apos;apparaitra jamais sur le profil public des clients.
+            Conformement a la regle metier, apres le 1er de chaque mois tous les poolpaid sont reinitialises. Le systeme attend la confirmation d&apos;un RealFinalPool pour labelliser les adherents comme poolpaid pour le mois concerne ({monthLabel}).
           </p>
         </div>
 
@@ -146,27 +159,43 @@ export function PoolPaymentConfirmationModal({
         )}
 
         {/* Footer */}
-        <div className="pt-3 border-t border-[var(--border)] flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors disabled:opacity-40"
-          >
-            Annuler
-          </button>
-          <button
-            type="button"
-            disabled={submitting || swimmerCount === 0}
-            onClick={handleConfirm}
-            className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 text-xs font-black transition-colors shadow-sm flex items-center gap-2"
-          >
-            {submitting ? (
-              <span>Application en cours...</span>
-            ) : (
-              <span>Confirmer le Paiement (poolpaid)</span>
+        <div className="pt-3 border-t border-[var(--border)] flex items-center justify-between gap-2.5">
+          <div>
+            {isAlreadyPaid && onRevertPayment && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={handleRevert}
+                className="px-3.5 py-2 rounded-xl bg-rose-950/50 hover:bg-rose-900/80 border border-rose-800/40 text-rose-300 text-xs font-bold transition-colors disabled:opacity-40"
+              >
+                {submitting ? "Traitement..." : "Annuler la validation (retirer poolpaid)"}
+              </button>
             )}
-          </button>
+          </div>
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors disabled:opacity-40"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              disabled={submitting || swimmerCount === 0}
+              onClick={handleConfirm}
+              className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 text-xs font-black transition-colors shadow-sm flex items-center gap-2"
+            >
+              {submitting ? (
+                <span>Application en cours...</span>
+              ) : isAlreadyPaid ? (
+                <span>Re-confirmer le Paiement (poolpaid)</span>
+              ) : (
+                <span>Confirmer le Paiement (poolpaid)</span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

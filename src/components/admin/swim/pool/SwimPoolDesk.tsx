@@ -33,7 +33,7 @@ import {
   getCurrentFrenchMonth,
   resolveMemberGroups,
 } from "@/lib/swim-pool-dispatch";
-import { isMemberPoolPaid, encodePoolPaidNotes } from "@/lib/swim-groups";
+import { isMemberPoolPaid, encodePoolPaidNotes, normalizeMonth } from "@/lib/swim-groups";
 import { PoolCustomRowModal } from "./PoolCustomRowModal";
 import { PoolPrintTemplate } from "./PoolPrintTemplate";
 import { PoolAddBordereauModal } from "./PoolAddBordereauModal";
@@ -194,10 +194,10 @@ export function SwimPoolDesk({
 
   // Strict duplicate pool payment prevention for the same month
   const alreadyPoolPaidIdsThisMonth = useMemo(() => {
-    const currentMonth = (activeBordereau.month || monthLabel || "").trim().toLowerCase();
+    const currentMonth = normalizeMonth(activeBordereau.month || monthLabel);
     const set = new Set<string>();
 
-    // 1. Members whose profile notes contain [POOLPAID] for this month
+    // 1. Members whose profile notes contain [POOLPAID:Month] for this month
     for (const m of rawMembers) {
       if (isMemberPoolPaid(m.notes, activeBordereau.month || monthLabel)) {
         set.add(m.id);
@@ -208,8 +208,8 @@ export function SwimPoolDesk({
     // 2. Members belonging to any already-paid bordereau for the same month
     for (const b of bordereaux) {
       if (b.paymentStatus === "paid") {
-        const bMonth = (b.month || "").trim().toLowerCase();
-        if (!currentMonth || !bMonth || bMonth === currentMonth) {
+        const bMonth = normalizeMonth(b.month);
+        if (currentMonth && bMonth && currentMonth === bMonth) {
           (b.memberIds || []).forEach((id) => {
             set.add(id);
           });
@@ -640,6 +640,62 @@ export function SwimPoolDesk({
     );
 
     showToast("Paiement validé ! Label 'poolpaid' appliqué aux adhérents du bordereau.");
+  };
+
+  const handleRevertActiveBordereauPayment = async () => {
+    if (!activeBordereau.memberIds || activeBordereau.memberIds.length === 0) {
+      return;
+    }
+    const activeMonth = activeBordereau.month || monthLabel;
+    const res = await fetch("/api/admin/swim/pool/confirm-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        memberIds: activeBordereau.memberIds,
+        bordereauId: activeBordereau.id,
+        bordereauRef: activeBordereau.referenceNumber,
+        poolId: activeBordereau.poolId,
+        month: activeMonth,
+        action: "revert",
+      }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      showToast(d.error || "Erreur lors de l'annulation du paiement");
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const updated = bordereaux.map((b) => {
+      if (b.id === activeBordereau.id) {
+        return {
+          ...b,
+          paymentStatus: "unpaid" as const,
+          paidAt: undefined,
+          updatedAt: nowIso,
+        };
+      }
+      return b;
+    });
+    saveBordereaux(updated);
+
+    // Reflect removal of [POOLPAID:Month] on rawMembers in state
+    setRawMembers((prev) =>
+      prev.map((m) => {
+        if (
+          activeBordereau.memberIds.includes(m.id) ||
+          activeBordereau.memberIds.includes(m.swimId)
+        ) {
+          return {
+            ...m,
+            notes: encodePoolPaidNotes(m.notes, false, activeMonth),
+          };
+        }
+        return m;
+      })
+    );
+
+    showToast("Validation du paiement annulée. Statut 'en attente' rétabli.");
   };
 
   // Derive document metadata from active bordereau or pre-reservation
@@ -1285,6 +1341,46 @@ export function SwimPoolDesk({
             </div>
           </div>
         )}
+
+        {/* Notice if viewing an archived RealFinalPool month */}
+        {mode === "real_final" &&
+          Boolean(
+            activeBordereau.month &&
+              normalizeMonth(activeBordereau.month) !== normalizeMonth(getCurrentFrenchMonth())
+          ) && (
+            <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                <span>
+                  {t("archivedBordereauNotice")}
+                </span>
+              </div>
+              {bordereaux.some(
+                (b) => normalizeMonth(b.month) === normalizeMonth(getCurrentFrenchMonth())
+              ) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentB = bordereaux.find(
+                      (b) => normalizeMonth(b.month) === normalizeMonth(getCurrentFrenchMonth())
+                    );
+                    if (currentB) handleSelectBordereau(currentB.id);
+                  }}
+                  className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-colors"
+                >
+                  {t("switchToCurrentMonth")}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddBordereauModalOpen(true)}
+                  className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-colors"
+                >
+                  + {t("createCurrentMonthRealFinal")}
+                </button>
+              )}
+            </div>
+          )}
 
         {/* Pré-réservation Dedicated Selection Bar */}
         {mode === "preview" && (
@@ -2206,6 +2302,7 @@ export function SwimPoolDesk({
         isOpen={isPaymentConfirmationModalOpen}
         onClose={() => setIsPaymentConfirmationModalOpen(false)}
         onConfirmPayment={handleConfirmActiveBordereauPayment}
+        onRevertPayment={handleRevertActiveBordereauPayment}
         bordereauRef={activeBordereau.referenceNumber}
         bordereauTitle={activeBordereau.title}
         poolName={activePool.name}

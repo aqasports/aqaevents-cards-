@@ -402,53 +402,117 @@ export const POOL_PAID_TAG = "[POOLPAID]";
 
 /**
  * Checks whether a member profile has been marked with the poolpaid label.
- * The poolpaid label expires on the last day of the month it was issued for.
+ * Production Rule: After the 1st of every month all poolpaid reset.
+ * The system waits until we confirm a RealFinalPool (bordereau definitif)
+ * to label the client as poolpaid.
+ *
  * If targetMonth is omitted, defaults to the current active calendar month.
+ * Any client without a confirmed RealFinalPool for the target month returns false.
  */
 export function isMemberPoolPaid(notes?: string | null, targetMonth?: string): boolean {
   if (!notes) return false;
   if (!notes.includes("[POOLPAID")) return false;
 
-  // Check for [POOLPAID:Month] or generic [POOLPAID]
-  const match = notes.match(/\[POOLPAID(?::([^\]]+))?\]/);
-  if (!match) {
-    return false;
-  }
-
-  const recordedMonth = match[1]?.trim();
-  if (!recordedMonth) {
-    // Generic legacy [POOLPAID] tag without a specific month always matches
-    return true;
-  }
-
   const effectiveMonth = targetMonth?.trim() || getCurrentFrenchMonth();
-  const normRecorded = normalizeMonth(recordedMonth);
   const normEffective = normalizeMonth(effectiveMonth);
+  if (!normEffective) return false;
 
-  return (
-    normRecorded === normEffective ||
-    normEffective.includes(normRecorded) ||
-    normRecorded.includes(normEffective)
-  );
+  // Extract all [POOLPAID...] tags
+  const matches = notes.matchAll(/\[POOLPAID(?::([^\]]+))?\]/g);
+
+  for (const match of matches) {
+    const recordedMonth = match[1]?.trim();
+    if (!recordedMonth) {
+      // Legacy naked [POOLPAID] tag without a month resets after the 1st of the month.
+      // It does not label the client as poolpaid; the system waits for RealFinalPool confirmation.
+      continue;
+    }
+
+    // Support comma/semicolon/slash separated months, e.g. [POOLPAID:Octobre,Novembre] or [POOLPAID:Novembre 2026]
+    const candidates = recordedMonth
+      .split(/[,;\/]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    const list = candidates.length > 0 ? candidates : [recordedMonth];
+    for (const cand of list) {
+      const normCand = normalizeMonth(cand);
+      if (
+        normCand === normEffective ||
+        normEffective.includes(normCand) ||
+        normCand.includes(normEffective)
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
+/**
+ * Encodes or removes the [POOLPAID:Month] tag in member notes.
+ * When isPoolPaid is true, adds confirmation for the given month (defaulting to current French month).
+ * When isPoolPaid is false, removes the tag for the given month (or all poolpaid tags if no month given).
+ * Safely preserves user notes and other tags ([SOLID], [DEBT:...], [GROUPS:...], [PERKS:...]).
+ */
 export function encodePoolPaidNotes(
   notes: string | null | undefined,
   isPoolPaid: boolean,
   month?: string
 ): string | null {
   const raw = notes ?? "";
+  const effectiveMonth = month && month.trim().length > 0 ? month.trim() : (month === undefined ? "" : getCurrentFrenchMonth());
+  const normEffective = effectiveMonth ? normalizeMonth(effectiveMonth) : "";
+
+  // Collect existing months from any [POOLPAID:...] tags
+  const existingMonths: string[] = [];
+  const matches = raw.matchAll(/\[POOLPAID(?::([^\]]+))?\]/g);
+  for (const match of matches) {
+    if (match[1]) {
+      const parts = match[1].split(/[,;\/]/).map((p) => p.trim()).filter(Boolean);
+      for (const p of parts) {
+        if (!existingMonths.some((em) => normalizeMonth(em) === normalizeMonth(p))) {
+          existingMonths.push(p);
+        }
+      }
+    }
+  }
+
+  // Clean all [POOLPAID...] tags from raw string
   const cleaned = raw.replace(/\[POOLPAID(?::[^\]]*)?\]/g, "").trim().replace(/\s{2,}/g, " ");
 
   if (!isPoolPaid) {
+    if (normEffective) {
+      // Remove only this specific month
+      const remaining = existingMonths.filter((em) => normalizeMonth(em) !== normEffective);
+      if (remaining.length === 0) {
+        return cleaned.length > 0 ? cleaned : null;
+      }
+      const tag = `[POOLPAID:${remaining.join(",")}]`;
+      return cleaned.length > 0 ? `${tag} ${cleaned}` : tag;
+    }
+    // Remove all poolpaid tags
     return cleaned.length > 0 ? cleaned : null;
   }
 
-  const tag = month && month.trim().length > 0 ? `[POOLPAID:${month.trim()}]` : POOL_PAID_TAG;
-  if (cleaned.length > 0) {
-    return `${tag} ${cleaned}`;
+  // Adding poolpaid confirmation
+  if (normEffective) {
+    if (!existingMonths.some((em) => normalizeMonth(em) === normEffective)) {
+      existingMonths.push(effectiveMonth);
+    }
+    const tag = `[POOLPAID:${existingMonths.join(",")}]`;
+    return cleaned.length > 0 ? `${tag} ${cleaned}` : tag;
   }
-  return tag;
+
+  // Fallback when no month was specified
+  const defaultMonth = getCurrentFrenchMonth();
+  const defaultNorm = normalizeMonth(defaultMonth);
+  if (!existingMonths.some((em) => normalizeMonth(em) === defaultNorm)) {
+    existingMonths.push(defaultMonth);
+  }
+  const tag = `[POOLPAID:${existingMonths.join(",")}]`;
+  return cleaned.length > 0 ? `${tag} ${cleaned}` : tag;
 }
 
 // ─── Swimmer Assignment & Debt Utilities ─────────────────────────────────────

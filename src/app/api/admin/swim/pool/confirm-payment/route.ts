@@ -4,7 +4,7 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit";
-import { encodePoolPaidNotes, isMemberPoolPaid } from "@/lib/swim-groups";
+import { encodePoolPaidNotes, isMemberPoolPaid, getCurrentFrenchMonth } from "@/lib/swim-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
 
     const { memberIds, bordereauId, bordereauRef, poolId, month, action } = parsed.data;
     const isConfirming = action === "confirm";
+    const effectiveMonth = month && month.trim().length > 0 ? month.trim() : getCurrentFrenchMonth();
 
     const members = await prisma.swimMember.findMany({
       where: {
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
     const updatedIds: string[] = [];
 
     for (const member of members) {
-      const alreadyPaid = isMemberPoolPaid(member.notes, month);
+      const alreadyPaid = isMemberPoolPaid(member.notes, effectiveMonth);
       if (isConfirming && alreadyPaid) {
         updatedIds.push(member.id);
         continue;
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const updatedNotes = encodePoolPaidNotes(member.notes, isConfirming, month);
+      const updatedNotes = encodePoolPaidNotes(member.notes, isConfirming, effectiveMonth);
       await prisma.swimMember.update({
         where: { id: member.id },
         data: { notes: updatedNotes },
@@ -81,6 +82,38 @@ export async function POST(request: NextRequest) {
       updatedIds.push(member.id);
     }
 
+    // Keep platformSetting swim_pool_bordereaux paymentStatus in sync if bordereauId provided
+    if (bordereauId) {
+      try {
+        const setting = await prisma.platformSetting.findUnique({
+          where: { key: "swim_pool_bordereaux" },
+        });
+        if (setting?.value) {
+          const list = JSON.parse(setting.value);
+          if (Array.isArray(list)) {
+            const nowIso = new Date().toISOString();
+            const updatedBordereaux = list.map((b: any) => {
+              if (b.id === bordereauId) {
+                return {
+                  ...b,
+                  paymentStatus: isConfirming ? "paid" : "unpaid",
+                  paidAt: isConfirming ? nowIso : undefined,
+                  updatedAt: nowIso,
+                };
+              }
+              return b;
+            });
+            await prisma.platformSetting.update({
+              where: { key: "swim_pool_bordereaux" },
+              data: { value: JSON.stringify(updatedBordereaux) },
+            });
+          }
+        }
+      } catch (err: unknown) {
+        logger.warn("Could not sync bordereau paymentStatus in platformSetting:", err);
+      }
+    }
+
     await logAdminAction(
       session.user.id,
       isConfirming ? "CONFIRM_POOL_PAYMENT" : "REVERT_POOL_PAYMENT",
@@ -88,6 +121,7 @@ export async function POST(request: NextRequest) {
       JSON.stringify({
         bordereauRef: bordereauRef || null,
         poolId: poolId || null,
+        month: effectiveMonth,
         totalMembers: members.length,
         updatedCount,
         memberSwimIds: members.map((m) => m.swimId),
@@ -97,6 +131,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       action,
+      month: effectiveMonth,
       updatedCount,
       totalRequested: memberIds.length,
       matchedCount: members.length,

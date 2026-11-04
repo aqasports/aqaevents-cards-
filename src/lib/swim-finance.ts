@@ -809,10 +809,10 @@ export function computePeriodFinancialReport(params: {
 
   for (const b of bordereaux) {
     if (b.paymentStatus !== "paid") continue;
-    if (targetFrenchMonth && filter.mode === "month") {
-      const bMonth = (b.month || "").toLowerCase().trim();
-      const tMonth = targetFrenchMonth.toLowerCase().trim();
-      if (bMonth && bMonth !== tMonth) continue;
+    if (targetFrenchMonth) {
+      const normB = normalizeMonth(b.month);
+      const normT = normalizeMonth(targetFrenchMonth);
+      if (normB && normT && normB !== normT) continue;
     }
     for (const mid of b.memberIds || []) {
       paidBordereauMemberIds.add(mid);

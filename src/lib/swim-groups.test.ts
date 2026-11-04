@@ -268,43 +268,61 @@ describe("Swim Groups Utilities", () => {
   });
 
   describe("Pool Paid Tag and Status", () => {
-    it("checks correctly if member notes contain pool paid tag", () => {
+    it("checks correctly if member notes contain pool paid tag for target month", () => {
       expect(POOL_PAID_TAG).toBe("[POOLPAID]");
-      expect(isMemberPoolPaid("[POOLPAID] Ligne 2")).toBe(true);
-      expect(isMemberPoolPaid("[POOLPAID]")).toBe(true);
-      expect(isMemberPoolPaid("Special request [POOLPAID]")).toBe(true);
       expect(isMemberPoolPaid(null)).toBe(false);
       expect(isMemberPoolPaid(undefined)).toBe(false);
       expect(isMemberPoolPaid("")).toBe(false);
       expect(isMemberPoolPaid("Normal note")).toBe(false);
 
-      // Month-specific checks
+      // Month-specific checks: confirms client when confirmed for target month
       expect(isMemberPoolPaid("[POOLPAID:Octobre]", "Octobre")).toBe(true);
-      expect(isMemberPoolPaid("[POOLPAID:Octobre]", "Novembre")).toBe(false);
       expect(isMemberPoolPaid("[POOLPAID:Octobre 2026]", "Octobre")).toBe(true);
-      expect(isMemberPoolPaid("[POOLPAID]", "Novembre")).toBe(true); // generic tag matches any query
+
+      // Production Rule: after the 1st of every month all poolpaid reset,
+      // system waits until realfinalpool confirmed for that month
+      expect(isMemberPoolPaid("[POOLPAID:Octobre]", "Novembre")).toBe(false);
+      expect(isMemberPoolPaid("[POOLPAID]", "Novembre")).toBe(false);
+      expect(isMemberPoolPaid("[POOLPAID]")).toBe(false);
+
+      // Current month check
+      const currentMonth = getCurrentFrenchMonth();
+      expect(isMemberPoolPaid(`[POOLPAID:${currentMonth}]`)).toBe(true);
+
+      // Multi-month support
+      expect(isMemberPoolPaid("[POOLPAID:Octobre,Novembre]", "Octobre")).toBe(true);
+      expect(isMemberPoolPaid("[POOLPAID:Octobre,Novembre]", "Novembre")).toBe(true);
+      expect(isMemberPoolPaid("[POOLPAID:Octobre,Novembre]", "Décembre")).toBe(false);
     });
 
     it("encodes pool paid tag while preserving other notes and tags", () => {
-      // Adding pool paid
-      expect(encodePoolPaidNotes(null, true)).toBe("[POOLPAID]");
-      expect(encodePoolPaidNotes("", true)).toBe("[POOLPAID]");
-      expect(encodePoolPaidNotes("Note test", true)).toBe("[POOLPAID] Note test");
-      expect(encodePoolPaidNotes("[SOLID] Note test", true)).toBe("[POOLPAID] [SOLID] Note test");
+      const currentMonth = getCurrentFrenchMonth();
 
-      // With specific month
+      // Adding pool paid with specific month
       expect(encodePoolPaidNotes(null, true, "Octobre")).toBe("[POOLPAID:Octobre]");
+      expect(encodePoolPaidNotes("", true, "Octobre")).toBe("[POOLPAID:Octobre]");
       expect(encodePoolPaidNotes("Note test", true, "Octobre")).toBe("[POOLPAID:Octobre] Note test");
+      expect(encodePoolPaidNotes("[SOLID] Note test", true, "Octobre")).toBe("[POOLPAID:Octobre] [SOLID] Note test");
+
+      // Adding pool paid defaulting to current month when month omitted
+      expect(encodePoolPaidNotes(null, true)).toBe(`[POOLPAID:${currentMonth}]`);
+
+      // Preserving previous confirmed months (multi-month confirmation)
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre]", true, "Novembre")).toBe("[POOLPAID:Octobre,Novembre]");
 
       // Idempotent
-      expect(encodePoolPaidNotes("[POOLPAID] Note test", true)).toBe("[POOLPAID] Note test");
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre] Note test", true, "Octobre")).toBe("[POOLPAID:Octobre] Note test");
 
-      // Removing pool paid
-      expect(encodePoolPaidNotes("[POOLPAID] Note test", false)).toBe("Note test");
+      // Removing pool paid for specific month
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre,Novembre]", false, "Novembre")).toBe("[POOLPAID:Octobre]");
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre] Note test", false, "Octobre")).toBe("Note test");
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre]", false, "Octobre")).toBe(null);
+
+      // Removing all pool paid tags
       expect(encodePoolPaidNotes("[POOLPAID:Octobre] Note test", false)).toBe("Note test");
       expect(encodePoolPaidNotes("[POOLPAID]", false)).toBe(null);
       expect(encodePoolPaidNotes("[POOLPAID:Octobre]", false)).toBe(null);
-      expect(encodePoolPaidNotes("[POOLPAID] [SOLID] Note test", false)).toBe("[SOLID] Note test");
+      expect(encodePoolPaidNotes("[POOLPAID:Octobre] [SOLID] Note test", false)).toBe("[SOLID] Note test");
       expect(encodePoolPaidNotes("Note test without tag", false)).toBe("Note test without tag");
     });
   });
@@ -512,6 +530,41 @@ describe("Swim Groups Utilities", () => {
           { active: true, capacity: 10, _count: { swimmers: 10 } },
         ])
       ).toBe(0);
+    });
+  });
+
+  describe("RealFinalPool Monthly Reset & Confirmation Lifecycle", () => {
+    it("resets poolpaid status after the 1st of every month and waits for RealFinalPool confirmation", () => {
+      // 1. Client confirmed for October in October RealFinalPool
+      const octoberNotes = encodePoolPaidNotes(null, true, "Octobre");
+      expect(octoberNotes).toBe("[POOLPAID:Octobre]");
+
+      // During October, client is labeled poolpaid
+      expect(isMemberPoolPaid(octoberNotes, "Octobre")).toBe(true);
+
+      // On November 1st, October poolpaid status resets
+      // The system waits until a RealFinalPool for November is confirmed
+      expect(isMemberPoolPaid(octoberNotes, "Novembre")).toBe(false);
+
+      // Generic legacy [POOLPAID] also resets and does not bypass monthly reset
+      expect(isMemberPoolPaid("[POOLPAID]", "Novembre")).toBe(false);
+
+      // 2. Client is confirmed in November RealFinalPool
+      const novemberNotes = encodePoolPaidNotes(octoberNotes, true, "Novembre");
+      expect(novemberNotes).toBe("[POOLPAID:Octobre,Novembre]");
+
+      // Now client is labeled poolpaid for November
+      expect(isMemberPoolPaid(novemberNotes, "Novembre")).toBe(true);
+      // October history is preserved
+      expect(isMemberPoolPaid(novemberNotes, "Octobre")).toBe(true);
+
+      // 3. On December 1st, November poolpaid status resets again automatically
+      expect(isMemberPoolPaid(novemberNotes, "Décembre")).toBe(false);
+
+      // 4. If November RealFinalPool confirmation is reverted
+      const revertedNotes = encodePoolPaidNotes(novemberNotes, false, "Novembre");
+      expect(revertedNotes).toBe("[POOLPAID:Octobre]");
+      expect(isMemberPoolPaid(revertedNotes, "Novembre")).toBe(false);
     });
   });
 });
