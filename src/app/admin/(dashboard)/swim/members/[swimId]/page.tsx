@@ -29,6 +29,10 @@ import {
   parseLinkedEventCard,
   type SwimmerNextMonthInfo,
 } from "@/lib/swim-subscription";
+import {
+  parsePaymentTags,
+  type PaymentCycleMode,
+} from "@/lib/swim-payment-reconcile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -215,6 +219,23 @@ export default function AdminSwimmerProfilePage({
   const [isPaymentForNextMonth, setIsPaymentForNextMonth] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [showSmartPaymentModal, setShowSmartPaymentModal] = useState(false);
+
+  // Edit & Erase existing payment state
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPayAmount, setEditPayAmount] = useState("");
+  const [editPayMethod, setEditPayMethod] = useState("cash");
+  const [editPayDate, setEditPayDate] = useState("");
+  const [editPayNotes, setEditPayNotes] = useState("");
+  const [editPayCycleMode, setEditPayCycleMode] = useState<PaymentCycleMode>("keep");
+  const [editPayCycleMonth, setEditPayCycleMonth] = useState("");
+  const [savingPaymentEdit, setSavingPaymentEdit] = useState(false);
+  const [paymentEditError, setPaymentEditError] = useState<string | null>(null);
+
+  const [paymentToErase, setPaymentToErase] = useState<SwimPaymentItem | null>(null);
+  const [revertUpgradeOnErase, setRevertUpgradeOnErase] = useState(true);
+  const [erasingPayment, setErasingPayment] = useState(false);
+  const [erasePaymentError, setErasePaymentError] = useState<string | null>(null);
+  const [paymentActionNotice, setPaymentActionNotice] = useState<string | null>(null);
 
   // Dedicated Next Month Payment state (Starter formula 1m)
   const [showAddNextMonthPayment, setShowAddNextMonthPayment] = useState(false);
@@ -599,6 +620,116 @@ export default function AdminSwimmerProfilePage({
       }
     } finally {
       setSubmittingPayment(false);
+    }
+  }
+
+  function startEditPayment(p: SwimPaymentItem) {
+    const tags = parsePaymentTags(p.notes);
+    setEditingPaymentId(p.id);
+    setEditPayAmount(String(p.amount));
+    setEditPayMethod(p.method || "cash");
+    const parsedDate = new Date(p.paidAt);
+    setEditPayDate(
+      !isNaN(parsedDate.getTime())
+        ? parsedDate.toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0]
+    );
+    setEditPayNotes(tags.cleanNotes);
+    if (tags.monthTag?.type === "NEXT_MONTH") {
+      setEditPayCycleMode("next_month");
+      setEditPayCycleMonth(tags.monthTag.monthKey);
+    } else if (tags.monthTag?.type === "MONTH") {
+      setEditPayCycleMode("month");
+      setEditPayCycleMonth(tags.monthTag.monthKey);
+    } else {
+      setEditPayCycleMode("none");
+      setEditPayCycleMonth("");
+    }
+    setPaymentEditError(null);
+  }
+
+  function cancelEditPayment() {
+    setEditingPaymentId(null);
+    setPaymentEditError(null);
+  }
+
+  async function handleSavePaymentEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!member || !editingPaymentId) return;
+    const numericAmount = parseInt(editPayAmount, 10);
+    if (isNaN(numericAmount) || numericAmount <= 0) {
+      setPaymentEditError(t("paymentActionError"));
+      return;
+    }
+
+    setSavingPaymentEdit(true);
+    setPaymentEditError(null);
+    try {
+      const effectiveCycleMode: PaymentCycleMode =
+        editPayCycleMode !== "none" && !editPayCycleMonth ? "none" : editPayCycleMode;
+      const res = await fetch(`/api/admin/swim/payments/${editingPaymentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: numericAmount,
+          method: editPayMethod,
+          paidAt: editPayDate || undefined,
+          notes: editPayNotes.trim() || null,
+          cycleMode: effectiveCycleMode,
+          cycleMonth:
+            effectiveCycleMode === "month" || effectiveCycleMode === "next_month"
+              ? editPayCycleMonth
+              : null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setPaymentEditError(d.error || t("paymentActionError"));
+        return;
+      }
+      setEditingPaymentId(null);
+      setPaymentActionNotice(t("paymentUpdatedSuccess"));
+      setTimeout(() => setPaymentActionNotice(null), 5000);
+      await loadMember();
+    } catch {
+      setPaymentEditError(t("paymentActionError"));
+    } finally {
+      setSavingPaymentEdit(false);
+    }
+  }
+
+  function promptErasePayment(p: SwimPaymentItem) {
+    setPaymentToErase(p);
+    setRevertUpgradeOnErase(true);
+    setErasePaymentError(null);
+  }
+
+  async function handleConfirmErasePayment() {
+    if (!member || !paymentToErase) return;
+    setErasingPayment(true);
+    setErasePaymentError(null);
+    try {
+      const res = await fetch(`/api/admin/swim/payments/${paymentToErase.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revertUpgrade: revertUpgradeOnErase }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErasePaymentError(d.error || t("paymentActionError"));
+        return;
+      }
+      if (editingPaymentId === paymentToErase.id) {
+        setEditingPaymentId(null);
+      }
+      setPaymentToErase(null);
+      setPaymentActionNotice(t("paymentErasedSuccess"));
+      setTimeout(() => setPaymentActionNotice(null), 5000);
+      await loadMember();
+    } catch {
+      setErasePaymentError(t("paymentActionError"));
+    } finally {
+      setErasingPayment(false);
     }
   }
 
@@ -2112,31 +2243,236 @@ export default function AdminSwimmerProfilePage({
                 </form>
               )}
 
+              {paymentActionNotice && (
+                <div className="p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-medium flex items-center justify-between">
+                  <span>{paymentActionNotice}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentActionNotice(null)}
+                    className="text-emerald-400/70 hover:text-emerald-300 text-[11px] font-mono px-1.5"
+                  >
+                    x
+                  </button>
+                </div>
+              )}
+
               {/* Payment History */}
               {member.payments.length > 0 ? (
-                <div className="divide-y divide-white/5 max-h-56 overflow-y-auto">
+                <div
+                  className={`divide-y divide-white/5 overflow-y-auto ${
+                    editingPaymentId ? "max-h-[420px]" : "max-h-64"
+                  }`}
+                >
                   {member.payments.map((p) => {
-                    const isNextMonthReceipt = (p.notes || "").includes("[NEXT_MONTH:");
-                    const nextMonthMatch = (p.notes || "").match(/\[NEXT_MONTH:([0-9]{4}-[0-9]{2})\]/);
-                    const cleanNotes = (p.notes || "").replace(/\[NEXT_MONTH:[^\]]+\]\s*/, "").trim();
+                    const tags = parsePaymentTags(p.notes);
+                    const isNextMonthReceipt = tags.monthTag?.type === "NEXT_MONTH";
+                    const isRegularMonthReceipt = tags.monthTag?.type === "MONTH";
+                    const isEditingThis = editingPaymentId === p.id;
+                    const showCycleControls = isStarter || Boolean(tags.monthTag);
 
                     return (
-                      <div key={p.id} className="py-2 flex items-center justify-between text-xs font-mono">
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-emerald-400 font-bold">+{p.amount.toLocaleString("fr-DZ")} DA</span>
-                            <span className="text-[var(--muted)] capitalize">({paymentMethodLabel(p.method)})</span>
-                            {isNextMonthReceipt && (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-950/90 text-sky-300 border border-sky-500/40 shadow-[0_0_8px_rgba(14,165,233,0.2)]">
-                                {t("nextMonthPaidBadge")} {nextMonthMatch ? `(${nextMonthMatch[1]})` : ""}
+                      <div key={p.id} className="py-2.5 text-xs font-mono space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-emerald-400 font-bold">
+                                +{p.amount.toLocaleString("fr-DZ")} DA
                               </span>
+                              <span className="text-[var(--muted)] capitalize">
+                                ({paymentMethodLabel(p.method)})
+                              </span>
+                              {isNextMonthReceipt && tags.monthTag && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-950/90 text-sky-300 border border-sky-500/40 shadow-[0_0_8px_rgba(14,165,233,0.2)]">
+                                  {t("nextMonthPaidBadge")} ({tags.monthTag.monthKey})
+                                </span>
+                              )}
+                              {isRegularMonthReceipt && tags.monthTag && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-slate-300 border border-white/10">
+                                  {t("cycleBadgeLabel").replace("{month}", tags.monthTag.monthKey)}
+                                </span>
+                              )}
+                              {tags.upgradeDuration && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                                  {t("upgradeBadgeLabel").replace(
+                                    "{tier}",
+                                    tags.upgradeDuration.toUpperCase()
+                                  )}
+                                </span>
+                              )}
+                              {tags.sidePocketDeposit !== null && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-cyan-950/80 text-cyan-300 border border-cyan-500/40">
+                                  {t("sidePocketBadgeLabel")}
+                                </span>
+                              )}
+                            </div>
+                            {tags.cleanNotes && (
+                              <div className="text-slate-400 text-[11px] mt-0.5 font-sans break-words">
+                                {tags.cleanNotes}
+                              </div>
                             )}
                           </div>
-                          {cleanNotes && <div className="text-slate-400 text-[11px] mt-0.5">{cleanNotes}</div>}
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[var(--muted)] text-[11px] mr-1">
+                              {new Date(p.paidAt).toLocaleDateString("fr-DZ")}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                isEditingThis ? cancelEditPayment() : startEditPayment(p)
+                              }
+                              className="px-2 py-1 rounded-lg text-[11px] font-sans font-semibold bg-slate-800/80 hover:bg-sky-500/20 text-slate-300 hover:text-sky-300 border border-white/10 hover:border-sky-500/40 transition-colors"
+                            >
+                              {isEditingThis ? t("cancel") : t("editPaymentBtn")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => promptErasePayment(p)}
+                              className="px-2 py-1 rounded-lg text-[11px] font-sans font-semibold bg-rose-950/40 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:border-rose-500/50 transition-colors"
+                            >
+                              {t("erasePaymentBtn")}
+                            </button>
+                          </div>
                         </div>
-                        <span className="text-[var(--muted)] text-[11px] shrink-0 ml-2">
-                          {new Date(p.paidAt).toLocaleDateString("fr-DZ")}
-                        </span>
+
+                        {isEditingThis && (
+                          <form
+                            onSubmit={handleSavePaymentEdit}
+                            className="p-3 rounded-xl bg-slate-900/90 border border-sky-500/30 space-y-2.5 font-sans shadow-[0_0_15px_rgba(0,242,255,0.08)]"
+                          >
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-sky-300">
+                              {t("editPaymentTitle")}
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-[11px] text-slate-400 mb-1">
+                                  {t("amountLabel")}
+                                </label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  required
+                                  value={editPayAmount}
+                                  onChange={(e) => setEditPayAmount(e.target.value)}
+                                  className="font-mono"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] text-slate-400 mb-1">
+                                  {t("methodLabel")}
+                                </label>
+                                <select
+                                  value={editPayMethod}
+                                  onChange={(e) => setEditPayMethod(e.target.value)}
+                                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                                >
+                                  <option value="cash">{t("methodCash")}</option>
+                                  <option value="baridi_mob">{t("methodBaridiMob")}</option>
+                                  <option value="virement">{t("methodVirement")}</option>
+                                  <option value="cheque">{t("methodCheque")}</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[11px] text-slate-400 mb-1">
+                                  {t("paymentDate")}
+                                </label>
+                                <Input
+                                  type="date"
+                                  required
+                                  value={editPayDate}
+                                  onChange={(e) => setEditPayDate(e.target.value)}
+                                  className="font-mono text-xs"
+                                />
+                              </div>
+                            </div>
+
+                            {showCycleControls && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="block text-[11px] text-slate-400 mb-1">
+                                    {t("paymentCycleTypeLabel")}
+                                  </label>
+                                  <select
+                                    value={editPayCycleMode}
+                                    onChange={(e) => {
+                                      const mode = e.target.value as PaymentCycleMode;
+                                      setEditPayCycleMode(mode);
+                                      if (
+                                        (mode === "month" || mode === "next_month") &&
+                                        !editPayCycleMonth
+                                      ) {
+                                        setEditPayCycleMonth(
+                                          mode === "next_month"
+                                            ? nextMonthInfo.targetMonthKey
+                                            : editPayDate.slice(0, 7)
+                                        );
+                                      }
+                                    }}
+                                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-white/10 text-white text-xs focus:outline-none focus:border-cyan-400"
+                                  >
+                                    <option value="none">{t("paymentCycleNone")}</option>
+                                    <option value="month">{t("paymentCycleRegular")}</option>
+                                    <option value="next_month">{t("paymentCycleAdvance")}</option>
+                                  </select>
+                                </div>
+                                {(editPayCycleMode === "month" ||
+                                  editPayCycleMode === "next_month") && (
+                                  <div>
+                                    <label className="block text-[11px] text-slate-400 mb-1">
+                                      {t("paymentTargetMonthLabel")}
+                                    </label>
+                                    <Input
+                                      type="month"
+                                      required
+                                      value={editPayCycleMonth}
+                                      onChange={(e) => setEditPayCycleMonth(e.target.value)}
+                                      className="font-mono text-xs"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div>
+                              <label className="block text-[11px] text-slate-400 mb-1">
+                                {t("paymentNotes")}
+                              </label>
+                              <Input
+                                value={editPayNotes}
+                                onChange={(e) => setEditPayNotes(e.target.value)}
+                                placeholder={t("paymentNotes")}
+                                className="text-xs"
+                              />
+                            </div>
+
+                            {paymentEditError && (
+                              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-300 text-[11px]">
+                                {paymentEditError}
+                              </div>
+                            )}
+
+                            <div className="flex items-center gap-2 pt-1">
+                              <Button
+                                type="submit"
+                                variant="primary"
+                                size="sm"
+                                disabled={savingPaymentEdit}
+                              >
+                                {savingPaymentEdit ? t("savingPaymentBtn") : t("savePaymentBtn")}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                onClick={cancelEditPayment}
+                                disabled={savingPaymentEdit}
+                              >
+                                {t("cancel")}
+                              </Button>
+                            </div>
+                          </form>
+                        )}
                       </div>
                     );
                   })}
@@ -2435,6 +2771,84 @@ export default function AdminSwimmerProfilePage({
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Erase Payment Confirmation Modal */}
+      {paymentToErase && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 border border-rose-500/30 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white font-display">
+                {t("erasePaymentModalTitle")}
+              </h3>
+              <p className="text-xs text-slate-200 leading-relaxed">
+                {t("erasePaymentModalDesc")
+                  .replace("{amount}", paymentToErase.amount.toLocaleString("fr-DZ"))
+                  .replace("{method}", paymentMethodLabel(paymentToErase.method))
+                  .replace("{date}", new Date(paymentToErase.paidAt).toLocaleDateString("fr-DZ"))}
+              </p>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {t("erasePaymentReconcileHint")}
+              </p>
+            </div>
+
+            {(() => {
+              const eraseTags = parsePaymentTags(paymentToErase.notes);
+              if (!eraseTags.upgradeDuration) return null;
+              return (
+                <label className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={revertUpgradeOnErase}
+                    onChange={(e) => setRevertUpgradeOnErase(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-amber-500 rounded shrink-0"
+                  />
+                  <span>
+                    {t("revertUpgradeOnEraseLabel").replace(
+                      "{tier}",
+                      eraseTags.upgradeDuration.toUpperCase()
+                    )}
+                  </span>
+                </label>
+              );
+            })()}
+
+            <div className="p-2.5 rounded-xl bg-slate-800/70 border border-white/10 text-[11px] text-slate-300">
+              {t("erasePaymentBackupWarning")}
+            </div>
+
+            {erasePaymentError && (
+              <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs">
+                {erasePaymentError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPaymentToErase(null)}
+                disabled={erasingPayment}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleConfirmErasePayment}
+                disabled={erasingPayment}
+              >
+                {erasingPayment ? t("erasingPaymentBtn") : t("confirmErasePaymentBtn")}
+              </Button>
+            </div>
           </div>
         </div>
       )}
