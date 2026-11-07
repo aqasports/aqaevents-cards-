@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       } else if (action === "link_event_card" && eventCardCode) {
         updatedMemberNotes = encodeLinkedEventCard(updatedMemberNotes, eventCardCode, paymentAmount);
         finalPaymentNotes = `[AQA_EVENT_CARD:${eventCardCode}] ${finalPaymentNotes}`.trim();
-      } else if (action === "cover_month" || isNextMonth || Boolean(targetMonth)) {
+      } else if (action === "cover_month" || isNextMonth || (!action && Boolean(targetMonth))) {
         const resolvedTargetMonth =
           targetMonth || billing?.nextUpcomingMonthKey || effStatus.nextMonthKey;
         const targetDate = new Date(`${resolvedTargetMonth}-01T00:00:00.000Z`);
@@ -150,13 +150,17 @@ export async function POST(request: NextRequest) {
           updatedMemberNotes = encodeNextMonthPaidTag(updatedMemberNotes, targetMonthKey);
         }
       } else {
-        // Standard settlement (action === "settle")
+        // Standard settlement (action === "settle" or "use_side_pocket")
         if (isStarter && billing) {
-          const dueKey = billing.currentDueMonthKey;
+          const dueKey = targetMonth || billing.currentDueMonthKey;
+          const dueDate = new Date(`${dueKey}-01T00:00:00.000Z`);
+          const dueLabel = !isNaN(dueDate.getTime())
+            ? formatMonthLabel(dueDate, "fr")
+            : billing.currentDueMonthLabel;
           targetMonthKey = dueKey;
           const monthTag = `[MONTH:${dueKey}]`;
           if (!finalPaymentNotes.includes(monthTag)) {
-            finalPaymentNotes = `${monthTag} Règlement ${billing.currentDueMonthLabel} ${finalPaymentNotes}`.trim();
+            finalPaymentNotes = `${monthTag} Règlement ${dueLabel} ${finalPaymentNotes}`.trim();
           }
         }
       }
@@ -202,6 +206,28 @@ export async function POST(request: NextRequest) {
       let newStatus = member.paymentStatus;
       if (action === "upgrade_formula") {
         newStatus = totalPaid >= targetTariff ? "paid" : "partial";
+      } else if (action === "side_pocket" || action === "link_event_card") {
+        newStatus = member.paymentStatus;
+      } else if (isStarter) {
+        const updatedBilling = getStarterBillingCycles(
+          {
+            ...member,
+            priceDA: targetTariff,
+            notes: updatedMemberNotes,
+            payments: [...member.payments, payment],
+          },
+          new Date()
+        );
+        newStatus = updatedBilling.effectiveStatus;
+        for (const c of updatedBilling.cycles) {
+          if (c.status === "paid") {
+            const currentEnd =
+              newSubscriptionEnd ?? (member.subscriptionEnd ? new Date(member.subscriptionEnd) : null);
+            if (!currentEnd || c.lastDay.getTime() > currentEnd.getTime()) {
+              newSubscriptionEnd = c.lastDay;
+            }
+          }
+        }
       } else if (action === "cover_month" || isNextMonth || totalPaid >= targetTariff) {
         newStatus = "paid";
       } else if (totalPaid > 0) {

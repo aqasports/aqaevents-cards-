@@ -41,6 +41,7 @@ import {
   type ExcludedPeriod,
   durationToDays,
   isStarterFormula,
+  getStarterNominalDays,
 } from "@/lib/swim-subscription";
 import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
@@ -522,7 +523,7 @@ function SwimOverviewPageInner() {
       const isStarter = isAssigned && isStarterFormula(m.duration, m.formula);
       const isPremium = isAssigned && isPremiumFormula(m.duration, m.formula, m);
       const nominalDays = isStarter
-        ? Math.max(1, Math.round((subEnd.getTime() - subStart.getTime()) / (24 * 60 * 60 * 1000)) + 1)
+        ? getStarterNominalDays(subStart, subEnd)
         : durationToDays(m.duration);
       const effectivePaymentStatus = isAssigned
         ? situation.effectivePaymentStatus

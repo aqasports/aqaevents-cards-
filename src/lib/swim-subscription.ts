@@ -370,6 +370,9 @@ export interface NextMonthPaidResult {
  */
 export function isMemberNextMonthPaid(
   member: {
+    duration?: string | null;
+    formula?: string | null;
+    priceDA?: number | null;
     notes?: string | null;
     subscriptionEnd?: Date | string | null;
     payments?: Array<{ id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null }>;
@@ -388,31 +391,52 @@ export function isMemberNextMonthPaid(
     return { isPaid: false, amount: 0, monthKey: expectedMonthKey, monthLabel };
   }
 
-  // 1. Look in payments array
+  let partialTaggedAmount = 0;
+  let partialTaggedPayment: { id?: string; notes?: string | null; amount?: number; paidAt?: Date | string | null } | undefined;
+
+  // 1. Look in payments array (summing all payments tagged for expectedMonthKey)
   if (Array.isArray(member.payments) && member.payments.length > 0) {
-    for (const p of member.payments) {
-      const pNotes = p.notes || "";
-      if (
+    const taggedPayments = member.payments.filter((p) => {
+      const pNotes = p?.notes || "";
+      return (
         pNotes.includes(`[NEXT_MONTH:${expectedMonthKey}]`) ||
         pNotes.includes(`[MONTH:${expectedMonthKey}]`)
-      ) {
+      );
+    });
+
+    if (taggedPayments.length > 0) {
+      const totalTaggedAmount = taggedPayments.reduce((sum, p) => {
+        const pNotes = p?.notes || "";
+        const usedMatch = pNotes.match(/\[USED_SIDE_POCKET:([0-9]+)\]/);
+        const usedPocket = usedMatch && usedMatch[1] ? parseInt(usedMatch[1], 10) || 0 : 0;
+        return sum + (p?.amount || 0) + usedPocket;
+      }, 0);
+
+      const expectedTariff = member.priceDA && member.priceDA > 0 ? member.priceDA : 0;
+      const firstTagged = taggedPayments[0];
+      const isCovered = expectedTariff > 0 ? totalTaggedAmount >= expectedTariff : totalTaggedAmount > 0;
+
+      if (isCovered) {
         return {
           isPaid: true,
-          amount: p.amount || 0,
+          amount: totalTaggedAmount,
           monthKey: expectedMonthKey,
           monthLabel,
-          paymentId: p.id,
-          paidAt: p.paidAt ? new Date(p.paidAt).toISOString() : undefined,
-          notes: p.notes || undefined,
+          paymentId: firstTagged.id,
+          paidAt: firstTagged.paidAt ? new Date(firstTagged.paidAt).toISOString() : undefined,
+          notes: firstTagged.notes || undefined,
         };
       }
+
+      partialTaggedAmount = totalTaggedAmount;
+      partialTaggedPayment = firstTagged;
     }
   }
 
   // 2. Look in member.notes for [NEXT_MONTH_PAID:YYYY-MM]
   const memberNotes = member.notes || "";
   const match = memberNotes.match(/\[NEXT_MONTH_PAID:([0-9]{4}-[0-9]{2})\]/);
-  if (match && match[1] === expectedMonthKey) {
+  if (match && match[1] === expectedMonthKey && partialTaggedAmount === 0) {
     return {
       isPaid: true,
       amount: 0,
@@ -424,7 +448,12 @@ export function isMemberNextMonthPaid(
   // 3. Look in chronological billing cycle calculation for Starter subscribers
   const mAny = member as { duration?: string | null; formula?: string | null } | null | undefined;
   if (isStarterFormula(mAny?.duration, mAny?.formula)) {
-    const sit = getStarterBillingCycles(member as any, new Date(), locale);
+    const cycleRefDate = new Date(`${expectedMonthKey}-01T00:00:00.000Z`);
+    const sit = getStarterBillingCycles(
+      member as any,
+      !isNaN(cycleRefDate.getTime()) ? cycleRefDate : new Date(),
+      locale
+    );
     const targetCycle = sit.cycles.find((c) => c.monthKey === expectedMonthKey);
     if (targetCycle && targetCycle.status === "paid") {
       return {
@@ -432,8 +461,34 @@ export function isMemberNextMonthPaid(
         amount: targetCycle.paidAmount,
         monthKey: expectedMonthKey,
         monthLabel,
+        paymentId: partialTaggedPayment?.id,
+        paidAt: partialTaggedPayment?.paidAt ? new Date(partialTaggedPayment.paidAt).toISOString() : undefined,
+        notes: partialTaggedPayment?.notes || undefined,
       };
     }
+    if (targetCycle && targetCycle.paidAmount > 0) {
+      return {
+        isPaid: false,
+        amount: Math.max(partialTaggedAmount, targetCycle.paidAmount),
+        monthKey: expectedMonthKey,
+        monthLabel,
+        paymentId: partialTaggedPayment?.id,
+        paidAt: partialTaggedPayment?.paidAt ? new Date(partialTaggedPayment.paidAt).toISOString() : undefined,
+        notes: partialTaggedPayment?.notes || undefined,
+      };
+    }
+  }
+
+  if (partialTaggedAmount > 0 && partialTaggedPayment) {
+    return {
+      isPaid: false,
+      amount: partialTaggedAmount,
+      monthKey: expectedMonthKey,
+      monthLabel,
+      paymentId: partialTaggedPayment.id,
+      paidAt: partialTaggedPayment.paidAt ? new Date(partialTaggedPayment.paidAt).toISOString() : undefined,
+      notes: partialTaggedPayment.notes || undefined,
+    };
   }
 
   return {
@@ -770,18 +825,34 @@ export function getStarterBillingCycles(
   const allocatedPerMonth: Record<string, number> = {};
   let unallocatedPool = 0;
 
-  // Pass 0: If member has no payments array or empty payments, but has paymentStatus === "paid",
-  // credit the starting cycle as covered by the DB recorded status.
+  // Pass 0: If member has no payments array or empty payments (or only explicit tags for months
+  // strictly after startMonthDate), and has paymentStatus === "paid"/"partial", credit the starting
+  // cycle when no payment record exists for startMonthDate.
   const originalStatus = (member?.paymentStatus || "").toLowerCase().trim();
-  if (payments.length === 0 && (originalStatus === "paid" || (member?.priceDA ?? 0) === 0)) {
-    allocatedPerMonth[formatMonthKey(startMonthDate)] = monthlyTariff;
+  const startMonthKey = formatMonthKey(startMonthDate);
+  const allPaymentsForLaterMonths =
+    payments.length > 0 &&
+    payments.every((p) => {
+      const m = (p?.notes || "").match(/\[(?:NEXT_MONTH|MONTH):([0-9]{4}-[0-9]{2})\]/);
+      return Boolean(m && m[1] && m[1] > startMonthKey);
+    });
+  if (
+    (payments.length === 0 && (originalStatus === "paid" || (member?.priceDA ?? 0) === 0)) ||
+    (allPaymentsForLaterMonths && (originalStatus === "paid" || originalStatus === "partial"))
+  ) {
+    allocatedPerMonth[startMonthKey] = monthlyTariff;
   }
 
   // Pass 1: Explicit tagged payments
   for (const p of payments) {
-    const pAmt = p?.amount || 0;
-    if (pAmt <= 0) continue;
     const notesStr = p?.notes || "";
+    if (/\[SIDE_POCKET_DEPOSIT:[0-9]+\]/.test(notesStr)) {
+      continue;
+    }
+    const usedMatch = notesStr.match(/\[USED_SIDE_POCKET:([0-9]+)\]/);
+    const usedPocket = usedMatch && usedMatch[1] ? parseInt(usedMatch[1], 10) || 0 : 0;
+    const pAmt = (p?.amount || 0) + usedPocket;
+    if (pAmt <= 0) continue;
     const m = notesStr.match(/\[(?:NEXT_MONTH|MONTH):([0-9]{4}-[0-9]{2})\]/);
     if (m && m[1]) {
       const targetK = m[1];
@@ -886,11 +957,13 @@ export function getEffectiveSubscriptionEnd(
   member: {
     duration?: string | null;
     formula?: string | null;
+    priceDA?: number | null;
+    paymentStatus?: string | null;
     dateOfStart?: Date | string | null;
     subscriptionStart?: Date | string | null;
     subscriptionEnd?: Date | string | null;
     notes?: string | null;
-    payments?: Array<{ notes?: string | null; paidAt?: Date | string | null }>;
+    payments?: Array<{ amount?: number; notes?: string | null; paidAt?: Date | string | null }>;
   } | null | undefined,
   periods: ExcludedPeriod[] = DEFAULT_EXCLUDED_PERIODS
 ): Date {
@@ -914,18 +987,55 @@ export function getEffectiveSubscriptionEnd(
 
   let end = getLastDayOfSameMonth(subStart);
 
-  // Check if any [NEXT_MONTH:YYYY-MM] or [NEXT_MONTH_PAID:YYYY-MM] extends the Starter end date
+  // Check if any [NEXT_MONTH:YYYY-MM], [MONTH:YYYY-MM], [NEXT_MONTH_PAID:YYYY-MM],
+  // or paid billing cycle extends the Starter end date
   const monthKeys: string[] = [];
   const notesMatch = (member?.notes || "").match(/\[NEXT_MONTH_PAID:([0-9]{4}-[0-9]{2})\]/);
   if (notesMatch && notesMatch[1]) {
     monthKeys.push(notesMatch[1]);
   }
-  if (Array.isArray(member?.payments)) {
-    for (const p of member.payments) {
-      const m = (p?.notes || "").match(/\[NEXT_MONTH:([0-9]{4}-[0-9]{2})\]/);
+
+  const paymentsList = Array.isArray(member?.payments) ? member.payments : [];
+  if (paymentsList.length > 0) {
+    const expectedTariff = member?.priceDA && member.priceDA > 0 ? member.priceDA : 0;
+    const taggedTotals: Record<string, number> = {};
+
+    for (const p of paymentsList) {
+      const pNotes = p?.notes || "";
+      const m = pNotes.match(/\[(?:NEXT_MONTH|MONTH):([0-9]{4}-[0-9]{2})\]/);
       if (m && m[1]) {
-        monthKeys.push(m[1]);
+        const usedMatch = pNotes.match(/\[USED_SIDE_POCKET:([0-9]+)\]/);
+        const usedPocket = usedMatch && usedMatch[1] ? parseInt(usedMatch[1], 10) || 0 : 0;
+        if (typeof p?.amount === "number") {
+          taggedTotals[m[1]] = (taggedTotals[m[1]] || 0) + p.amount + usedPocket;
+        } else {
+          monthKeys.push(m[1]);
+        }
       }
+    }
+
+    for (const [key, sum] of Object.entries(taggedTotals)) {
+      if (expectedTariff > 0 ? sum >= expectedTariff : sum > 0) {
+        monthKeys.push(key);
+      }
+    }
+
+    if (paymentsList.some((p) => typeof p?.amount === "number")) {
+      const sit = getStarterBillingCycles(member as any);
+      for (const cycle of sit.cycles) {
+        if (cycle.status === "paid") {
+          monthKeys.push(cycle.monthKey);
+        }
+      }
+    }
+  } else if (member?.subscriptionEnd && (member?.paymentStatus || "").toLowerCase().trim() === "paid") {
+    const parsedSubEnd = toUTCMidnight(new Date(member.subscriptionEnd));
+    if (
+      !isNaN(parsedSubEnd.getTime()) &&
+      parsedSubEnd.getTime() === getLastDayOfSameMonth(parsedSubEnd).getTime() &&
+      parsedSubEnd.getTime() > end.getTime()
+    ) {
+      end = parsedSubEnd;
     }
   }
 
@@ -940,6 +1050,33 @@ export function getEffectiveSubscriptionEnd(
   }
 
   return end;
+}
+
+/**
+ * Computes the nominal cycle duration in days for a Starter (1m) subscriber.
+ * When subStart and subEnd are in the same calendar month, uses (subEnd - subStart) + 1.
+ * When subEnd has rolled into a subsequent calendar month (e.g. November), uses the
+ * number of days in the active subEnd calendar month (~30-31 days).
+ */
+export function getStarterNominalDays(
+  subStart: Date | string | null | undefined,
+  subEnd: Date | string | null | undefined
+): number {
+  if (!subEnd) return 30;
+  const endD = toUTCMidnight(typeof subEnd === "string" ? new Date(subEnd) : subEnd);
+  if (isNaN(endD.getTime())) return 30;
+  if (subStart) {
+    const startD = toUTCMidnight(typeof subStart === "string" ? new Date(subStart) : subStart);
+    if (
+      !isNaN(startD.getTime()) &&
+      startD.getUTCFullYear() === endD.getUTCFullYear() &&
+      startD.getUTCMonth() === endD.getUTCMonth()
+    ) {
+      return Math.max(1, Math.round((endD.getTime() - startD.getTime()) / (24 * 60 * 60 * 1000)) + 1);
+    }
+  }
+  const monthStart = new Date(Date.UTC(endD.getUTCFullYear(), endD.getUTCMonth(), 1));
+  return Math.max(1, Math.round((endD.getTime() - monthStart.getTime()) / (24 * 60 * 60 * 1000)) + 1);
 }
 
 /**
@@ -1170,26 +1307,35 @@ export function getEffectiveMemberPaymentStatus(
   const nextMonthCheck = isMemberNextMonthPaid(member, nextMonthKey, locale);
   let isNextMonthPaid = nextMonthCheck.isPaid;
   let nextMonthAmount = nextMonthCheck.amount;
-  let isRenewalPartial = false;
+  let isRenewalPartial = !isNextMonthPaid && nextMonthAmount > 0;
 
   // 2. Also recognize payments recorded on/after the 25th cutoff preceding targetMonthDate or multi-month totals
   if (!isNextMonthPaid && Array.isArray(member?.payments) && member.payments.length > 0) {
     const renewalCutoffDate = new Date(
       Date.UTC(targetMonthDate.getUTCFullYear(), targetMonthDate.getUTCMonth() - 1, 25)
     );
-    const paymentsAfterCutoff = member.payments.filter((p) => {
+    const validPayments = member.payments.filter(
+      (p) => !/\[SIDE_POCKET_DEPOSIT:[0-9]+\]/.test(p?.notes || "")
+    );
+    const getPaymentEffectiveAmt = (p?: { amount?: number; notes?: string | null }) => {
+      const pNotes = p?.notes || "";
+      const usedMatch = pNotes.match(/\[USED_SIDE_POCKET:([0-9]+)\]/);
+      const usedPocket = usedMatch && usedMatch[1] ? parseInt(usedMatch[1], 10) || 0 : 0;
+      return (p?.amount || 0) + usedPocket;
+    };
+    const paymentsAfterCutoff = validPayments.filter((p) => {
       if (!p?.paidAt) return false;
       const pd = new Date(p.paidAt);
       return !isNaN(pd.getTime()) && toUTCMidnight(pd).getTime() >= renewalCutoffDate.getTime();
     });
-    const paymentsBeforeCutoff = member.payments.filter((p) => {
+    const paymentsBeforeCutoff = validPayments.filter((p) => {
       if (!p?.paidAt) return true;
       const pd = new Date(p.paidAt);
       return isNaN(pd.getTime()) || toUTCMidnight(pd).getTime() < renewalCutoffDate.getTime();
     });
 
     const expectedPrice = member?.priceDA && member.priceDA > 0 ? member.priceDA : 7800;
-    const totalAllPayments = member.payments.reduce((s, p) => s + (p?.amount || 0), 0);
+    const totalAllPayments = validPayments.reduce((s, p) => s + getPaymentEffectiveAmt(p), 0);
     const hasPaidInNewMonthAfterPriorStart = paymentsAfterCutoff.some((p) => {
       if (!p?.paidAt) return false;
       const pd = toUTCMidnight(new Date(p.paidAt));
@@ -1209,19 +1355,22 @@ export function getEffectiveMemberPaymentStatus(
         hasPaidInNewMonthAfterPriorStart ||
         (expectedPrice > 0 && totalAllPayments >= expectedPrice * monthsNeeded))
     ) {
-      const renewalSum = paymentsAfterCutoff.reduce((s, p) => s + (p?.amount || 0), 0);
-      nextMonthAmount = renewalSum;
+      const renewalSum = paymentsAfterCutoff.reduce((s, p) => s + getPaymentEffectiveAmt(p), 0);
+      nextMonthAmount = Math.max(nextMonthAmount, renewalSum);
       if (expectedPrice > 0) {
-        if (renewalSum >= expectedPrice) {
+        if (nextMonthAmount >= expectedPrice) {
           isNextMonthPaid = true;
-        } else if (renewalSum > 0) {
+          isRenewalPartial = false;
+        } else if (nextMonthAmount > 0) {
           isRenewalPartial = true;
         }
-      } else if (renewalSum > 0) {
+      } else if (nextMonthAmount > 0) {
         isNextMonthPaid = true;
+        isRenewalPartial = false;
       }
     } else if (expectedPrice > 0 && totalAllPayments >= expectedPrice * monthsNeeded) {
       isNextMonthPaid = true;
+      isRenewalPartial = false;
       nextMonthAmount = expectedPrice;
     }
   }

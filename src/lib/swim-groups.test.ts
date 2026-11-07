@@ -487,6 +487,21 @@ describe("Swim Groups Utilities", () => {
       expect(sitRenewed.effectivePaymentStatus).toBe("paid");
       expect(sitRenewed.debt).toBe(0);
       expect(sitRenewed.hasDebt).toBe(false);
+
+      // With partial November payment (3000 DA out of 7800 DA tagged [MONTH:2026-11] or [NEXT_MONTH:2026-11]):
+      // status is partial and debt is 4800 DA (so payment progress bar shows 38% instead of disappearing)
+      const octoberStarterPartialNov = {
+        ...octoberStarter,
+        payments: [
+          { id: "p1", amount: 7800, paidAt: "2026-10-02T00:00:00.000Z" },
+          { id: "p2", amount: 3000, paidAt: "2026-11-05T14:00:00.000Z", notes: "[MONTH:2026-11]" },
+        ],
+      };
+      const sitPartialNov = getMemberPaymentSituation(octoberStarterPartialNov, new Date("2026-11-07T10:00:00.000Z"));
+      expect(sitPartialNov.isNextMonthPaid).toBe(false);
+      expect(sitPartialNov.effectivePaymentStatus).toBe("partial");
+      expect(sitPartialNov.debt).toBe(4800);
+      expect(sitPartialNov.hasDebt).toBe(true);
     });
   });
 

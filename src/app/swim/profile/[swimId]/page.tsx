@@ -7,7 +7,7 @@ import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
 import { isOldSwimMember, extractFirstName, parseScheduleSlots } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { getSwimPaymentWhatsAppUrl } from "@/lib/swim-whatsapp";
-import { durationToDays, isStarterFormula } from "@/lib/swim-subscription";
+import { durationToDays, isStarterFormula, getStarterNominalDays } from "@/lib/swim-subscription";
 import { ApneaProfileView, type ApneaProfileViewData } from "@/components/swim/ApneaProfileView";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -756,7 +756,7 @@ export default function SwimmerProfilePage({
               const daysLeft = member.subscriptionDaysLeft ?? 0;
               const isStarter = isStarterFormula(member.duration, member.formula);
               const nominalDays = isStarter && member.subscriptionStart && member.subscriptionEnd
-                ? Math.max(1, Math.round((new Date(member.subscriptionEnd).getTime() - new Date(member.subscriptionStart).getTime()) / (24 * 60 * 60 * 1000)) + 1)
+                ? getStarterNominalDays(member.subscriptionStart, member.subscriptionEnd)
                 : durationToDays(member.duration);
               const formattedSubStart = member.subscriptionStart
                 ? new Date(member.subscriptionStart).toLocaleDateString(

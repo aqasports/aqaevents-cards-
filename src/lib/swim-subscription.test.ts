@@ -8,6 +8,7 @@ import {
   getSubscriptionStatus,
   computeMemberSubscriptionDates,
   isStarterFormula,
+  getStarterNominalDays,
   getLastDayOfSameMonth,
   SUBSCRIPTION_FLOOR,
   DEFAULT_EXCLUDED_PERIODS,
@@ -661,6 +662,52 @@ describe("getEffectiveMemberPaymentStatus (25th Cut-off Rule)", () => {
       expect(sitNov25.isNextMonthPaid).toBe(false);
       expect(sitNov25.effectiveStatus).toBe("unpaid");
       expect(sitNov25.nextMonthKey).toBe("2026-12");
+    });
+
+    it("in November: tagged partial payment [MONTH:2026-11] or [NEXT_MONTH:2026-11] returns partial status and remaining debt until full tariff is reached", () => {
+      const nov7 = d("2026-11-07T12:00:00.000Z");
+      const partialNovMember = {
+        duration: "1m",
+        formula: "G10",
+        priceDA: 7800,
+        paymentStatus: "partial",
+        subscriptionStart: "2026-10-01T00:00:00.000Z",
+        subscriptionEnd: "2026-10-31T00:00:00.000Z",
+        payments: [
+          { id: "p1", amount: 7800, paidAt: "2026-10-02T10:00:00.000Z", notes: "[MONTH:2026-10] Oct" },
+          { id: "p2", amount: 3000, paidAt: "2026-11-05T14:00:00.000Z", notes: "[MONTH:2026-11] Partial Nov" },
+        ],
+      };
+
+      const paidCheck = isMemberNextMonthPaid(partialNovMember, "2026-11");
+      expect(paidCheck.isPaid).toBe(false);
+      expect(paidCheck.amount).toBe(3000);
+
+      const effStatus = getEffectiveMemberPaymentStatus(partialNovMember, nov7);
+      expect(effStatus.isNextMonthPaid).toBe(false);
+      expect(effStatus.nextMonthAmount).toBe(3000);
+      expect(effStatus.effectiveStatus).toBe("partial");
+
+      // Completing November with second payment of 4800 DA marks November as paid and extends subscriptionEnd to Nov 30
+      const completedNovMember = {
+        ...partialNovMember,
+        payments: [
+          ...partialNovMember.payments,
+          { id: "p3", amount: 4800, paidAt: "2026-11-07T10:00:00.000Z", notes: "[MONTH:2026-11] Reste Nov" },
+        ],
+      };
+
+      const completedCheck = isMemberNextMonthPaid(completedNovMember, "2026-11");
+      expect(completedCheck.isPaid).toBe(true);
+      expect(completedCheck.amount).toBe(7800);
+
+      const effCompleted = getEffectiveMemberPaymentStatus(completedNovMember, nov7);
+      expect(effCompleted.isNextMonthPaid).toBe(true);
+      expect(effCompleted.effectiveStatus).toBe("paid");
+
+      const effectiveEnd = getEffectiveSubscriptionEnd(completedNovMember);
+      expect(effectiveEnd.toISOString().slice(0, 10)).toBe("2026-11-30");
+      expect(getStarterNominalDays("2026-10-01T00:00:00.000Z", effectiveEnd)).toBe(30);
     });
   });
 

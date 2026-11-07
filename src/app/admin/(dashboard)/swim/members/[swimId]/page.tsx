@@ -23,6 +23,7 @@ import {
   getSubscriptionStatus,
   durationToDays,
   isStarterFormula,
+  getStarterNominalDays,
   getMemberNextMonthInfo,
   getStarterBillingCycles,
   parseSidePocketBalance,
@@ -919,9 +920,26 @@ export default function AdminSwimmerProfilePage({
   const isAssigned = paymentSituation.isAssigned;
   const isDebtOnly = paymentSituation.isDebtOnly;
   const debtDetails = paymentSituation.debtDetails;
+  const isStarter = isStarterFormula(member?.duration, member?.formula);
+  const starterBillingSituation =
+    member && isStarter ? getStarterBillingCycles(member, new Date(), locale) : null;
+  const activeCycleTargetDA =
+    debt > priceDA
+      ? starterBillingSituation
+        ? Math.max(
+            priceDA,
+            starterBillingSituation.totalExpectedDA + (debtDetails.hasDebt ? debtDetails.amount : 0),
+            debt
+          )
+        : Math.max(priceDA, totalPaid + debt, debt)
+      : priceDA;
+  const activeCyclePaidDA =
+    activeCycleTargetDA > 0
+      ? Math.min(activeCycleTargetDA, Math.max(0, activeCycleTargetDA - debt))
+      : 0;
   const paymentProgressPct =
-    priceDA > 0
-      ? Math.min(100, Math.round(((priceDA - debt) / priceDA) * 100))
+    activeCycleTargetDA > 0
+      ? Math.min(100, Math.max(0, Math.round((activeCyclePaidDA / activeCycleTargetDA) * 100)))
       : 0;
 
   const filteredGroups = groups.filter((g) => {
@@ -974,13 +992,11 @@ export default function AdminSwimmerProfilePage({
     ? member.subscriptionDaysLeft
     : subscriptionDaysLeft(subEndVal);
   const subStatus = member.subscriptionStatus || getSubscriptionStatus(subEndVal);
-  const isStarter = isStarterFormula(member.duration, member.formula);
   const nextMonthInfo = getMemberNextMonthInfo(member, locale);
   const nominalDays = isStarter && subStartVal && subEndVal
-    ? Math.max(1, Math.round((new Date(subEndVal).getTime() - new Date(subStartVal).getTime()) / (24 * 60 * 60 * 1000)) + 1)
+    ? getStarterNominalDays(subStartVal, subEndVal)
     : durationToDays(member.duration);
 
-  const starterBillingSituation = isStarter ? getStarterBillingCycles(member, new Date(), locale) : null;
   const sidePocketCredit = parseSidePocketBalance(member.notes);
   const linkedEventCardInfo = parseLinkedEventCard(member.notes);
 
@@ -2131,23 +2147,41 @@ export default function AdminSwimmerProfilePage({
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-slate-400">
-                    <span>Paid: {totalPaid.toLocaleString("fr-DZ")} DA ({paymentProgressPct}%)</span>
-                    <span>Total Due: {priceDA.toLocaleString("fr-DZ")} DA</span>
+                    <span>
+                      Paid: {activeCyclePaidDA.toLocaleString("fr-DZ")} DA ({paymentProgressPct}%)
+                      {totalPaid > activeCyclePaidDA ? ` · Cumul: ${totalPaid.toLocaleString("fr-DZ")} DA` : ""}
+                    </span>
+                    <span>Total Due: {activeCycleTargetDA.toLocaleString("fr-DZ")} DA</span>
                   </div>
                 </div>
               ) : isFullyPaid ? (
-                <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    <span className="text-xs font-black uppercase tracking-wide">
-                      Payment Complete / A Jour
-                    </span>
+                <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                      <span className="text-xs font-black uppercase tracking-wide">
+                        Payment Complete / A Jour
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-mono font-black text-emerald-400">
+                        {activeCyclePaidDA.toLocaleString("fr-DZ")} DA
+                      </span>
+                      <div className="text-[10px] text-emerald-400/80 font-mono">0 DA Debt</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-sm font-mono font-black text-emerald-400">
-                      {totalPaid.toLocaleString("fr-DZ")} DA
+                  <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden border border-white/5">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500"
+                      style={{ width: "100%" }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-400">
+                    <span>
+                      Paid: {activeCyclePaidDA.toLocaleString("fr-DZ")} DA (100%)
+                      {totalPaid > activeCyclePaidDA ? ` · Cumul: ${totalPaid.toLocaleString("fr-DZ")} DA` : ""}
                     </span>
-                    <div className="text-[10px] text-emerald-400/80 font-mono">0 DA Debt</div>
+                    <span>Total Due: {activeCycleTargetDA.toLocaleString("fr-DZ")} DA</span>
                   </div>
                 </div>
               ) : (
