@@ -421,11 +421,27 @@ class _TechReviewFormScreenState extends ConsumerState<TechReviewFormScreen> {
         context.pop();
       }
     } catch (e) {
+      if (!isOfflineError(e)) {
+        // The server answered with a refusal: show it, never pretend it was queued.
+        if (mounted) {
+          final i18n = ref.read(i18nProvider);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AqaTheme.statusDanger,
+              content: Text(serverErrorMessage(e, i18n.t('common.error'))),
+            ),
+          );
+        }
+        return;
+      }
+
       final syncManager = ref.read(syncManagerProvider);
       await syncManager.enqueue(
         SyncMutation(
           id: clientMutationId,
           type: 'tech_review',
+          method: 'POST',
+          path: ApiEndpoints.submitReview(widget.memberId),
           payload: payload,
           timestamp: DateTime.now().toIso8601String(),
         ),

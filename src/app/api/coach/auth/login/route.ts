@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit";
-import { verifyPassword, hashPassword, createCoachAuthSession } from "@/lib/coach-auth";
+import { verifyPassword, createCoachAuthSession } from "@/lib/coach-auth";
 import { checkAndIncrement } from "@/lib/rate-limit";
 import { getFlag } from "@/lib/feature-flags";
 
@@ -66,44 +66,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let account = await prisma.coachAccount.findUnique({
+    // Store-review accounts are created by an admin from the ERP, never auto-provisioned here.
+    const account = await prisma.coachAccount.findUnique({
       where: { email },
       include: { coach: true },
     });
-
-    // Auto-provision store review / demo accounts if they don't exist yet
-    const DEMO_ACCOUNTS: Record<string, { role: "head_coach" | "coach" | "assistant"; name: string }> = {
-      "headcoach@aqasports.pro": { role: "head_coach", name: "Head Coach" },
-      "coach@aqasports.pro": { role: "coach", name: "Coach" },
-      "assistant@aqasports.pro": { role: "assistant", name: "Assistant Coach" },
-    };
-
-    if (!account && DEMO_ACCOUNTS[email] && parsed.data.password === "AqaDemo2026!") {
-      let demoCoach = await prisma.coach.findFirst({
-        where: { name: DEMO_ACCOUNTS[email].name },
-      });
-      if (!demoCoach) {
-        demoCoach = await prisma.coach.create({
-          data: {
-            name: DEMO_ACCOUNTS[email].name,
-            phone: "+213550000000",
-            specialties: JSON.stringify(["natation_enfants", "natation_adultes"]),
-            active: true,
-          },
-        });
-      }
-      const hash = await hashPassword("AqaDemo2026!");
-      account = await prisma.coachAccount.create({
-        data: {
-          coachId: demoCoach.id,
-          email,
-          passwordHash: hash,
-          role: DEMO_ACCOUNTS[email].role,
-          loginEnabled: true,
-        },
-        include: { coach: true },
-      });
-    }
 
     if (!account || !account.loginEnabled || !account.coach.active) {
       // Timing safe delay

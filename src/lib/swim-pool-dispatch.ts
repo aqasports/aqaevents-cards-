@@ -37,6 +37,7 @@ export interface PoolOption {
 export interface AzalTariffRules {
   hourlyRateDA: number; // 500 DA / hour
   standardSessionHours: number; // 2 hours
+  kidsMonthlyDA?: number; // 3500 DA / month for all AQA Kids pool payment
   monthly: {
     matin: {
       x1: number; // 3500 DA
@@ -58,6 +59,7 @@ export interface AzalTariffRules {
 export const DEFAULT_AZAL_RULES: AzalTariffRules = {
   hourlyRateDA: 500,
   standardSessionHours: 2,
+  kidsMonthlyDA: 3500,
   monthly: {
     matin: {
       x1: 3500,
@@ -102,6 +104,7 @@ export interface SwimmerBillingConfig {
   sessionsConsumed?: number; // e.g. 1, 2, 3 (each is 2h standard = 1000 DA)
   hoursConsumed?: number; // e.g. 1h (500 DA), 6h (3000 DA)
   manualPriceOverride?: number; // optional manual override
+  isKids?: boolean;
 }
 
 export interface CalculatedPoolPrice {
@@ -117,12 +120,14 @@ export interface CalculatedPoolPrice {
 /**
  * Calculates pool fee automatically according to Azal settlement rules:
  * - By session: 500 DA / hour (standard session 2h = 1000 DA)
- * - By month (1-31): based on frequency & time of day (Matin vs Soir vs Mixte)
+ * - Kids pool fee: 3500 DA (regardless of slot count/schedule, all AQA Kids pool payment is 3500 DA)
+ * - Adult monthly settlement (1-31): based on frequency & time of day (Matin vs Soir vs Mixte)
  */
 export function calculateAzalPrice(
   slots: ParsedSlot[],
   billingConfig?: SwimmerBillingConfig,
-  rules: AzalTariffRules = DEFAULT_AZAL_RULES
+  rules: AzalTariffRules = DEFAULT_AZAL_RULES,
+  isKids: boolean = false
 ): CalculatedPoolPrice {
   // 1. Manual price override takes absolute priority if specified
   if (
@@ -169,7 +174,22 @@ export function calculateAzalPrice(
     };
   }
 
-  // 3. Monthly settlement (from 1-31, full month)
+  // 3. Kids pool payment: all AQA kids pool payment is 3500 DA (not 7600 DA)
+  const isKidMember = Boolean(isKids || billingConfig?.isKids);
+  if (isKidMember) {
+    const kidsPrice = rules.kidsMonthlyDA ?? 3500;
+    return {
+      priceDA: kidsPrice,
+      formulaLabel: `Enfants (${kidsPrice} DA)`,
+      freq: slots.length,
+      matinCount: slots.filter((s) => getSlotPeriod(s.time) === "matin").length,
+      soirCount: slots.filter((s) => getSlotPeriod(s.time) === "soir").length,
+      periodType: "none",
+      billingMode: "monthly",
+    };
+  }
+
+  // 4. Monthly settlement (from 1-31, full month)
   const validSlots = slots.filter((s) => Boolean(s.time));
   const freq = validSlots.length;
 
@@ -303,7 +323,7 @@ export const DEFAULT_POOL_PRICING: PoolPricingConfig = {
   categoryPrices: {
     homme: 2000,
     femme: 2000,
-    enfants: 1500,
+    enfants: 3500,
     apnea: 2500,
   },
   individualOverrides: {},
@@ -766,6 +786,66 @@ export function calculateMemberPoolPrice(
 }
 
 /**
+ * Detects whether a member belongs to the kids (enfants) sector based on:
+ * - member category (enfants / kids / enfant / ado)
+ * - formula or notes mentioning kids / enfant
+ * - group category or name
+ */
+export function isKidsSwimmer(
+  member: {
+    category?: string | null;
+    formula?: string | null;
+    notes?: string | null;
+    group?: { category?: string | null; name?: string | null } | null;
+  },
+  assignedGroups?: Array<{ category?: string | null; name?: string | null }>
+): boolean {
+  const cat = (member.category || "").toLowerCase().trim();
+  if (cat.includes("enfant") || cat.includes("kid") || cat.includes("ado")) {
+    return true;
+  }
+  const formula = (member.formula || "").toLowerCase().trim();
+  if (formula.includes("enfant") || formula.includes("kid")) {
+    return true;
+  }
+  const notes = (member.notes || "").toLowerCase().trim();
+  if (notes.includes("enfant") || notes.includes("kid")) {
+    return true;
+  }
+  if (member.group) {
+    const gCat = (member.group.category || "").toLowerCase().trim();
+    const gName = (member.group.name || "").toLowerCase().trim();
+    if (
+      gCat.includes("enfant") ||
+      gCat.includes("kid") ||
+      gCat.includes("ado") ||
+      gName.includes("enfant") ||
+      gName.includes("kid") ||
+      gName.includes("ado")
+    ) {
+      return true;
+    }
+  }
+  if (assignedGroups && assignedGroups.length > 0) {
+    for (const g of assignedGroups) {
+      const gCat = (g.category || "").toLowerCase().trim();
+      const gName = (g.name || "").toLowerCase().trim();
+      if (
+        gCat.includes("enfant") ||
+        gCat.includes("kid") ||
+        gCat.includes("ado") ||
+        gName.includes("enfant") ||
+        gName.includes("kid") ||
+        gName.includes("ado")
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Resolves all groups a member belongs to, combining primary groupId and secondary groups from notes.
  */
 export function resolveMemberGroups(
@@ -850,11 +930,13 @@ export function buildPoolDispatchRows(
       });
     }
 
+    const isKids = isKidsSwimmer(m, assignedGroups);
+
     // Determine billing config for this member
     const swimmerBilling = billingMap[m.swimId] || billingMap[m.id];
 
-    // Compute automatic pricing via Azal frequency & time-of-day engine
-    const calculated = calculateAzalPrice(parsedSlots, swimmerBilling, poolRules);
+    // Compute automatic pricing via Azal frequency & time-of-day engine (all AQA kids pool payment is 3500 DA)
+    const calculated = calculateAzalPrice(parsedSlots, swimmerBilling, poolRules, isKids);
 
     let finalPriceDA = calculated.priceDA;
     let hasOverride = swimmerBilling?.manualPriceOverride !== undefined;

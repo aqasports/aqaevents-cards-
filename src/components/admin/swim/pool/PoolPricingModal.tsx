@@ -24,7 +24,7 @@ export function PoolPricingModal({
   const [defaultPrice, setDefaultPrice] = useState(pricingConfig.defaultPrice || 2000);
   const [hommePrice, setHommePrice] = useState(pricingConfig.categoryPrices?.homme || 2000);
   const [femmePrice, setFemmePrice] = useState(pricingConfig.categoryPrices?.femme || 2000);
-  const [enfantsPrice, setEnfantsPrice] = useState(pricingConfig.categoryPrices?.enfants || 1500);
+  const [enfantsPrice, setEnfantsPrice] = useState(pricingConfig.categoryPrices?.enfants || 3500);
   const [apneaPrice, setApneaPrice] = useState(pricingConfig.categoryPrices?.apnea || 2500);
   const [keepOverrides, setKeepOverrides] = useState(true);
 

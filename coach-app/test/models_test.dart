@@ -5,6 +5,8 @@ import 'package:aqa_coaches/core/models/swim_session.dart';
 import 'package:aqa_coaches/core/models/swim_attendance.dart';
 import 'package:aqa_coaches/core/models/tech_review.dart';
 import 'package:aqa_coaches/core/models/replacement.dart';
+import 'package:aqa_coaches/core/sync/offline_sync_manager.dart';
+import 'package:dio/dio.dart';
 
 void main() {
   group('AQA Coaches Domain Models Tests', () {
@@ -150,6 +152,40 @@ void main() {
       expect(review.overallLevel, 'INTERMEDIATE');
       expect(review.skills['flottabilite'], 3);
       expect(review.coachName, 'Coach Mehdi');
+    });
+
+    test('SyncMutation migrates legacy outbox entries and isOfflineError distinguishes HTTP responses', () {
+      final legacyAttendance = SyncMutation.fromJson({
+        'id': 'mut-1',
+        'type': 'attendance',
+        'payload': {
+          'sessionId': 'sess-99',
+          'records': [],
+        },
+        'timestamp': '2026-11-07T00:00:00.000Z',
+      });
+
+      expect(legacyAttendance.method, 'PUT');
+      expect(legacyAttendance.path, '/api/coach/sessions/sess-99/attendance');
+      expect(legacyAttendance.payload.containsKey('sessionId'), isFalse);
+
+      final netErr = DioException(
+        requestOptions: RequestOptions(path: '/test'),
+        type: DioExceptionType.connectionError,
+      );
+      final badReqErr = DioException(
+        requestOptions: RequestOptions(path: '/test'),
+        type: DioExceptionType.badResponse,
+        response: Response(
+          requestOptions: RequestOptions(path: '/test'),
+          statusCode: 400,
+          data: {'error': 'Session not ready'},
+        ),
+      );
+
+      expect(isOfflineError(netErr), isTrue);
+      expect(isOfflineError(badReqErr), isFalse);
+      expect(serverErrorMessage(badReqErr, 'fallback'), 'Session not ready');
     });
   });
 }

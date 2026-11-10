@@ -14,6 +14,7 @@ import {
   exportSlotReservationsToCSV,
   generatePlaceReservationMessage,
   DEFAULT_POOL_PRICING,
+  DEFAULT_AZAL_RULES,
   DEFAULT_PREVIEW_COLUMNS,
   DEFAULT_REAL_FINAL_COLUMNS,
   exportOfficialCorrespondenceToCSV,
@@ -22,6 +23,7 @@ import {
   DEFAULT_DOCUMENT_META,
   getProposedBordereauTitle,
   getSwimmerDispatchGroupDisplay,
+  isKidsSwimmer,
   STORAGE_KEYS,
   SwimMemberReference,
   SwimGroupReference,
@@ -170,6 +172,43 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(lundiSlot).toBeDefined();
       expect(lundiSlot?.swimmerCount).toBe(2);
       expect(lundiSlot?.isPeak).toBe(true);
+    });
+
+    it("should compute kids pool payment at 3500 DA instead of 7600 DA for 2 evening slots", () => {
+      const kidsGroups = [
+        {
+          id: "kg1",
+          name: "Kids Sam 17:00 & Mar 17:00",
+          schedule: "Samedi 17:00 - 18:00 / Mardi 17:00 - 18:00",
+          category: "enfants",
+        },
+      ];
+      const kidsMembers = [
+        {
+          id: "km1",
+          swimId: "KID-001",
+          fullName: "Yanis Benali",
+          phone: "0555123456",
+          category: "enfants",
+          level: "debutant",
+          paymentStatus: "paid" as const,
+          notes: null,
+          groupId: "kg1",
+        },
+      ];
+      const rows = buildPoolDispatchRows(kidsMembers, kidsGroups, {}, "Novembre 2026");
+      expect(rows).toHaveLength(1);
+      expect(rows[0].poolPriceDA).toBe(3500);
+      expect(rows[0].formulaLabel).toBe("Enfants (3500 DA)");
+    });
+
+    it("accurately identifies kids swimmers via category, formula, notes, or group", () => {
+      expect(isKidsSwimmer({ category: "enfants" })).toBe(true);
+      expect(isKidsSwimmer({ category: "kids" })).toBe(true);
+      expect(isKidsSwimmer({ category: "homme" })).toBe(false);
+      expect(isKidsSwimmer({ category: "homme" }, [{ category: "enfants", name: "Kids G1" }])).toBe(true);
+      expect(isKidsSwimmer({ category: "homme", notes: "Section Kids" })).toBe(true);
+      expect(isKidsSwimmer({ category: "homme", formula: "Pack Enfants" })).toBe(true);
     });
   });
 
@@ -686,6 +725,26 @@ describe("swim-pool-dispatch domain utilities", () => {
       const resSession = calculateAzalPrice([], { mode: "session", sessionsConsumed: 1 });
       expect(resSession.priceDA).toBe(1000);
     });
+
+    it("should compute kids pool payment at 3500 DA regardless of slots, not 7600 DA", async () => {
+      const { calculateAzalPrice } = await import("./swim-pool-dispatch");
+
+      // 2 evening slots (which is 7600 DA for adults)
+      const soir2 = [
+        { day: "Lundi", time: "18:00", location: "Azal", isPeak: true },
+        { day: "Jeudi", time: "18:00", location: "Azal", isPeak: true },
+      ];
+      const adultRes = calculateAzalPrice(soir2, undefined, undefined, false);
+      expect(adultRes.priceDA).toBe(7600);
+
+      const kidRes = calculateAzalPrice(soir2, undefined, undefined, true);
+      expect(kidRes.priceDA).toBe(3500);
+      expect(kidRes.formulaLabel).toBe("Enfants (3500 DA)");
+
+      // Also via billingConfig.isKids
+      const kidBillingRes = calculateAzalPrice(soir2, { mode: "monthly", isKids: true });
+      expect(kidBillingRes.priceDA).toBe(3500);
+    });
   });
 
   describe("Bordereau management & PoolPaid flag", () => {
@@ -782,6 +841,11 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(rows).toHaveLength(2);
       expect(rows[0].isPoolPaid).toBe(true);
       expect(rows[1].isPoolPaid).toBe(false);
+    });
+
+    it("verifies DEFAULT_POOL_PRICING and DEFAULT_AZAL_RULES set kids pool payment to 3500 DA", () => {
+      expect(DEFAULT_POOL_PRICING.categoryPrices.enfants).toBe(3500);
+      expect(DEFAULT_AZAL_RULES.kidsMonthlyDA).toBe(3500);
     });
 
     it("verifies STORAGE_KEYS includes BORDEREAUX and ACTIVE_BORDEREAU_ID", () => {

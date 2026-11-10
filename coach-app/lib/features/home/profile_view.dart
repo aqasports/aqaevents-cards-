@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/i18n/app_i18n.dart';
+import '../../core/providers/bootstrap_provider.dart';
 import '../../core/services/notification_service.dart';
 import '../../core/theme/aqa_theme.dart';
 import '../teaching/teaching_support_view.dart';
@@ -424,7 +425,9 @@ class ProfileView extends ConsumerWidget {
           label: i18n.t('auth.logout'),
           icon: Icons.logout_rounded,
           danger: true,
-          onPressed: () {
+          onPressed: () async {
+            final pending = (await ref.read(syncManagerProvider).getOutbox()).length;
+            if (!context.mounted) return;
             showDialog(
               context: context,
               builder: (ctx) => AlertDialog(
@@ -438,8 +441,12 @@ class ProfileView extends ConsumerWidget {
                   style: const TextStyle(color: AqaTheme.textPrimary),
                 ),
                 content: Text(
-                  i18n.t('profile.logout_confirm'),
-                  style: const TextStyle(color: AqaTheme.textMuted),
+                  pending > 0
+                      ? i18n.t('profile.logout_pending_warning', {'count': pending})
+                      : i18n.t('profile.logout_confirm'),
+                  style: TextStyle(
+                    color: pending > 0 ? AqaTheme.statusWarning : AqaTheme.textMuted,
+                  ),
                 ),
                 actions: [
                   TextButton(

@@ -157,15 +157,27 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
         context.pop();
       }
     } catch (e) {
+      if (!isOfflineError(e)) {
+        // The server answered with a refusal: show it, never pretend it was queued.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AqaTheme.statusDanger,
+              content: Text(serverErrorMessage(e, i18n.t('common.error'))),
+            ),
+          );
+        }
+        return;
+      }
+
       final syncManager = ref.read(syncManagerProvider);
       await syncManager.enqueue(
         SyncMutation(
           id: clientMutationId,
           type: 'attendance',
-          payload: {
-            'sessionId': widget.sessionId,
-            ...payload,
-          },
+          method: 'PUT',
+          path: ApiEndpoints.submitAttendance(widget.sessionId),
+          payload: payload,
           timestamp: DateTime.now().toIso8601String(),
         ),
       );

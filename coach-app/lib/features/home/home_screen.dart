@@ -39,6 +39,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           .read(notificationServiceProvider)
           .ensureInitializedAndPromptIfFirstRun();
     });
+    _startSyncTimer();
+  }
+
+  // Only ticks while the app is visible (web tab hidden or app backgrounded stops it).
+  void _startSyncTimer() {
+    _syncTimer?.cancel();
     _syncTimer = Timer.periodic(_foregroundSyncInterval, (_) {
       if (!mounted) return;
       ref.read(bootstrapProvider.notifier).refreshSilently();
@@ -54,7 +60,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && mounted) {
+    if (state != AppLifecycleState.resumed) {
+      _syncTimer?.cancel();
+      _syncTimer = null;
+      return;
+    }
+    if (mounted) {
+      _startSyncTimer();
       // Fresh data + pending OS notifications the moment the coach returns.
       ref.read(bootstrapProvider.notifier).refreshSilently();
       ref.read(notificationServiceProvider).syncFromSystem();

@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/api_endpoints.dart';
 import '../models/coach_user.dart';
+import '../providers/bootstrap_provider.dart';
+import '../sync/offline_sync_manager.dart';
 
 class AuthState {
   final bool isLoading;
@@ -116,7 +119,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
+    final syncManager = OfflineSyncManager(_apiClient);
     try {
+      // Last chance to deliver queued writes while the session is still valid.
+      await syncManager.flushOutbox();
       final refreshToken = await _apiClient.storage.read(key: ApiClient.keyRefreshToken);
       if (refreshToken != null) {
         await _apiClient.dio.post(
@@ -127,6 +133,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (_) {
       // Ignore network errors on logout
     } finally {
+      // Member data and queued writes must not survive for the next user of this device.
+      try {
+        await syncManager.clearAll();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(BootstrapNotifier.cacheKey);
+      } catch (_) {}
       await _apiClient.clearTokens();
       state = const AuthState(isLoading: false, isAuthenticated: false);
     }

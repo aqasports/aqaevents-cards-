@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "AQA Coaches Pro",
+    "slug": "aqa-coaches-pro",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "scheme": "aqacoaches",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#030712",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pro.aqasports.coaches",
+      "infoPlist": {
+        "NSCameraUsageDescription": "AQA Coaches uses the camera to scan swimmer QR cards for session attendance.",
+        "NSFaceIDUsageDescription": "AQA Coaches uses Face ID to protect swimmer and session data on shared devices."
+      }
+    },
+    "android": {
+      "package": "com.aqasports.aqa_coaches",
+      "adaptiveIcon": {
+        "backgroundColor": "#030712"
+      },
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "AQA Coaches uses the camera to scan swimmer QR cards for session attendance."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "AQA Coaches uses Face ID to lock the coach workspace."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0ea5e9"
+        }
+      ]
+    ],
+    "extra": {
+      "SupportsRTL": true,
+      "apiBaseUrl": "https://delightful-torte-bcca6a.netlify.app"
+    }
+  }
+}

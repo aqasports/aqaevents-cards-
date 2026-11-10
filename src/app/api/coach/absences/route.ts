@@ -5,6 +5,7 @@ import { requireCoachSession } from "@/lib/coach-auth";
 import { resolveCoachGroupIds } from "@/lib/coach-rbac";
 import { ensureSessions, toMidnightUTC } from "@/lib/swim-sessions";
 import { logAdminAction } from "@/lib/audit";
+import { sendCoachPushNotification } from "@/lib/coach-push";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -181,6 +182,15 @@ export async function POST(req: NextRequest) {
         });
         createdReplacements.push(rep.id);
       }
+    }
+
+    if (targetSubstituteId && createdReplacements.length > 0) {
+      await sendCoachPushNotification({
+        coachIds: [targetSubstituteId],
+        title: "Demande de remplacement AQA",
+        body: `${coach.name} a demande un remplacement (${createdReplacements.length} seance(s)).`,
+        data: { type: "replacement_requested", absenceId: absence.id },
+      });
     }
 
     await logAdminAction(

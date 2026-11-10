@@ -324,6 +324,28 @@ No authentication required. Rate limiting is applied per-IP via `RateLimitBucket
 
 ---
 
+## Coach Mobile Routes (`/api/coach`)
+
+Authenticated with a 15-minute `Bearer` JWT issued by `/api/coach/auth/login` or `/api/coach/auth/refresh` (30-day rotating refresh token stored in `CoachAuthSession`). Shared Zod schemas live in `src/lib/coach-contract.ts`.
+
+| Path | Method | Auth | Request | Response | Callers |
+|---|---|---|---|---|---|
+| `/api/coach/auth/login` | POST | none | `CoachLoginRequest` (`{ email, password, platform?, deviceLabel?, appVersion? }`) | `{ token, accessToken, refreshToken, expiresIn, coach }` | coach-mobile, coach-app |
+| `/api/coach/auth/refresh` | POST | none | `{ refreshToken }` | `{ token, accessToken, refreshToken, expiresIn, sessionId }` | coach-mobile, coach-app |
+| `/api/coach/auth/logout` | POST | coach_jwt | `{ refreshToken? }` | `{ success: true }` | coach-mobile, coach-app |
+| `/api/coach/push-token` | POST | coach_jwt | `CoachPushTokenRequest` (`{ pushToken, platform? }`) | `{ success: true, registered: boolean }` | coach-mobile |
+| `/api/coach/bootstrap` | GET | coach_jwt | — | `{ coach, groups, sessions, colleagues, pendingRequests, outgoingRequests, absences, coachNotifications, appConfig, todayDate, serverTime }` | coach-mobile, coach-app |
+| `/api/coach/groups/[id]` | GET | coach_jwt | — | `{ group, members, recentSessions }` | coach-mobile, coach-app |
+| `/api/coach/sessions/[id]` | GET | coach_jwt | — | `{ session, members, attendances, canEdit }` | coach-mobile, coach-app |
+| `/api/coach/sessions/[id]/attendance` | PUT | coach_jwt | `SubmitAttendanceRequest` (`{ clientMutationId?, records, closeSession?, sessionRating?, quickEvolutions? }`) | `{ success: true, recordsCount, walkInGuestsCount, quickEvolutionsCount, honorNominationsCount, closed }` | coach-mobile, coach-app |
+| `/api/coach/members/[id]` | GET | coach_jwt | — | `{ member, reviews, attendanceSummary, cumulativeBilan }` | coach-mobile, coach-app |
+| `/api/coach/members/[id]/reviews` | POST | coach_jwt | `SubmitReviewRequest` (`{ clientMutationId?, bars?, lastTouchedBar?, sessionVolumeMeters?, record50m?, recordApnea?, weightKg?, heightCm?, wordFromCoach?, observation?, awardedBadgeKey?, recommendedLevel?, honorRequestType? }`) | `{ success: true, review, replayed?: boolean }` | coach-mobile, coach-app |
+| `/api/coach/absences` | GET / POST | coach_jwt | POST: `{ startsAt, endsAt, reason, details?, substituteCoachId?, sessionId? }` | GET: `{ absences }`; POST: `{ success: true, absence, replacementsCreated }` | coach-mobile, coach-app |
+| `/api/coach/replacements/[id]/respond` | POST | coach_jwt | `{ accept: boolean }` | `{ success: true, status: "accepted" \| "declined" }` | coach-mobile, coach-app |
+| `/api/coach/sync` | POST | coach_jwt | `{ attendances?, reviews?, mutations? }` | `{ attendances: SyncItemAck[], reviews: SyncItemAck[], mutations: SyncItemAck[] }` | coach-mobile, coach-app |
+
+---
+
 ## Breaking-Change Protocol
 
 When a breaking change is unavoidable:

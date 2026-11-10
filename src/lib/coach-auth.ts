@@ -124,6 +124,7 @@ export async function createCoachAuthSession(params: {
   platform?: string;
   deviceLabel?: string;
   appVersion?: string;
+  pushToken?: string | null;
 }) {
   const rawRefreshToken = crypto.randomBytes(32).toString("hex");
   const refreshTokenHash = hashRefreshToken(rawRefreshToken);
@@ -136,6 +137,7 @@ export async function createCoachAuthSession(params: {
       platform: params.platform || null,
       deviceLabel: params.deviceLabel || null,
       appVersion: params.appVersion || null,
+      pushToken: params.pushToken || null,
       expiresAt,
     },
   });
@@ -205,6 +207,7 @@ export async function rotateCoachAuthSession(rawRefreshToken: string) {
     platform: existingSession.platform || undefined,
     deviceLabel: existingSession.deviceLabel || undefined,
     appVersion: existingSession.appVersion || undefined,
+    pushToken: existingSession.pushToken || null,
   });
 
   return { data: newTokens };
@@ -264,5 +267,6 @@ export async function requireCoachSession(req: NextRequest) {
     account,
     coach: account.coach,
     role: account.role as "head_coach" | "coach" | "assistant",
+    sessionId: payload.sessionId,
   };
 }

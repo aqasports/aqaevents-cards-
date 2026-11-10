@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireCoachSession } from "@/lib/coach-auth";
 import { logAdminAction } from "@/lib/audit";
+import { sendCoachPushNotification } from "@/lib/coach-push";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +86,21 @@ export async function POST(
         });
       }
     });
+
+    if (replacement.originalCoachId) {
+      await sendCoachPushNotification({
+        coachIds: [replacement.originalCoachId],
+        title: isAccepted ? "Remplacement accepte" : "Remplacement refuse",
+        body: isAccepted
+          ? `${coach.name} a accepte votre demande de remplacement.`
+          : `${coach.name} n'est pas disponible pour ce remplacement.`,
+        data: {
+          type: "replacement_responded",
+          replacementId,
+          status: isAccepted ? "accepted" : "declined",
+        },
+      });
+    }
 
     await logAdminAction(
       null,

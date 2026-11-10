@@ -124,6 +124,25 @@ export async function POST(
 
     const data = parsed.data;
 
+    // Idempotent replay: offline outbox may resend a review whose first response was lost.
+    if (data.clientMutationId) {
+      const existing = await prisma.swimTechReview.findUnique({
+        where: { clientMutationId: data.clientMutationId },
+      });
+      if (existing) {
+        if (existing.memberId !== memberId) {
+          return NextResponse.json(
+            { error: "clientMutationId already used for another member." },
+            { status: 409, headers: corsHeaders }
+          );
+        }
+        return NextResponse.json(
+          { success: true, review: existing, replayed: true },
+          { headers: corsHeaders }
+        );
+      }
+    }
+
     // Fetch existing reviews to preserve stored records, physical data, and cumulative distance
     const existingReviews = await prisma.swimTechReview.findMany({
       where: { memberId },
@@ -279,6 +298,7 @@ export async function POST(
         nextGoals: wordFromCoach || data.nextGoals || null,
         recommendedLevel: finalRecommendedLevel,
         status: "final",
+        clientMutationId: data.clientMutationId || null,
       },
     });
 

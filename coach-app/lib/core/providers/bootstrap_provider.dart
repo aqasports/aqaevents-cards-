@@ -151,7 +151,7 @@ final syncManagerProvider = Provider<OfflineSyncManager>((ref) {
 });
 
 class BootstrapNotifier extends AsyncNotifier<BootstrapData> {
-  static const _cacheKey = 'aqa_coach_bootstrap_cache_v3';
+  static const cacheKey = 'aqa_coach_bootstrap_cache_v3';
 
   @override
   Future<BootstrapData> build() async {
@@ -168,7 +168,7 @@ class BootstrapNotifier extends AsyncNotifier<BootstrapData> {
     // Check disk cache first for 0ms instantaneous startup
     try {
       final prefs = await SharedPreferences.getInstance();
-      final cachedJsonStr = prefs.getString(_cacheKey);
+      final cachedJsonStr = prefs.getString(cacheKey);
       if (cachedJsonStr != null && cachedJsonStr.isNotEmpty) {
         final decoded = jsonDecode(cachedJsonStr) as Map<String, dynamic>;
         final cachedData = BootstrapData.fromJson(decoded);
@@ -196,7 +196,7 @@ class BootstrapNotifier extends AsyncNotifier<BootstrapData> {
         // Cache to SharedPreferences
         try {
           final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(_cacheKey, jsonEncode(rawMap));
+          await prefs.setString(cacheKey, jsonEncode(rawMap));
         } catch (_) {}
 
         try {

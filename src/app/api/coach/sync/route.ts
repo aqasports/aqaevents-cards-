@@ -79,10 +79,11 @@ export async function POST(req: NextRequest) {
 
     const attendancesList = [...parsed.data.attendances];
     const reviewsList = [...parsed.data.reviews];
+    const mutationResults: Array<{ id: string; success: boolean; error?: string }> = [];
 
     // Also unpack generic mutations array sent by Flutter OfflineSyncManager
     for (const mut of parsed.data.mutations) {
-      if (mut.type === "ATTENDANCE_BATCH" && mut.payload) {
+      if ((mut.type === "ATTENDANCE_BATCH" || mut.type === "attendance") && mut.payload) {
         const sessionId = String(mut.payload.sessionId || "");
         const records = Array.isArray(mut.payload.records) ? mut.payload.records : [];
         for (const r of records) {
@@ -105,7 +106,7 @@ export async function POST(req: NextRequest) {
             });
           }
         }
-      } else if (mut.type === "TECH_REVIEW" && mut.payload) {
+      } else if ((mut.type === "TECH_REVIEW" || mut.type === "tech_review") && mut.payload) {
         const memberId = String(mut.payload.memberId || "");
         if (memberId) {
           reviewsList.push({
@@ -123,6 +124,13 @@ export async function POST(req: NextRequest) {
             clientMutationId: mut.id,
           });
         }
+      } else {
+        // Never ack what we did not store: unknown types are reported back as failures.
+        mutationResults.push({
+          id: mut.id,
+          success: false,
+          error: `Unsupported mutation type: ${mut.type}`,
+        });
       }
     }
 
@@ -249,6 +257,7 @@ export async function POST(req: NextRequest) {
       {
         attendances: attendanceResults,
         reviews: reviewResults,
+        mutations: mutationResults,
       },
       { headers: corsHeaders }
     );

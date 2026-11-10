@@ -13,6 +13,7 @@ import {
   AzalTariffRules,
   calculateAzalPrice,
   DEFAULT_AZAL_RULES,
+  isKidsSwimmer,
   PoolBordereau,
   resolveMemberGroups,
   SwimmerBillingConfig,
@@ -934,7 +935,8 @@ export function computePeriodFinancialReport(params: {
     );
 
     const billingCfg = billingConfigs[m.swimId] || billingConfigs[m.id];
-    const calcPool = calculateAzalPrice(parsedSlots, billingCfg, poolRules);
+    const isKids = isKidsSwimmer(m, resolvedGroups);
+    const calcPool = calculateAzalPrice(parsedSlots, billingCfg, poolRules, isKids);
     const memberPoolCostDA = calcPool.priceDA;
 
     const isPoolPaid =

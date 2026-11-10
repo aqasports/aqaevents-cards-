@@ -366,6 +366,8 @@ class AppI18n {
       'profile.specialties': 'Spécialités',
       'profile.logout_confirm':
           'Voulez-vous vraiment vous déconnecter de l\'application AQA Coaches ?',
+      'profile.logout_pending_warning':
+          'Vous avez {{count}} enregistrement(s) non synchronise(s). Se deconnecter maintenant les supprimera definitivement de cet appareil.',
 
       // Notifications (OS alerts + Notification Center)
       'notif.settings_title': 'Paramètres des Notifications',
@@ -750,6 +752,8 @@ class AppI18n {
       'profile.specialties': 'Specialties',
       'profile.logout_confirm':
           'Are you sure you want to log out of the AQA Coaches app?',
+      'profile.logout_pending_warning':
+          'You have {{count}} saved item(s) not yet synced. Logging out now will permanently delete them from this device.',
 
       // Notifications (OS alerts + Notification Center)
       'notif.settings_title': 'Notification Settings',
@@ -1132,6 +1136,8 @@ class AppI18n {
       'profile.specialties': 'التخصصات',
       'profile.logout_confirm':
           'هل أنت متأكد من تسجيل الخروج من تطبيق AQA Coaches؟',
+      'profile.logout_pending_warning':
+          'لديك {{count}} عملية حفظ لم تتم مزامنتها بعد. تسجيل الخروج الآن سيحذفها نهائيا من هذا الجهاز.',
 
       // Notifications (OS alerts + Notification Center)
       'notif.settings_title': 'إعدادات الإشعارات',
