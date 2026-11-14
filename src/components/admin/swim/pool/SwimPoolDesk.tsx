@@ -25,6 +25,7 @@ import {
   PoolBordereau,
   PoolPreReservation,
   PoolClientMerge,
+  PoolPaidSnapshotEntry,
   createDefaultBordereau,
   createDefaultPreReservation,
   getProposedBordereauTitle,
@@ -50,6 +51,7 @@ import { PoolAddClientModal } from "./PoolAddClientModal";
 import { PoolAddGroupBulkModal } from "./PoolAddGroupBulkModal";
 import { PoolPaymentConfirmationModal } from "./PoolPaymentConfirmationModal";
 import { PoolMergeClientsModal } from "./PoolMergeClientsModal";
+import { PoolPaymentAuditPanel } from "./PoolPaymentAuditPanel";
 
 interface SwimPoolDeskProps {
   members?: SwimMemberReference[];
@@ -92,6 +94,8 @@ export function SwimPoolDesk({
   // ─── 2. MODE SELECTION ───────────────────────────────────────────────────────
   // Mode: "preview" (Pre-reservation: places without pricing) or "real_final" (RealFinalPool with auto pricing)
   const [mode, setMode] = useState<PoolCorrespondenceMode>("real_final");
+  // Third tab: poolpaid coverage audit across all bordereaux (read-only view + add-to-bordereau action)
+  const [showAudit, setShowAudit] = useState(false);
 
   // ─── 3. RAW DATA & STANDALONE FETCHING ───────────────────────────────────────
   const [rawMembers, setRawMembers] = useState<SwimMemberReference[]>(propMembers || []);
@@ -649,12 +653,24 @@ export function SwimPoolDesk({
     }
 
     const nowIso = new Date().toISOString();
+    const paidSnapshot: PoolPaidSnapshotEntry[] = baseFinalRows
+      .filter((r) => !r.isCustom)
+      .map((r) => ({
+        memberId: r.memberId,
+        swimId: r.swimId,
+        month: r.currentMonth,
+        billingMode: r.billingMode || "monthly",
+        sessionsConsumed: r.billingMode === "session" ? r.sessionsConsumed : undefined,
+        hoursConsumed: r.billingMode === "session" ? r.hoursConsumed : undefined,
+        priceDA: r.poolPriceDA,
+      }));
     const updated = bordereaux.map((b) => {
       if (b.id === activeBordereau.id) {
         return {
           ...b,
           paymentStatus: "paid" as const,
           paidAt: nowIso,
+          paidSnapshot,
           updatedAt: nowIso,
         };
       }
@@ -719,6 +735,7 @@ export function SwimPoolDesk({
           ...b,
           paymentStatus: "unpaid" as const,
           paidAt: undefined,
+          paidSnapshot: undefined,
           updatedAt: nowIso,
         };
       }
@@ -1709,7 +1726,7 @@ export function SwimPoolDesk({
                 value={selectedPoolId}
                 onChange={(e) => {
                   handleSelectPool(e.target.value);
-                  if (mode === "real_final") {
+                  if (mode === "real_final" && !showAudit) {
                     handleUpdateActiveBordereauMeta("poolId", e.target.value);
                   }
                 }}
@@ -1728,9 +1745,12 @@ export function SwimPoolDesk({
           <div className="inline-flex p-1 rounded-xl bg-slate-950 border border-white/10">
             <button
               type="button"
-              onClick={() => setMode("preview")}
+              onClick={() => {
+                setShowAudit(false);
+                setMode("preview");
+              }}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                mode === "preview"
+                !showAudit && mode === "preview"
                   ? "bg-cyan-500 text-slate-950 shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
@@ -1739,18 +1759,34 @@ export function SwimPoolDesk({
             </button>
             <button
               type="button"
-              onClick={() => setMode("real_final")}
+              onClick={() => {
+                setShowAudit(false);
+                setMode("real_final");
+              }}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                mode === "real_final"
+                !showAudit && mode === "real_final"
                   ? "bg-cyan-500 text-slate-950 shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
             >
               2. RealFinalPool (Bordereau Réel)
             </button>
+            <button
+              type="button"
+              onClick={() => setShowAudit(true)}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                showAudit
+                  ? "bg-cyan-500 text-slate-950 shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              3. {t("auditTabLabel")}
+            </button>
           </div>
         </div>
 
+        {!showAudit && (
+          <>
         {/* RealFinalPool Dedicated Bordereau Selection Bar */}
         {mode === "real_final" && (
           <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-cyan-500/20">
@@ -2139,6 +2175,8 @@ export function SwimPoolDesk({
             </button>
           </div>
         </div>
+          </>
+        )}
       </div>
 
       {/* ─── LOADING STATE ────────────────────────────────────────────────────── */}
@@ -2148,8 +2186,38 @@ export function SwimPoolDesk({
         </div>
       )}
 
+      {/* ─── WORKSPACE: METHOD THREE (POOLPAID COVERAGE AUDIT) ────────────────── */}
+      {!loadingData && showAudit && (
+        <PoolPaymentAuditPanel
+          members={rawMembers}
+          groups={rawGroups}
+          bordereaux={bordereaux}
+          billingConfigs={billingConfigs}
+          legacyMonthOverrides={monthOverrides}
+          onOpenBordereau={(id) => {
+            setShowAudit(false);
+            setMode("real_final");
+            handleSelectBordereau(id);
+          }}
+          onAddMembersToBordereau={(bordereauId, memberIds, month) => {
+            const target = bordereaux.find((b) => b.id === bordereauId);
+            if (!target || target.paymentStatus === "paid" || memberIds.length === 0) return;
+            saveBordereaux(
+              bordereaux.map((b) =>
+                b.id === bordereauId ? addMembersToBordereauWithMonth(b, memberIds, month) : b
+              )
+            );
+            showToast(
+              t("auditAddedToast")
+                .replace("{count}", String(memberIds.length))
+                .replace("{ref}", target.referenceNumber)
+            );
+          }}
+        />
+      )}
+
       {/* ─── WORKSPACE: METHOD ONE (PRE-RESERVATION - NO PRICING) ─────────────── */}
-      {!loadingData && mode === "preview" && (
+      {!loadingData && !showAudit && mode === "preview" && (
         <div className="print:hidden space-y-4">
           <div className="rounded-2xl bg-[var(--surface)] border border-[var(--border)] overflow-hidden shadow-sm">
             <div className="p-3 sm:p-4 border-b border-[var(--border)] bg-slate-950/40 flex flex-wrap items-center justify-between gap-3">
@@ -2364,7 +2432,7 @@ export function SwimPoolDesk({
       )}
 
       {/* ─── WORKSPACE: METHOD TWO (REALFINALPOOL - OFFICIAL TARIFFS) ─────────── */}
-      {!loadingData && mode === "real_final" && (
+      {!loadingData && !showAudit && mode === "real_final" && (
         <div className="print:hidden space-y-4">
           {/* Summary KPIs for the active bordereau */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

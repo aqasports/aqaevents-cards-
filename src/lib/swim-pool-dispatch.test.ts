@@ -37,6 +37,10 @@ import {
   applyPoolClientMerges,
   PoolBordereau,
   PoolClientMerge,
+  buildPoolPaymentAudit,
+  summarizePoolPaymentAudit,
+  getPoolAuditActiveMonths,
+  exportPoolAuditToCSV,
 } from "./swim-pool-dispatch";
 
 describe("swim-pool-dispatch domain utilities", () => {
@@ -1181,6 +1185,237 @@ describe("swim-pool-dispatch domain utilities", () => {
       expect(merged.poolPriceDA).toBe(6800);
       expect(merged.currentMonth).toBe("Novembre");
       expect(getSwimmerDispatchGroupDisplay(merged)).toBe("Cours Privé Samedi");
+    });
+  });
+
+  describe("PoolPaid monthly audit & coverage tracking", () => {
+    const groups: SwimGroupReference[] = [
+      {
+        id: "g1",
+        name: "Samedi-10h",
+        schedule: "Samedi 10:00 - 11:00",
+        category: "homme",
+      },
+      {
+        id: "g2",
+        name: "Lundi-18h",
+        schedule: "Lundi 18:00 - 19:00",
+        category: "femme",
+      },
+    ];
+
+    const auditMembers: SwimMemberReference[] = [
+      {
+        id: "m_full",
+        swimId: "SWM-201",
+        fullName: "Nabil Full",
+        phone: "0555000201",
+        groupId: "g1",
+        category: "homme",
+        level: "G1",
+        paymentStatus: "paid",
+        notes: "[POOLPAID:Octobre]",
+      },
+      {
+        id: "m_sess",
+        swimId: "SWM-202",
+        fullName: "Lina Sessions",
+        phone: "0555000202",
+        groupId: "g2",
+        category: "femme",
+        level: "G2",
+        paymentStatus: "paid",
+        notes: "[POOLPAID:Octobre]",
+      },
+      {
+        id: "m_pend",
+        swimId: "SWM-203",
+        fullName: "Sami Pending",
+        phone: "0555000203",
+        groupId: "g1",
+        category: "homme",
+        level: "G1",
+        paymentStatus: "paid",
+        notes: null,
+      },
+      {
+        id: "m_miss",
+        swimId: "SWM-204",
+        fullName: "Rania Missing",
+        phone: "0555000204",
+        groupId: "g2",
+        category: "femme",
+        level: "G2",
+        paymentStatus: "paid",
+        notes: null,
+      },
+      {
+        id: "m_tag_only",
+        swimId: "SWM-205",
+        fullName: "Adel TagOnly",
+        phone: "0555000205",
+        groupId: "g1",
+        category: "homme",
+        level: "G1",
+        paymentStatus: "partial",
+        notes: "[POOLPAID:Octobre]",
+      },
+      {
+        id: "m_unassigned",
+        swimId: "SWM-206",
+        fullName: "NoGroup Waitlist",
+        phone: "0555000206",
+        groupId: null,
+        category: "homme",
+        level: "-",
+        paymentStatus: "unpaid",
+        notes: null,
+      },
+    ];
+
+    it("classifies paid_full, paid_sessions via paidSnapshot, pending, not_covered, duplicate, and tagOnly", () => {
+      const paidBordereau: PoolBordereau = {
+        ...createDefaultBordereau(DEFAULT_DOCUMENT_META, "azal", 1),
+        id: "bord_paid_oct",
+        referenceNumber: "n:0010/26",
+        month: "Octobre",
+        memberIds: ["m_full", "m_sess"],
+        memberMonths: {
+          m_full: "Octobre",
+          m_sess: "Octobre",
+        },
+        customRows: [
+          {
+            id: "cust_kids",
+            fullName: "AQA KIDS",
+            groupOrNote: "Section Enfants",
+            poolPriceDA: 14000,
+            month: "Octobre",
+          },
+        ],
+        paymentStatus: "paid",
+        paidSnapshot: [
+          {
+            memberId: "m_full",
+            swimId: "SWM-201",
+            month: "Octobre",
+            billingMode: "monthly",
+            priceDA: 4400,
+          },
+          {
+            memberId: "m_sess",
+            swimId: "SWM-202",
+            month: "Octobre",
+            billingMode: "session",
+            sessionsConsumed: 3,
+            priceDA: 3000,
+          },
+        ],
+      };
+
+      const unpaidBordereau: PoolBordereau = {
+        ...createDefaultBordereau(DEFAULT_DOCUMENT_META, "azal", 2),
+        id: "bord_unpaid_oct",
+        referenceNumber: "n:0011/26",
+        month: "Octobre",
+        memberIds: ["m_full", "m_pend"], // m_full appears in two bordereaux -> duplicate
+        memberMonths: {
+          m_full: "Octobre",
+          m_pend: "Octobre",
+        },
+        customRows: [],
+        paymentStatus: "unpaid",
+      };
+
+      // Even if live billingConfig for m_sess was switched back to monthly later,
+      // paidSnapshot must preserve that 3 sessions were paid for Octobre.
+      const result = buildPoolPaymentAudit(
+        auditMembers,
+        groups,
+        [paidBordereau, unpaidBordereau],
+        "Octobre",
+        {
+          "SWM-202": { mode: "monthly" },
+          "SWM-203": { mode: "monthly", manualPriceOverride: 4400 },
+        }
+      );
+
+      const byId = new Map(result.entries.map((e) => [e.memberId, e]));
+      expect(byId.get("m_full")?.status).toBe("paid_full");
+      expect(byId.get("m_full")?.isDuplicate).toBe(true);
+      expect(byId.get("m_full")?.paidDA).toBe(4400);
+
+      expect(byId.get("m_sess")?.status).toBe("paid_sessions");
+      expect(byId.get("m_sess")?.sessionsConsumed).toBe(3);
+      expect(byId.get("m_sess")?.paidDA).toBe(3000);
+
+      expect(byId.get("m_pend")?.status).toBe("pending");
+      expect(byId.get("m_pend")?.pendingDA).toBe(4400);
+
+      expect(byId.get("m_miss")?.status).toBe("not_covered");
+      expect(byId.get("m_miss")?.isAssigned).toBe(true);
+
+      expect(byId.get("m_tag_only")?.status).toBe("paid_full");
+      expect(byId.get("m_tag_only")?.isTagOnly).toBe(true);
+
+      expect(byId.get("m_unassigned")?.isAssigned).toBe(false);
+
+      const summary = summarizePoolPaymentAudit(result);
+      // 5 expected (m_unassigned is excluded from expected denominator because unassigned & not in bordereaux)
+      expect(summary.expectedCount).toBe(5);
+      expect(summary.paidFullCount).toBe(2); // m_full + m_tag_only
+      expect(summary.paidSessionsCount).toBe(1); // m_sess
+      expect(summary.pendingCount).toBe(1); // m_pend
+      expect(summary.notCoveredCount).toBe(1); // m_miss
+      expect(summary.duplicateCount).toBe(1);
+      expect(summary.tagOnlyCount).toBe(1);
+      expect(summary.paidDA).toBe(7400);
+      expect(summary.collectivePaidDA).toBe(14000);
+      expect(summary.coveragePercent).toBe(60); // 3/5 = 60%
+
+      const csv = exportPoolAuditToCSV(result.entries, "Octobre");
+      expect(csv).toContain("Nabil Full");
+      expect(csv).toContain("Payé (séances)");
+      expect(csv).toContain("3 séance(s)");
+      expect(csv).toContain("Rania Missing");
+      expect(csv).toContain("Non couvert");
+    });
+
+    it("respects per-member memberMonths in multi-month bordereaux and lists active months in season order", () => {
+      const multiMonthMembers = auditMembers.slice(0, 2).map((m) => ({ ...m, notes: null }));
+      const mixedBordereau: PoolBordereau = {
+        ...createDefaultBordereau(DEFAULT_DOCUMENT_META, "azal", 1),
+        id: "bord_mixed",
+        month: "Octobre",
+        memberIds: ["m_full", "m_sess"],
+        memberMonths: {
+          m_full: "Septembre",
+          m_sess: "Octobre",
+        },
+        customRows: [],
+        paymentStatus: "paid",
+      };
+
+      const septAudit = buildPoolPaymentAudit(
+        multiMonthMembers,
+        groups,
+        [mixedBordereau],
+        "Septembre"
+      );
+      expect(septAudit.entries.find((e) => e.memberId === "m_full")?.status).toBe("paid_full");
+      expect(septAudit.entries.find((e) => e.memberId === "m_sess")?.status).toBe("not_covered");
+
+      const octAudit = buildPoolPaymentAudit(
+        multiMonthMembers,
+        groups,
+        [mixedBordereau],
+        "Octobre"
+      );
+      expect(octAudit.entries.find((e) => e.memberId === "m_full")?.status).toBe("not_covered");
+      expect(octAudit.entries.find((e) => e.memberId === "m_sess")?.status).toBe("paid_full");
+
+      const activeMonths = getPoolAuditActiveMonths([mixedBordereau], multiMonthMembers, "Novembre");
+      expect(activeMonths).toEqual(["Septembre", "Octobre", "Novembre"]);
     });
   });
 });

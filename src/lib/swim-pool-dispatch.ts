@@ -456,8 +456,21 @@ export interface PoolBordereau {
   customRows: CustomPoolRow[]; // collective custom rows (e.g. AQA KIDS)
   paymentStatus: "unpaid" | "paid"; // "unpaid" or "paid" (poolpaid)
   paidAt?: string;
+  paidSnapshot?: PoolPaidSnapshotEntry[]; // frozen per-member billing at payment confirmation
   createdAt: string;
   updatedAt: string;
+}
+
+// Frozen record of what was actually paid per member when the bordereau was confirmed,
+// so later billing mode changes do not rewrite payment history.
+export interface PoolPaidSnapshotEntry {
+  memberId: string;
+  swimId: string;
+  month: string;
+  billingMode: SwimmerBillingMode;
+  sessionsConsumed?: number;
+  hoursConsumed?: number;
+  priceDA: number;
 }
 
 export interface PoolPreReservation {
@@ -1920,3 +1933,302 @@ export function applyPoolClientMerges(
   return result;
 }
 
+
+// ─── Pool Payment Audit (PoolPaid Coverage per Month) ───────────────────────
+
+export type PoolAuditStatus = "paid_full" | "paid_sessions" | "pending" | "not_covered";
+
+export interface PoolAuditBordereauRef {
+  id: string;
+  referenceNumber: string;
+  title: string;
+  poolId: string;
+  paid: boolean;
+  priceDA: number;
+  billingMode: SwimmerBillingMode;
+  sessionsConsumed?: number;
+  hoursConsumed?: number;
+}
+
+export interface PoolAuditEntry {
+  memberId: string;
+  swimId: string;
+  fullName: string;
+  groupLabel: string;
+  isAssigned: boolean;
+  clientPaymentStatus: "unpaid" | "paid" | "partial";
+  status: PoolAuditStatus;
+  billingMode?: SwimmerBillingMode;
+  sessionsConsumed?: number;
+  hoursConsumed?: number;
+  paidDA: number;
+  pendingDA: number;
+  bordereaux: PoolAuditBordereauRef[];
+  /** Listed in more than one bordereau for the same month (double payment risk). */
+  isDuplicate: boolean;
+  /** [POOLPAID:Month] tag present on the profile but no paid bordereau backs it. */
+  isTagOnly: boolean;
+}
+
+export interface PoolAuditCollectiveRow {
+  bordereauId: string;
+  referenceNumber: string;
+  fullName: string;
+  priceDA: number;
+  paid: boolean;
+}
+
+export interface PoolAuditResult {
+  month: string;
+  entries: PoolAuditEntry[];
+  collectiveRows: PoolAuditCollectiveRow[];
+}
+
+export interface PoolAuditSummary {
+  expectedCount: number;
+  paidFullCount: number;
+  paidSessionsCount: number;
+  pendingCount: number;
+  notCoveredCount: number;
+  duplicateCount: number;
+  tagOnlyCount: number;
+  paidDA: number;
+  pendingDA: number;
+  collectivePaidDA: number;
+  coveragePercent: number;
+}
+
+/**
+ * Builds the poolpaid coverage audit for one month across all bordereaux.
+ * - A member is "paid" when a paid bordereau lists them for that month (frozen paidSnapshot first,
+ *   live billing calculation as fallback), or when their profile carries [POOLPAID:Month].
+ * - "pending" = listed only in unpaid bordereaux; "not_covered" = listed nowhere for that month.
+ */
+export function buildPoolPaymentAudit(
+  members: SwimMemberReference[],
+  groups: SwimGroupReference[],
+  bordereaux: PoolBordereau[],
+  month: string,
+  billingConfigs: Record<string, SwimmerBillingConfig> = {},
+  options: { poolId?: string; legacyMonthOverrides?: Record<string, string> } = {}
+): PoolAuditResult {
+  const targetNorm = normalizeMonth(month);
+  const legacy = options.legacyMonthOverrides || {};
+  const memberLookup = new Map<string, SwimMemberReference>();
+  for (const m of members) {
+    memberLookup.set(m.id, m);
+    if (m.swimId) memberLookup.set(m.swimId, m);
+  }
+
+  const hitsByMember = new Map<string, PoolAuditBordereauRef[]>();
+  const collectiveRows: PoolAuditCollectiveRow[] = [];
+
+  for (const b of bordereaux) {
+    if (options.poolId && options.poolId !== "all" && b.poolId !== options.poolId) continue;
+    const isPaid = b.paymentStatus === "paid";
+
+    for (const c of b.customRows || []) {
+      if (normalizeMonth(c.month || b.month) !== targetNorm) continue;
+      collectiveRows.push({
+        bordereauId: b.id,
+        referenceNumber: b.referenceNumber,
+        fullName: c.fullName,
+        priceDA: Number(c.poolPriceDA) || 0,
+        paid: isPaid,
+      });
+    }
+
+    const monthsMap = buildBordereauMemberMonthsMap(b, members, legacy);
+    const inMonth: SwimMemberReference[] = [];
+    const seen = new Set<string>();
+    for (const id of b.memberIds || []) {
+      const m = memberLookup.get(id);
+      if (!m || seen.has(m.id)) continue;
+      const memberMonth = monthsMap[m.id] || monthsMap[m.swimId] || monthsMap[id] || b.month;
+      if (normalizeMonth(memberMonth) !== targetNorm) continue;
+      seen.add(m.id);
+      inMonth.push(m);
+    }
+    if (inMonth.length === 0) continue;
+
+    const pool = DEFAULT_POOLS.find((p) => p.id === b.poolId);
+    const liveRows = buildPoolDispatchRows(
+      inMonth,
+      groups,
+      billingConfigs,
+      b.month,
+      buildBordereauDispatchMonthOverrides(b, members, legacy),
+      [],
+      {},
+      pool?.defaultRules
+    );
+    const liveById = new Map(liveRows.map((r) => [r.memberId, r]));
+
+    for (const m of inMonth) {
+      const snap = isPaid
+        ? (b.paidSnapshot || []).find(
+            (s) =>
+              (s.memberId === m.id || s.swimId === m.swimId) &&
+              normalizeMonth(s.month) === targetNorm
+          )
+        : undefined;
+      const live = liveById.get(m.id);
+      const ref: PoolAuditBordereauRef = {
+        id: b.id,
+        referenceNumber: b.referenceNumber,
+        title: b.title,
+        poolId: b.poolId,
+        paid: isPaid,
+        priceDA: snap ? snap.priceDA : live?.poolPriceDA || 0,
+        billingMode: snap ? snap.billingMode : live?.billingMode || "monthly",
+        sessionsConsumed: snap ? snap.sessionsConsumed : live?.sessionsConsumed,
+        hoursConsumed: snap ? snap.hoursConsumed : live?.hoursConsumed,
+      };
+      const list = hitsByMember.get(m.id) || [];
+      list.push(ref);
+      hitsByMember.set(m.id, list);
+    }
+  }
+
+  const entries: PoolAuditEntry[] = members.map((m) => {
+    const hits = hitsByMember.get(m.id) || [];
+    const paidHits = hits.filter((h) => h.paid);
+    const pendingHits = hits.filter((h) => !h.paid);
+    const tagPaid = isMemberPoolPaid(m.notes, month);
+    const assignedGroups = resolveMemberGroups(m, groups);
+
+    let status: PoolAuditStatus;
+    let billingRef: { billingMode?: SwimmerBillingMode; sessionsConsumed?: number; hoursConsumed?: number } = {};
+    if (paidHits.length > 0) {
+      billingRef = paidHits[0];
+      status = paidHits.some((h) => h.billingMode === "monthly") ? "paid_full" : "paid_sessions";
+    } else if (tagPaid) {
+      // Tagged on profile without a paid bordereau: fall back to current billing mode
+      const cfg = billingConfigs[m.swimId] || billingConfigs[m.id];
+      billingRef = { billingMode: cfg?.mode || "monthly", sessionsConsumed: cfg?.sessionsConsumed, hoursConsumed: cfg?.hoursConsumed };
+      status = cfg?.mode === "session" ? "paid_sessions" : "paid_full";
+    } else if (pendingHits.length > 0) {
+      billingRef = pendingHits[0];
+      status = "pending";
+    } else {
+      status = "not_covered";
+    }
+
+    return {
+      memberId: m.id,
+      swimId: m.swimId,
+      fullName: m.fullName,
+      groupLabel: assignedGroups.map((g) => g.name).join(" + ") || "-",
+      isAssigned: assignedGroups.length > 0,
+      clientPaymentStatus: m.paymentStatus,
+      status,
+      billingMode: billingRef.billingMode,
+      sessionsConsumed: billingRef.billingMode === "session" ? billingRef.sessionsConsumed : undefined,
+      hoursConsumed: billingRef.billingMode === "session" ? billingRef.hoursConsumed : undefined,
+      paidDA: paidHits.reduce((s, h) => s + h.priceDA, 0),
+      pendingDA: pendingHits.reduce((s, h) => s + h.priceDA, 0),
+      bordereaux: hits,
+      isDuplicate: hits.length > 1,
+      isTagOnly: tagPaid && paidHits.length === 0,
+    };
+  });
+
+  return { month, entries, collectiveRows };
+}
+
+/**
+ * Summarizes an audit. "Expected" members are those assigned to a group or listed in a bordereau,
+ * since AQA Swim only expects pool payment for assigned swimmers.
+ */
+export function summarizePoolPaymentAudit(result: PoolAuditResult): PoolAuditSummary {
+  const expected = result.entries.filter((e) => e.isAssigned || e.bordereaux.length > 0 || e.isTagOnly);
+  const count = (s: PoolAuditStatus) => expected.filter((e) => e.status === s).length;
+  const paidFullCount = count("paid_full");
+  const paidSessionsCount = count("paid_sessions");
+  return {
+    expectedCount: expected.length,
+    paidFullCount,
+    paidSessionsCount,
+    pendingCount: count("pending"),
+    notCoveredCount: count("not_covered"),
+    duplicateCount: expected.filter((e) => e.isDuplicate).length,
+    tagOnlyCount: expected.filter((e) => e.isTagOnly).length,
+    paidDA: expected.reduce((s, e) => s + e.paidDA, 0),
+    pendingDA: expected.reduce((s, e) => s + e.pendingDA, 0),
+    collectivePaidDA: result.collectiveRows.filter((c) => c.paid).reduce((s, c) => s + c.priceDA, 0),
+    coveragePercent:
+      expected.length > 0
+        ? Math.round(((paidFullCount + paidSessionsCount) / expected.length) * 100)
+        : 0,
+  };
+}
+
+/**
+ * Season months (Septembre -> Août) that have any bordereau activity, plus the current month.
+ */
+export function getPoolAuditActiveMonths(
+  bordereaux: PoolBordereau[],
+  members: SwimMemberReference[] = [],
+  currentMonth: string = getCurrentFrenchMonth()
+): string[] {
+  const active = new Set<string>([normalizeMonth(currentMonth)]);
+  for (const b of bordereaux) {
+    active.add(normalizeMonth(b.month));
+    for (const m of Object.values(buildBordereauMemberMonthsMap(b, members))) {
+      active.add(normalizeMonth(m));
+    }
+    for (const c of b.customRows || []) {
+      if (c.month) active.add(normalizeMonth(c.month));
+    }
+  }
+  const seasonOrder = [...FRENCH_MONTHS.slice(8), ...FRENCH_MONTHS.slice(0, 8)];
+  return seasonOrder.filter((m) => active.has(normalizeMonth(m)));
+}
+
+/**
+ * Exports a month audit to CSV (UTF-8 BOM for Excel).
+ */
+export function exportPoolAuditToCSV(entries: PoolAuditEntry[], month: string): string {
+  const escapeCSV = (val: string | number) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+  const statusLabel: Record<PoolAuditStatus, string> = {
+    paid_full: "Payé (mois complet)",
+    paid_sessions: "Payé (séances)",
+    pending: "Bordereau non réglé",
+    not_covered: "Non couvert",
+  };
+  const lines = [
+    [`Audit poolpaid - ${month}`].map(escapeCSV).join(";"),
+    ["N", "ID", "Nom", "Groupe", "Statut", "Formule", "Payé DA", "En attente DA", "Bordereaux", "Doublon", "Label sans bordereau", "Paiement client"]
+      .map(escapeCSV)
+      .join(";"),
+  ];
+  entries.forEach((e, idx) => {
+    const formula =
+      e.billingMode === "session"
+        ? e.hoursConsumed
+          ? `${e.hoursConsumed}h`
+          : `${e.sessionsConsumed || 1} séance(s)`
+        : e.billingMode === "monthly"
+          ? "Mensuel"
+          : "-";
+    lines.push(
+      [
+        idx + 1,
+        e.swimId,
+        e.fullName,
+        e.groupLabel,
+        statusLabel[e.status],
+        formula,
+        e.paidDA,
+        e.pendingDA,
+        e.bordereaux.map((b) => `${b.referenceNumber}${b.paid ? " (payé)" : ""}`).join(" | "),
+        e.isDuplicate ? "Oui" : "Non",
+        e.isTagOnly ? "Oui" : "Non",
+        e.clientPaymentStatus,
+      ]
+        .map(escapeCSV)
+        .join(";")
+    );
+  });
+  return "\uFEFF" + lines.join("\r\n");
+}

@@ -29,6 +29,19 @@ const bordereauItemSchema = z.object({
   memberIds: z.array(z.string()),
   memberMonths: z.record(z.string(), z.string()).optional(),
   merges: z.array(poolClientMergeSchema).optional(),
+  paidSnapshot: z
+    .array(
+      z.object({
+        memberId: z.string(),
+        swimId: z.string(),
+        month: z.string(),
+        billingMode: z.enum(["monthly", "session"]),
+        sessionsConsumed: z.number().optional(),
+        hoursConsumed: z.number().optional(),
+        priceDA: z.number(),
+      })
+    )
+    .optional(),
   customRows: z.array(
     z.object({
       id: z.string(),
