@@ -14,6 +14,7 @@ interface PoolPaymentConfirmationModalProps {
   customRowCount: number;
   totalAmountDA: number;
   monthLabel: string;
+  monthBreakdown?: Array<{ month: string; count: number }>;
   isAlreadyPaid: boolean;
   paidAt?: string;
 }
@@ -30,6 +31,7 @@ export function PoolPaymentConfirmationModal({
   customRowCount,
   totalAmountDA,
   monthLabel,
+  monthBreakdown,
   isAlreadyPaid,
   paidAt,
 }: PoolPaymentConfirmationModalProps) {
@@ -57,6 +59,13 @@ export function PoolPaymentConfirmationModal({
       setSubmitting(false);
     }
   };
+
+  const effectiveMonthSummary =
+    monthBreakdown && monthBreakdown.length > 1
+      ? monthBreakdown.map((b) => `${b.month} (${b.count})`).join(", ")
+      : monthBreakdown && monthBreakdown.length === 1
+      ? monthBreakdown[0].month
+      : monthLabel;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
@@ -107,8 +116,8 @@ export function PoolPaymentConfirmationModal({
           </div>
 
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
-            <span className="text-slate-400">Mois Concerne :</span>
-            <span className="font-bold text-cyan-300">{monthLabel}</span>
+            <span className="text-slate-400">Mois Concerne(s) :</span>
+            <span className="font-bold text-cyan-300 text-right">{effectiveMonthSummary}</span>
           </div>
 
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -147,7 +156,7 @@ export function PoolPaymentConfirmationModal({
             sur les fiches administratives de ces {swimmerCount} adherents.
           </p>
           <p className="text-[10px] text-slate-400 font-medium">
-            Conformement a la regle metier, apres le 1er de chaque mois tous les poolpaid sont reinitialises. Le systeme attend la confirmation d&apos;un RealFinalPool pour labelliser les adherents comme poolpaid pour le mois concerne ({monthLabel}).
+            Conformement a la regle metier, apres le 1er de chaque mois tous les poolpaid sont reinitialises. Le systeme attend la confirmation d&apos;un RealFinalPool pour labelliser les adherents comme poolpaid pour le(s) mois concerne(s) ({effectiveMonthSummary}).
           </p>
         </div>
 

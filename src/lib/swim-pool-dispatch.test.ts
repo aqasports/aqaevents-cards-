@@ -27,6 +27,16 @@ import {
   STORAGE_KEYS,
   SwimMemberReference,
   SwimGroupReference,
+  changeBordereauReferenceMonth,
+  addMembersToBordereauWithMonth,
+  removeMemberFromBordereau,
+  buildBordereauDispatchMonthOverrides,
+  buildBordereauMemberMonthsMap,
+  getBordereauMonthBreakdown,
+  buildMergedDisplayNameSuggestion,
+  applyPoolClientMerges,
+  PoolBordereau,
+  PoolClientMerge,
 } from "./swim-pool-dispatch";
 
 describe("swim-pool-dispatch domain utilities", () => {
@@ -851,6 +861,326 @@ describe("swim-pool-dispatch domain utilities", () => {
     it("verifies STORAGE_KEYS includes BORDEREAUX and ACTIVE_BORDEREAU_ID", () => {
       expect(STORAGE_KEYS.BORDEREAUX).toBe("aqa_swim_pool_bordereaux_v2");
       expect(STORAGE_KEYS.ACTIVE_BORDEREAU_ID).toBe("aqa_swim_pool_active_bordereau_id_v2");
+    });
+  });
+
+  describe("Multi-month bordereau management", () => {
+    const sampleMembers: SwimMemberReference[] = [
+      {
+        id: "m1",
+        swimId: "SWM-001",
+        fullName: "Amine Benali",
+        phone: "0555000001",
+        groupId: "g1",
+        category: "homme",
+        level: "G10",
+        paymentStatus: "paid",
+        notes: null,
+      },
+      {
+        id: "m2",
+        swimId: "SWM-002",
+        fullName: "Sara Khelifi",
+        phone: "0555000002",
+        groupId: "g2",
+        category: "femme",
+        level: "G5",
+        paymentStatus: "paid",
+        notes: null,
+      },
+      {
+        id: "m3",
+        swimId: "SWM-003",
+        fullName: "Yacine Mansouri",
+        phone: "0555000003",
+        groupId: "g1",
+        category: "enfants",
+        level: "Kids",
+        paymentStatus: "paid",
+        notes: null,
+      },
+    ];
+
+    const sampleGroups: SwimGroupReference[] = [
+      {
+        id: "g1",
+        name: "Homme-Lundi-18h",
+        schedule: "Lundi 18:00 - 19:00",
+        category: "homme",
+      },
+      {
+        id: "g2",
+        name: "Femme-Mardi-14h",
+        schedule: "Mardi 14:00 - 15:00",
+        category: "femme",
+      },
+    ];
+
+    it("locks already-added members when changing reference month while new clients take the new month", () => {
+      let bordereau: PoolBordereau = {
+        ...createDefaultBordereau(DEFAULT_DOCUMENT_META, "azal", 1),
+        month: "Septembre",
+        customRows: [],
+        memberIds: ["m1", "m2"],
+        memberMonths: {}, // legacy unstamped bordereau
+      };
+
+      // Switch reference month from Septembre -> Octobre
+      bordereau = changeBordereauReferenceMonth(bordereau, "Octobre");
+      expect(bordereau.month).toBe("Octobre");
+      expect(bordereau.memberMonths?.m1).toBe("Septembre");
+      expect(bordereau.memberMonths?.m2).toBe("Septembre");
+
+      // Add a new client m3 under the new reference month Octobre
+      bordereau = addMembersToBordereauWithMonth(bordereau, ["m3"], bordereau.month);
+      expect(bordereau.memberMonths?.m1).toBe("Septembre");
+      expect(bordereau.memberMonths?.m2).toBe("Septembre");
+      expect(bordereau.memberMonths?.m3).toBe("Octobre");
+
+      // Switching reference month again to Novembre must NOT alter m1/m2 (Septembre) or m3 (Octobre)
+      bordereau = changeBordereauReferenceMonth(bordereau, "Novembre");
+      expect(bordereau.month).toBe("Novembre");
+      expect(bordereau.memberMonths?.m1).toBe("Septembre");
+      expect(bordereau.memberMonths?.m2).toBe("Septembre");
+      expect(bordereau.memberMonths?.m3).toBe("Octobre");
+
+      const dispatchOverrides = buildBordereauDispatchMonthOverrides(bordereau, sampleMembers, {
+        "SWM-001": "Janvier", // legacy localStorage override must NOT overwrite per-bordereau Septembre
+      });
+      const rows = buildPoolDispatchRows(
+        sampleMembers,
+        sampleGroups,
+        {},
+        bordereau.month,
+        dispatchOverrides
+      );
+      expect(rows.map((r) => [r.memberId, r.currentMonth])).toEqual([
+        ["m1", "Septembre"],
+        ["m2", "Septembre"],
+        ["m3", "Octobre"],
+      ]);
+    });
+
+    it("builds memberMonths map including secondary swimId and computes multi-month breakdown", () => {
+      const bordereau: PoolBordereau = {
+        ...createDefaultBordereau(DEFAULT_DOCUMENT_META, "azal", 1),
+        month: "Octobre",
+        memberIds: ["m1", "m2", "m3"],
+        memberMonths: {
+          m1: "Septembre",
+          m2: "Octobre",
+        },
+        customRows: [
+          {
+            id: "cust_1",
+            fullName: "Groupe Scolaire",
+            groupOrNote: "Mercredi 10h",
+            poolPriceDA: 6000,
+            month: "Septembre",
+          },
+        ],
+      };
+
+      const map = buildBordereauMemberMonthsMap(bordereau, sampleMembers);
+      expect(map.m1).toBe("Septembre");
+      expect(map["SWM-001"]).toBe("Septembre");
+      expect(map.m2).toBe("Octobre");
+      expect(map.m3).toBe("Octobre"); // falls back to bordereau.month
+
+      const breakdown = getBordereauMonthBreakdown(bordereau, sampleMembers);
+      expect(breakdown).toEqual([
+        { month: "Septembre", count: 2 },
+        { month: "Octobre", count: 2 },
+      ]);
+    });
+
+    it("removes memberMonths and dissolves merges with fewer than 2 remaining members", () => {
+      const bordereau: PoolBordereau = {
+        ...createDefaultBordereau(DEFAULT_DOCUMENT_META, "azal", 1),
+        month: "Octobre",
+        customRows: [],
+        memberIds: ["m1", "m2", "m3"],
+        memberMonths: {
+          m1: "Septembre",
+          "SWM-001": "Septembre",
+          m2: "Octobre",
+          m3: "Octobre",
+        },
+        merges: [
+          {
+            id: "merge_1",
+            displayName: "Famille Benali",
+            memberIds: ["m1", "m2"],
+          },
+          {
+            id: "merge_2",
+            displayName: "Groupe Trio",
+            memberIds: ["m1", "m2", "m3"],
+          },
+        ],
+      };
+
+      const afterRemove = removeMemberFromBordereau(bordereau, "m1", "SWM-001");
+      expect(afterRemove.memberIds).toEqual(["m2", "m3"]);
+      expect(afterRemove.memberMonths?.m1).toBeUndefined();
+      expect(afterRemove.memberMonths?.["SWM-001"]).toBeUndefined();
+      expect(afterRemove.memberMonths?.m2).toBe("Octobre");
+      // merge_1 only had 1 member left -> dissolved; merge_2 keeps 2 members -> retained
+      expect(afterRemove.merges).toHaveLength(1);
+      expect(afterRemove.merges?.[0].id).toBe("merge_2");
+      expect(afterRemove.merges?.[0].memberIds).toEqual(["m2", "m3"]);
+    });
+  });
+
+  describe("Optional client merging for Admin Panel vs PDF output", () => {
+    const members: SwimMemberReference[] = [
+      {
+        id: "m1",
+        swimId: "SWM-101",
+        fullName: "Karim Benali",
+        phone: "0555000010",
+        groupId: "g1",
+        category: "homme",
+        level: "G1",
+        paymentStatus: "paid",
+        notes: "[POOLPAID:Septembre]",
+      },
+      {
+        id: "m2",
+        swimId: "SWM-102",
+        fullName: "Yacine Benali",
+        phone: "0555000011",
+        groupId: "g2",
+        category: "enfants",
+        level: "G2",
+        paymentStatus: "paid",
+        notes: "",
+      },
+      {
+        id: "m3",
+        swimId: "SWM-103",
+        fullName: "Meriem Ziani",
+        phone: "0555000012",
+        groupId: "g1",
+        category: "femme",
+        level: "G3",
+        paymentStatus: "paid",
+        notes: null,
+      },
+    ];
+
+    const groups: SwimGroupReference[] = [
+      {
+        id: "g1",
+        name: "Samedi-10h",
+        schedule: "Samedi 10:00 - 11:00",
+        category: "homme",
+      },
+      {
+        id: "g2",
+        name: "Mercredi-14h",
+        schedule: "Mercredi 14:00 - 15:00",
+        category: "enfants",
+      },
+    ];
+
+    it("combines merged members into one PDF row while keeping constituent rows inside mergedMemberRows", () => {
+      const baseRows = buildPoolDispatchRows(
+        members,
+        groups,
+        {
+          "SWM-101": { mode: "monthly", manualPriceOverride: 4000 },
+          "SWM-102": { mode: "monthly", manualPriceOverride: 3500 },
+          "SWM-103": { mode: "monthly", manualPriceOverride: 4000 },
+        },
+        "Octobre",
+        { m1: "Septembre", "SWM-101": "Septembre", m2: "Octobre" }
+      );
+
+      expect(buildMergedDisplayNameSuggestion([baseRows[0], baseRows[1]])).toBe(
+        "Karim & Yacine Benali"
+      );
+      expect(buildMergedDisplayNameSuggestion([baseRows[0], baseRows[2]])).toBe(
+        "Karim Benali + Meriem Ziani"
+      );
+
+      const mergeDef: PoolClientMerge = {
+        id: "merge_benali",
+        displayName: "Famille Benali (Duo)",
+        memberIds: ["m1", "m2"],
+      };
+
+      const mergedRows = applyPoolClientMerges(baseRows, [mergeDef]);
+      // PDF/Summary only sees 2 lines instead of 3
+      expect(mergedRows).toHaveLength(2);
+
+      const first = mergedRows[0];
+      expect(first.isMerged).toBe(true);
+      expect(first.fullName).toBe("Famille Benali (Duo)");
+      expect(first.poolPriceDA).toBe(7500);
+      expect(first.currentMonth).toBe("Septembre / Octobre");
+      expect(getSwimmerDispatchGroupDisplay(first)).toBe("Samedi-10h + Mercredi-14h");
+      expect(first.isPoolPaid).toBe(false); // only true if ALL constituents are paid
+      expect(first.mergedMemberRows).toHaveLength(2);
+      expect(first.mergedMemberRows?.map((sub) => sub.fullName)).toEqual([
+        "Karim Benali",
+        "Yacine Benali",
+      ]);
+
+      expect(mergedRows[1].fullName).toBe("Meriem Ziani");
+      expect(mergedRows[1].poolPriceDA).toBe(4000);
+
+      // Summary total must NOT double count (7500 + 4000 = 11500)
+      const selected = new Set(mergedRows.map((r) => r.swimId || r.memberId));
+      const summary = computeRealFinalPoolSummary(mergedRows, selected);
+      expect(summary.totalDuePoolDA).toBe(11500);
+      expect(summary.totalSwimmers).toBe(2);
+
+      // PDF & CSV exports must ONLY show the combined displayName, never constituent names
+      const officialCsv = exportOfficialCorrespondenceToCSV(
+        mergedRows,
+        DEFAULT_DOCUMENT_META,
+        false,
+        selected
+      );
+      expect(officialCsv).toContain("Famille Benali (Duo)");
+      expect(officialCsv).not.toContain("Karim Benali");
+      expect(officialCsv).not.toContain("Yacine Benali");
+
+      const dispatchCsv = exportPoolRowsToCSV(
+        mergedRows,
+        DEFAULT_REAL_FINAL_COLUMNS,
+        "Octobre",
+        false,
+        selected
+      );
+      expect(dispatchCsv).toContain("Famille Benali (Duo)");
+      expect(dispatchCsv).not.toContain("Karim Benali");
+    });
+
+    it("applies manual price, group, and month overrides on a merged entry and sets isPoolPaid when all constituents are paid", () => {
+      const paidMembers = members.map((m) => ({
+        ...m,
+        notes: "[POOLPAID:Octobre]",
+      }));
+      const baseRows = buildPoolDispatchRows(paidMembers, groups, {}, "Octobre");
+      const mergedRows = applyPoolClientMerges(baseRows, [
+        {
+          id: "merge_custom",
+          displayName: "Pack Famille VIP",
+          memberIds: ["m1", "m2"],
+          groupDisplayOverride: "Cours Privé Samedi",
+          manualPriceOverride: 6800,
+          monthOverride: "Novembre",
+        },
+      ]);
+
+      const merged = mergedRows[0];
+      expect(merged.isPoolPaid).toBe(true);
+      expect(merged.hasPriceOverride).toBe(true);
+      expect(merged.poolPriceDA).toBe(6800);
+      expect(merged.currentMonth).toBe("Novembre");
+      expect(getSwimmerDispatchGroupDisplay(merged)).toBe("Cours Privé Samedi");
     });
   });
 });

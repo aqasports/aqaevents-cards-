@@ -21,6 +21,12 @@ export function PoolCustomRowModal({
   const [priceInput, setPriceInput] = useState("4000");
   const [monthInput, setMonthInput] = useState(defaultMonth || getCurrentFrenchMonth());
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setMonthInput(defaultMonth || getCurrentFrenchMonth());
+    }
+  }, [isOpen, defaultMonth]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {

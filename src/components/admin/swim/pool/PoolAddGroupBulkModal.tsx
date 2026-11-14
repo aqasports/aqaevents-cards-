@@ -10,6 +10,7 @@ interface PoolAddGroupBulkModalProps {
   allMembers: SwimMemberReference[];
   alreadySelectedIds: Set<string>;
   alreadyPoolPaidIds?: Set<string>;
+  referenceMonth?: string;
   onAddGroupMembers: (memberIds: string[], label: string) => void;
 }
 
@@ -20,6 +21,7 @@ export function PoolAddGroupBulkModal({
   allMembers,
   alreadySelectedIds,
   alreadyPoolPaidIds,
+  referenceMonth,
   onAddGroupMembers,
 }: PoolAddGroupBulkModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -169,6 +171,7 @@ export function PoolAddGroupBulkModal({
               </h3>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 Injectez en bloc tous les adherents d&apos;un ou plusieurs groupes dans le bordereau
+                {referenceMonth ? ` (Mois : ${referenceMonth})` : ""}
               </p>
             </div>
           </div>
@@ -266,7 +269,7 @@ export function PoolAddGroupBulkModal({
                         )}
                         {stat.alreadyPoolPaidCount > 0 && (
                           <span className="text-[10px] text-emerald-400 font-semibold">
-                            ({stat.alreadyPoolPaidCount} deja poolpaid ce mois)
+                            ({stat.alreadyPoolPaidCount} deja poolpaid {referenceMonth ? `· ${referenceMonth}` : "ce mois"})
                           </span>
                         )}
                       </div>

@@ -24,6 +24,7 @@ import {
   SwimGroupReference,
   PoolBordereau,
   PoolPreReservation,
+  PoolClientMerge,
   createDefaultBordereau,
   createDefaultPreReservation,
   getProposedBordereauTitle,
@@ -32,6 +33,13 @@ import {
   FRENCH_MONTHS,
   getCurrentFrenchMonth,
   resolveMemberGroups,
+  buildBordereauDispatchMonthOverrides,
+  changeBordereauReferenceMonth,
+  addMembersToBordereauWithMonth,
+  removeMemberFromBordereau,
+  buildBordereauMemberMonthsMap,
+  getBordereauMonthBreakdown,
+  applyPoolClientMerges,
 } from "@/lib/swim-pool-dispatch";
 import { isMemberPoolPaid, encodePoolPaidNotes, normalizeMonth } from "@/lib/swim-groups";
 import { PoolCustomRowModal } from "./PoolCustomRowModal";
@@ -41,6 +49,7 @@ import { PoolAddPreReservationModal } from "./PoolAddPreReservationModal";
 import { PoolAddClientModal } from "./PoolAddClientModal";
 import { PoolAddGroupBulkModal } from "./PoolAddGroupBulkModal";
 import { PoolPaymentConfirmationModal } from "./PoolPaymentConfirmationModal";
+import { PoolMergeClientsModal } from "./PoolMergeClientsModal";
 
 interface SwimPoolDeskProps {
   members?: SwimMemberReference[];
@@ -205,14 +214,20 @@ export function SwimPoolDesk({
       }
     }
 
-    // 2. Members belonging to any already-paid bordereau for the same month
+    // 2. Members belonging to any already-paid bordereau for the same month (per-member month aware)
     for (const b of bordereaux) {
       if (b.paymentStatus === "paid") {
-        const bMonth = normalizeMonth(b.month);
-        if (currentMonth && bMonth && currentMonth === bMonth) {
-          (b.memberIds || []).forEach((id) => {
+        const bMonthsMap = buildBordereauMemberMonthsMap(b, rawMembers);
+        for (const id of b.memberIds || []) {
+          const memberMonth = normalizeMonth(bMonthsMap[id] || b.month);
+          if (currentMonth && memberMonth && currentMonth === memberMonth) {
             set.add(id);
-          });
+            const matched = rawMembers.find((m) => m.id === id || m.swimId === id);
+            if (matched) {
+              set.add(matched.id);
+              set.add(matched.swimId);
+            }
+          }
         }
       }
     }
@@ -281,6 +296,8 @@ export function SwimPoolDesk({
       month: data.month,
       year: data.year,
       memberIds: [],
+      memberMonths: {},
+      merges: [],
       customRows: [],
       paymentStatus: "unpaid",
       createdAt: new Date().toISOString(),
@@ -323,6 +340,14 @@ export function SwimPoolDesk({
   ) => {
     const updated = bordereaux.map((b) => {
       if (b.id === activeBordereau.id) {
+        if (field === "month") {
+          return changeBordereauReferenceMonth(
+            b,
+            String(value || ""),
+            rawMembers,
+            monthOverrides
+          );
+        }
         return { ...b, [field]: value, updatedAt: new Date().toISOString() };
       }
       return b;
@@ -489,15 +514,13 @@ export function SwimPoolDesk({
     const validIds = newIds.filter(
       (id) => !unassignedIds.has(id) && !poolPaidIds.has(id)
     );
-    const set = new Set(activeBordereau.memberIds || []);
-    validIds.forEach((id) => set.add(id));
     const updated = bordereaux.map((b) => {
       if (b.id === activeBordereau.id) {
-        return {
-          ...b,
-          memberIds: Array.from(set),
-          updatedAt: new Date().toISOString(),
-        };
+        return addMembersToBordereauWithMonth(
+          b,
+          validIds,
+          b.month || monthLabel
+        );
       }
       return b;
     });
@@ -529,17 +552,27 @@ export function SwimPoolDesk({
   };
 
   const handleRemoveMemberFromActiveBordereau = (memberId: string) => {
+    const matched = rawMembers.find(
+      (m) => m.id === memberId || m.swimId === memberId
+    );
+    const secondaryId = matched
+      ? matched.id === memberId
+        ? matched.swimId
+        : matched.id
+      : undefined;
     const updated = bordereaux.map((b) => {
       if (b.id === activeBordereau.id) {
-        return {
-          ...b,
-          memberIds: (b.memberIds || []).filter((id) => id !== memberId),
-          updatedAt: new Date().toISOString(),
-        };
+        return removeMemberFromBordereau(b, memberId, secondaryId);
       }
       return b;
     });
     saveBordereaux(updated);
+    setSelectedForMergeIds((prev) =>
+      prev.filter(
+        (id) =>
+          id !== memberId && (!secondaryId || id !== secondaryId)
+      )
+    );
     showToast("Adhérent retiré du bordereau");
   };
 
@@ -591,11 +624,17 @@ export function SwimPoolDesk({
       return;
     }
     const activeMonth = activeBordereau.month || monthLabel;
+    const memberMonthsMap = buildBordereauMemberMonthsMap(
+      activeBordereau,
+      rawMembers,
+      monthOverrides
+    );
     const res = await fetch("/api/admin/swim/pool/confirm-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         memberIds: activeBordereau.memberIds,
+        memberMonths: memberMonthsMap,
         bordereauId: activeBordereau.id,
         bordereauRef: activeBordereau.referenceNumber,
         poolId: activeBordereau.poolId,
@@ -630,9 +669,11 @@ export function SwimPoolDesk({
           activeBordereau.memberIds.includes(m.id) ||
           activeBordereau.memberIds.includes(m.swimId)
         ) {
+          const targetMonth =
+            memberMonthsMap[m.id] || memberMonthsMap[m.swimId] || activeMonth;
           return {
             ...m,
-            notes: encodePoolPaidNotes(m.notes, true, activeMonth),
+            notes: encodePoolPaidNotes(m.notes, true, targetMonth),
           };
         }
         return m;
@@ -647,11 +688,17 @@ export function SwimPoolDesk({
       return;
     }
     const activeMonth = activeBordereau.month || monthLabel;
+    const memberMonthsMap = buildBordereauMemberMonthsMap(
+      activeBordereau,
+      rawMembers,
+      monthOverrides
+    );
     const res = await fetch("/api/admin/swim/pool/confirm-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         memberIds: activeBordereau.memberIds,
+        memberMonths: memberMonthsMap,
         bordereauId: activeBordereau.id,
         bordereauRef: activeBordereau.referenceNumber,
         poolId: activeBordereau.poolId,
@@ -686,9 +733,11 @@ export function SwimPoolDesk({
           activeBordereau.memberIds.includes(m.id) ||
           activeBordereau.memberIds.includes(m.swimId)
         ) {
+          const targetMonth =
+            memberMonthsMap[m.id] || memberMonthsMap[m.swimId] || activeMonth;
           return {
             ...m,
-            notes: encodePoolPaidNotes(m.notes, false, activeMonth),
+            notes: encodePoolPaidNotes(m.notes, false, targetMonth),
           };
         }
         return m;
@@ -779,8 +828,8 @@ export function SwimPoolDesk({
     saveBillingConfigs(updated);
   };
 
-  // ─── 6. PER-ROW MONTH OVERRIDES ──────────────────────────────────────────────
-  const [monthOverrides, setMonthOverrides] = useState<Record<string, string>>(() => {
+  // ─── 6. PER-ROW MONTH OVERRIDES (LEGACY READ-ONLY FALLBACK) ──────────────────
+  const [monthOverrides] = useState<Record<string, string>>(() => {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem(STORAGE_KEYS.ROW_MONTH_OVERRIDES);
@@ -795,13 +844,58 @@ export function SwimPoolDesk({
   const [editingMonthRowId, setEditingMonthRowId] = useState<string | null>(null);
 
   const handleSaveRowMonth = (rowId: string, monthVal: string) => {
-    const updated = { ...monthOverrides, [rowId]: monthVal.trim() };
-    setMonthOverrides(updated);
-    try {
-      localStorage.setItem(STORAGE_KEYS.ROW_MONTH_OVERRIDES, JSON.stringify(updated));
-    } catch {
-      // ignore
+    const trimmed = monthVal.trim();
+    if (!trimmed) {
+      setEditingMonthRowId(null);
+      return;
     }
+
+    // Custom collective row -> persist directly inside activeBordereau.customRows
+    const custIndex = (activeBordereau.customRows || []).findIndex(
+      (c) => c.id === rowId
+    );
+    if (custIndex !== -1) {
+      const updatedCustom = (activeBordereau.customRows || []).map((c, idx) =>
+        idx === custIndex ? { ...c, month: trimmed } : c
+      );
+      handleUpdateActiveBordereauMeta("customRows", updatedCustom);
+      setEditingMonthRowId(null);
+      return;
+    }
+
+    // Merged parent row -> persist monthOverride inside activeBordereau.merges
+    const mergeIndex = (activeBordereau.merges || []).findIndex(
+      (mg) => mg.id === rowId
+    );
+    if (mergeIndex !== -1) {
+      const updatedMerges = (activeBordereau.merges || []).map((mg, idx) =>
+        idx === mergeIndex
+          ? {
+              ...mg,
+              monthOverride: trimmed === "__AUTO__" ? undefined : trimmed,
+            }
+          : mg
+      );
+      handleUpdateActiveBordereauMeta("merges", updatedMerges);
+      setEditingMonthRowId(null);
+      return;
+    }
+
+    // Swimmer row (standalone or inside a merge) -> persist in activeBordereau.memberMonths
+    const matched = rawMembers.find(
+      (m) => m.id === rowId || m.swimId === rowId
+    );
+    const nextMemberMonths: Record<string, string> = {
+      ...(activeBordereau.memberMonths || {}),
+      [rowId]: trimmed,
+    };
+    if (matched) {
+      nextMemberMonths[matched.id] = trimmed;
+      if (matched.swimId) {
+        nextMemberMonths[matched.swimId] = trimmed;
+      }
+    }
+    handleUpdateActiveBordereauMeta("memberMonths", nextMemberMonths);
     setEditingMonthRowId(null);
   };
 
@@ -813,9 +907,22 @@ export function SwimPoolDesk({
     // Check if it's a custom collective row
     const custIndex = (activeBordereau.customRows || []).findIndex((c) => c.id === rowId);
     if (custIndex !== -1) {
-      const updatedCustom = [...(activeBordereau.customRows || [])];
-      updatedCustom[custIndex].poolPriceDA = price;
+      const updatedCustom = (activeBordereau.customRows || []).map((c, idx) =>
+        idx === custIndex ? { ...c, poolPriceDA: price } : c
+      );
       handleUpdateActiveBordereauMeta("customRows", updatedCustom);
+      setInlinePriceRowId(null);
+      showToast("Prix modifié");
+      return;
+    }
+
+    // Check if it's a merged parent row
+    const mergeIndex = (activeBordereau.merges || []).findIndex((mg) => mg.id === rowId);
+    if (mergeIndex !== -1) {
+      const updatedMerges = (activeBordereau.merges || []).map((mg, idx) =>
+        idx === mergeIndex ? { ...mg, manualPriceOverride: price } : mg
+      );
+      handleUpdateActiveBordereauMeta("merges", updatedMerges);
       setInlinePriceRowId(null);
       showToast("Prix modifié");
       return;
@@ -835,6 +942,16 @@ export function SwimPoolDesk({
   };
 
   const handleResetPriceToAuto = (rowId: string) => {
+    const mergeIndex = (activeBordereau.merges || []).findIndex((mg) => mg.id === rowId);
+    if (mergeIndex !== -1) {
+      const updatedMerges = (activeBordereau.merges || []).map((mg, idx) =>
+        idx === mergeIndex ? { ...mg, manualPriceOverride: undefined } : mg
+      );
+      handleUpdateActiveBordereauMeta("merges", updatedMerges);
+      showToast("Prix réinitialisé au calcul automatique");
+      return;
+    }
+
     const current = billingConfigs[rowId];
     if (!current) return;
     const updatedCurrent = { ...current };
@@ -962,13 +1079,29 @@ export function SwimPoolDesk({
     return rawMembers.filter((m) => idSet.has(m.id) || idSet.has(m.swimId));
   }, [rawMembers, activeBordereau.memberIds]);
 
-  const finalRows: PoolSwimmerRow[] = useMemo(() => {
+  const bordereauMonthOverrides = useMemo(() => {
+    return buildBordereauDispatchMonthOverrides(
+      activeBordereau,
+      rawMembers,
+      monthOverrides
+    );
+  }, [activeBordereau, rawMembers, monthOverrides]);
+
+  const monthBreakdown = useMemo(() => {
+    return getBordereauMonthBreakdown(
+      activeBordereau,
+      rawMembers,
+      monthOverrides
+    );
+  }, [activeBordereau, rawMembers, monthOverrides]);
+
+  const baseFinalRows: PoolSwimmerRow[] = useMemo(() => {
     return buildPoolDispatchRows(
       activeBordereauMembers,
       rawGroups,
       billingConfigs,
       activeBordereau.month || monthLabel,
-      monthOverrides,
+      bordereauMonthOverrides,
       activeBordereau.customRows || [],
       {},
       activePool.defaultRules
@@ -979,10 +1112,29 @@ export function SwimPoolDesk({
     billingConfigs,
     activeBordereau.month,
     monthLabel,
-    monthOverrides,
+    bordereauMonthOverrides,
     activeBordereau.customRows,
     activePool,
   ]);
+
+  const finalRows: PoolSwimmerRow[] = useMemo(() => {
+    return applyPoolClientMerges(baseFinalRows, activeBordereau.merges || []);
+  }, [baseFinalRows, activeBordereau.merges]);
+
+  const unmergedEligibleRows = useMemo(() => {
+    const mergedMemberIds = new Set<string>();
+    for (const mg of activeBordereau.merges || []) {
+      for (const id of mg.memberIds || []) {
+        mergedMemberIds.add(id);
+      }
+    }
+    return baseFinalRows.filter(
+      (r) =>
+        !r.isCustom &&
+        !mergedMemberIds.has(r.memberId) &&
+        (!r.swimId || !mergedMemberIds.has(r.swimId))
+    );
+  }, [baseFinalRows, activeBordereau.merges]);
 
   // Selected row IDs for filtering / printing
   const [selectedSwimmerIds, setSelectedSwimmerIds] = useState<Set<string>>(new Set());
@@ -1105,7 +1257,15 @@ export function SwimPoolDesk({
     return finalRows.filter(
       (r) =>
         r.fullName.toLowerCase().includes(q) ||
-        r.assignedGroupNames.some((g) => g.toLowerCase().includes(q))
+        r.swimId.toLowerCase().includes(q) ||
+        r.assignedGroupNames.some((g) => g.toLowerCase().includes(q)) ||
+        (r.mergedMemberRows &&
+          r.mergedMemberRows.some(
+            (sub) =>
+              sub.fullName.toLowerCase().includes(q) ||
+              sub.swimId.toLowerCase().includes(q) ||
+              sub.assignedGroupNames.some((g) => g.toLowerCase().includes(q))
+          ))
     );
   }, [finalRows, searchQuery]);
 
@@ -1129,12 +1289,174 @@ export function SwimPoolDesk({
   const [isPaymentConfirmationModalOpen, setIsPaymentConfirmationModalOpen] = useState(false);
   const [isAddCustomRowModalOpen, setIsAddCustomRowModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [selectedForMergeIds, setSelectedForMergeIds] = useState<string[]>([]);
+  const [collapsedMergeIds, setCollapsedMergeIds] = useState<Set<string>>(new Set());
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [editingMerge, setEditingMerge] = useState<PoolClientMerge | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
+
+  // Keep merge selection valid as bordereau or eligible rows change
+  useEffect(() => {
+    setSelectedForMergeIds((prev) => {
+      if (prev.length === 0) return prev;
+      const validSet = new Set(unmergedEligibleRows.map((r) => r.memberId));
+      const next = prev.filter((id) => validSet.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [activeBordereauId, unmergedEligibleRows]);
+
+  useEffect(() => {
+    setSelectedForMergeIds([]);
+    setCollapsedMergeIds(new Set());
+  }, [activeBordereauId]);
+
+  const modalEligibleMergeRows = useMemo(() => {
+    if (!editingMerge) return unmergedEligibleRows;
+    const mergedByOthers = new Set<string>();
+    for (const mg of activeBordereau.merges || []) {
+      if (mg.id === editingMerge.id) continue;
+      for (const id of mg.memberIds || []) {
+        mergedByOthers.add(id);
+      }
+    }
+    return baseFinalRows.filter(
+      (r) =>
+        !r.isCustom &&
+        !mergedByOthers.has(r.memberId) &&
+        (!r.swimId || !mergedByOthers.has(r.swimId))
+    );
+  }, [baseFinalRows, activeBordereau.merges, editingMerge, unmergedEligibleRows]);
+
+  const toggleMergeSelection = (memberId: string) => {
+    setSelectedForMergeIds((prev) =>
+      prev.includes(memberId)
+        ? prev.filter((id) => id !== memberId)
+        : [...prev, memberId]
+    );
+  };
+
+  const toggleMergeCollapse = (mergeId: string) => {
+    setCollapsedMergeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mergeId)) {
+        next.delete(mergeId);
+      } else {
+        next.add(mergeId);
+      }
+      return next;
+    });
+  };
+
+  const handleOpenCreateMergeModal = () => {
+    setEditingMerge(null);
+    setIsMergeModalOpen(true);
+  };
+
+  const handleOpenEditMergeModal = (mergeId: string) => {
+    const found = (activeBordereau.merges || []).find((mg) => mg.id === mergeId);
+    if (!found) return;
+    setEditingMerge(found);
+    setIsMergeModalOpen(true);
+  };
+
+  const handleSaveMerge = (payload: {
+    id?: string;
+    displayName: string;
+    memberIds: string[];
+    groupDisplayOverride?: string;
+    manualPriceOverride?: number;
+    monthOverride?: string;
+  }) => {
+    const existingMerges = activeBordereau.merges || [];
+    const uniqueMemberIds = Array.from(new Set(payload.memberIds));
+    if (uniqueMemberIds.length < 2) return;
+    const pickedSet = new Set(uniqueMemberIds);
+
+    if (payload.id) {
+      const targetId = payload.id;
+      const updatedMerges = existingMerges
+        .map((mg) => {
+          if (mg.id === targetId) {
+            return {
+              ...mg,
+              displayName: payload.displayName,
+              memberIds: uniqueMemberIds,
+              groupDisplayOverride: payload.groupDisplayOverride,
+              manualPriceOverride: payload.manualPriceOverride,
+              monthOverride: payload.monthOverride,
+            };
+          }
+          return {
+            ...mg,
+            memberIds: (mg.memberIds || []).filter((id) => !pickedSet.has(id)),
+          };
+        })
+        .filter((mg) => (mg.memberIds || []).length >= 2);
+      handleUpdateActiveBordereauMeta("merges", updatedMerges);
+      showToast(t("mergeUpdatedToast"));
+    } else {
+      const cleanedExisting = existingMerges
+        .map((mg) => ({
+          ...mg,
+          memberIds: (mg.memberIds || []).filter((id) => !pickedSet.has(id)),
+        }))
+        .filter((mg) => (mg.memberIds || []).length >= 2);
+      const newMerge: PoolClientMerge = {
+        id: `merge_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        displayName: payload.displayName,
+        memberIds: uniqueMemberIds,
+        groupDisplayOverride: payload.groupDisplayOverride,
+        manualPriceOverride: payload.manualPriceOverride,
+        monthOverride: payload.monthOverride,
+        createdAt: new Date().toISOString(),
+      };
+      handleUpdateActiveBordereauMeta("merges", [...cleanedExisting, newMerge]);
+      setSelectedForMergeIds([]);
+      showToast(t("mergeCreatedToast"));
+    }
+    setEditingMerge(null);
+  };
+
+  const handleDissolveMerge = (mergeId: string) => {
+    const updatedMerges = (activeBordereau.merges || []).filter(
+      (mg) => mg.id !== mergeId
+    );
+    handleUpdateActiveBordereauMeta("merges", updatedMerges);
+    setCollapsedMergeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(mergeId);
+      return next;
+    });
+    showToast(t("mergeDissolvedToast"));
+  };
+
+  const handleRemoveMemberFromMerge = (
+    mergeId: string,
+    memberId: string,
+    swimId?: string
+  ) => {
+    const existingMerges = activeBordereau.merges || [];
+    let dissolved = false;
+    const updatedMerges = existingMerges
+      .map((mg) => {
+        if (mg.id !== mergeId) return mg;
+        const remaining = (mg.memberIds || []).filter(
+          (id) => id !== memberId && (!swimId || id !== swimId)
+        );
+        if (remaining.length < 2) {
+          dissolved = true;
+        }
+        return { ...mg, memberIds: remaining };
+      })
+      .filter((mg) => (mg.memberIds || []).length >= 2);
+    handleUpdateActiveBordereauMeta("merges", updatedMerges);
+    showToast(dissolved ? t("mergeDissolvedToast") : t("mergeUpdatedToast"));
+  };
 
   // ─── 13. EXPORT & PRINT HANDLERS ─────────────────────────────────────────────
   const handlePrint = () => {
@@ -1192,6 +1514,176 @@ export function SwimPoolDesk({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  // Shared inline cell renderers reused by standalone rows, merged parent rows, and constituent sub-rows
+  const renderFormulaCell = (item: PoolSwimmerRow, itemRowId: string) => {
+    if (item.isCustom) {
+      return (
+        <span className="text-[10px] text-slate-400">
+          Ligne collective forfaitaire
+        </span>
+      );
+    }
+    if (item.isMerged) {
+      return (
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+          {item.formulaLabel}
+        </span>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2">
+        <span
+          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+            item.billingMode === "session"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+              : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/20"
+          }`}
+        >
+          {item.formulaLabel}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => handleToggleBillingMode(itemRowId)}
+          className="text-[10px] text-slate-400 hover:text-white underline"
+          title="Changer le mode de facturation"
+        >
+          {item.billingMode === "session" ? "Passer au mois" : "À la séance"}
+        </button>
+
+        {item.billingMode === "session" && (
+          <div className="inline-flex items-center gap-1 ml-1 bg-slate-900 px-1.5 py-0.5 rounded border border-white/10 text-[10px]">
+            <button
+              type="button"
+              onClick={() =>
+                handleSetSessionsConsumed(
+                  itemRowId,
+                  (item.sessionsConsumed || 1) - 1
+                )
+              }
+              className="px-1 text-slate-400 hover:text-white font-bold"
+            >
+              -
+            </button>
+            <span className="font-mono font-bold text-amber-300">
+              {item.sessionsConsumed || 1}s
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                handleSetSessionsConsumed(
+                  itemRowId,
+                  (item.sessionsConsumed || 1) + 1
+                )
+              }
+              className="px-1 text-slate-400 hover:text-white font-bold"
+            >
+              +
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPriceCell = (item: PoolSwimmerRow, itemRowId: string) => {
+    const isEditing = inlinePriceRowId === itemRowId;
+    if (isEditing) {
+      return (
+        <div className="flex items-center justify-end gap-1">
+          <input
+            type="number"
+            step="100"
+            value={inlinePriceInput}
+            onChange={(e) => setInlinePriceInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSaveInlinePrice(itemRowId, Number(inlinePriceInput) || 0);
+              }
+              if (e.key === "Escape") setInlinePriceRowId(null);
+            }}
+            onBlur={() =>
+              handleSaveInlinePrice(itemRowId, Number(inlinePriceInput) || 0)
+            }
+            autoFocus
+            className="w-24 px-2 py-0.5 rounded bg-slate-950 border border-cyan-400 text-xs font-mono font-bold text-white text-right focus:outline-none"
+          />
+        </div>
+      );
+    }
+    return (
+      <div
+        onClick={() => {
+          setInlinePriceInput(String(item.poolPriceDA));
+          setInlinePriceRowId(itemRowId);
+        }}
+        className="cursor-pointer group flex items-center justify-end gap-1.5"
+        title="Cliquer pour modifier le prix manuellement"
+      >
+        <span className="font-mono font-extrabold text-sm text-emerald-300 group-hover:text-emerald-200">
+          {item.poolPriceDA.toLocaleString("fr-DZ")}
+        </span>
+        {item.hasPriceOverride && (
+          <span className="text-[9px] font-bold text-amber-400">*</span>
+        )}
+      </div>
+    );
+  };
+
+  const renderMonthCell = (
+    item: PoolSwimmerRow,
+    itemRowId: string,
+    allowAutoOption: boolean
+  ) => {
+    const isEditing = editingMonthRowId === itemRowId;
+    if (isEditing) {
+      const currentMergeOverride = allowAutoOption
+        ? (activeBordereau.merges || []).find((mg) => mg.id === itemRowId)
+            ?.monthOverride
+        : undefined;
+      const initialVal = allowAutoOption
+        ? currentMergeOverride || "__AUTO__"
+        : item.currentMonth;
+      return (
+        <select
+          defaultValue={initialVal}
+          onChange={(e) => {
+            handleSaveRowMonth(itemRowId, e.target.value);
+          }}
+          onBlur={(e) => {
+            if (e.target.value !== initialVal) {
+              handleSaveRowMonth(itemRowId, e.target.value);
+            } else {
+              setEditingMonthRowId(null);
+            }
+          }}
+          autoFocus
+          className="w-28 px-1 py-0.5 rounded bg-slate-950 border border-cyan-400 text-xs text-center text-white focus:outline-none"
+        >
+          {allowAutoOption && (
+            <option value="__AUTO__" className="bg-slate-900 text-cyan-300">
+              {t("mergeAutoOption")}
+            </option>
+          )}
+          {FRENCH_MONTHS.map((m) => (
+            <option key={m} value={m} className="bg-slate-900 text-white">
+              {m}
+            </option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <span
+        onClick={() => setEditingMonthRowId(itemRowId)}
+        className="cursor-pointer px-2 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-slate-300 hover:text-white inline-block"
+        title="Cliquer pour modifier le mois"
+      >
+        {item.currentMonth}
+      </span>
+    );
   };
 
   return (
@@ -1271,12 +1763,23 @@ export function SwimPoolDesk({
                 onChange={(e) => handleSelectBordereau(e.target.value)}
                 className="px-3.5 py-1.5 rounded-xl bg-slate-900 border border-cyan-500/40 text-white font-bold text-xs focus:outline-none focus:border-cyan-400 cursor-pointer"
               >
-                {bordereaux.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.referenceNumber} - {b.title} ({b.month}) [{(b.memberIds || []).length} adh
-                    {b.paymentStatus === "paid" ? " - poolpaid" : ""}]
-                  </option>
-                ))}
+                {bordereaux.map((b) => {
+                  const bdBreakdown = getBordereauMonthBreakdown(
+                    b,
+                    rawMembers,
+                    monthOverrides
+                  );
+                  const monthSummaryText =
+                    bdBreakdown.length > 1
+                      ? bdBreakdown.map((item) => item.month).join(" / ")
+                      : b.month;
+                  return (
+                    <option key={b.id} value={b.id}>
+                      {b.referenceNumber} - {b.title} ({monthSummaryText}) [{(b.memberIds || []).length} adh
+                      {b.paymentStatus === "paid" ? " - poolpaid" : ""}]
+                    </option>
+                  );
+                })}
               </select>
 
               {/* Payment status badge */}
@@ -1532,6 +2035,11 @@ export function SwimPoolDesk({
                 </option>
               ))}
             </select>
+            {mode === "real_final" && (
+              <p className="text-[10px] text-cyan-300/80 mt-1 leading-tight">
+                {t("multiMonthHint")}
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">
@@ -1583,6 +2091,25 @@ export function SwimPoolDesk({
                   className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-xs border border-cyan-500/20 transition-colors"
                 >
                   {t("collectiveCustomRow")}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenCreateMergeModal}
+                  disabled={
+                    unmergedEligibleRows.length < 2 &&
+                    selectedForMergeIds.length === 0
+                  }
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs border transition-colors ${
+                    selectedForMergeIds.length >= 2
+                      ? "bg-sky-500 hover:bg-sky-400 text-slate-950 border-sky-400 shadow-sm"
+                      : "bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-sky-300 border-sky-500/30"
+                  }`}
+                  title={t("mergeSelectHint")}
+                >
+                  {selectedForMergeIds.length >= 2
+                    ? `${t("mergeSelectedBtn")} (${selectedForMergeIds.length})`
+                    : t("mergeClientsBtn")}
                 </button>
               </>
             )}
@@ -1852,6 +2379,11 @@ export function SwimPoolDesk({
               <p className="text-2xl font-mono font-extrabold text-white mt-1">
                 {activeBordereauMembers.length} <span className="text-xs font-normal text-slate-400">/ {rawMembers.length} inscrits</span>
               </p>
+              {(activeBordereau.merges || []).length > 0 && (
+                <p className="text-[11px] text-cyan-300 font-semibold mt-1">
+                  {t("pdfLinesLabel").replace("{count}", String(finalRows.length))}
+                </p>
+              )}
             </div>
             <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
               <span className="text-[11px] font-bold uppercase text-slate-400">Statut Règlement Piscine</span>
@@ -1871,7 +2403,24 @@ export function SwimPoolDesk({
             </div>
             <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--border)]">
               <span className="text-[11px] font-bold uppercase text-slate-400">Mois Référence</span>
-              <p className="text-xl font-bold text-slate-200 mt-1">{activeBordereau.month || "Octobre"}</p>
+              <p className="text-xl font-bold text-slate-200 mt-1">
+                {activeBordereau.month || "Octobre"}
+              </p>
+              {monthBreakdown.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                  <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold uppercase">
+                    {t("multiMonthSummary")}
+                  </span>
+                  {monthBreakdown.map((item) => (
+                    <span
+                      key={item.month}
+                      className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] font-mono font-semibold"
+                    >
+                      {item.month}: {item.count}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1895,10 +2444,41 @@ export function SwimPoolDesk({
               />
             </div>
 
+            {selectedForMergeIds.length > 0 && (
+              <div className="px-3 py-2 border-b border-cyan-500/30 bg-cyan-950/25 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold text-cyan-300">
+                    {t("mergeSelectedCount").replace("{count}", String(selectedForMergeIds.length))}
+                  </span>
+                  {selectedForMergeIds.length < 2 && (
+                    <span className="text-slate-400">{t("mergeSelectHint")}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateMergeModal}
+                    disabled={selectedForMergeIds.length < 2}
+                    className="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 font-bold text-xs transition-colors"
+                  >
+                    {t("mergeSelectedBtn")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedForMergeIds([])}
+                    className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-white/10 transition-colors"
+                  >
+                    {t("cancel")}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-950/60 border-b border-[var(--border)] text-slate-400 font-bold uppercase text-[10px]">
+                    <th className="p-2 w-8 text-center" title={t("mergeSelectHint")}></th>
                     <th className="p-3 w-10 text-center">N</th>
                     <th className="p-3">Nom et Prénom</th>
                     <th className="p-3">Groupe & Créneau</th>
@@ -1907,13 +2487,13 @@ export function SwimPoolDesk({
                       prix (DA)
                     </th>
                     <th className="p-3 text-center">Mois</th>
-                    <th className="p-3 text-center w-28">Actions</th>
+                    <th className="p-3 text-center w-36">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
                   {filteredFinalRows.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-10 text-center">
+                      <td colSpan={8} className="p-10 text-center">
                         <div className="max-w-md mx-auto space-y-3">
                           <div className="w-12 h-12 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
                             <svg
@@ -1964,216 +2544,279 @@ export function SwimPoolDesk({
                   ) : (
                     filteredFinalRows.map((r, idx) => {
                       const rowId = r.swimId || r.memberId;
-                      const isInlineEditingPrice = inlinePriceRowId === rowId;
-                      const isInlineEditingMonth = editingMonthRowId === rowId;
+                      const isMergeCollapsed = collapsedMergeIds.has(rowId);
+                      const isExpandedMerge = Boolean(r.isMerged && !isMergeCollapsed);
 
                       return (
-                        <tr key={rowId} className="hover:bg-white/[0.02] transition-colors">
-                          {/* Col 1: Index */}
-                          <td className="p-3 text-center font-mono text-slate-500">{idx + 1}</td>
-
-                          {/* Col 2: Name */}
-                          <td className="p-3 font-bold text-white">
-                            <div className="flex items-center gap-2">
-                              <span>{r.fullName}</span>
-                              {r.isCustom && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                                  Collectif
-                                </span>
-                              )}
-                              {r.isPoolPaid && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                  poolpaid
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Col 3: Group & Schedule */}
-                          <td className="p-3 text-slate-300 text-xs">
-                            <span className="font-semibold text-white">
-                              {getSwimmerDispatchGroupDisplay(r)}
-                            </span>
-                            {r.billingMode === "session" && r.assignedGroupNames.length > 0 && (
-                              <span className="block text-[10px] text-slate-400">
-                                ({r.assignedGroupNames.join(" + ")})
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Col 4: Formula / Settlement Switcher */}
-                          <td className="p-3">
-                            {!r.isCustom ? (
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                    r.billingMode === "session"
-                                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                      : "bg-cyan-500/10 text-cyan-300 border border-cyan-500/20"
-                                  }`}
-                                >
-                                  {r.formulaLabel}
-                                </span>
-
-                                {/* Toggle between Monthly and Session */}
+                        <React.Fragment key={rowId}>
+                          <tr
+                            className={`transition-colors ${
+                              r.isMerged
+                                ? "bg-sky-950/20 hover:bg-sky-950/35"
+                                : "hover:bg-white/[0.02]"
+                            }`}
+                          >
+                            {/* Col 0: Optional Merge Checkbox OR Expand Toggle */}
+                            <td className="p-2 text-center">
+                              {r.isMerged ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleToggleBillingMode(rowId)}
-                                  className="text-[10px] text-slate-400 hover:text-white underline"
-                                  title="Changer le mode de facturation"
+                                  onClick={() => toggleMergeCollapse(rowId)}
+                                  className="p-1 rounded text-cyan-300 hover:text-white hover:bg-white/10 transition-colors"
+                                  aria-expanded={isExpandedMerge}
+                                  title={
+                                    isExpandedMerge
+                                      ? t("mergeHideElements")
+                                      : t("mergeShowElements")
+                                  }
                                 >
-                                  {r.billingMode === "session" ? "Passer au mois" : "À la séance"}
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.5"
+                                    className={`w-3.5 h-3.5 transition-transform ${
+                                      isExpandedMerge ? "rotate-90" : ""
+                                    }`}
+                                  >
+                                    <polyline points="9 6 15 12 9 18" />
+                                  </svg>
                                 </button>
+                              ) : !r.isCustom ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedForMergeIds.includes(r.memberId)}
+                                  onChange={() => toggleMergeSelection(r.memberId)}
+                                  className="rounded border-white/25 bg-slate-900 text-cyan-500 focus:ring-0 cursor-pointer"
+                                  title={t("mergeSelectHint")}
+                                />
+                              ) : null}
+                            </td>
 
-                                {/* If in session mode, show quick consumed stepper */}
-                                {r.billingMode === "session" && (
-                                  <div className="inline-flex items-center gap-1 ml-1 bg-slate-900 px-1.5 py-0.5 rounded border border-white/10 text-[10px]">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleSetSessionsConsumed(
-                                          rowId,
-                                          (r.sessionsConsumed || 1) - 1
-                                        )
-                                      }
-                                      className="px-1 text-slate-400 hover:text-white font-bold"
-                                    >
-                                      -
-                                    </button>
-                                    <span className="font-mono font-bold text-amber-300">
-                                      {r.sessionsConsumed || 1}s
+                            {/* Col 1: Index */}
+                            <td className="p-3 text-center font-mono text-slate-500">{idx + 1}</td>
+
+                            {/* Col 2: Name */}
+                            <td className="p-3 font-bold text-white">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span>{r.fullName}</span>
+                                {r.isMerged && (
+                                  <>
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                      {t("mergeBadgeLabel")}
                                     </span>
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        handleSetSessionsConsumed(
-                                          rowId,
-                                          (r.sessionsConsumed || 1) + 1
-                                        )
-                                      }
-                                      className="px-1 text-slate-400 hover:text-white font-bold"
+                                      onClick={() => toggleMergeCollapse(rowId)}
+                                      className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 transition-colors"
                                     >
-                                      +
+                                      {t("mergeElementsCount").replace(
+                                        "{count}",
+                                        String(r.mergedMemberRows?.length || 0)
+                                      )}{" "}
+                                      ({isExpandedMerge ? t("mergeHideElements") : t("mergeShowElements")})
                                     </button>
-                                  </div>
+                                  </>
+                                )}
+                                {r.isCustom && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                                    Collectif
+                                  </span>
+                                )}
+                                {r.isPoolPaid && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                    poolpaid
+                                  </span>
                                 )}
                               </div>
-                            ) : (
-                              <span className="text-[10px] text-slate-400">
-                                Ligne collective forfaitaire
+                            </td>
+
+                            {/* Col 3: Group & Schedule */}
+                            <td className="p-3 text-slate-300 text-xs">
+                              <span className="font-semibold text-white">
+                                {getSwimmerDispatchGroupDisplay(r)}
                               </span>
-                            )}
-                          </td>
-
-                          {/* Col 5: Prix (DA) with inline editing */}
-                          <td className="p-3 text-right bg-emerald-500/5">
-                            {isInlineEditingPrice ? (
-                              <div className="flex items-center justify-end gap-1">
-                                <input
-                                  type="number"
-                                  step="100"
-                                  value={inlinePriceInput}
-                                  onChange={(e) => setInlinePriceInput(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      handleSaveInlinePrice(rowId, Number(inlinePriceInput) || 0);
-                                    }
-                                    if (e.key === "Escape") setInlinePriceRowId(null);
-                                  }}
-                                  onBlur={() =>
-                                    handleSaveInlinePrice(rowId, Number(inlinePriceInput) || 0)
-                                  }
-                                  autoFocus
-                                  className="w-24 px-2 py-0.5 rounded bg-slate-950 border border-cyan-400 text-xs font-mono font-bold text-white text-right focus:outline-none"
-                                />
-                              </div>
-                            ) : (
-                              <div
-                                onClick={() => {
-                                  setInlinePriceInput(String(r.poolPriceDA));
-                                  setInlinePriceRowId(rowId);
-                                }}
-                                className="cursor-pointer group flex items-center justify-end gap-1.5"
-                                title="Cliquer pour modifier le prix manuellement"
-                              >
-                                <span className="font-mono font-extrabold text-sm text-emerald-300 group-hover:text-emerald-200">
-                                  {r.poolPriceDA.toLocaleString("fr-DZ")}
-                                </span>
-                                {r.hasPriceOverride && (
-                                  <span className="text-[9px] font-bold text-amber-400">*</span>
+                              {!r.isMerged &&
+                                r.billingMode === "session" &&
+                                r.assignedGroupNames.length > 0 && (
+                                  <span className="block text-[10px] text-slate-400">
+                                    ({r.assignedGroupNames.join(" + ")})
+                                  </span>
                                 )}
-                              </div>
-                            )}
-                          </td>
+                            </td>
 
-                          {/* Col 6: Mois with inline edit */}
-                          <td className="p-3 text-center">
-                            {isInlineEditingMonth ? (
-                              <select
-                                defaultValue={r.currentMonth}
-                                onChange={(e) => {
-                                  handleSaveRowMonth(rowId, e.target.value);
-                                  setEditingMonthRowId(null);
-                                }}
-                                onBlur={(e) => {
-                                  handleSaveRowMonth(rowId, e.target.value);
-                                  setEditingMonthRowId(null);
-                                }}
-                                autoFocus
-                                className="w-24 px-1 py-0.5 rounded bg-slate-950 border border-cyan-400 text-xs text-center text-white focus:outline-none"
-                              >
-                                {FRENCH_MONTHS.map((m) => (
-                                  <option key={m} value={m} className="bg-slate-900 text-white">
-                                    {m}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span
-                                onClick={() => setEditingMonthRowId(rowId)}
-                                className="cursor-pointer px-2 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-slate-300 hover:text-white"
-                                title="Cliquer pour modifier le mois"
-                              >
-                                {r.currentMonth}
-                              </span>
-                            )}
-                          </td>
+                            {/* Col 4: Formula / Settlement Switcher */}
+                            <td className="p-3">{renderFormulaCell(r, rowId)}</td>
 
-                          {/* Col 7: Actions */}
-                          <td className="p-3 text-center">
-                            {r.isCustom ? (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteCustomRowFromActiveBordereau(r.memberId)}
-                                className="text-xs text-rose-400 hover:text-rose-300 font-semibold"
-                                title="Supprimer la ligne"
-                              >
-                                Suppr
-                              </button>
-                            ) : (
-                              <div className="flex items-center justify-center gap-2">
-                                {r.hasPriceOverride && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleResetPriceToAuto(rowId)}
-                                    className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold underline"
-                                    title="Réinitialiser au calcul automatique"
-                                  >
-                                    Auto
-                                  </button>
-                                )}
+                            {/* Col 5: Prix (DA) with inline editing */}
+                            <td className="p-3 text-right bg-emerald-500/5">
+                              {renderPriceCell(r, rowId)}
+                            </td>
+
+                            {/* Col 6: Mois with inline edit */}
+                            <td className="p-3 text-center">
+                              {renderMonthCell(r, rowId, Boolean(r.isMerged))}
+                            </td>
+
+                            {/* Col 7: Actions */}
+                            <td className="p-3 text-center">
+                              {r.isCustom ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleRemoveMemberFromActiveBordereau(r.memberId)}
-                                  className="text-[11px] text-rose-400 hover:text-rose-300 font-medium"
-                                  title="Retirer du bordereau"
+                                  onClick={() => handleDeleteCustomRowFromActiveBordereau(r.memberId)}
+                                  className="text-xs text-rose-400 hover:text-rose-300 font-semibold"
+                                  title="Supprimer la ligne"
                                 >
-                                  {t("removeFromBordereau")}
+                                  Suppr
                                 </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
+                              ) : r.isMerged ? (
+                                <div className="flex flex-wrap items-center justify-center gap-2">
+                                  {r.hasPriceOverride && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResetPriceToAuto(rowId)}
+                                      className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold underline"
+                                      title="Réinitialiser au calcul automatique"
+                                    >
+                                      Auto
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditMergeModal(rowId)}
+                                    className="text-[11px] text-cyan-300 hover:text-cyan-200 font-semibold"
+                                  >
+                                    {t("mergeEditBtn")}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDissolveMerge(rowId)}
+                                    className="text-[11px] text-amber-300 hover:text-amber-200 font-semibold"
+                                  >
+                                    {t("mergeUnmergeBtn")}
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                  {r.hasPriceOverride && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleResetPriceToAuto(rowId)}
+                                      className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold underline"
+                                      title="Réinitialiser au calcul automatique"
+                                    >
+                                      Auto
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMemberFromActiveBordereau(r.memberId)}
+                                    className="text-[11px] text-rose-400 hover:text-rose-300 font-medium"
+                                    title="Retirer du bordereau"
+                                  >
+                                    {t("removeFromBordereau")}
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Grouped Constituent Elements (visible in Admin Panel, hidden from Pool PDF) */}
+                          {isExpandedMerge &&
+                            r.mergedMemberRows &&
+                            r.mergedMemberRows.map((sub, subIdx) => {
+                              const subRowId = sub.swimId || sub.memberId;
+                              return (
+                                <tr
+                                  key={`${rowId}__${subRowId}`}
+                                  className="bg-slate-950/60 hover:bg-slate-900/75 transition-colors"
+                                >
+                                  <td className="p-2 text-center font-mono text-[10px] text-cyan-500/60">
+                                    |
+                                  </td>
+                                  <td className="p-2.5 text-center font-mono text-[10px] text-cyan-400/80">
+                                    {idx + 1}.{subIdx + 1}
+                                  </td>
+                                  <td className="p-2.5 pl-5 text-slate-200">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="text-cyan-500/70 font-mono text-[10px]">
+                                        └
+                                      </span>
+                                      <span className="font-semibold text-xs">
+                                        {sub.fullName}
+                                      </span>
+                                      {sub.swimId && (
+                                        <span className="text-[10px] font-mono text-slate-500">
+                                          ({sub.swimId})
+                                        </span>
+                                      )}
+                                      {sub.isPoolPaid && (
+                                        <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                          poolpaid
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-2.5 text-slate-300 text-xs">
+                                    <span>{getSwimmerDispatchGroupDisplay(sub)}</span>
+                                    {sub.billingMode === "session" &&
+                                      sub.assignedGroupNames.length > 0 && (
+                                        <span className="block text-[10px] text-slate-400">
+                                          ({sub.assignedGroupNames.join(" + ")})
+                                        </span>
+                                      )}
+                                  </td>
+                                  <td className="p-2.5">
+                                    {renderFormulaCell(sub, subRowId)}
+                                  </td>
+                                  <td className="p-2.5 text-right bg-emerald-500/[0.03]">
+                                    {renderPriceCell(sub, subRowId)}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    {renderMonthCell(sub, subRowId, false)}
+                                  </td>
+                                  <td className="p-2.5 text-center">
+                                    <div className="flex flex-wrap items-center justify-center gap-2">
+                                      {sub.hasPriceOverride && (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleResetPriceToAuto(subRowId)}
+                                          className="text-[10px] text-cyan-400 hover:text-cyan-300 font-semibold underline"
+                                          title="Réinitialiser au calcul automatique"
+                                        >
+                                          Auto
+                                        </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleRemoveMemberFromMerge(
+                                            rowId,
+                                            sub.memberId,
+                                            sub.swimId
+                                          )
+                                        }
+                                        className="text-[10px] text-amber-300 hover:text-amber-200 font-medium"
+                                      >
+                                        {t("mergeRemoveMemberBtn")}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleRemoveMemberFromActiveBordereau(
+                                            sub.memberId
+                                          )
+                                        }
+                                        className="text-[10px] text-rose-400 hover:text-rose-300 font-medium"
+                                      >
+                                        {t("removeFromBordereau")}
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </React.Fragment>
                       );
                     })
                   )}
@@ -2181,7 +2824,7 @@ export function SwimPoolDesk({
                 {filteredFinalRows.length > 0 && (
                   <tfoot>
                     <tr className="bg-slate-950 border-t-2 border-slate-700">
-                      <td colSpan={4} className="p-4 text-right font-extrabold uppercase text-xs text-slate-300">
+                      <td colSpan={5} className="p-4 text-right font-extrabold uppercase text-xs text-slate-300">
                         Grand Total Redevance Piscine :
                       </td>
                       <td className="p-4 text-right bg-cyan-500/20 font-mono font-black text-lg text-cyan-300 border-x-2 border-cyan-500">
@@ -2283,6 +2926,7 @@ export function SwimPoolDesk({
         allGroups={rawGroups}
         alreadySelectedIds={new Set(activeBordereau.memberIds || [])}
         alreadyPoolPaidIds={alreadyPoolPaidIdsThisMonth}
+        referenceMonth={activeBordereau.month || monthLabel}
         onAddMembers={handleAddMembersToActiveBordereau}
       />
 
@@ -2294,6 +2938,7 @@ export function SwimPoolDesk({
         allMembers={rawMembers}
         alreadySelectedIds={new Set(activeBordereau.memberIds || [])}
         alreadyPoolPaidIds={alreadyPoolPaidIdsThisMonth}
+        referenceMonth={activeBordereau.month || monthLabel}
         onAddGroupMembers={(ids) => handleAddMembersToActiveBordereau(ids)}
       />
 
@@ -2310,6 +2955,7 @@ export function SwimPoolDesk({
         customRowCount={(activeBordereau.customRows || []).length}
         totalAmountDA={summary.totalDuePoolDA}
         monthLabel={activeBordereau.month || monthLabel}
+        monthBreakdown={monthBreakdown}
         isAlreadyPaid={activeBordereau.paymentStatus === "paid"}
         paidAt={activeBordereau.paidAt}
       />
@@ -2320,6 +2966,19 @@ export function SwimPoolDesk({
         onClose={() => setIsAddCustomRowModalOpen(false)}
         onAdd={handleAddCustomRowToActiveBordereau}
         defaultMonth={activeBordereau.month || "Octobre"}
+      />
+
+      {/* ─── MODAL: MERGE SWIMMERS INTO SINGLE PDF ENTRY ──────────────────────── */}
+      <PoolMergeClientsModal
+        isOpen={isMergeModalOpen}
+        onClose={() => {
+          setIsMergeModalOpen(false);
+          setEditingMerge(null);
+        }}
+        availableRows={modalEligibleMergeRows}
+        initialSelectedIds={selectedForMergeIds}
+        editingMerge={editingMerge}
+        onSaveMerge={handleSaveMerge}
       />
 
       {/* ─── PRINT TEMPLATE (RENDERED DIRECTLY WHEN USER PRINTS) ─────────────── */}

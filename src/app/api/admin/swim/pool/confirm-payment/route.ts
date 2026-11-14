@@ -14,6 +14,7 @@ const confirmPaymentSchema = z.object({
   bordereauRef: z.string().optional(),
   poolId: z.string().optional(),
   month: z.string().optional(),
+  memberMonths: z.record(z.string(), z.string()).optional(),
   action: z.enum(["confirm", "revert"]).default("confirm"),
 });
 
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { memberIds, bordereauId, bordereauRef, poolId, month, action } = parsed.data;
+    const { memberIds, bordereauId, bordereauRef, poolId, month, memberMonths, action } = parsed.data;
     const isConfirming = action === "confirm";
     const effectiveMonth = month && month.trim().length > 0 ? month.trim() : getCurrentFrenchMonth();
 
@@ -62,7 +63,11 @@ export async function POST(request: NextRequest) {
     const updatedIds: string[] = [];
 
     for (const member of members) {
-      const alreadyPaid = isMemberPoolPaid(member.notes, effectiveMonth);
+      const memberMonth =
+        (memberMonths &&
+          (memberMonths[member.id] || memberMonths[member.swimId])?.trim()) ||
+        effectiveMonth;
+      const alreadyPaid = isMemberPoolPaid(member.notes, memberMonth);
       if (isConfirming && alreadyPaid) {
         updatedIds.push(member.id);
         continue;
@@ -72,7 +77,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const updatedNotes = encodePoolPaidNotes(member.notes, isConfirming, effectiveMonth);
+      const updatedNotes = encodePoolPaidNotes(member.notes, isConfirming, memberMonth);
       await prisma.swimMember.update({
         where: { id: member.id },
         data: { notes: updatedNotes },
@@ -122,6 +127,7 @@ export async function POST(request: NextRequest) {
         bordereauRef: bordereauRef || null,
         poolId: poolId || null,
         month: effectiveMonth,
+        memberMonths: memberMonths || null,
         totalMembers: members.length,
         updatedCount,
         memberSwimIds: members.map((m) => m.swimId),

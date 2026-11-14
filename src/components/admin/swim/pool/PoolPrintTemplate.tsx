@@ -360,14 +360,14 @@ export function PoolPrintTemplate({
                     </td>
 
                     {/* Col 2: Name */}
-                    <td className="border-r border-[#93c5fd] px-2 font-bold text-slate-950 truncate align-middle">
+                    <td className="border-r border-[#93c5fd] px-2 py-0.5 font-bold text-slate-950 whitespace-normal break-words align-middle">
                       {r.fullName}
                     </td>
 
                     {/* Col 3-7: Group Name OR (number) Seance(s) libre(s) */}
                     <td
                       colSpan={5}
-                      className="border-r border-[#93c5fd] px-2 font-medium text-slate-900 text-[11px] align-middle truncate"
+                      className="border-r border-[#93c5fd] px-2 py-0.5 font-medium text-slate-900 text-[11px] align-middle whitespace-normal break-words"
                     >
                       {groupDisplay}
                     </td>
@@ -378,7 +378,7 @@ export function PoolPrintTemplate({
                     </td>
 
                     {/* Col 9: Mois */}
-                    <td className="border-r border-[#93c5fd] text-center font-semibold text-slate-900 align-middle">
+                    <td className="border-r border-[#93c5fd] px-1 text-center font-semibold text-slate-900 align-middle whitespace-normal break-words leading-tight">
                       {r.currentMonth}
                     </td>
 

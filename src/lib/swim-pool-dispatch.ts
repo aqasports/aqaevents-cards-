@@ -432,6 +432,16 @@ export function getDynamicDocumentMeta(targetDate: Date = new Date()): PoolDocum
 
 export const DEFAULT_DOCUMENT_META: PoolDocumentMeta = getDynamicDocumentMeta();
 
+export interface PoolClientMerge {
+  id: string;
+  displayName: string; // Named combination shown on PDF sent to pool
+  memberIds: string[]; // Constituent client IDs visible in admin panel
+  groupDisplayOverride?: string; // Optional custom group label for PDF
+  manualPriceOverride?: number; // Optional combined price override (defaults to sum of members)
+  monthOverride?: string; // Optional month label override for PDF
+  createdAt?: string;
+}
+
 export interface PoolBordereau {
   id: string; // e.g. "bord_1728412345678"
   title: string; // e.g. "Demande d'accès"
@@ -441,6 +451,8 @@ export interface PoolBordereau {
   year: string; // e.g. "2026"
   poolId: string; // "azal" | "kouba" | "mouradia"
   memberIds: string[]; // only selected clients in this bordereau
+  memberMonths?: Record<string, string>; // per-member locked month for multi-month bordereaux
+  merges?: PoolClientMerge[]; // optional client merges (PDF shows named combination only)
   customRows: CustomPoolRow[]; // collective custom rows (e.g. AQA KIDS)
   paymentStatus: "unpaid" | "paid"; // "unpaid" or "paid" (poolpaid)
   paidAt?: string;
@@ -546,6 +558,8 @@ export function createDefaultBordereau(
     year: meta.year || "2026",
     poolId: poolId || "azal",
     memberIds: [],
+    memberMonths: {},
+    merges: [],
     customRows: [
       {
         id: "cust_aqa_kids_default",
@@ -568,6 +582,7 @@ export function createDefaultBordereau(
  */
 export function getSwimmerDispatchGroupDisplay(row: {
   isCustom?: boolean;
+  isMerged?: boolean;
   billingMode?: string;
   sessionsConsumed?: number;
   assignedGroupNames?: string[];
@@ -575,6 +590,15 @@ export function getSwimmerDispatchGroupDisplay(row: {
 }): string {
   if (row.isCustom) {
     return row.groupOrNote || "Collectif";
+  }
+  if (row.isMerged) {
+    if (row.groupOrNote && row.groupOrNote.trim()) {
+      return row.groupOrNote.trim();
+    }
+    if (row.assignedGroupNames && row.assignedGroupNames.length > 0) {
+      return row.assignedGroupNames.join(" + ");
+    }
+    return "-";
   }
   if (
     row.billingMode === "session" ||
@@ -629,6 +653,9 @@ export interface PoolSwimmerRow {
   isCustom?: boolean;
   groupOrNote?: string;
   isPoolPaid?: boolean;
+  isMerged?: boolean;
+  mergeId?: string;
+  mergedMemberRows?: PoolSwimmerRow[];
 }
 
 export interface SlotOccupancySummary {
@@ -1180,7 +1207,7 @@ export function exportPoolRowsToCSV(
     if (activeColumns.schedule) cols.push(escapeCSV(r.assignedSchedules.join(" | ") || "-"));
     if (activeColumns.category) cols.push(escapeCSV(r.category));
     if (activeColumns.poolPrice) cols.push(escapeCSV(r.poolPriceDA));
-    if (activeColumns.currentMonth) cols.push(escapeCSV(monthLabel));
+    if (activeColumns.currentMonth) cols.push(escapeCSV(r.currentMonth || monthLabel));
     if (activeColumns.phone) cols.push(escapeCSV(r.phone));
     if (activeColumns.paymentStatus) cols.push(escapeCSV(r.paymentStatus));
 
@@ -1469,5 +1496,427 @@ export function exportOfficialCorrespondenceToCSV(
   lines.push(["", escapeCSV("Total"), "", escapeCSV(totalSum), ""].join(";"));
 
   return "\uFEFF" + lines.join("\r\n");
+}
+
+// ─── Multi-Month Bordereau Helpers ──────────────────────────────────────────
+
+function buildMemberLookupMap(
+  members: Array<{ id: string; swimId?: string }> = []
+): Map<string, { id: string; swimId?: string }> {
+  const map = new Map<string, { id: string; swimId?: string }>();
+  for (const m of members) {
+    if (m.id) map.set(m.id, m);
+    if (m.swimId) map.set(m.swimId, m);
+  }
+  return map;
+}
+
+/**
+ * Resolves the effective month of a single member inside a bordereau.
+ * Explicit per-bordereau memberMonths always take priority over legacy localStorage overrides.
+ */
+export function resolveBordereauMemberMonth(
+  bordereau: Pick<PoolBordereau, "month" | "memberMonths">,
+  member: { id: string; swimId?: string },
+  legacyMonthOverrides: Record<string, string> = {}
+): string {
+  const explicit =
+    bordereau.memberMonths?.[member.id] ||
+    (member.swimId ? bordereau.memberMonths?.[member.swimId] : undefined);
+  if (explicit && explicit.trim()) {
+    return explicit.trim();
+  }
+  const legacy =
+    (member.swimId ? legacyMonthOverrides[member.swimId] : undefined) ||
+    legacyMonthOverrides[member.id];
+  if (legacy && legacy.trim()) {
+    return legacy.trim();
+  }
+  return bordereau.month || getCurrentFrenchMonth();
+}
+
+/**
+ * Builds an overrides dictionary for buildPoolDispatchRows so bordereau.memberMonths
+ * always takes precedence over legacy localStorage ROW_MONTH_OVERRIDES.
+ */
+export function buildBordereauDispatchMonthOverrides(
+  bordereau: Pick<PoolBordereau, "month" | "memberMonths">,
+  members: Array<{ id: string; swimId?: string }> = [],
+  legacyMonthOverrides: Record<string, string> = {}
+): Record<string, string> {
+  const merged: Record<string, string> = { ...legacyMonthOverrides };
+  if (bordereau.memberMonths) {
+    for (const [key, val] of Object.entries(bordereau.memberMonths)) {
+      if (val && val.trim()) {
+        merged[key] = val.trim();
+      }
+    }
+  }
+  for (const m of members) {
+    const explicit =
+      bordereau.memberMonths?.[m.id] ||
+      (m.swimId ? bordereau.memberMonths?.[m.swimId] : undefined);
+    if (explicit && explicit.trim()) {
+      const clean = explicit.trim();
+      merged[m.id] = clean;
+      if (m.swimId) merged[m.swimId] = clean;
+    }
+  }
+  return merged;
+}
+
+/**
+ * Changes the reference month on a bordereau ONLY for future (not-yet-added) clients.
+ * Any clients and custom rows already in the bordereau keep their existing month.
+ */
+export function changeBordereauReferenceMonth(
+  bordereau: PoolBordereau,
+  nextMonth: string,
+  members: Array<{ id: string; swimId?: string }> = [],
+  legacyMonthOverrides: Record<string, string> = {}
+): PoolBordereau {
+  const previousMonth = bordereau.month || getCurrentFrenchMonth();
+  const nextMemberMonths: Record<string, string> = { ...(bordereau.memberMonths || {}) };
+  const memberLookup = buildMemberLookupMap(members);
+
+  for (const id of bordereau.memberIds || []) {
+    const matched = memberLookup.get(id);
+    const hasExplicit =
+      Boolean(nextMemberMonths[id]?.trim()) ||
+      Boolean(matched?.id && nextMemberMonths[matched.id]?.trim()) ||
+      Boolean(matched?.swimId && nextMemberMonths[matched.swimId]?.trim());
+    if (!hasExplicit) {
+      const legacy =
+        (matched?.swimId ? legacyMonthOverrides[matched.swimId] : undefined) ||
+        (matched?.id ? legacyMonthOverrides[matched.id] : undefined) ||
+        legacyMonthOverrides[id];
+      const locked = (legacy && legacy.trim()) || previousMonth;
+      nextMemberMonths[id] = locked;
+      if (matched?.id) nextMemberMonths[matched.id] = locked;
+      if (matched?.swimId) nextMemberMonths[matched.swimId] = locked;
+    }
+  }
+
+  const nextCustomRows = (bordereau.customRows || []).map((c) =>
+    c.month && c.month.trim() ? c : { ...c, month: previousMonth }
+  );
+
+  return {
+    ...bordereau,
+    month: nextMonth,
+    memberMonths: nextMemberMonths,
+    customRows: nextCustomRows,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Adds new member IDs to a bordereau and stamps only newly added clients with the current reference month.
+ * Existing clients already in the bordereau keep their previously recorded month.
+ */
+export function addMembersToBordereauWithMonth(
+  bordereau: PoolBordereau,
+  newMemberIds: string[],
+  referenceMonth?: string
+): PoolBordereau {
+  const fallbackMonth = bordereau.month || getCurrentFrenchMonth();
+  const effectiveMonth = (referenceMonth && referenceMonth.trim()) || fallbackMonth;
+  const existingIds = bordereau.memberIds || [];
+  const existingSet = new Set(existingIds);
+  const nextMemberIds = [...existingIds];
+  const nextMemberMonths: Record<string, string> = { ...(bordereau.memberMonths || {}) };
+
+  for (const existingId of existingIds) {
+    if (!nextMemberMonths[existingId] || !nextMemberMonths[existingId].trim()) {
+      nextMemberMonths[existingId] = fallbackMonth;
+    }
+  }
+
+  for (const id of newMemberIds) {
+    if (!existingSet.has(id)) {
+      existingSet.add(id);
+      nextMemberIds.push(id);
+      nextMemberMonths[id] = effectiveMonth;
+    }
+  }
+
+  return {
+    ...bordereau,
+    memberIds: nextMemberIds,
+    memberMonths: nextMemberMonths,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Removes a member from a bordereau, clearing their locked month and updating/dissolving any merge containing them.
+ */
+export function removeMemberFromBordereau(
+  bordereau: PoolBordereau,
+  memberIdToRemove: string,
+  swimIdToRemove?: string
+): PoolBordereau {
+  const idsToRemove = new Set([memberIdToRemove]);
+  if (swimIdToRemove) idsToRemove.add(swimIdToRemove);
+
+  const nextMemberIds = (bordereau.memberIds || []).filter((id) => !idsToRemove.has(id));
+  const nextMemberMonths = { ...(bordereau.memberMonths || {}) };
+  for (const id of idsToRemove) {
+    delete nextMemberMonths[id];
+  }
+
+  const nextMerges = (bordereau.merges || [])
+    .map((m) => ({
+      ...m,
+      memberIds: m.memberIds.filter((id) => !idsToRemove.has(id)),
+    }))
+    .filter((m) => m.memberIds.length >= 2);
+
+  return {
+    ...bordereau,
+    memberIds: nextMemberIds,
+    memberMonths: nextMemberMonths,
+    merges: nextMerges,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Builds a memberMonths lookup keyed by both member.id and member.swimId for all members in a bordereau.
+ */
+export function buildBordereauMemberMonthsMap(
+  bordereau: PoolBordereau,
+  members: Array<{ id: string; swimId?: string }>,
+  legacyMonthOverrides: Record<string, string> = {}
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const memberLookup = buildMemberLookupMap(members);
+
+  for (const id of bordereau.memberIds || []) {
+    const matched = memberLookup.get(id);
+    const resolved = matched
+      ? resolveBordereauMemberMonth(bordereau, matched, legacyMonthOverrides)
+      : bordereau.memberMonths?.[id] || legacyMonthOverrides[id] || bordereau.month || getCurrentFrenchMonth();
+    result[id] = resolved;
+    if (matched?.id) result[matched.id] = resolved;
+    if (matched?.swimId) result[matched.swimId] = resolved;
+  }
+
+  return result;
+}
+
+/**
+ * Summarizes the month distribution across all members and custom rows in a bordereau.
+ */
+export function getBordereauMonthBreakdown(
+  bordereau: PoolBordereau,
+  members: Array<{ id: string; swimId?: string }> = [],
+  legacyMonthOverrides: Record<string, string> = {}
+): Array<{ month: string; count: number }> {
+  const buckets = new Map<string, { month: string; count: number }>();
+  const memberLookup = buildMemberLookupMap(members);
+
+  const pushMonth = (rawMonth?: string) => {
+    const label = (rawMonth || bordereau.month || getCurrentFrenchMonth()).trim();
+    const key = normalizeMonth(label) || label.toLowerCase();
+    const existing = buckets.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      buckets.set(key, { month: label, count: 1 });
+    }
+  };
+
+  for (const id of bordereau.memberIds || []) {
+    const matched = memberLookup.get(id);
+    const resolved = matched
+      ? resolveBordereauMemberMonth(bordereau, matched, legacyMonthOverrides)
+      : bordereau.memberMonths?.[id] || legacyMonthOverrides[id] || bordereau.month;
+    pushMonth(resolved);
+  }
+
+  for (const c of bordereau.customRows || []) {
+    pushMonth(c.month || bordereau.month);
+  }
+
+  return Array.from(buckets.values());
+}
+
+// ─── Optional Client Merge Helpers ──────────────────────────────────────────
+
+/**
+ * Suggests an ergonomic combined display name for a group of merged clients.
+ */
+export function buildMergedDisplayNameSuggestion(
+  memberRows: Array<{ fullName: string }>
+): string {
+  const names = memberRows.map((r) => r.fullName.trim()).filter(Boolean);
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+
+  // Detect shared surname (e.g. "Amine Benali" + "Yacine Benali" -> "Amine & Yacine Benali")
+  const splitParts = names.map((n) => n.split(/\s+/));
+  if (splitParts.every((p) => p.length >= 2)) {
+    const lastWord = splitParts[0][splitParts[0].length - 1];
+    const allSameLast = splitParts.every(
+      (p) => p[p.length - 1].toLowerCase() === lastWord.toLowerCase()
+    );
+    if (allSameLast) {
+      const firstNames = splitParts.map((p) => p.slice(0, -1).join(" "));
+      if (firstNames.length === 2) {
+        return `${firstNames[0]} & ${firstNames[1]} ${lastWord}`;
+      }
+      return `${firstNames.slice(0, -1).join(", ")} & ${firstNames[firstNames.length - 1]} ${lastWord}`;
+    }
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} + ${names[1]}`;
+  }
+  return `${names[0]} + ${names[1]} (+${names.length - 2})`;
+}
+
+/**
+ * Applies optional client merges on top of built dispatch rows.
+ * - Unmerged rows and custom rows remain unchanged.
+ * - Each active merge (>= 2 matching non-custom rows) is emitted once at its first member's position,
+ *   carrying only the named combination (merge.displayName) for PDF/CSV while retaining constituent
+ *   PoolSwimmerRow objects on `mergedMemberRows` for the admin panel.
+ */
+export function applyPoolClientMerges(
+  rows: PoolSwimmerRow[],
+  merges: PoolClientMerge[] = []
+): PoolSwimmerRow[] {
+  if (!merges || merges.length === 0) {
+    return rows;
+  }
+
+  // Map each row index to at most one valid merge (>= 2 matching non-custom rows)
+  const rowIndexToMerge = new Map<number, PoolClientMerge>();
+  const mergeToRows = new Map<string, PoolSwimmerRow[]>();
+  const claimedRowIndices = new Set<number>();
+
+  for (const merge of merges) {
+    if (!merge || !merge.id || !Array.isArray(merge.memberIds) || merge.memberIds.length < 2) {
+      continue;
+    }
+    const idSet = new Set(merge.memberIds);
+    const matchedIndices: number[] = [];
+
+    rows.forEach((r, idx) => {
+      if (r.isCustom || claimedRowIndices.has(idx)) return;
+      if (idSet.has(r.memberId) || idSet.has(r.swimId)) {
+        matchedIndices.push(idx);
+      }
+    });
+
+    if (matchedIndices.length >= 2) {
+      const constituentRows = matchedIndices.map((idx) => rows[idx]);
+      mergeToRows.set(merge.id, constituentRows);
+      for (const idx of matchedIndices) {
+        claimedRowIndices.add(idx);
+        rowIndexToMerge.set(idx, merge);
+      }
+    }
+  }
+
+  if (mergeToRows.size === 0) {
+    return rows;
+  }
+
+  const emittedMerges = new Set<string>();
+  const result: PoolSwimmerRow[] = [];
+
+  rows.forEach((row, idx) => {
+    const merge = rowIndexToMerge.get(idx);
+    if (!merge) {
+      result.push(row);
+      return;
+    }
+    if (emittedMerges.has(merge.id)) {
+      return;
+    }
+    emittedMerges.add(merge.id);
+
+    const constituents = mergeToRows.get(merge.id) || [];
+    const uniqueGroupLabels: string[] = [];
+    for (const c of constituents) {
+      const label = getSwimmerDispatchGroupDisplay(c);
+      if (label && label !== "-" && !uniqueGroupLabels.includes(label)) {
+        uniqueGroupLabels.push(label);
+      }
+    }
+
+    const uniqueGroupIds: string[] = [];
+    for (const c of constituents) {
+      for (const gid of c.assignedGroupIds) {
+        if (!uniqueGroupIds.includes(gid)) uniqueGroupIds.push(gid);
+      }
+    }
+
+    const uniqueSchedules: string[] = [];
+    for (const c of constituents) {
+      for (const s of c.assignedSchedules) {
+        if (!uniqueSchedules.includes(s)) uniqueSchedules.push(s);
+      }
+    }
+
+    const uniqueMonths: string[] = [];
+    const seenNormalizedMonths = new Set<string>();
+    for (const c of constituents) {
+      const mLabel = (c.currentMonth || "").trim();
+      if (!mLabel) continue;
+      const norm = normalizeMonth(mLabel) || mLabel.toLowerCase();
+      if (!seenNormalizedMonths.has(norm)) {
+        seenNormalizedMonths.add(norm);
+        uniqueMonths.push(mLabel);
+      }
+    }
+
+    const sumPriceDA = constituents.reduce((sum, c) => sum + (Number(c.poolPriceDA) || 0), 0);
+    const hasManualPrice =
+      merge.manualPriceOverride !== undefined &&
+      merge.manualPriceOverride !== null &&
+      !isNaN(merge.manualPriceOverride);
+    const finalPriceDA = hasManualPrice ? Number(merge.manualPriceOverride) : sumPriceDA;
+
+    const allPaid = constituents.length > 0 && constituents.every((c) => Boolean(c.isPoolPaid));
+    const allPaymentPaid = constituents.every((c) => c.paymentStatus === "paid");
+    const allPaymentUnpaid = constituents.every((c) => c.paymentStatus === "unpaid");
+
+    result.push({
+      memberId: merge.id,
+      swimId: merge.id,
+      fullName: merge.displayName.trim() || buildMergedDisplayNameSuggestion(constituents),
+      category: constituents[0]?.category || "homme",
+      level: constituents[0]?.level || "-",
+      phone: "-",
+      paymentStatus: allPaymentPaid ? "paid" : allPaymentUnpaid ? "unpaid" : "partial",
+      assignedGroupIds: uniqueGroupIds,
+      assignedGroupNames: uniqueGroupLabels,
+      assignedSchedules: uniqueSchedules,
+      parsedSlots: constituents.flatMap((c) => c.parsedSlots),
+      hasBusySlot: constituents.some((c) => c.hasBusySlot),
+      busySlotLabels: Array.from(new Set(constituents.flatMap((c) => c.busySlotLabels))),
+      poolPriceDA: finalPriceDA,
+      formulaLabel: hasManualPrice
+        ? `Fusion (${constituents.length}) - Manuel`
+        : `Fusion (${constituents.length} adhérents)`,
+      billingMode: "monthly",
+      hasPriceOverride: hasManualPrice,
+      currentMonth:
+        merge.monthOverride && merge.monthOverride.trim()
+          ? merge.monthOverride.trim()
+          : uniqueMonths.join(" / ") || constituents[0]?.currentMonth || getCurrentFrenchMonth(),
+      isCustom: false,
+      groupOrNote: merge.groupDisplayOverride,
+      isPoolPaid: allPaid,
+      isMerged: true,
+      mergeId: merge.id,
+      mergedMemberRows: constituents,
+    });
+  });
+
+  return result;
 }
 

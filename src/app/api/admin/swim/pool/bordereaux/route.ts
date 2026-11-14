@@ -8,6 +8,16 @@ export const dynamic = "force-dynamic";
 
 const BORDEREAUX_SETTING_KEY = "swim_pool_bordereaux";
 
+const poolClientMergeSchema = z.object({
+  id: z.string(),
+  displayName: z.string(),
+  memberIds: z.array(z.string()),
+  groupDisplayOverride: z.string().optional(),
+  manualPriceOverride: z.number().optional(),
+  monthOverride: z.string().optional(),
+  createdAt: z.string().optional(),
+});
+
 const bordereauItemSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -17,6 +27,8 @@ const bordereauItemSchema = z.object({
   year: z.string(),
   poolId: z.string(),
   memberIds: z.array(z.string()),
+  memberMonths: z.record(z.string(), z.string()).optional(),
+  merges: z.array(poolClientMergeSchema).optional(),
   customRows: z.array(
     z.object({
       id: z.string(),

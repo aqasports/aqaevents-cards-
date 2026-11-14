@@ -10,6 +10,7 @@ interface PoolAddClientModalProps {
   allGroups: SwimGroupReference[];
   alreadySelectedIds: Set<string>;
   alreadyPoolPaidIds?: Set<string>;
+  referenceMonth?: string;
   onAddMembers: (memberIds: string[]) => void;
 }
 
@@ -20,6 +21,7 @@ export function PoolAddClientModal({
   allGroups,
   alreadySelectedIds,
   alreadyPoolPaidIds,
+  referenceMonth,
   onAddMembers,
 }: PoolAddClientModalProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -146,6 +148,7 @@ export function PoolAddClientModal({
               </h3>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 Selectionnez les adherents inscrits a envoyer a la piscine
+                {referenceMonth ? ` (Mois : ${referenceMonth})` : ""}
               </p>
             </div>
           </div>
@@ -291,7 +294,7 @@ export function PoolAddClientModal({
                           </span>
                         ) : isAlreadyPoolPaid ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                            poolpaid (déjà réglé ce mois)
+                            poolpaid (déjà réglé {referenceMonth ? `· ${referenceMonth}` : "ce mois"})
                           </span>
                         ) : null}
                       </div>
