@@ -96,7 +96,7 @@ export const SaleInputSchema = z
     notes: z
       .string()
       .trim()
-      .max(500, "Notes are too long")
+      .max(2000, "Notes are too long")
       .optional()
       .nullable()
       .transform((value) => value || null),
@@ -122,7 +122,16 @@ export const SaleInputSchema = z
     }
   });
 
+export const BatchSaleInputSchema = z.object({
+  items: z
+    .array(SaleInputSchema)
+    .min(1, "At least one article is required")
+    .max(25, "Too many items in a single sale"),
+  decrementStock: z.boolean().optional().default(true),
+});
+
 export type SaleInput = z.infer<typeof SaleInputSchema>;
+export type BatchSaleInput = z.infer<typeof BatchSaleInputSchema>;
 
 /** Returns the first human-readable validation message of a Zod error. */
 export function firstValidationMessage(error: z.ZodError): string {

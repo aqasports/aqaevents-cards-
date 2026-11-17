@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 const UpdateArticleSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name is too long").optional(),
-  description: z.string().trim().max(300, "Description is too long").optional().nullable(),
+  description: z.string().trim().max(2000, "Description is too long").optional().nullable(),
   defaultSellPrice: z.number().int().min(0, "Sell price must be >= 0").max(10_000_000).optional(),
   defaultCostPrice: z.number().int().min(0, "Cost price must be >= 0").max(10_000_000).optional(),
   active: z.boolean().optional(),

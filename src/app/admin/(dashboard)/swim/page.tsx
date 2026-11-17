@@ -2703,7 +2703,7 @@ function SwimOverviewPageInner() {
 
       {/* ─── TAB: EQUIPMENT DEMANDS, SALES & PROFITS ───────────────── */}
       {activeTab === "equipment" && (
-        <SwimEquipmentDesk leads={leads} />
+        <SwimEquipmentDesk leads={leads} members={members} />
       )}
 
       {/* ─── TAB: POOL DIRECTION DISPATCH & CORRESPONDENCE ─────────── */}

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  BatchSaleInputSchema,
   SaleInputSchema,
   firstValidationMessage,
   normalizeOptionalPhone,
@@ -121,5 +122,40 @@ describe("normalizeOptionalPhone", () => {
   it("returns an empty string for nothing", () => {
     expect(normalizeOptionalPhone(undefined)).toBe("");
     expect(normalizeOptionalPhone(null)).toBe("");
+  });
+});
+
+describe("BatchSaleInputSchema", () => {
+  it("accepts a multi-item pack order and defaults decrementStock to true", () => {
+    const parsed = BatchSaleInputSchema.safeParse({
+      items: [
+        validSale,
+        { ...validSale, article: "cap", sellPrice: 1200, costPrice: 500, quantity: 1 },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.items).toHaveLength(2);
+      expect(parsed.data.decrementStock).toBe(true);
+    }
+  });
+
+  it("rejects empty items or more than 25 items", () => {
+    expect(BatchSaleInputSchema.safeParse({ items: [] }).success).toBe(false);
+    const tooMany = Array.from({ length: 26 }, () => validSale);
+    expect(BatchSaleInputSchema.safeParse({ items: tooMany }).success).toBe(false);
+  });
+
+  it("rejects batch if any single item is invalid", () => {
+    const parsed = BatchSaleInputSchema.safeParse({
+      items: [validSale, { ...validSale, quantity: 0 }],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts structured metadata notes up to 2000 characters", () => {
+    const longNotes = "x".repeat(1500);
+    const parsed = SaleInputSchema.safeParse({ ...validSale, notes: longNotes });
+    expect(parsed.success).toBe(true);
   });
 });

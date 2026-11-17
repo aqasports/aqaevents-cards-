@@ -2,12 +2,20 @@ import { describe, it, expect } from "vitest";
 import {
   buildCsv,
   buildEquipmentDemandMessage,
+  buildSaleReceiptWhatsAppMessage,
   buildWhatsAppLink,
+  cleanArticleDescriptionDisplay,
+  cleanSaleNotesDisplay,
   countSalesByLead,
   filterSales,
+  formatArticleDescription,
   formatDA,
   formatSaleDate,
+  formatSaleNotes,
+  inferArticleCategory,
+  parseArticleDescription,
   parseIntegerInput,
+  parseSaleNotes,
   saleDateKey,
   slugifyArticleCode,
   toDateInputValue,
@@ -150,5 +158,120 @@ describe("WhatsApp helpers", () => {
   it("prefers a distinct WhatsApp number from lead metadata", () => {
     const link = buildWhatsAppLink({ phone: "0555123456", whatsapp: "0661234567" }, "x");
     expect(link).toContain("wa.me/213661234567");
+  });
+
+  it("builds a clean receipt message with Western numerals", () => {
+    const msg = buildSaleReceiptWhatsAppMessage({
+      clientName: "Anis",
+      soldDate: "17/11/2026",
+      items: [{ articleName: "Lunettes Pro", size: "M", quantity: 2, unitPrice: 2500 }],
+      totalDA: 5000,
+      paymentLabel: "Especes",
+    });
+    expect(msg).toContain("Salam Anis");
+    expect(msg).toContain("Lunettes Pro (M) x2");
+    expect(msg).toContain("Especes");
+    expect(/[\u0660-\u0669]/.test(msg)).toBe(false);
+  });
+});
+
+describe("sale notes metadata helpers", () => {
+  it("parses legacy plain notes with safe defaults", () => {
+    const parsed = parseSaleNotes("Taille L, regle cash");
+    expect(parsed.userNotes).toBe("Taille L, regle cash");
+    expect(parsed.meta.paymentMethod).toBe("cash");
+    expect(parsed.meta.saleStatus).toBe("paid_delivered");
+    expect(parsed.meta.size).toBeNull();
+  });
+
+  it("round-trips structured metadata and human notes cleanly", () => {
+    const encoded = formatSaleNotes(
+      {
+        size: "L",
+        paymentMethod: "ccp",
+        saleStatus: "paid_pending",
+        discountDA: 500,
+        listUnitPriceDA: 4500,
+        memberId: "mem-1",
+        swimId: "SWM-001025",
+        category: "homme",
+        bundleId: "bnd-abc",
+      },
+      "Remise groupe"
+    );
+    expect(encoded).toContain("[SALE_META_START]");
+    expect(cleanSaleNotesDisplay(encoded)).toBe("Remise groupe");
+
+    const decoded = parseSaleNotes(encoded);
+    expect(decoded.meta.size).toBe("L");
+    expect(decoded.meta.paymentMethod).toBe("ccp");
+    expect(decoded.meta.saleStatus).toBe("paid_pending");
+    expect(decoded.meta.discountDA).toBe(500);
+    expect(decoded.meta.listUnitPriceDA).toBe(4500);
+    expect(decoded.meta.memberId).toBe("mem-1");
+    expect(decoded.meta.swimId).toBe("SWM-001025");
+    expect(decoded.meta.category).toBe("homme");
+    expect(decoded.meta.bundleId).toBe("bnd-abc");
+    expect(decoded.userNotes).toBe("Remise groupe");
+  });
+
+  it("filters sales by status, payment method, size, and swimId", () => {
+    const richSales = [
+      {
+        ...sales[0],
+        notes: formatSaleNotes({
+          size: "M",
+          paymentMethod: "ccp",
+          saleStatus: "reserved",
+          swimId: "SWM-001042",
+        }),
+      },
+      {
+        ...sales[1],
+        notes: formatSaleNotes({
+          size: "L",
+          paymentMethod: "cash",
+          saleStatus: "paid_delivered",
+        }),
+      },
+    ];
+
+    expect(filterSales(richSales, { saleStatus: "reserved" }).map((s) => s.id)).toEqual(["1"]);
+    expect(filterSales(richSales, { paymentMethod: "ccp" }).map((s) => s.id)).toEqual(["1"]);
+    expect(filterSales(richSales, { size: "l" }).map((s) => s.id)).toEqual(["2"]);
+    expect(filterSales(richSales, { search: "SWM-001042" }).map((s) => s.id)).toEqual(["1"]);
+  });
+});
+
+describe("catalog description metadata helpers", () => {
+  it("infers category from article code when metadata is absent", () => {
+    expect(inferArticleCategory("goggles-pro")).toBe("goggles");
+    expect(inferArticleCategory("bonnet-silicone")).toBe("cap");
+    expect(inferArticleCategory("maillot-jammer")).toBe("swimsuit");
+    expect(inferArticleCategory("pack-complet")).toBe("pack");
+    expect(inferArticleCategory("palmes-courtes")).toBe("fins");
+    expect(inferArticleCategory("kickboard")).toBe("accessories");
+  });
+
+  it("round-trips catalog metadata and clean description", () => {
+    const encoded = formatArticleDescription(
+      {
+        category: "swimsuit",
+        stockQty: 14,
+        minStockAlert: 4,
+        sizes: ["S", "M", "L"],
+        sku: "AQA-SW-10",
+      },
+      "Tissu resistant au chlore"
+    );
+    expect(cleanArticleDescriptionDisplay(encoded)).toBe("Tissu resistant au chlore");
+
+    const parsed = parseArticleDescription(encoded, "swimsuit");
+    expect(parsed.meta.category).toBe("swimsuit");
+    expect(parsed.meta.stockQty).toBe(14);
+    expect(parsed.meta.minStockAlert).toBe(4);
+    expect(parsed.meta.sizes).toEqual(["S", "M", "L"]);
+    expect(parsed.meta.sku).toBe("AQA-SW-10");
+    expect(parsed.cleanDescription).toBe("Tissu resistant au chlore");
   });
 });

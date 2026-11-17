@@ -7,7 +7,7 @@ import { PageHeader, StatCard, Card, Badge } from "@/components/admin/ui";
 import { useTranslations } from "@/lib/i18n";
 import { parseSwimLeadNotes } from "@/lib/swim-lead-details";
 import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
-import type { SwimLeadItem } from "@/components/admin/swim/equipment/types";
+import type { SwimLeadItem, SwimMemberForStore } from "@/components/admin/swim/equipment/types";
 
 type StoreClientProps = {
   storeProductsCount: number;
@@ -25,6 +25,7 @@ type StoreClientProps = {
     createdAt: string;
     notes: string | null;
   }>;
+  swimMembers?: SwimMemberForStore[];
 };
 
 function StoreClientInner({
@@ -33,6 +34,7 @@ function StoreClientInner({
   gearUnitsSold,
   gearNetProfit,
   rawLeads,
+  swimMembers = [],
 }: StoreClientProps) {
   const { t, dir } = useTranslations("storeHub");
   const searchParams = useSearchParams();
@@ -239,7 +241,7 @@ function StoreClientInner({
           </div>
         </div>
       ) : (
-        <SwimEquipmentDesk leads={augmentedLeads} />
+        <SwimEquipmentDesk leads={augmentedLeads} members={swimMembers} />
       )}
     </div>
   );

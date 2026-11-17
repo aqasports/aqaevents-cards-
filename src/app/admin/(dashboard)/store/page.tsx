@@ -10,6 +10,7 @@ export default async function StoreHubPage() {
       swimArticlesCount,
       swimSales,
       swimLeads,
+      swimMembers,
     ] = await Promise.all([
       prisma.product.count({ where: { active: true } }),
       prisma.swimEquipmentArticle.count({ where: { active: true } }),
@@ -32,6 +33,25 @@ export default async function StoreHubPage() {
           status: true,
           createdAt: true,
           notes: true,
+        },
+      }),
+      prisma.swimMember.findMany({
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          swimId: true,
+          fullName: true,
+          phone: true,
+          category: true,
+          level: true,
+          formula: true,
+          duration: true,
+          group: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
         },
       }),
     ]);
@@ -63,6 +83,7 @@ export default async function StoreHubPage() {
         gearUnitsSold={gearUnitsSold}
         gearNetProfit={gearNetProfit}
         rawLeads={serializedLeads}
+        swimMembers={swimMembers}
       />
     );
   } catch (error) {
@@ -74,6 +95,7 @@ export default async function StoreHubPage() {
         gearUnitsSold={0}
         gearNetProfit={0}
         rawLeads={[]}
+        swimMembers={[]}
       />
     );
   }

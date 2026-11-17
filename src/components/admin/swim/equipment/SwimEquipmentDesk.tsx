@@ -16,28 +16,44 @@ import {
   buildEquipmentDemandMessage,
   buildWhatsAppLink,
   countSalesByLead,
+  EQUIPMENT_CATEGORIES,
+  type EquipmentCategory,
   type EquipmentLocale,
   filterSales,
+  formatArticleDescription,
   formatDA,
   formatSaleDate,
+  formatSaleNotes,
+  parseArticleDescription,
+  parseSaleNotes,
+  SALE_FULFILLMENT_STATUSES,
+  SALE_PAYMENT_METHODS,
+  saleDateKey,
+  type SaleFulfillmentStatus,
+  type SalePaymentMethod,
   toDateInputValue,
 } from "@/lib/swim-equipment-utils";
 import { getArticleShortLabel, type EquipmentArticleId } from "@/lib/swim-lead-details";
 import { ArticleFormModal } from "./ArticleFormModal";
 import { SaleFormModal } from "./SaleFormModal";
+import { SaleReceiptModal } from "./SaleReceiptModal";
 import type {
   CatalogArticle,
   EquipmentSaleItem,
   NoticeState,
   SaleModalState,
   SwimLeadItem,
+  SwimMemberForStore,
 } from "./types";
 
 interface SwimEquipmentDeskProps {
   leads: SwimLeadItem[];
+  members?: SwimMemberForStore[];
 }
 
 type ViewMode = "demands" | "sales" | "catalog";
+type SortMode = "date_desc" | "date_asc" | "revenue_desc" | "profit_desc" | "qty_desc";
+type CatalogFilterMode = "all" | "active" | "inactive" | "low_stock";
 type BadgeTone = "default" | "success" | "warning" | "danger" | "info" | "primary";
 
 const TH_CLASS = "py-3 px-4 text-start font-semibold";
@@ -65,6 +81,12 @@ function marginTone(margin: number): BadgeTone {
   if (margin >= 25) return "info";
   if (margin < 0) return "danger";
   return "default";
+}
+
+function saleStatusTone(status?: SaleFulfillmentStatus): BadgeTone {
+  if (status === "reserved") return "warning";
+  if (status === "paid_pending") return "info";
+  return "success";
 }
 
 function downloadCsv(filename: string, content: string) {
@@ -100,7 +122,7 @@ function EmptyRow({ colSpan, children }: { colSpan: number; children: React.Reac
   );
 }
 
-export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
+export function SwimEquipmentDesk({ leads, members = [] }: SwimEquipmentDeskProps) {
   const { t, locale } = useTranslations("swimEquipment");
   const uiLocale = (locale as EquipmentLocale) || "fr";
 
@@ -119,19 +141,37 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
   // Modals
   const [saleModal, setSaleModal] = useState<SaleModalState | null>(null);
   const [articleModal, setArticleModal] = useState<{ article: CatalogArticle | null } | null>(null);
+  const [receiptSale, setReceiptSale] = useState<EquipmentSaleItem | null>(null);
   const [deleteSaleTarget, setDeleteSaleTarget] = useState<EquipmentSaleItem | null>(null);
   const [deleteArticleTarget, setDeleteArticleTarget] = useState<CatalogArticle | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [togglingArticleId, setTogglingArticleId] = useState<string | null>(null);
+  const [updatingSaleId, setUpdatingSaleId] = useState<string | null>(null);
+  const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
+  const [seedingCatalog, setSeedingCatalog] = useState(false);
 
-  // Filters
+  // Period & View Filters
   const [periodFrom, setPeriodFrom] = useState("");
   const [periodTo, setPeriodTo] = useState("");
+
+  // Demands Filters
   const [demandSearch, setDemandSearch] = useState("");
   const [demandStatusFilter, setDemandStatusFilter] = useState("all");
   const [demandSaleFilter, setDemandSaleFilter] = useState("all");
+  const [demandArticleFilter, setDemandArticleFilter] = useState("all");
+  const [demandCategoryFilter, setDemandCategoryFilter] = useState("all");
+
+  // Sales Filters
   const [saleSearch, setSaleSearch] = useState("");
   const [saleArticleFilter, setSaleArticleFilter] = useState("all");
+  const [saleStatusFilter, setSaleStatusFilter] = useState("all");
+  const [salePaymentFilter, setSalePaymentFilter] = useState("all");
+  const [saleSort, setSaleSort] = useState<SortMode>("date_desc");
+
+  // Catalog Filters
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState("all");
+  const [catalogStatusFilter, setCatalogStatusFilter] = useState<CatalogFilterMode>("all");
 
   const loadAll = useCallback(async () => {
     try {
@@ -171,11 +211,42 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
     loadAll();
   }
 
-  // Derived data
+  // Labels & Translations helpers
+  function categoryLabel(cat: EquipmentCategory | string): string {
+    if (cat === "goggles") return t("catGoggles");
+    if (cat === "cap") return t("catCap");
+    if (cat === "swimsuit") return t("catSwimsuit");
+    if (cat === "fins") return t("catFins");
+    if (cat === "pack") return t("catPack");
+    return t("catAccessories");
+  }
 
+  function paymentMethodLabel(method?: SalePaymentMethod): string {
+    if (method === "ccp") return t("payCcp");
+    if (method === "card") return t("payCard");
+    if (method === "transfer") return t("payTransfer");
+    if (method === "included_pack") return t("payIncludedPack");
+    return t("payCash");
+  }
+
+  function saleStatusLabel(status?: SaleFulfillmentStatus): string {
+    if (status === "paid_pending") return t("statusPaidPending");
+    if (status === "reserved") return t("statusReserved");
+    return t("statusPaidDelivered");
+  }
+
+  // Derived data
   const articleNameMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const article of articles) map[article.code] = article.name;
+    return map;
+  }, [articles]);
+
+  const parsedArticlesMap = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof parseArticleDescription>>();
+    for (const art of articles) {
+      map.set(art.code, parseArticleDescription(art.description, art.code));
+    }
     return map;
   }, [articles]);
 
@@ -190,21 +261,95 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
 
   const stats = useMemo(() => aggregateSalesStats(periodSales), [periodSales]);
 
+  const periodFinancialBreakdown = useMemo(() => {
+    let paidRevenue = 0;
+    let reservedRevenue = 0;
+    const bundleSet = new Set<string>();
+    for (const s of periodSales) {
+      const parsed = parseSaleNotes(s.notes);
+      const rev = s.sellPrice * s.quantity;
+      if (parsed.meta.saleStatus === "reserved") {
+        reservedRevenue += rev;
+      } else {
+        paidRevenue += rev;
+      }
+      bundleSet.add(parsed.meta.bundleId || s.id);
+    }
+    const ordersCount = bundleSet.size;
+    const avgBasket = ordersCount > 0 ? Math.round(stats.totalSalesRevenue / ordersCount) : 0;
+    return { paidRevenue, reservedRevenue, ordersCount, avgBasket };
+  }, [periodSales, stats.totalSalesRevenue]);
+
+  const inventorySummary = useMemo(() => {
+    let trackedCount = 0;
+    let lowStockCount = 0;
+    let totalStockUnits = 0;
+    let stockCostValue = 0;
+
+    for (const art of articles) {
+      const parsed = parsedArticlesMap.get(art.code);
+      const qty = parsed?.meta.stockQty;
+      if (qty !== null && qty !== undefined) {
+        trackedCount += 1;
+        totalStockUnits += qty;
+        stockCostValue += qty * art.defaultCostPrice;
+        if (qty <= (parsed?.meta.minStockAlert ?? 5)) {
+          lowStockCount += 1;
+        }
+      }
+    }
+    return { trackedCount, lowStockCount, totalStockUnits, stockCostValue };
+  }, [articles, parsedArticlesMap]);
+
   const articleStatCards = useMemo(
     () => Object.entries(stats.byArticle).sort((a, b) => b[1].revenue - a[1].revenue),
     [stats]
   );
 
-  const filteredSales = useMemo(
-    () =>
-      filterSales(sales, {
-        from: periodFrom,
-        to: periodTo,
-        search: saleSearch,
-        article: saleArticleFilter,
-        articleNames: articleNameMap,
-      }),
-    [sales, periodFrom, periodTo, saleSearch, saleArticleFilter, articleNameMap]
+  const filteredSales = useMemo(() => {
+    const base = filterSales(sales, {
+      from: periodFrom,
+      to: periodTo,
+      search: saleSearch,
+      article: saleArticleFilter,
+      articleNames: articleNameMap,
+      saleStatus: saleStatusFilter,
+      paymentMethod: salePaymentFilter,
+    });
+
+    return [...base].sort((a, b) => {
+      if (saleSort === "date_asc") {
+        return new Date(a.soldAt).getTime() - new Date(b.soldAt).getTime();
+      }
+      if (saleSort === "revenue_desc") {
+        return b.sellPrice * b.quantity - a.sellPrice * a.quantity;
+      }
+      if (saleSort === "profit_desc") {
+        return (
+          (b.sellPrice - b.costPrice) * b.quantity -
+          (a.sellPrice - a.costPrice) * a.quantity
+        );
+      }
+      if (saleSort === "qty_desc") {
+        return b.quantity - a.quantity;
+      }
+      return new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime();
+    });
+  }, [
+    sales,
+    periodFrom,
+    periodTo,
+    saleSearch,
+    saleArticleFilter,
+    articleNameMap,
+    saleStatusFilter,
+    salePaymentFilter,
+    saleSort,
+  ]);
+
+  const filteredSalesSummary = useMemo(
+    () => aggregateSalesStats(filteredSales),
+    [filteredSales]
   );
 
   const saleArticleCodes = useMemo(
@@ -213,6 +358,16 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
   );
 
   const salesByLead = useMemo(() => countSalesByLead(sales), [sales]);
+
+  const soldArticlesByLead = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const s of sales) {
+      if (!s.leadId) continue;
+      if (!map.has(s.leadId)) map.set(s.leadId, new Set());
+      map.get(s.leadId)!.add(s.article);
+    }
+    return map;
+  }, [sales]);
 
   const equipmentDemands = useMemo(() => {
     if (!Array.isArray(leads)) return [];
@@ -224,6 +379,51 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
     );
   }, [leads]);
 
+  const demandStats = useMemo(() => {
+    let openCount = 0;
+    let soldDemandsCount = 0;
+    let gogglesNeeded = 0;
+    let capNeeded = 0;
+    let swimsuitNeeded = 0;
+    let fullPackCount = 0;
+    const sizeCounts: Record<string, number> = {};
+
+    for (const lead of equipmentDemands) {
+      const soldSet = soldArticlesByLead.get(lead.id);
+      const isSold = (salesByLead.get(lead.id) || 0) > 0;
+      if (isSold) {
+        soldDemandsCount += 1;
+      } else {
+        openCount += 1;
+        const codes = lead.details?.equipment.articles || [];
+        if (codes.length === 0) {
+          fullPackCount += 1;
+          gogglesNeeded += 1;
+          capNeeded += 1;
+          swimsuitNeeded += 1;
+        } else {
+          if (codes.includes("goggles") && !soldSet?.has("goggles")) gogglesNeeded += 1;
+          if (codes.includes("cap") && !soldSet?.has("cap")) capNeeded += 1;
+          if (codes.includes("swimsuit") && !soldSet?.has("swimsuit")) swimsuitNeeded += 1;
+        }
+        const sz = lead.details?.equipment.size?.trim();
+        if (sz) {
+          sizeCounts[sz] = (sizeCounts[sz] || 0) + 1;
+        }
+      }
+    }
+
+    return {
+      openCount,
+      soldDemandsCount,
+      gogglesNeeded,
+      capNeeded,
+      swimsuitNeeded,
+      fullPackCount,
+      sizeCounts,
+    };
+  }, [equipmentDemands, salesByLead, soldArticlesByLead]);
+
   const filteredDemands = useMemo(() => {
     const query = demandSearch.toLowerCase().trim();
     return equipmentDemands.filter((lead) => {
@@ -231,18 +431,55 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
         return false;
       }
       if (demandStatusFilter !== "all" && lead.status !== demandStatusFilter) return false;
+      if (demandCategoryFilter !== "all" && lead.category !== demandCategoryFilter) return false;
+      if (demandArticleFilter !== "all") {
+        const codes = lead.details?.equipment.articles || [];
+        const matchesArt =
+          codes.length === 0 || codes.includes(demandArticleFilter as EquipmentArticleId);
+        if (!matchesArt) return false;
+      }
       const sold = (salesByLead.get(lead.id) || 0) > 0;
       if (demandSaleFilter === "sold" && !sold) return false;
       if (demandSaleFilter === "open" && sold) return false;
       return true;
     });
-  }, [equipmentDemands, demandSearch, demandStatusFilter, demandSaleFilter, salesByLead]);
+  }, [
+    equipmentDemands,
+    demandSearch,
+    demandStatusFilter,
+    demandCategoryFilter,
+    demandArticleFilter,
+    demandSaleFilter,
+    salesByLead,
+  ]);
+
+  const filteredCatalog = useMemo(() => {
+    const q = catalogSearch.toLowerCase().trim();
+    return articles.filter((art) => {
+      const parsed = parsedArticlesMap.get(art.code);
+      if (catalogCategoryFilter !== "all" && parsed?.meta.category !== catalogCategoryFilter) {
+        return false;
+      }
+      if (catalogStatusFilter === "active" && !art.active) return false;
+      if (catalogStatusFilter === "inactive" && art.active) return false;
+      if (catalogStatusFilter === "low_stock") {
+        const stock = parsed?.meta.stockQty;
+        if (stock === null || stock === undefined || stock > (parsed?.meta.minStockAlert ?? 5)) {
+          return false;
+        }
+      }
+      if (q) {
+        const hay = `${art.name} ${art.code} ${parsed?.cleanDescription || ""} ${parsed?.meta.sku || ""}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [articles, parsedArticlesMap, catalogSearch, catalogCategoryFilter, catalogStatusFilter]);
 
   const activeArticleCount = articles.filter((a) => a.active).length;
   const periodActive = Boolean(periodFrom || periodTo);
 
   // Actions
-
   async function afterMutation(message: string) {
     setNotice({ tone: "success", text: message });
     await loadAll();
@@ -312,15 +549,131 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
     }
   }
 
+  async function handleAdjustStock(article: CatalogArticle, delta: number) {
+    if (adjustingStockId) return;
+    const parsed = parsedArticlesMap.get(article.code);
+    if (!parsed || parsed.meta.stockQty === null || parsed.meta.stockQty === undefined) return;
+
+    const nextStock = Math.max(0, parsed.meta.stockQty + delta);
+    const nextDesc = formatArticleDescription(
+      { ...parsed.meta, stockQty: nextStock },
+      parsed.cleanDescription
+    );
+
+    setAdjustingStockId(article.id);
+    try {
+      const res = await fetch(`/api/admin/swim/equipment/articles/${article.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: nextDesc }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" && data.error ? data.error : t("errorGeneric"));
+      }
+      await loadAll();
+    } catch (err: unknown) {
+      setNotice({ tone: "danger", text: err instanceof Error ? err.message : t("errorGeneric") });
+    } finally {
+      setAdjustingStockId(null);
+    }
+  }
+
+  async function handleSeedDefaultCatalog() {
+    if (seedingCatalog) return;
+    setSeedingCatalog(true);
+    try {
+      const res = await fetch("/api/admin/swim/equipment/articles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seedDefaults: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" && data.error ? data.error : t("errorGeneric"));
+      }
+      const data = await res.json();
+      const createdCount = typeof data.createdCount === "number" ? data.createdCount : 0;
+      await afterMutation(
+        createdCount > 0
+          ? t("catalogSeededSuccess", { count: createdCount })
+          : t("catalogAlreadySeeded")
+      );
+    } catch (err: unknown) {
+      setNotice({ tone: "danger", text: err instanceof Error ? err.message : t("errorGeneric") });
+    } finally {
+      setSeedingCatalog(false);
+    }
+  }
+
+  async function markSaleDelivered(sale: EquipmentSaleItem) {
+    if (updatingSaleId) return;
+    const parsed = parseSaleNotes(sale.notes);
+    const nextNotes = formatSaleNotes(
+      { ...parsed.meta, saleStatus: "paid_delivered" },
+      parsed.userNotes
+    );
+
+    setUpdatingSaleId(sale.id);
+    try {
+      const res = await fetch(`/api/admin/swim/equipment/${sale.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          article: sale.article,
+          clientName: sale.clientName,
+          clientPhone: sale.clientPhone || "",
+          leadId: sale.leadId || null,
+          sellPrice: sale.sellPrice,
+          costPrice: sale.costPrice,
+          quantity: sale.quantity,
+          notes: nextNotes,
+          soldAt: saleDateKey(sale.soldAt),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" && data.error ? data.error : t("errorGeneric"));
+      }
+      await afterMutation(t("saleMarkedDeliveredSuccess"));
+    } catch (err: unknown) {
+      setNotice({ tone: "danger", text: err instanceof Error ? err.message : t("errorGeneric") });
+    } finally {
+      setUpdatingSaleId(null);
+    }
+  }
+
   function openSaleForLead(lead: SwimLeadItem) {
-    const firstCode = lead.details?.equipment.articles?.[0] || "";
+    const requestedCodes = lead.details?.equipment.articles || [];
+    const baseCodes = requestedCodes.length > 0 ? requestedCodes : ["goggles", "cap", "swimsuit"];
+    const soldSet = soldArticlesByLead.get(lead.id);
+    const remainingCodes = soldSet
+      ? baseCodes.filter((code) => !soldSet.has(code))
+      : baseCodes;
+    const codesToOpen = remainingCodes.length > 0 ? remainingCodes : baseCodes;
+
     setSaleModal({
       mode: "create",
       prefill: {
         clientName: lead.fullName,
         clientPhone: lead.phone || "",
         leadId: lead.id,
-        articleCode: firstCode,
+        articleCode: codesToOpen[0] || "",
+        articleCodes: codesToOpen,
+        size: lead.details?.equipment.size || null,
+        category: lead.category || null,
+      },
+    });
+  }
+
+  function openSaleForArticle(articleCode: string) {
+    setSaleModal({
+      mode: "create",
+      prefill: {
+        clientName: "",
+        clientPhone: "",
+        articleCode,
+        articleCodes: [articleCode],
       },
     });
   }
@@ -336,9 +689,16 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
     return key ? t(key) : status;
   }
 
-  function applyPreset(preset: "all" | "month" | "30d") {
+  function applyPreset(preset: "today" | "7d" | "month" | "30d" | "all") {
     if (preset === "all") {
       setPeriodFrom("");
+      setPeriodTo("");
+    } else if (preset === "today") {
+      const todayStr = toDateInputValue();
+      setPeriodFrom(todayStr);
+      setPeriodTo(todayStr);
+    } else if (preset === "7d") {
+      setPeriodFrom(daysAgo(6));
       setPeriodTo("");
     } else if (preset === "month") {
       setPeriodFrom(firstOfMonth());
@@ -376,8 +736,11 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
       [
         t("colDate"),
         t("colArticle"),
+        t("colSize"),
         t("colClient"),
         t("colPhone"),
+        t("inputPaymentMethod"),
+        t("inputSaleStatus"),
         t("colQty"),
         t("colSellPrice"),
         t("colCostPrice"),
@@ -385,18 +748,24 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
         t("colProfit"),
         t("inputNotes"),
       ],
-      filteredSales.map((sale) => [
-        formatSaleDate(sale.soldAt, uiLocale),
-        articleLabel(sale.article),
-        sale.clientName,
-        sale.clientPhone,
-        sale.quantity,
-        sale.sellPrice,
-        sale.costPrice,
-        sale.sellPrice * sale.quantity,
-        (sale.sellPrice - sale.costPrice) * sale.quantity,
-        sale.notes || "",
-      ])
+      filteredSales.map((sale) => {
+        const parsed = parseSaleNotes(sale.notes);
+        return [
+          formatSaleDate(sale.soldAt, uiLocale),
+          articleLabel(sale.article),
+          parsed.meta.size || "",
+          sale.clientName,
+          sale.clientPhone,
+          paymentMethodLabel(parsed.meta.paymentMethod),
+          saleStatusLabel(parsed.meta.saleStatus),
+          sale.quantity,
+          sale.sellPrice,
+          sale.costPrice,
+          sale.sellPrice * sale.quantity,
+          (sale.sellPrice - sale.costPrice) * sale.quantity,
+          parsed.userNotes || "",
+        ];
+      })
     );
     downloadCsv(`aqa_swim_equipment_sales_${toDateInputValue()}.csv`, csv);
   }
@@ -461,7 +830,7 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
         </div>
       ) : null}
 
-      {/* Period filter (applies to the figures below and to the sales table) */}
+      {/* Period filter */}
       <div className="flex flex-wrap items-end gap-3 p-3 rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/80">
         <div>
           <label htmlFor="equip-period-from" className="block text-[10px] uppercase tracking-wider font-bold text-[var(--muted)] mb-1">
@@ -490,6 +859,12 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
           />
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
+          <Button variant="ghost" size="sm" onClick={() => applyPreset("today")}>
+            {t("periodToday")}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => applyPreset("7d")}>
+            {t("period7")}
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => applyPreset("month")}>
             {t("periodMonth")}
           </Button>
@@ -507,11 +882,21 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
       </div>
 
       {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard
           label={t("totalRevenue")}
           value={formatDA(stats.totalSalesRevenue)}
-          hint={t("unitsSoldHint", { count: stats.totalUnitsSold })}
+          hint={
+            periodFinancialBreakdown.reservedRevenue > 0
+              ? t("revenueReservedHint", {
+                  units: stats.totalUnitsSold,
+                  reserved: formatDA(periodFinancialBreakdown.reservedRevenue),
+                })
+              : t("revenueAvgHint", {
+                  units: stats.totalUnitsSold,
+                  avg: formatDA(periodFinancialBreakdown.avgBasket),
+                })
+          }
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -521,7 +906,11 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
         <StatCard
           label={t("totalCost")}
           value={formatDA(stats.totalCost)}
-          hint={t("totalCostHint")}
+          hint={
+            inventorySummary.trackedCount > 0
+              ? t("stockValueHint", { amount: formatDA(inventorySummary.stockCostValue) })
+              : t("totalCostHint")
+          }
           icon={
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
@@ -539,9 +928,26 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
           }
         />
         <StatCard
+          label={t("demandsConversionKpi")}
+          value={`${demandStats.soldDemandsCount} / ${equipmentDemands.length}`}
+          hint={t("openDemandsHint", { count: demandStats.openCount })}
+          icon={
+            <svg className="h-5 w-5 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          }
+        />
+        <StatCard
           label={t("catalogTitle")}
           value={articles.length}
-          hint={t("activeCount", { count: activeArticleCount })}
+          hint={
+            inventorySummary.lowStockCount > 0
+              ? t("activeLowStockHint", {
+                  active: activeArticleCount,
+                  low: inventorySummary.lowStockCount,
+                })
+              : t("activeCount", { count: activeArticleCount })
+          }
           icon={
             <svg className="h-5 w-5 text-[var(--accent,#00f2ff)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -553,41 +959,92 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
       {/* Per-article performance */}
       {articleStatCards.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {articleStatCards.map(([code, stat]) => (
-            <div
-              key={code}
-              className="p-4 rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md hover:border-[var(--primary)]/40 transition-all"
-            >
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-xs font-bold text-[var(--foreground)] truncate">
-                  {articleLabel(code)}
-                </span>
-                <Badge tone="primary" size="sm">
-                  {t("soldUnits", { count: stat.units })}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-[10px] text-[var(--muted)] block">{t("labelRevenue")}</span>
-                  <span className="font-mono font-semibold text-[var(--foreground)]">{formatDA(stat.revenue)}</span>
+          {articleStatCards.map(([code, stat]) => {
+            const parsedArt = parsedArticlesMap.get(code);
+            const sharePct =
+              stats.totalSalesRevenue > 0
+                ? Math.round((stat.revenue / stats.totalSalesRevenue) * 100)
+                : 0;
+            const stock = parsedArt?.meta.stockQty;
+            const alertAt = parsedArt?.meta.minStockAlert ?? 5;
+
+            return (
+              <div
+                key={code}
+                className="p-4 rounded-[14px] border border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md hover:border-[var(--primary)]/40 transition-all space-y-2.5"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="text-xs font-bold text-[var(--foreground)] truncate">
+                      {articleLabel(code)}
+                    </span>
+                    {parsedArt?.meta.category ? (
+                      <Badge tone="default" size="sm">
+                        {categoryLabel(parsedArt.meta.category)}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge tone="primary" size="sm">
+                      {t("soldUnits", { count: stat.units })}
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={() => openSaleForArticle(code)}
+                      className="px-2 py-0.5 rounded-md bg-[var(--primary)]/20 text-[var(--primary)] hover:bg-[var(--primary)]/30 text-[10px] font-bold transition-colors"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[10px] text-[var(--muted)] block">{t("colProfit")}</span>
-                  <span
-                    className={`font-mono font-bold ${
-                      stat.profit < 0 ? "text-[var(--danger)]" : "text-[var(--success)]"
-                    }`}
-                  >
-                    {formatDA(stat.profit)}
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-[var(--muted)] block">{t("labelRevenue")}</span>
+                    <span className="font-mono font-semibold text-[var(--foreground)]">{formatDA(stat.revenue)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-[var(--muted)] block">{t("colProfit")}</span>
+                    <span
+                      className={`font-mono font-bold ${
+                        stat.profit < 0 ? "text-[var(--danger)]" : "text-[var(--success)]"
+                      }`}
+                    >
+                      {formatDA(stat.profit)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-1.5 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent,#00f2ff)]"
+                    style={{ width: `${Math.min(100, Math.max(4, sharePct))}%` }}
+                  />
+                </div>
+
+                <div className="pt-1 flex items-center justify-between text-[11px] text-[var(--muted)]">
+                  <span>{t("marginLabel", { pct: stat.marginPercent })} | {sharePct}%</span>
+                  <span>
+                    {stock !== null && stock !== undefined ? (
+                      <span
+                        className={
+                          stock === 0
+                            ? "text-red-400 font-semibold"
+                            : stock <= alertAt
+                            ? "text-amber-400 font-semibold"
+                            : ""
+                        }
+                      >
+                        {t("stockBadgeShort", { count: stock })}
+                      </span>
+                    ) : (
+                      t("costLabel", { amount: formatDA(stat.cost) })
+                    )}
                   </span>
                 </div>
               </div>
-              <div className="mt-2 pt-2 border-t border-[var(--border)] flex items-center justify-between text-[11px] text-[var(--muted)]">
-                <span>{t("marginLabel", { pct: stat.marginPercent })}</span>
-                <span>{t("costLabel", { amount: formatDA(stat.cost) })}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : null}
 
@@ -629,11 +1086,21 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {viewMode === "catalog" ? (
-            <Button variant="primary" size="sm" onClick={() => setArticleModal({ article: null })}>
-              {t("addArticleBtn")}
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={seedingCatalog}
+                onClick={handleSeedDefaultCatalog}
+              >
+                {seedingCatalog ? t("seedingCatalogBtn") : t("seedCatalogBtn")}
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => setArticleModal({ article: null })}>
+                {t("addArticleBtn")}
+              </Button>
+            </>
           ) : (
             <>
               <Button
@@ -656,8 +1123,37 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
       {viewMode === "demands" ? (
         <div className="space-y-4">
           <p className="text-xs text-[var(--muted)]">{t("demandsDesc")}</p>
+
+          {/* Demand Forecast Strip */}
+          {demandStats.openCount > 0 ? (
+            <div className="p-3.5 rounded-[14px] border border-cyan-500/25 bg-cyan-500/5 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs font-bold text-cyan-300">
+                {t("demandForecastTitle", { count: demandStats.openCount })}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Badge tone="info" size="sm">
+                  {t("articleGoggles")}: {demandStats.gogglesNeeded}
+                </Badge>
+                <Badge tone="info" size="sm">
+                  {t("articleCap")}: {demandStats.capNeeded}
+                </Badge>
+                <Badge tone="info" size="sm">
+                  {t("articleSwimsuit")}: {demandStats.swimsuitNeeded}
+                </Badge>
+                {Object.entries(demandStats.sizeCounts).length > 0 ? (
+                  <span className="text-[11px] text-[var(--muted)] font-mono">
+                    {t("colSize")}:{" "}
+                    {Object.entries(demandStats.sizeCounts)
+                      .map(([sz, count]) => `${sz} (${count})`)
+                      .join(", ")}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-full sm:w-64">
+            <div className="w-full sm:w-60">
               <Input
                 placeholder={t("searchDemandsPlaceholder")}
                 value={demandSearch}
@@ -676,6 +1172,29 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                   {leadStatusLabel(status)}
                 </option>
               ))}
+            </select>
+            <select
+              value={demandArticleFilter}
+              onChange={(e) => setDemandArticleFilter(e.target.value)}
+              aria-label={t("colArticle")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("filterAll")}</option>
+              <option value="goggles">{t("filterGoggles")}</option>
+              <option value="cap">{t("filterCap")}</option>
+              <option value="swimsuit">{t("filterSwimsuits")}</option>
+            </select>
+            <select
+              value={demandCategoryFilter}
+              onChange={(e) => setDemandCategoryFilter(e.target.value)}
+              aria-label={t("inputClientCategory")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("allClientCategories")}</option>
+              <option value="homme">{t("clientCatHomme")}</option>
+              <option value="femme">{t("clientCatFemme")}</option>
+              <option value="enfants">{t("clientCatEnfants")}</option>
+              <option value="apnea">{t("clientCatApnea")}</option>
             </select>
             <select
               value={demandSaleFilter}
@@ -713,6 +1232,7 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                 ) : (
                   filteredDemands.map((lead) => {
                     const soldCount = salesByLead.get(lead.id) || 0;
+                    const soldArtSet = soldArticlesByLead.get(lead.id);
                     const whatsappLink = buildWhatsAppLink(
                       {
                         phone: lead.phone,
@@ -740,13 +1260,22 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                         <td className="py-3 px-4">
                           <div className="flex flex-wrap gap-1">
                             {codes.length === 0 ? (
-                              <Badge tone="primary" size="sm">{t("packComplete")}</Badge>
+                              <Badge tone={soldCount > 0 ? "success" : "primary"} size="sm">
+                                {t("packComplete")}
+                              </Badge>
                             ) : (
-                              codes.map((code) => (
-                                <Badge key={code} tone="info" size="sm">
-                                  {getArticleShortLabel(code)}
-                                </Badge>
-                              ))
+                              codes.map((code) => {
+                                const isFulfilled = soldArtSet?.has(code) ?? false;
+                                return (
+                                  <Badge
+                                    key={code}
+                                    tone={isFulfilled ? "success" : "info"}
+                                    size="sm"
+                                  >
+                                    {getArticleShortLabel(code)}
+                                  </Badge>
+                                );
+                              })
                             )}
                           </div>
                         </td>
@@ -801,7 +1330,7 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
         <div className="space-y-4">
           <p className="text-xs text-[var(--muted)]">{t("salesDesc")}</p>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-full sm:w-64">
+            <div className="w-full sm:w-60">
               <Input
                 placeholder={t("searchSalesPlaceholder")}
                 value={saleSearch}
@@ -821,6 +1350,44 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                 </option>
               ))}
             </select>
+            <select
+              value={saleStatusFilter}
+              onChange={(e) => setSaleStatusFilter(e.target.value)}
+              aria-label={t("inputSaleStatus")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("allStatuses")}</option>
+              {SALE_FULFILLMENT_STATUSES.map((st) => (
+                <option key={st} value={st}>
+                  {saleStatusLabel(st)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={salePaymentFilter}
+              onChange={(e) => setSalePaymentFilter(e.target.value)}
+              aria-label={t("inputPaymentMethod")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("allPaymentMethods")}</option>
+              {SALE_PAYMENT_METHODS.map((pm) => (
+                <option key={pm} value={pm}>
+                  {paymentMethodLabel(pm)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={saleSort}
+              onChange={(e) => setSaleSort(e.target.value as SortMode)}
+              aria-label={t("sortLabel")}
+              className={SELECT_CLASS}
+            >
+              <option value="date_desc">{t("sortDateDesc")}</option>
+              <option value="date_asc">{t("sortDateAsc")}</option>
+              <option value="revenue_desc">{t("sortRevenueDesc")}</option>
+              <option value="profit_desc">{t("sortProfitDesc")}</option>
+              <option value="qty_desc">{t("sortQtyDesc")}</option>
+            </select>
             <span className="text-xs text-[var(--muted)] ms-auto">
               {t("salesCount", { shown: filteredSales.length, total: sales.length })}
             </span>
@@ -833,6 +1400,7 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                   <th scope="col" className={TH_CLASS}>{t("colDate")}</th>
                   <th scope="col" className={TH_CLASS}>{t("colArticle")}</th>
                   <th scope="col" className={TH_CLASS}>{t("colClient")}</th>
+                  <th scope="col" className={TH_CLASS}>{t("colPaymentStatus")}</th>
                   <th scope="col" className={`${TH_CLASS} text-center`}>{t("colQty")}</th>
                   <th scope="col" className={`${TH_CLASS} text-end`}>{t("colSellPrice")}</th>
                   <th scope="col" className={`${TH_CLASS} text-end`}>{t("colCostPrice")}</th>
@@ -843,37 +1411,67 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {filteredSales.length === 0 ? (
-                  <EmptyRow colSpan={9}>
+                  <EmptyRow colSpan={10}>
                     {sales.length === 0 ? t("noSales") : t("noMatchSales")}
                   </EmptyRow>
                 ) : (
                   filteredSales.map((sale) => {
+                    const parsed = parseSaleNotes(sale.notes);
                     const lineRevenue = sale.sellPrice * sale.quantity;
                     const lineCost = sale.costPrice * sale.quantity;
                     const lineProfit = lineRevenue - lineCost;
                     const lineMargin =
                       lineRevenue > 0 ? Math.round((lineProfit / lineRevenue) * 100) : 0;
+                    const isPendingDelivery = parsed.meta.saleStatus !== "paid_delivered";
+
                     return (
                       <tr key={sale.id} className="hover:bg-[var(--surface-2)]/40 transition-colors">
                         <td className="py-3 px-4 text-[var(--muted)] font-mono text-[11px]" dir="ltr">
                           {formatSaleDate(sale.soldAt, uiLocale)}
                         </td>
                         <td className="py-3 px-4 font-semibold text-[var(--foreground)]">
-                          <div>{articleLabel(sale.article)}</div>
-                          <div className="text-[10px] font-mono text-slate-500" dir="ltr">{sale.article}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span>{articleLabel(sale.article)}</span>
+                            {parsed.meta.size ? (
+                              <Badge tone="info" size="sm">{parsed.meta.size}</Badge>
+                            ) : null}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500" dir="ltr">
+                            {sale.article}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-[var(--foreground)]">{sale.clientName}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-[var(--foreground)]">
+                              {sale.clientName}
+                            </span>
+                            {parsed.meta.swimId ? (
+                              <Badge tone="primary" size="sm">{parsed.meta.swimId}</Badge>
+                            ) : null}
+                          </div>
                           {sale.clientPhone ? (
                             <div className="font-mono text-[10px] text-[var(--muted)]" dir="ltr">
                               {sale.clientPhone}
                             </div>
                           ) : null}
-                          {sale.notes ? (
-                            <div className="text-[10px] text-slate-500 truncate max-w-[220px]" title={sale.notes}>
-                              {sale.notes}
+                          {parsed.userNotes ? (
+                            <div
+                              className="text-[10px] text-slate-500 truncate max-w-[220px]"
+                              title={parsed.userNotes}
+                            >
+                              {parsed.userNotes}
                             </div>
                           ) : null}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge tone={saleStatusTone(parsed.meta.saleStatus)} size="sm">
+                              {saleStatusLabel(parsed.meta.saleStatus)}
+                            </Badge>
+                            <span className="text-[10px] text-[var(--muted)]">
+                              {paymentMethodLabel(parsed.meta.paymentMethod)}
+                            </span>
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-center font-mono font-semibold text-[var(--foreground)]">
                           {sale.quantity}
@@ -883,6 +1481,11 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                           {sale.quantity > 1 ? (
                             <div className="text-[10px] text-slate-500">
                               {formatDA(sale.sellPrice)} {t("perUnit")}
+                            </div>
+                          ) : null}
+                          {parsed.meta.discountDA && parsed.meta.discountDA > 0 ? (
+                            <div className="text-[10px] text-amber-400">
+                              -{formatDA(parsed.meta.discountDA)}
                             </div>
                           ) : null}
                         </td>
@@ -907,7 +1510,24 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                           <Badge tone={marginTone(lineMargin)} size="sm">{lineMargin}%</Badge>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="flex items-center justify-end gap-1">
+                          <div className="flex items-center justify-end gap-1 flex-wrap">
+                            {isPendingDelivery ? (
+                              <button
+                                type="button"
+                                disabled={updatingSaleId === sale.id}
+                                onClick={() => markSaleDelivered(sale)}
+                                className="px-2 py-1 rounded bg-[var(--success-bg)] text-[var(--success-text)] hover:brightness-125 text-[11px] font-semibold transition-all disabled:opacity-50"
+                              >
+                                {t("markDeliveredBtn")}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => setReceiptSale(sale)}
+                              className="px-2 py-1 rounded text-cyan-300 hover:bg-cyan-500/15 text-[11px] transition-colors"
+                            >
+                              {t("receiptBtn")}
+                            </button>
                             <button
                               type="button"
                               onClick={() => setSaleModal({ mode: "edit", sale })}
@@ -929,6 +1549,41 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                   })
                 )}
               </tbody>
+              {filteredSales.length > 0 ? (
+                <tfoot className="bg-[var(--surface-2)]/80 border-t border-[var(--border)] font-bold text-xs">
+                  <tr>
+                    <td colSpan={4} className="py-3 px-4 text-[var(--muted)] uppercase tracking-wider text-[10px]">
+                      {t("totalsRowLabel", { count: filteredSales.length })}
+                    </td>
+                    <td className="py-3 px-4 text-center font-mono text-[var(--foreground)]">
+                      {filteredSalesSummary.totalUnitsSold}
+                    </td>
+                    <td className="py-3 px-4 text-end font-mono text-[var(--foreground)]" dir="ltr">
+                      {formatDA(filteredSalesSummary.totalSalesRevenue)}
+                    </td>
+                    <td className="py-3 px-4 text-end font-mono text-[var(--muted)]" dir="ltr">
+                      {formatDA(filteredSalesSummary.totalCost)}
+                    </td>
+                    <td
+                      className={`py-3 px-4 text-end font-mono ${
+                        filteredSalesSummary.totalProfit < 0
+                          ? "text-[var(--danger)]"
+                          : "text-[var(--success)]"
+                      }`}
+                      dir="ltr"
+                    >
+                      {filteredSalesSummary.totalProfit >= 0 ? "+" : ""}
+                      {formatDA(filteredSalesSummary.totalProfit)}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <Badge tone={marginTone(filteredSalesSummary.marginPercent)} size="sm">
+                        {filteredSalesSummary.marginPercent}%
+                      </Badge>
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
         </div>
@@ -941,12 +1596,47 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
             {t("catalogDesc")}
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-full sm:w-60">
+              <Input
+                placeholder={t("searchCatalogPlaceholder")}
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+              />
+            </div>
+            <select
+              value={catalogCategoryFilter}
+              onChange={(e) => setCatalogCategoryFilter(e.target.value)}
+              aria-label={t("inputArticleCategory")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("catAll")}</option>
+              {EQUIPMENT_CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>
+                  {categoryLabel(cat)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={catalogStatusFilter}
+              onChange={(e) => setCatalogStatusFilter(e.target.value as CatalogFilterMode)}
+              aria-label={t("colStatus")}
+              className={SELECT_CLASS}
+            >
+              <option value="all">{t("allStatuses")}</option>
+              <option value="active">{t("statusActive")}</option>
+              <option value="inactive">{t("statusInactive")}</option>
+              <option value="low_stock">{t("filterLowStock")}</option>
+            </select>
+          </div>
+
           <div className="overflow-x-auto rounded-[14px] border border-[var(--border)] bg-[var(--surface)] shadow-sm">
             <table className="w-full text-xs">
               <thead className="bg-[var(--surface-2)]/60 text-[var(--muted)] uppercase tracking-wider text-[10px] border-b border-[var(--border)]">
                 <tr>
                   <th scope="col" className={TH_CLASS}>{t("colCode")}</th>
                   <th scope="col" className={TH_CLASS}>{t("colName")}</th>
+                  <th scope="col" className={`${TH_CLASS} text-center`}>{t("colStock")}</th>
                   <th scope="col" className={`${TH_CLASS} text-end`}>{t("colDefaultSell")}</th>
                   <th scope="col" className={`${TH_CLASS} text-end`}>{t("colDefaultCost")}</th>
                   <th scope="col" className={`${TH_CLASS} text-center`}>{t("colMargin")}</th>
@@ -955,10 +1645,16 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {articles.length === 0 ? (
-                  <EmptyRow colSpan={7}>{t("noArticles")}</EmptyRow>
+                {filteredCatalog.length === 0 ? (
+                  <EmptyRow colSpan={8}>
+                    {articles.length === 0 ? t("noArticles") : t("noMatchCatalog")}
+                  </EmptyRow>
                 ) : (
-                  articles.map((article) => {
+                  filteredCatalog.map((article) => {
+                    const parsed = parsedArticlesMap.get(article.code);
+                    const stock = parsed?.meta.stockQty;
+                    const alertAt = parsed?.meta.minStockAlert ?? 5;
+                    const sizes = parsed?.meta.sizes || [];
                     const margin =
                       article.defaultSellPrice > 0
                         ? Math.round(
@@ -975,15 +1671,67 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                         }`}
                       >
                         <td className="py-3 px-4 font-mono text-[var(--muted)] text-[11px]" dir="ltr">
-                          {article.code}
+                          <div>{article.code}</div>
+                          {parsed?.meta.sku ? (
+                            <div className="text-[10px] text-slate-500">{parsed.meta.sku}</div>
+                          ) : null}
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-[var(--foreground)]">{article.name}</div>
-                          {article.description ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-[var(--foreground)]">{article.name}</span>
+                            {parsed?.meta.category ? (
+                              <Badge tone="default" size="sm">
+                                {categoryLabel(parsed.meta.category)}
+                              </Badge>
+                            ) : null}
+                          </div>
+                          {parsed?.cleanDescription ? (
                             <div className="text-[10px] text-[var(--muted)] mt-0.5 truncate max-w-xs">
-                              {article.description}
+                              {parsed.cleanDescription}
                             </div>
                           ) : null}
+                          {sizes.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {sizes.map((sz) => (
+                                <span
+                                  key={sz}
+                                  className="px-1.5 py-0.2 rounded bg-[var(--surface-2)] text-[10px] text-[var(--muted)] border border-[var(--border)]"
+                                >
+                                  {sz}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {stock !== null && stock !== undefined ? (
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                disabled={adjustingStockId === article.id || stock <= 0}
+                                onClick={() => handleAdjustStock(article, -1)}
+                                className="h-6 w-6 rounded bg-[var(--surface-2)] hover:bg-[var(--primary-light)] text-xs font-bold disabled:opacity-40"
+                              >
+                                -
+                              </button>
+                              <Badge
+                                tone={stock === 0 ? "danger" : stock <= alertAt ? "warning" : "success"}
+                                size="sm"
+                              >
+                                {stock}
+                              </Badge>
+                              <button
+                                type="button"
+                                disabled={adjustingStockId === article.id}
+                                onClick={() => handleAdjustStock(article, 1)}
+                                className="h-6 w-6 rounded bg-[var(--surface-2)] hover:bg-[var(--primary-light)] text-xs font-bold disabled:opacity-40"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-500">{t("stockUntracked")}</span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-end font-mono text-[var(--foreground)]" dir="ltr">
                           {formatDA(article.defaultSellPrice)}
@@ -1010,6 +1758,15 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center justify-end gap-1">
+                            {article.active ? (
+                              <button
+                                type="button"
+                                onClick={() => openSaleForArticle(article.code)}
+                                className="px-2 py-1 rounded text-cyan-300 hover:bg-cyan-500/15 text-[11px] font-semibold transition-colors"
+                              >
+                                {t("recordSaleForLead")}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => setArticleModal({ article })}
@@ -1053,6 +1810,7 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
         <SaleFormModal
           articles={articles}
           leads={leads}
+          members={members}
           existing={saleModal.mode === "edit" ? saleModal.sale : null}
           prefill={saleModal.mode === "create" ? saleModal.prefill : null}
           onClose={() => setSaleModal(null)}
@@ -1060,6 +1818,17 @@ export function SwimEquipmentDesk({ leads }: SwimEquipmentDeskProps) {
             setSaleModal(null);
             await afterMutation(message);
           }}
+          t={t}
+        />
+      ) : null}
+
+      {receiptSale ? (
+        <SaleReceiptModal
+          sale={receiptSale}
+          allSales={sales}
+          articleNames={articleNameMap}
+          locale={uiLocale}
+          onClose={() => setReceiptSale(null)}
           t={t}
         />
       ) : null}

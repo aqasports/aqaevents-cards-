@@ -43,11 +43,32 @@ export interface EquipmentSaleItem {
   createdAt: string;
 }
 
+export interface SwimMemberForStore {
+  id: string;
+  swimId: string;
+  fullName: string;
+  phone: string;
+  category: string;
+  level: string;
+  formula: string;
+  duration: string | null;
+  group?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
 export interface SalePrefill {
   clientName: string;
   clientPhone: string;
-  leadId: string;
-  articleCode: string;
+  leadId?: string;
+  articleCode?: string;
+  articleCodes?: string[];
+  size?: string | null;
+  memberId?: string | null;
+  swimId?: string | null;
+  category?: string | null;
+  isFreePack?: boolean;
 }
 
 export type SaleModalState =

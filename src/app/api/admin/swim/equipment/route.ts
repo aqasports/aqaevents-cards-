@@ -3,10 +3,52 @@ import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { aggregateSalesStats } from "@/lib/swim-equipment";
-import { prepareSaleWrite } from "@/lib/swim-equipment-server";
-import { firstValidationMessage, SaleInputSchema } from "@/lib/swim-equipment-validation";
+import { prepareSaleWrite, type PreparedSaleWrite } from "@/lib/swim-equipment-server";
+import {
+  formatArticleDescription,
+  parseArticleDescription,
+} from "@/lib/swim-equipment-utils";
+import {
+  BatchSaleInputSchema,
+  firstValidationMessage,
+  SaleInputSchema,
+} from "@/lib/swim-equipment-validation";
 
 export const dynamic = "force-dynamic";
+
+async function decrementArticleStocks(
+  tx: Pick<typeof prisma, "swimEquipmentArticle">,
+  items: Array<{ article: string; quantity: number }>
+) {
+  const qtyByCode = new Map<string, number>();
+  for (const item of items) {
+    qtyByCode.set(item.article, (qtyByCode.get(item.article) || 0) + item.quantity);
+  }
+  const codes = Array.from(qtyByCode.keys());
+  if (codes.length === 0) return;
+
+  const articles = await tx.swimEquipmentArticle.findMany({
+    where: { code: { in: codes } },
+    select: { id: true, code: true, description: true },
+  });
+
+  for (const art of articles) {
+    const soldQty = qtyByCode.get(art.code) || 0;
+    if (soldQty <= 0) continue;
+    const parsed = parseArticleDescription(art.description, art.code);
+    if (parsed.meta.stockQty === null || parsed.meta.stockQty === undefined) continue;
+
+    const nextStock = Math.max(0, parsed.meta.stockQty - soldQty);
+    const nextDesc = formatArticleDescription(
+      { ...parsed.meta, stockQty: nextStock },
+      parsed.cleanDescription
+    );
+    await tx.swimEquipmentArticle.update({
+      where: { id: art.id },
+      data: { description: nextDesc },
+    });
+  }
+}
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -78,7 +120,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** POST: record a sale. The client phone is optional. */
+/** POST: record a single sale or a batch of sales. The client phone is optional. */
 export async function POST(request: NextRequest) {
   const { session, error } = await requireAdminSession();
   if (error || !session) return error;
@@ -90,6 +132,54 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
+  const isBatch =
+    typeof body === "object" &&
+    body !== null &&
+    Array.isArray((body as Record<string, unknown>).items);
+
+  if (isBatch) {
+    const parsed = BatchSaleInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: firstValidationMessage(parsed.error), details: parsed.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const preparedItems: PreparedSaleWrite[] = [];
+      for (const item of parsed.data.items) {
+        const prepared = await prepareSaleWrite(item);
+        if (!prepared.ok) {
+          return NextResponse.json({ error: prepared.error }, { status: prepared.status });
+        }
+        preparedItems.push(prepared.data);
+      }
+
+      const createdSales = await prisma.$transaction(async (tx) => {
+        const rows = [];
+        for (const data of preparedItems) {
+          rows.push(await tx.swimEquipmentSale.create({ data }));
+        }
+        if (parsed.data.decrementStock) {
+          await decrementArticleStocks(tx, preparedItems);
+        }
+        return rows;
+      });
+
+      return NextResponse.json(
+        { sales: createdSales, count: createdSales.length },
+        { status: 201 }
+      );
+    } catch (err: unknown) {
+      logger.error("POST batch swim equipment sales error:", err);
+      return NextResponse.json(
+        { error: "Failed to record equipment sales" },
+        { status: 500 }
+      );
+    }
+  }
+
   const parsed = SaleInputSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -98,13 +188,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const shouldDecrementStock =
+    typeof body === "object" &&
+    body !== null &&
+    (body as Record<string, unknown>).decrementStock === true;
+
   try {
     const prepared = await prepareSaleWrite(parsed.data);
     if (!prepared.ok) {
       return NextResponse.json({ error: prepared.error }, { status: prepared.status });
     }
 
-    const sale = await prisma.swimEquipmentSale.create({ data: prepared.data });
+    const sale = shouldDecrementStock
+      ? await prisma.$transaction(async (tx) => {
+          const created = await tx.swimEquipmentSale.create({ data: prepared.data });
+          await decrementArticleStocks(tx, [prepared.data]);
+          return created;
+        })
+      : await prisma.swimEquipmentSale.create({ data: prepared.data });
 
     return NextResponse.json(sale, { status: 201 });
   } catch (err: unknown) {
