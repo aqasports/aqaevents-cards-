@@ -197,7 +197,91 @@ export function ScoliosisAdamsIllustration({
   );
 }
 
-// ─── 3. Sagittal Spine 3D Focused Hologram Card ──────────────────────────────
+// ─── Shared 3-Column Holographic Comparison Plate ────────────────────────────
+
+type PanelTone = "emerald" | "amber" | "sky";
+
+function HologramThreePanelPlate({
+  src,
+  alt,
+  activeKey,
+  yourChildLabel,
+  panels,
+}: {
+  src: string;
+  alt: string;
+  activeKey: string | null;
+  yourChildLabel: string;
+  panels: readonly [
+    readonly [string, string, PanelTone],
+    readonly [string, string, PanelTone],
+    readonly [string, string, PanelTone],
+  ];
+}) {
+  const activeIdx = activeKey ? panels.findIndex(([key]) => key === activeKey) : -1;
+  const activeTone = activeIdx >= 0 ? panels[activeIdx][2] : null;
+  const posCls = activeIdx === 0 ? "left-[1.2%]" : activeIdx === 1 ? "left-[34.5%]" : "left-[67.8%]";
+  const frameTone =
+    activeTone === "emerald"
+      ? "border-emerald-400/75 shadow-[0_0_24px_rgba(16,185,129,0.28)]"
+      : activeTone === "sky"
+        ? "border-sky-400/75 shadow-[0_0_24px_rgba(56,189,248,0.3)]"
+        : "border-amber-400/75 shadow-[0_0_24px_rgba(245,158,11,0.3)]";
+
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
+      <img src={src} alt={alt} className="w-full aspect-[16/9] object-cover select-none" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-slate-950/20" />
+
+      {activeIdx >= 0 && (
+        <div
+          className={`pointer-events-none absolute inset-y-2 w-[31%] rounded-xl border-2 transition-all ${posCls} ${frameTone}`}
+        />
+      )}
+
+      <div className="absolute inset-x-2 bottom-2 grid grid-cols-3 gap-1.5">
+        {panels.map(([key, label, tone]) => {
+          const isMatch = activeKey === key;
+          const dotCls =
+            tone === "emerald" ? "bg-emerald-400" : tone === "sky" ? "bg-sky-400" : "bg-amber-400";
+          const borderCls = isMatch
+            ? tone === "emerald"
+              ? "border-emerald-400/60 bg-slate-950/90 text-emerald-200"
+              : tone === "sky"
+                ? "border-sky-400/60 bg-slate-950/90 text-sky-200"
+                : "border-amber-400/60 bg-slate-950/90 text-amber-200"
+            : "border-white/10 bg-slate-950/80 text-slate-300";
+          const badgeCls =
+            tone === "emerald"
+              ? "bg-emerald-500/25 text-emerald-300"
+              : tone === "sky"
+                ? "bg-sky-500/25 text-sky-300"
+                : "bg-amber-500/25 text-amber-300";
+          return (
+            <div
+              key={key}
+              className={`flex flex-col items-center justify-center rounded-lg border px-1.5 py-1 backdrop-blur-md text-center ${borderCls}`}
+            >
+              <div className="flex items-center justify-center gap-1 max-w-full">
+                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotCls}`} />
+                <span className="text-[9px] sm:text-[10px] font-bold leading-tight truncate">
+                  {label}
+                </span>
+              </div>
+              {isMatch && (
+                <span className={`mt-0.5 rounded px-1.5 py-0.5 text-[8px] font-black uppercase ${badgeCls}`}>
+                  {yourChildLabel}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── 3. Sagittal Spine 3D Hologram Comparison Card ───────────────────────────
 
 export function SagittalSpineIllustration({
   assessment,
@@ -221,81 +305,50 @@ export function SagittalSpineIllustration({
 
   return (
     <div className="space-y-2.5">
-      {/* Focused 3D Vertebral Column Hologram Viewport */}
-      <div className="relative h-40 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
-        <img
-          src="/image/kids-suivi/hero-body-scan.jpg"
-          alt={labels.ideal}
-          className="h-full w-full object-cover object-[50%_34%] scale-[1.55] select-none"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/25" />
+      <HologramThreePanelPlate
+        src="/image/kids-suivi/sagittal-hologram.jpg"
+        alt={labels.ideal}
+        activeKey={activeKey}
+        yourChildLabel={labels.yourChild}
+        panels={[
+          ["ideal", labels.ideal, "emerald"],
+          ["kyphosis", labels.kyphosis, "amber"],
+          ["lordosis", labels.lordosis, "amber"],
+        ]}
+      />
 
-        {/* Sagittal Plumb Telemetry Badges (C7 / T6 / L3) */}
-        <div className="absolute left-3 top-3 space-y-1.5">
-          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
-            <span className="text-slate-400">C7 </span>
-            <span className="text-cyan-300 font-bold">
-              {assessment?.sagittalArrowC7Mm !== null && assessment?.sagittalArrowC7Mm !== undefined
-                ? `${assessment.sagittalArrowC7Mm} mm`
-                : "20-35 mm"}
-            </span>
-          </div>
-          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
-            <span className="text-slate-400">T6 </span>
-            <span className="text-cyan-300 font-bold">
-              {assessment?.sagittalArrowT6Mm !== null && assessment?.sagittalArrowT6Mm !== undefined
-                ? `${assessment.sagittalArrowT6Mm} mm`
-                : "0 mm"}
-            </span>
-          </div>
-          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
-            <span className="text-slate-400">L3 </span>
-            <span className="text-cyan-300 font-bold">
-              {assessment?.sagittalArrowL3Mm !== null && assessment?.sagittalArrowL3Mm !== undefined
-                ? `${assessment.sagittalArrowL3Mm} mm`
-                : "25-40 mm"}
-            </span>
-          </div>
+      {/* Delmas / Stagnara Sagittal Plumb Telemetry Strip (C7 / T6 / L3) */}
+      <div className="grid grid-cols-3 gap-2 text-center" dir="ltr">
+        <div className="rounded-xl border border-cyan-500/20 bg-slate-950/75 px-2 py-1.5">
+          <span className="block text-[9px] font-semibold text-slate-400">C7</span>
+          <span className="font-mono text-[11px] font-bold text-cyan-300">
+            {assessment?.sagittalArrowC7Mm !== null && assessment?.sagittalArrowC7Mm !== undefined
+              ? `${assessment.sagittalArrowC7Mm} mm`
+              : "20-35 mm"}
+          </span>
         </div>
-      </div>
-
-      {/* 3-State Clinical Classification Selector Strip */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {(
-          [
-            ["ideal", labels.ideal, "emerald"],
-            ["kyphosis", labels.kyphosis, "amber"],
-            ["lordosis", labels.lordosis, "amber"],
-          ] as const
-        ).map(([key, label, tone]) => {
-          const isMatch = activeKey === key;
-          const activeCls =
-            tone === "emerald"
-              ? "border-emerald-400/70 bg-emerald-950/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-              : "border-amber-400/70 bg-amber-950/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)]";
-          return (
-            <div
-              key={key}
-              className={`rounded-xl border px-2 py-2 transition-all ${
-                isMatch ? activeCls : "border-white/10 bg-slate-950/60 text-slate-400"
-              }`}
-            >
-              <span className="block text-[10px] font-bold leading-tight">{label}</span>
-              {isMatch && (
-                <span className="mt-1 inline-block rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase">
-                  {labels.yourChild}
-                </span>
-              )}
-            </div>
-          );
-        })}
+        <div className="rounded-xl border border-cyan-500/20 bg-slate-950/75 px-2 py-1.5">
+          <span className="block text-[9px] font-semibold text-slate-400">T6</span>
+          <span className="font-mono text-[11px] font-bold text-cyan-300">
+            {assessment?.sagittalArrowT6Mm !== null && assessment?.sagittalArrowT6Mm !== undefined
+              ? `${assessment.sagittalArrowT6Mm} mm`
+              : "0 mm"}
+          </span>
+        </div>
+        <div className="rounded-xl border border-cyan-500/20 bg-slate-950/75 px-2 py-1.5">
+          <span className="block text-[9px] font-semibold text-slate-400">L3</span>
+          <span className="font-mono text-[11px] font-bold text-cyan-300">
+            {assessment?.sagittalArrowL3Mm !== null && assessment?.sagittalArrowL3Mm !== undefined
+              ? `${assessment.sagittalArrowL3Mm} mm`
+              : "25-40 mm"}
+          </span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── 4. Knees & Lower-Limbs 3D Focused Hologram Card ─────────────────────────
+// ─── 4. Knees & Lower-Limbs 3D Hologram Comparison Card ──────────────────────
 
 export function KneeAlignmentIllustration({
   assessment,
@@ -319,70 +372,54 @@ export function KneeAlignmentIllustration({
           ? "normal"
           : null;
 
+  const hasCaliper =
+    (assessment?.intermalleolarDistCm !== null && assessment?.intermalleolarDistCm !== undefined) ||
+    (assessment?.intercondylarDistCm !== null && assessment?.intercondylarDistCm !== undefined);
+
   return (
     <div className="space-y-2.5">
-      {/* Focused 3D Holographic Knee Joints Viewport */}
-      <div className="relative h-36 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
-        <img
-          src="/image/kids-suivi/hero-body-scan.jpg"
-          alt={labels.normal}
-          className="h-full w-full object-cover object-[50%_72%] scale-[1.8] select-none"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/20" />
+      <HologramThreePanelPlate
+        src="/image/kids-suivi/knees-hologram.jpg"
+        alt={labels.normal}
+        activeKey={activeKey}
+        yourChildLabel={labels.yourChild}
+        panels={[
+          ["normal", labels.normal, "emerald"],
+          ["valgum", labels.valgum, "amber"],
+          ["varum", labels.varum, "amber"],
+        ]}
+      />
 
-        <div className="absolute left-3 top-3 space-y-1.5">
-          {assessment?.intermalleolarDistCm !== null && assessment?.intermalleolarDistCm !== undefined && (
-            <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
-              <span className="text-slate-400">DIM </span>
-              <span className="text-cyan-300 font-bold">{assessment.intermalleolarDistCm} cm</span>
-            </div>
-          )}
-          {assessment?.intercondylarDistCm !== null && assessment?.intercondylarDistCm !== undefined && (
-            <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
-              <span className="text-slate-400">DIC </span>
-              <span className="text-cyan-300 font-bold">{assessment.intercondylarDistCm} cm</span>
-            </div>
-          )}
+      {/* Salenius & Vankka Caliper Distance Strip (DIM / DIC when recorded) */}
+      {hasCaliper && (
+        <div className="grid grid-cols-2 gap-2 text-center" dir="ltr">
+          <div className="rounded-xl border border-cyan-500/20 bg-slate-950/75 px-2.5 py-1.5">
+            <span className="block text-[9px] font-semibold text-slate-400 truncate">
+              DIM · {labels.valgum}
+            </span>
+            <span className="font-mono text-[11px] font-bold text-cyan-300">
+              {assessment?.intermalleolarDistCm !== null && assessment?.intermalleolarDistCm !== undefined
+                ? `${assessment.intermalleolarDistCm} cm`
+                : "-"}
+            </span>
+          </div>
+          <div className="rounded-xl border border-cyan-500/20 bg-slate-950/75 px-2.5 py-1.5">
+            <span className="block text-[9px] font-semibold text-slate-400 truncate">
+              DIC · {labels.varum}
+            </span>
+            <span className="font-mono text-[11px] font-bold text-cyan-300">
+              {assessment?.intercondylarDistCm !== null && assessment?.intercondylarDistCm !== undefined
+                ? `${assessment.intercondylarDistCm} cm`
+                : "-"}
+            </span>
+          </div>
         </div>
-      </div>
-
-      {/* 3-State Salenius-Vankka Axis Classification */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {(
-          [
-            ["normal", labels.normal, "emerald"],
-            ["valgum", labels.valgum, "amber"],
-            ["varum", labels.varum, "amber"],
-          ] as const
-        ).map(([key, label, tone]) => {
-          const isMatch = activeKey === key;
-          const activeCls =
-            tone === "emerald"
-              ? "border-emerald-400/70 bg-emerald-950/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-              : "border-amber-400/70 bg-amber-950/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)]";
-          return (
-            <div
-              key={key}
-              className={`rounded-xl border px-2 py-2 transition-all ${
-                isMatch ? activeCls : "border-white/10 bg-slate-950/60 text-slate-400"
-              }`}
-            >
-              <span className="block text-[10px] font-bold leading-tight">{label}</span>
-              {isMatch && (
-                <span className="mt-1 inline-block rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase">
-                  {labels.yourChild}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      )}
     </div>
   );
 }
 
-// ─── 5. Podology & Foot Arch 3D Focused Hologram Card ────────────────────────
+// ─── 5. Podology & Foot Arch 3D Hologram Comparison Card ─────────────────────
 
 export function FootArchIllustration({
   assessment,
@@ -410,52 +447,17 @@ export function FootArchIllustration({
           : null;
 
   return (
-    <div className="space-y-2.5">
-      {/* Focused 3D Holographic Feet & Plantar Arch Viewport */}
-      <div className="relative h-36 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
-        <img
-          src="/image/kids-suivi/hero-body-scan.jpg"
-          alt={labels.normal}
-          className="h-full w-full object-cover object-[50%_94%] scale-[2.1] select-none"
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/20" />
-      </div>
-
-      {/* 3-State Staheli / Jack Test Classification */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        {(
-          [
-            ["normal", labels.normal, "emerald"],
-            ["flat", labels.flat, "amber"],
-            ["jack", labels.jack, "sky"],
-          ] as const
-        ).map(([key, label, tone]) => {
-          const isMatch = activeKey === key;
-          const activeCls =
-            tone === "emerald"
-              ? "border-emerald-400/70 bg-emerald-950/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
-              : tone === "sky"
-                ? "border-sky-400/70 bg-sky-950/50 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.2)]"
-                : "border-amber-400/70 bg-amber-950/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)]";
-          return (
-            <div
-              key={key}
-              className={`rounded-xl border px-2 py-2 transition-all ${
-                isMatch ? activeCls : "border-white/10 bg-slate-950/60 text-slate-400"
-              }`}
-            >
-              <span className="block text-[10px] font-bold leading-tight">{label}</span>
-              {isMatch && (
-                <span className="mt-1 inline-block rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase">
-                  {labels.yourChild}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <HologramThreePanelPlate
+      src="/image/kids-suivi/feet-hologram.jpg"
+      alt={labels.normal}
+      activeKey={activeKey}
+      yourChildLabel={labels.yourChild}
+      panels={[
+        ["normal", labels.normal, "emerald"],
+        ["flat", labels.flat, "amber"],
+        ["jack", labels.jack, "sky"],
+      ]}
+    />
   );
 }
 
