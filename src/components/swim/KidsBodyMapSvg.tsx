@@ -29,6 +29,9 @@ interface KidsBodyMapSvgProps {
     statusWatch: string;
     statusReferral: string;
     tapZoneHint: string;
+    adamsShort?: string;
+    schoberShort?: string;
+    jackShort?: string;
   };
   compact?: boolean;
   formatValue?: (val: string) => string;
@@ -206,8 +209,8 @@ export function KidsBodyMapSvg({
         return `${fmtVal(assessment.shouldersLevel)} · ${fmtVal(assessment.scapulaeSymmetry)}`;
       case "spineFrontal":
         return [
-          `Adams: ${fmtVal(assessment.adamsTest)}`,
-          assessment.scoliometerAtrDeg !== null ? `ATR: ${assessment.scoliometerAtrDeg} deg` : null,
+          `${labels.adamsShort ?? "Adams"}: ${fmtVal(assessment.adamsTest)}`,
+          assessment.scoliometerAtrDeg !== null ? `ATR: ${assessment.scoliometerAtrDeg}°` : null,
           assessment.plumbLineC7DeviationMm !== null ? `C7: ${assessment.plumbLineC7DeviationMm} mm` : null,
         ]
           .filter(Boolean)
@@ -223,7 +226,7 @@ export function KidsBodyMapSvg({
         return [
           fmtVal(assessment.lumbarLordosis),
           assessment.sagittalArrowL3Mm !== null ? `L3: ${assessment.sagittalArrowL3Mm} mm` : null,
-          assessment.schoberCm !== null ? `Schober: +${assessment.schoberCm} cm` : null,
+          assessment.schoberCm !== null ? `${labels.schoberShort ?? "Schöber"}: +${assessment.schoberCm} cm` : null,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -246,7 +249,7 @@ export function KidsBodyMapSvg({
         return [
           fmtVal(assessment.footArch),
           fmtVal(assessment.heelAlignment),
-          assessment.jackTest !== "not_tested" ? `Jack: ${fmtVal(assessment.jackTest)}` : null,
+          assessment.jackTest !== "not_tested" ? `${labels.jackShort ?? "Jack"}: ${fmtVal(assessment.jackTest)}` : null,
         ]
           .filter(Boolean)
           .join(" · ");

@@ -184,6 +184,7 @@ function SwimOverviewPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t: tPaymentsDesk } = useTranslations("swimPaymentsDesk");
+  const { t: tKidsSuivi } = useTranslations("swimKidsPhysical");
   const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "kids" | "finance">("confirmed");
   const [loading, setLoading] = useState(true);
 
@@ -1280,7 +1281,7 @@ function SwimOverviewPageInner() {
                 <circle cx="12" cy="12" r="1.5" />
                 <circle cx="12" cy="19" r="1.5" />
               </svg>
-              <span>AQA Kids · Suivi Physique</span>
+              <span>{tKidsSuivi("adminTabLabel")}</span>
             </button>
 
             <button

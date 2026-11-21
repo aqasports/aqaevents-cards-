@@ -253,6 +253,7 @@ export default function SwimmerProfilePage({
 }) {
   const { swimId } = use(params);
   const { t } = useTranslations("swimPublic");
+  const { t: tKids } = useTranslations("swimKidsPhysical");
   const { locale, setLocale, dir } = useLocale();
 
   const [member, setMember] = useState<SwimMemberData | null>(null);
@@ -411,29 +412,44 @@ export default function SwimmerProfilePage({
   const isFullyPaid = !isLinkedToPayment || (effectivePaymentStatus === "paid" && debt === 0);
   const paymentPct = priceDA > 0 ? Math.min(100, Math.round((Math.max(0, priceDA - debt) / priceDA) * 100)) : (isLinkedToPayment ? 0 : 100);
 
+  const dateLocale = locale === "ar" ? "ar-DZ-u-nu-latn" : locale === "en" ? "en-GB" : "fr-DZ";
   const formattedDateOfStart = member.dateOfStart
-    ? new Date(member.dateOfStart).toLocaleDateString(locale === "ar" ? "ar-DZ" : "fr-DZ", {
+    ? new Date(member.dateOfStart).toLocaleDateString(dateLocale, {
         year: "numeric",
         month: "short",
         day: "numeric",
       })
     : "—";
 
+  const localizedCategory = (() => {
+    const c = (member.category || "").toLowerCase();
+    if (c.includes("enfant") || c.includes("kid")) return tKids("catEnfants");
+    if (c.includes("femme")) return tKids("catFemme");
+    if (c.includes("homme")) return tKids("catHomme");
+    if (c.includes("apne")) return tKids("catApnea");
+    return member.category;
+  })();
+
+  const isKidsMember =
+    (member.category || "").toLowerCase().includes("enfant") ||
+    (member.category || "").toLowerCase().includes("kid");
+
   // Only old members (old_aqa, intermediate, advanced) may see cohort names
   const isOldMember = Boolean(member.isOldMember ?? isOldSwimMember(member.level));
 
   return (
     <div
-      className="min-h-screen bg-[#030712] text-slate-100 flex flex-col items-center py-6 px-4 selection:bg-cyan-500 selection:text-black relative overflow-x-hidden font-sans"
+      className="min-h-screen bg-[#030712] text-slate-100 flex flex-col items-center py-5 px-4 selection:bg-cyan-500 selection:text-black relative overflow-x-hidden font-sans"
       dir={dir}
     >
-      {/* Background glow effects matching AQA Events public part */}
-      <div className="fixed top-[-10%] left-[-10%] w-[60vw] h-[60vh] bg-sky-500/10 blur-[130px] pointer-events-none rounded-full" />
-      <div className="fixed bottom-[-10%] right-[-10%] w-[60vw] h-[60vh] bg-cyan-400/10 blur-[130px] pointer-events-none rounded-full" />
+      {/* Layered Dark Ocean ambient backdrop & subtle precision grid */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.045] [background-image:linear-gradient(to_right,#38bdf8_1px,transparent_1px),linear-gradient(to_bottom,#38bdf8_1px,transparent_1px)] [background-size:36px_36px]" />
+      <div className="fixed top-[-12%] left-[-12%] w-[65vw] h-[60vh] bg-sky-500/14 blur-[130px] pointer-events-none rounded-full" />
+      <div className="fixed bottom-[-12%] right-[-12%] w-[65vw] h-[60vh] bg-cyan-400/12 blur-[130px] pointer-events-none rounded-full" />
 
-      {/* Header with Official AQA Logo & Language Selector */}
-      <header className="w-full max-w-md mx-auto pt-2 pb-2 flex items-center justify-between z-10 relative">
-        <div className="flex items-center gap-3">
+      {/* Elevated Frosted Header with Official AQA Logo & Language Selector */}
+      <header className="w-full max-w-md mx-auto mb-2 px-3 py-2.5 rounded-2xl border border-white/10 bg-slate-900/75 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)] flex items-center justify-between z-10 relative">
+        <div className="flex items-center gap-2.5">
           <a
             href="https://aqasports.com"
             target="_blank"
@@ -446,23 +462,23 @@ export default function SwimmerProfilePage({
               className="h-8 sm:h-9 w-auto object-contain drop-shadow"
             />
           </a>
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 backdrop-blur-sm border border-white/10">
-            <div className="h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-white/90">
-              AQA Swim
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-cyan-950/60 px-2.5 py-1 backdrop-blur-sm border border-cyan-400/25">
+            <div className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-200">
+              {isKidsMember ? "AQA Kids" : "AQA Swim"}
             </span>
           </div>
         </div>
 
-        {/* Language Selector */}
-        <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/10">
+        {/* Language Selector (FR main, AR, EN) */}
+        <div className="flex items-center gap-0.5 bg-slate-950/90 p-1 rounded-xl border border-white/10">
           {(["fr", "ar", "en"] as const).map((lng) => (
             <button
               key={lng}
               onClick={() => setLocale(lng)}
-              className={`px-2 py-0.5 rounded-lg text-[11px] font-bold uppercase transition-all ${
+              className={`px-2 py-0.5 rounded-lg text-[11px] font-bold uppercase transition-all cursor-pointer ${
                 locale === lng
-                  ? "bg-cyan-500 text-slate-950 shadow-[0_0_8px_rgba(0,242,255,0.3)]"
+                  ? "bg-gradient-to-r from-sky-500 to-cyan-400 text-slate-950 shadow-[0_0_10px_rgba(0,242,255,0.35)]"
                   : "text-slate-400 hover:text-white"
               }`}
             >
@@ -522,7 +538,8 @@ export default function SwimmerProfilePage({
             </section>
 
             {/* 2. CONFIRMED STATUS BANNER & SWIMMER SUMMARY */}
-            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
+            <section className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-b from-slate-900/95 to-slate-950/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3">
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
@@ -530,13 +547,13 @@ export default function SwimmerProfilePage({
                     {t("statusConfirmed")}
                   </span>
                 </div>
-                <span className="font-mono text-xs text-cyan-300 font-bold px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/30">
+                <span className="font-mono text-xs text-cyan-300 font-bold px-2.5 py-0.5 rounded-lg bg-cyan-950/70 border border-cyan-500/30">
                   {member.swimId}
                 </span>
               </div>
-              <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
-                <span className="text-slate-400">{member.category} · {member.formula}</span>
-                <span className="text-slate-300 font-medium">{formattedDateOfStart}</span>
+              <div className="flex items-center justify-between text-xs pt-2 border-t border-white/5">
+                <span className="text-slate-300 font-medium">{localizedCategory} · {member.formula}</span>
+                <span className="text-slate-400 font-mono text-[11px]">{formattedDateOfStart}</span>
               </div>
             </section>
 
@@ -744,7 +761,7 @@ export default function SwimmerProfilePage({
                         <div className="space-y-0.5">
                           <span className="font-semibold text-white capitalize text-[11px] block">{p.method}</span>
                           <span className="text-[10px] text-slate-400 block">
-                            {new Date(p.paidAt).toLocaleDateString(locale === "ar" ? "ar-DZ" : "fr-DZ", {
+                            {new Date(p.paidAt).toLocaleDateString(locale === "ar" ? "ar-DZ-u-nu-latn" : "fr-DZ", {
                               year: "numeric",
                               month: "short",
                               day: "numeric",
@@ -772,12 +789,12 @@ export default function SwimmerProfilePage({
                 : durationToDays(member.duration);
               const formattedSubStart = member.subscriptionStart
                 ? new Date(member.subscriptionStart).toLocaleDateString(
-                    locale === "ar" ? "ar-DZ" : "fr-DZ",
+                    locale === "ar" ? "ar-DZ-u-nu-latn" : "fr-DZ",
                     { year: "numeric", month: "short", day: "numeric" }
                   )
                 : "—";
               const formattedSubEnd = new Date(member.subscriptionEnd).toLocaleDateString(
-                locale === "ar" ? "ar-DZ" : "fr-DZ",
+                locale === "ar" ? "ar-DZ-u-nu-latn" : "fr-DZ",
                 { year: "numeric", month: "short", day: "numeric" }
               );
               return (
@@ -942,26 +959,26 @@ export default function SwimmerProfilePage({
             </section>
 
             {/* 6. BASICS */}
-            <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-2.5">
+            <section className="relative overflow-hidden p-4 rounded-2xl bg-gradient-to-b from-slate-900/95 to-slate-950/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-2.5">
               <h2 className="text-xs font-bold text-white uppercase tracking-wider font-display pb-2 border-b border-white/10">
                 {t("basicsTitle")}
               </h2>
               <div className="grid grid-cols-2 gap-2.5 text-xs">
-                <div>
+                <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
                   <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("category")}</span>
-                  <span className="font-semibold text-white capitalize">{member.category}</span>
+                  <span className="font-semibold text-white">{localizedCategory}</span>
                 </div>
-                <div>
+                <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
                   <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("level")}</span>
                   <span className="font-semibold text-white">{member.level}</span>
                 </div>
-                <div>
+                <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
                   <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("startDate")}</span>
-                  <span className="font-semibold text-white">{formattedDateOfStart}</span>
+                  <span className="font-semibold text-white font-mono text-[11px]">{formattedDateOfStart}</span>
                 </div>
-                <div>
+                <div className="rounded-xl bg-slate-900/70 border border-white/5 p-2.5">
                   <span className="text-[10px] text-slate-400 uppercase font-semibold block">{t("contactPhone")}</span>
-                  <span className="font-mono text-cyan-300">{member.phone || "—"}</span>
+                  <span className="font-mono text-cyan-300" dir="ltr">{member.phone || "—"}</span>
                 </div>
               </div>
             </section>

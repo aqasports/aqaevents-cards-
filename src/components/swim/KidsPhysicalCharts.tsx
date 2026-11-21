@@ -189,6 +189,9 @@ interface KidsWhoBmiGaugeProps {
   band: WhoBmiBand | null;
   bandLabel: string;
   title: string;
+  optimalZoneLabel?: string;
+  zScoreLabel?: string;
+  unitLabel?: string;
 }
 
 export function KidsWhoBmiGauge({
@@ -197,6 +200,9 @@ export function KidsWhoBmiGauge({
   band,
   bandLabel,
   title,
+  optimalZoneLabel = "Optimal OMS",
+  zScoreLabel = "Score Z",
+  unitLabel = "kg/m2",
 }: KidsWhoBmiGaugeProps) {
   if (bmi === null) return null;
 
@@ -219,7 +225,7 @@ export function KidsWhoBmiGauge({
         <span className="text-[11px] font-semibold text-slate-300">{title}</span>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-xs font-bold text-white" dir="ltr">
-            {bmi} kg/m2
+            {bmi} {unitLabel}
           </span>
           {band && (
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeTone}`}>
@@ -251,12 +257,12 @@ export function KidsWhoBmiGauge({
           <div className="flex justify-between text-[9px] font-mono text-slate-500">
             <span>-3 SD</span>
             <span>-2 SD</span>
-            <span className="text-emerald-400">WHO Optimal</span>
+            <span className="text-emerald-400">{optimalZoneLabel}</span>
             <span>+1 SD</span>
             <span>+2 SD</span>
           </div>
           <div className="text-[10px] font-mono text-slate-400 text-right">
-            Z-score: {zScore > 0 ? `+${zScore}` : zScore} SD
+            {zScoreLabel}: {zScore > 0 ? `+${zScore}` : zScore} SD
           </div>
         </div>
       )}

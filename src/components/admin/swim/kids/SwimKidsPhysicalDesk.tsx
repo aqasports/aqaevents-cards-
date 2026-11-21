@@ -79,7 +79,7 @@ function bmiBandKey(band: WhoBmiBand | null): string {
 
 export function SwimKidsPhysicalDesk() {
   const { t } = useTranslations("swimKidsPhysical");
-  const { locale } = useLocale();
+  const { locale, setLocale } = useLocale();
 
   const [data, setData] = useState<DeskResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -183,7 +183,7 @@ export function SwimKidsPhysicalDesk() {
     // Pre-fill evaluator & child's previous standing info where helpful, keeping new date
     setBilanDraft({
       ...base,
-      label: `Bilan #${member.totalAssessments + 1}`,
+      label: `${t("bilanDefaultPrefix")} #${member.totalAssessments + 1}`,
       evaluatorTitle: latest?.evaluatorTitle ?? base.evaluatorTitle,
       heightCm: latest?.heightCm ?? null,
       weightKg: latest?.weightKg ?? null,
@@ -236,8 +236,8 @@ export function SwimKidsPhysicalDesk() {
       await load();
       setNotice(t("bilanSaved"));
       setEditorMode("history");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save bilan");
+    } catch {
+      setError(t("saveError"));
     } finally {
       setSaving(false);
     }
@@ -339,13 +339,31 @@ export function SwimKidsPhysicalDesk() {
           <h2 className="text-lg font-bold text-white">{t("adminTitle")}</h2>
           <p className="text-xs text-slate-400 mt-0.5">{t("adminSubtitle")}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => load()}
-          className="self-start sm:self-auto min-h-[38px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-xs font-semibold text-slate-300 hover:text-white transition-all"
-        >
-          {t("refresh")}
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-0.5 rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] p-1">
+            {(["fr", "ar", "en"] as const).map((lng) => (
+              <button
+                key={lng}
+                type="button"
+                onClick={() => setLocale(lng)}
+                className={`rounded-md px-2 py-1 text-[11px] font-bold uppercase transition-all ${
+                  locale === lng
+                    ? "bg-cyan-500 text-slate-950"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                {lng}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => load()}
+            className="min-h-[38px] rounded-[10px] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 text-xs font-semibold text-slate-300 hover:text-white transition-all"
+          >
+            {t("refresh")}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -467,7 +485,7 @@ export function SwimKidsPhysicalDesk() {
                             </span>
                             {latest.evaluation.bmi !== null && (
                               <span className="block text-[10px] text-cyan-300">
-                                IMC {latest.evaluation.bmi} · {t(bmiBandKey(latest.evaluation.bmiBand))}
+                                {t("bmiShort")} {latest.evaluation.bmi} · {t(bmiBandKey(latest.evaluation.bmiBand))}
                               </span>
                             )}
                           </div>
@@ -521,7 +539,7 @@ export function SwimKidsPhysicalDesk() {
                           <div>
                             <span className="text-white font-bold">{m.totalAssessments}</span>
                             <span className="block text-[10px] text-cyan-400">
-                              {m.publishedCount} pub
+                              {m.publishedCount} {t("publishedShort")}
                             </span>
                           </div>
                         ) : (
@@ -579,7 +597,7 @@ export function SwimKidsPhysicalDesk() {
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  {activeMember.group?.name || "AQA Kids"} · {activeMember.totalAssessments} bilan(s)
+                  {activeMember.group?.name || "AQA Kids"} · {t("bilansRecorded", { n: activeMember.totalAssessments })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -814,7 +832,7 @@ export function SwimKidsPhysicalDesk() {
                             onChange={(e) =>
                               setBilanDraft({ ...bilanDraft, label: e.target.value })
                             }
-                            placeholder="Bilan Initial T1"
+                            placeholder={t("bilanLabelPlaceholder")}
                             className={inputCls}
                           />
                         </div>
@@ -1168,7 +1186,7 @@ export function SwimKidsPhysicalDesk() {
                             placeholder="25"
                             className={inputCls}
                           />
-                          <p className={hintCls}>Ref: 20-35 mm</p>
+                          <p className={hintCls}>{t("refC7")}</p>
                         </div>
                         <div>
                           <label className={labelCls}>T6 (mm)</label>
@@ -1186,7 +1204,7 @@ export function SwimKidsPhysicalDesk() {
                             placeholder="0"
                             className={inputCls}
                           />
-                          <p className={hintCls}>Ref: 0 mm</p>
+                          <p className={hintCls}>{t("refT6")}</p>
                         </div>
                         <div>
                           <label className={labelCls}>L3 (mm)</label>
@@ -1204,7 +1222,7 @@ export function SwimKidsPhysicalDesk() {
                             placeholder="32"
                             className={inputCls}
                           />
-                          <p className={hintCls}>Ref: 25-40 mm</p>
+                          <p className={hintCls}>{t("refL3")}</p>
                         </div>
                       </div>
                     </div>
@@ -1712,6 +1730,9 @@ export function SwimKidsPhysicalDesk() {
                     band={livePreview.evaluation.bmiBand}
                     bandLabel={t(bmiBandKey(livePreview.evaluation.bmiBand))}
                     title={t("bmi")}
+                    optimalZoneLabel={t("whoOptimalShort")}
+                    zScoreLabel={t("zScoreLabel")}
+                    unitLabel={t("unitBmi")}
                   />
 
                   <KidsDomainRadarChart
