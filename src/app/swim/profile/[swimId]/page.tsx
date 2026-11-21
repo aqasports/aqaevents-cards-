@@ -9,6 +9,8 @@ import { calculateSwimPrice } from "@/lib/swim-pricing";
 import { getSwimPaymentWhatsAppUrl } from "@/lib/swim-whatsapp";
 import { durationToDays, isStarterFormula, getStarterNominalDays } from "@/lib/swim-subscription";
 import { ApneaProfileView, type ApneaProfileViewData } from "@/components/swim/ApneaProfileView";
+import { KidsPhysicalPortalSection } from "@/components/swim/KidsPhysicalPortalSection";
+import type { PublicKidsPhysicalPayload } from "@/lib/swim-kids-physical-server";
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -85,6 +87,7 @@ interface SwimMemberData {
   subscriptionStatus?: "active" | "expiring_soon" | "expired" | null;
   debt?: number;
   apnea?: ApneaProfileViewData;
+  kidsPhysical?: PublicKidsPhysicalPayload;
 }
 
 // ─── Solid Logo Badge Component ───────────────────────────────────────────────
@@ -537,6 +540,15 @@ export default function SwimmerProfilePage({
               </div>
             </section>
 
+            {/* 2B. AQA KIDS SUIVI PHYSIQUE & BILAN KINESITHERAPIQUE */}
+            {member.kidsPhysical && (
+              <KidsPhysicalPortalSection
+                memberName={member.fullName}
+                swimId={member.swimId}
+                data={member.kidsPhysical}
+              />
+            )}
+
             {/* 3. FINANCIAL LEDGER & PAYMENTS */}
             <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
@@ -985,6 +997,15 @@ export default function SwimmerProfilePage({
                 </span>
               </div>
             </section>
+
+            {/* AQA KIDS SUIVI PHYSIQUE & BILAN KINESITHERAPIQUE */}
+            {member.kidsPhysical && (
+              <KidsPhysicalPortalSection
+                memberName={member.fullName}
+                swimId={member.swimId}
+                data={member.kidsPhysical}
+              />
+            )}
 
             {/* 1. THE GROUP TABLE & GROUP NAMES TABLE */}
             <section className="p-4 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-xl shadow-xl space-y-3.5">

@@ -177,6 +177,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: "poolDirection", href: "/admin/swim/pool", icon: ICONS.pool },
       { key: "swimCoaching", href: "/admin/swim/coaching", icon: ICONS.coaching },
+      { key: "swimKidsSuivi", href: "/admin/swim?tab=kids", icon: ICONS.coaching },
       { key: "swimCalls", href: "/admin/swim/calls", icon: ICONS.calls },
     ],
   },

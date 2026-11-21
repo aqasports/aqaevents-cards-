@@ -14,6 +14,7 @@ import { checkAndIncrement } from "@/lib/rate-limit";
 import { generateSwimCardCode, generateSwimToken } from "@/lib/swim-id";
 
 import { loadApneaProfile } from "@/lib/swim-apnea-profile";
+import { loadPublicKidsPhysicalProfile } from "@/lib/swim-kids-physical-server";
 import {
   getEffectiveSubscriptionStart,
   getEffectiveSubscriptionEnd,
@@ -391,13 +392,17 @@ export async function GET(
     };
     delete safeMember.notes;
 
-    // AQA Apnea members get an extra profile block (additive; other categories unaffected)
-    const apnea = await loadApneaProfile(member.id, member.category);
+    // AQA Apnea & AQA Kids Suivi Physique blocks (additive; other categories unaffected)
+    const [apnea, kidsPhysical] = await Promise.all([
+      loadApneaProfile(member.id, member.category),
+      loadPublicKidsPhysicalProfile(member.id, member.category),
+    ]);
 
     return NextResponse.json(
       {
         ...safeMember,
         ...(apnea ? { apnea } : {}),
+        ...(kidsPhysical ? { kidsPhysical } : {}),
         priceDA: enriched.effectivePriceDA,
         groups: enriched.allGroups,
         isOldMember: enriched.isOldMember,

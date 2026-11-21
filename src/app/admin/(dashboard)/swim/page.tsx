@@ -48,6 +48,7 @@ import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
 import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
 import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
 import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
+import { SwimKidsPhysicalDesk } from "@/components/admin/swim/kids/SwimKidsPhysicalDesk";
 import { SwimFinanceDesk } from "@/components/admin/swim/finance/SwimFinanceDesk";
 import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
 import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
@@ -183,7 +184,7 @@ function SwimOverviewPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t: tPaymentsDesk } = useTranslations("swimPaymentsDesk");
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "finance">("confirmed");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "kids" | "finance">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -207,6 +208,7 @@ function SwimOverviewPageInner() {
       tabParam === "equipment" ||
       tabParam === "pool" ||
       tabParam === "apnea" ||
+      tabParam === "kids" ||
       tabParam === "finance"
     ) {
       setActiveTab(tabParam);
@@ -1262,6 +1264,23 @@ function SwimOverviewPageInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 15c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 3 2M3 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 3 2M12 3v6m0 0l-3-3m3 3l3-3" />
               </svg>
               <span>AQA Apnea</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab("kids")}
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                activeTab === "kids"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
+                  : "text-cyan-400 hover:text-white hover:bg-cyan-950/60 border border-cyan-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2c-1.5 4 1.5 8 0 12s1.5 8 0 8" />
+                <circle cx="12" cy="5" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="12" cy="19" r="1.5" />
+              </svg>
+              <span>AQA Kids · Suivi Physique</span>
             </button>
 
             <button
@@ -2714,6 +2733,11 @@ function SwimOverviewPageInner() {
       {/* TAB: AQA APNEA (packs, presence, records, coach terminals) */}
       {activeTab === "apnea" && (
         <SwimApneaDesk />
+      )}
+
+      {/* TAB: AQA KIDS SUIVI PHYSIQUE & BILAN KINESITHERAPIQUE */}
+      {activeTab === "kids" && (
+        <SwimKidsPhysicalDesk />
       )}
 
       {/* TAB: COMPTABILITE, RENTABILITE & COMPARATEUR DE PERIODES */}
