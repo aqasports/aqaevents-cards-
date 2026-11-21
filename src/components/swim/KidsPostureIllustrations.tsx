@@ -53,7 +53,7 @@ export function KidsHeroBannerVisual({
       }`}
     >
       <img
-        src="/images/kids-suivi/hero-body-scan.jpg"
+        src="/image/kids-suivi/hero-body-scan.jpg"
         alt={statusLabel}
         className="h-full w-full object-cover object-[50%_26%] scale-[1.08] select-none"
       />
@@ -130,7 +130,7 @@ export function ScoliosisAdamsIllustration({
       {/* 4K 3D Side-by-Side Pediatric Spine Hologram */}
       <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
         <img
-          src="/images/kids-suivi/scoliosis-hologram.jpg"
+          src="/image/kids-suivi/scoliosis-hologram.jpg"
           alt={labels.normal}
           className="w-full aspect-[16/9] object-cover select-none"
         />
@@ -224,7 +224,7 @@ export function SagittalSpineIllustration({
       {/* Focused 3D Vertebral Column Hologram Viewport */}
       <div className="relative h-40 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
         <img
-          src="/images/kids-suivi/hero-body-scan.jpg"
+          src="/image/kids-suivi/hero-body-scan.jpg"
           alt={labels.ideal}
           className="h-full w-full object-cover object-[50%_34%] scale-[1.55] select-none"
         />
@@ -324,7 +324,7 @@ export function KneeAlignmentIllustration({
       {/* Focused 3D Holographic Knee Joints Viewport */}
       <div className="relative h-36 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
         <img
-          src="/images/kids-suivi/hero-body-scan.jpg"
+          src="/image/kids-suivi/hero-body-scan.jpg"
           alt={labels.normal}
           className="h-full w-full object-cover object-[50%_72%] scale-[1.8] select-none"
         />
@@ -414,7 +414,7 @@ export function FootArchIllustration({
       {/* Focused 3D Holographic Feet & Plantar Arch Viewport */}
       <div className="relative h-36 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
         <img
-          src="/images/kids-suivi/hero-body-scan.jpg"
+          src="/image/kids-suivi/hero-body-scan.jpg"
           alt={labels.normal}
           className="h-full w-full object-cover object-[50%_94%] scale-[2.1] select-none"
         />
@@ -471,7 +471,7 @@ export function AquaticProgramHeroBanner({
   return (
     <div className="relative h-36 w-full overflow-hidden rounded-2xl border border-cyan-500/30 bg-[#030712]">
       <img
-        src="/images/kids-suivi/ocean-rays.jpg"
+        src="/image/kids-suivi/ocean-rays.jpg"
         alt={title}
         className="h-full w-full object-cover object-center select-none"
       />

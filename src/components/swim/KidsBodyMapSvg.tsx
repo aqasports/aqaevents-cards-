@@ -77,7 +77,7 @@ const STATUS_STYLE: Record<
   },
 };
 
-// Coordinates calibrated to /images/kids-suivi/hero-body-scan.jpg (16:9 3D child hologram)
+// Coordinates calibrated to /image/kids-suivi/hero-body-scan.jpg (16:9 3D child hologram)
 const LANDMARKS: { key: BodyZoneKey; leftPct: number; topPct: number }[] = [
   { key: "head", leftPct: 50.2, topPct: 16.5 },
   { key: "shoulders", leftPct: 45.8, topPct: 27.5 },
@@ -192,7 +192,7 @@ export function KidsBodyMapSvg({
         dir="ltr"
       >
         <img
-          src="/images/kids-suivi/hero-body-scan.jpg"
+          src="/image/kids-suivi/hero-body-scan.jpg"
           alt={labels.zoneSpineFrontal}
           className="h-full w-full object-cover object-center select-none"
         />
