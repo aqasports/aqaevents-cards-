@@ -11,9 +11,9 @@ import {
   KidsWhoBmiGauge,
 } from "@/components/swim/KidsPhysicalCharts";
 import {
-  AquaticCorrectiveIllustration,
+  AquaticProgramHeroBanner,
   FootArchIllustration,
-  KidsHeroSuiviIllustration,
+  KidsHeroBannerVisual,
   KneeAlignmentIllustration,
   SagittalSpineIllustration,
   ScoliosisAdamsIllustration,
@@ -52,6 +52,35 @@ function bmiBandKey(band: WhoBmiBand | null): string {
   }
 }
 
+function FunctionalBar({
+  label,
+  valueText,
+  pct,
+  color = "from-sky-500 to-cyan-300",
+}: {
+  label: string;
+  valueText: string;
+  pct: number;
+  color?: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="text-slate-300 font-medium">{label}</span>
+        <span className="font-mono font-bold text-white" dir="ltr">
+          {valueText}
+        </span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800/90">
+        <div
+          className={`h-full rounded-full bg-gradient-to-r ${color} transition-all duration-500`}
+          style={{ width: `${Math.max(6, Math.min(100, pct))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function KidsPhysicalPortalSection({
   memberName,
   swimId,
@@ -66,7 +95,6 @@ export function KidsPhysicalPortalSection({
   const assessments = data.assessments ?? [];
   const active = assessments[selectedIdx] ?? assessments[0] ?? null;
 
-  // Lock background scroll & support Escape while Suivi Physique viewer is open
   useEffect(() => {
     if (!modalOpen) return;
     const prevOverflow = document.body.style.overflow;
@@ -85,32 +113,20 @@ export function KidsPhysicalPortalSection({
     ? active.evaluation.overallStatus === "referral"
       ? {
           label: t("statusReferral"),
-          pill: "bg-rose-950/80 text-rose-300 border-rose-500/40",
-          ring: "#ef4444",
-          dot: "bg-rose-400",
-          glow: "border-rose-500/35 shadow-[0_0_24px_rgba(239,68,68,0.12)]",
+          glow: "border-rose-500/35 shadow-[0_0_28px_rgba(239,68,68,0.14)]",
         }
       : active.evaluation.overallStatus === "watch"
         ? {
             label: t("statusWatch"),
-            pill: "bg-amber-950/80 text-amber-300 border-amber-500/40",
-            ring: "#f59e0b",
-            dot: "bg-amber-400",
-            glow: "border-amber-500/35 shadow-[0_0_24px_rgba(245,158,11,0.12)]",
+            glow: "border-amber-500/35 shadow-[0_0_28px_rgba(245,158,11,0.14)]",
           }
         : {
             label: t("statusOptimal"),
-            pill: "bg-emerald-950/80 text-emerald-300 border-emerald-500/40",
-            ring: "#10b981",
-            dot: "bg-emerald-400",
-            glow: "border-cyan-500/35 shadow-[0_0_24px_rgba(0,242,255,0.12)]",
+            glow: "border-cyan-500/35 shadow-[0_0_28px_rgba(0,242,255,0.14)]",
           }
     : {
         label: t("portalBadge"),
-        pill: "bg-sky-950/80 text-sky-300 border-sky-500/35",
-        ring: "#38bdf8",
-        dot: "bg-cyan-400",
-        glow: "border-cyan-500/30 shadow-[0_0_22px_rgba(0,242,255,0.1)]",
+        glow: "border-cyan-500/30 shadow-[0_0_24px_rgba(0,242,255,0.12)]",
       };
 
   const valLabel = (val: string) => t(`val_${val}`);
@@ -124,70 +140,52 @@ export function KidsPhysicalPortalSection({
     <>
       {/* ─── INLINE ACCESS CARD ON PUBLIC SWIM PROFILE ─── */}
       <section
-        className={`relative overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-900/95 via-sky-950/35 to-slate-950/95 p-4 backdrop-blur-xl transition-all ${statusConfig.glow}`}
+        className={`relative overflow-hidden rounded-2xl border bg-gradient-to-b from-slate-900/95 to-slate-950/95 p-3.5 backdrop-blur-xl transition-all space-y-3.5 ${statusConfig.glow}`}
       >
-        {/* Subtle luminous top accent line */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+        {/* 4K 3D Holographic Hero Visual */}
+        <KidsHeroBannerVisual
+          status={active ? active.evaluation.overallStatus : "pending"}
+          score={active ? active.evaluation.overallScore : null}
+          statusLabel={statusConfig.label}
+          scoreLabel={t("overallScore")}
+          compact
+        />
 
-        <div className="flex items-center gap-3.5">
-          {/* Custom Aquatic-Morphostatic Hero Illustration */}
-          <div className="shrink-0 rounded-2xl border border-white/10 bg-slate-950/70 p-1.5 shadow-inner">
-            <KidsHeroSuiviIllustration
-              status={active ? active.evaluation.overallStatus : "pending"}
-              className="w-20 h-20"
-            />
-          </div>
-
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusConfig.pill}`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${statusConfig.dot}`} />
-              {statusConfig.label}
-            </span>
-            <h2 className="text-sm font-extrabold text-white font-display leading-snug">
-              {t("sectionTitle")}
-            </h2>
-            <p className="text-[11px] text-slate-300/90 leading-relaxed">
-              {active
-                ? `${t("assessedOn")} ${fmtDate(active.assessment.assessedAt, locale)} · ${t("bilansRecorded", { n: assessments.length })}`
-                : t("entryCardDesc")}
-            </p>
-          </div>
+        <div className="px-0.5 space-y-1">
+          <h2 className="text-sm font-extrabold text-white font-display leading-snug">
+            {t("sectionTitle")}
+          </h2>
+          <p className="text-[11px] text-slate-300/90 leading-relaxed">
+            {active
+              ? `${t("assessedOn")} ${fmtDate(active.assessment.assessedAt, locale)} · ${t("bilansRecorded", { n: assessments.length })}`
+              : t("entryCardDesc")}
+          </p>
         </div>
 
-        {/* Compact Metric Strip when at least 1 bilan exists */}
+        {/* Compact Metric Strip when assessed */}
         {active && (
-          <div className="mt-3.5 grid grid-cols-4 gap-1.5 text-center">
-            <div className="rounded-xl border border-white/10 bg-slate-950/70 px-1.5 py-2">
-              <span className="block text-[9px] uppercase font-semibold text-slate-400 truncate">
-                {t("overallScore")}
-              </span>
-              <span className="font-mono text-xs font-black text-cyan-300">
-                {active.evaluation.overallScore}%
-              </span>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-slate-950/70 px-1.5 py-2">
-              <span className="block text-[9px] uppercase font-semibold text-slate-400 truncate">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl border border-white/10 bg-slate-950/75 px-2 py-2">
+              <span className="block text-[9px] uppercase font-semibold text-slate-400">
                 {t("height")}
               </span>
               <span className="font-mono text-xs font-bold text-white" dir="ltr">
                 {active.assessment.heightCm !== null ? `${active.assessment.heightCm} cm` : "-"}
               </span>
             </div>
-            <div className="rounded-xl border border-white/10 bg-slate-950/70 px-1.5 py-2">
-              <span className="block text-[9px] uppercase font-semibold text-slate-400 truncate">
+            <div className="rounded-xl border border-white/10 bg-slate-950/75 px-2 py-2">
+              <span className="block text-[9px] uppercase font-semibold text-slate-400">
                 {t("weight")}
               </span>
               <span className="font-mono text-xs font-bold text-white" dir="ltr">
                 {active.assessment.weightKg !== null ? `${active.assessment.weightKg} kg` : "-"}
               </span>
             </div>
-            <div className="rounded-xl border border-white/10 bg-slate-950/70 px-1.5 py-2">
-              <span className="block text-[9px] uppercase font-semibold text-slate-400 truncate">
+            <div className="rounded-xl border border-white/10 bg-slate-950/75 px-2 py-2">
+              <span className="block text-[9px] uppercase font-semibold text-slate-400">
                 {t("bmiShort")}
               </span>
-              <span className="font-mono text-xs font-bold text-emerald-300" dir="ltr">
+              <span className="font-mono text-xs font-bold text-cyan-300" dir="ltr">
                 {active.evaluation.bmi !== null ? active.evaluation.bmi : "-"}
               </span>
             </div>
@@ -201,17 +199,9 @@ export function KidsPhysicalPortalSection({
             setActiveTab("overview");
             setModalOpen(true);
           }}
-          className="mt-3.5 w-full py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-300 hover:from-sky-400 hover:via-cyan-300 hover:to-teal-200 text-slate-950 shadow-[0_0_20px_rgba(0,242,255,0.28)] flex items-center justify-between gap-2 group active:scale-[0.99] transition-all cursor-pointer"
+          className="w-full py-3 px-4 rounded-xl text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-sky-500 via-cyan-400 to-teal-300 hover:from-sky-400 hover:via-cyan-300 hover:to-teal-200 text-slate-950 shadow-[0_0_22px_rgba(0,242,255,0.3)] flex items-center justify-between gap-2 group active:scale-[0.99] transition-all cursor-pointer"
         >
-          <div className="flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" className="w-4 h-4 shrink-0">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 2c-1.5 4 1.5 8 0 12s1.5 8 0 8" />
-              <circle cx="12" cy="5" r="1.4" />
-              <circle cx="12" cy="12" r="1.4" />
-              <circle cx="12" cy="19" r="1.4" />
-            </svg>
-            <span>{active ? t("openSuiviBtn") : t("discoverProtocolBtn")}</span>
-          </div>
+          <span>{active ? t("openSuiviBtn") : t("discoverProtocolBtn")}</span>
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -231,7 +221,6 @@ export function KidsPhysicalPortalSection({
           dir={dir}
           className="fixed inset-0 z-50 overflow-y-auto bg-[#030712] text-slate-100"
         >
-          {/* Ambient Dark Ocean Backdrop */}
           <div className="pointer-events-none fixed left-[-15%] top-[-10%] h-[55vh] w-[55vw] rounded-full bg-sky-500/12 blur-[130px]" />
           <div className="pointer-events-none fixed bottom-[-10%] right-[-15%] h-[55vh] w-[55vw] rounded-full bg-cyan-400/10 blur-[130px]" />
 
@@ -256,7 +245,6 @@ export function KidsPhysicalPortalSection({
               </button>
 
               <div className="flex items-center gap-2">
-                {/* Language Switcher (FR main, AR, EN) */}
                 <div className="print:hidden flex items-center gap-0.5 rounded-xl border border-white/10 bg-slate-900/90 p-1">
                   {(["fr", "ar", "en"] as const).map((lng) => (
                     <button
@@ -297,12 +285,9 @@ export function KidsPhysicalPortalSection({
             {/* ── CASE 1: PROTOCOL PREVIEW (NO PUBLISHED BILAN YET) ── */}
             {!active ? (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-slate-900/95 via-sky-950/40 to-slate-950/95 p-5 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-start">
-                  <KidsHeroSuiviIllustration status="pending" className="w-24 h-24 shrink-0" />
-                  <div className="space-y-1.5">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-950/60 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-                      {t("portalBadge")}
-                    </span>
+                <div className="rounded-2xl border border-cyan-500/30 bg-slate-900/90 p-4 space-y-3.5">
+                  <KidsHeroBannerVisual status="pending" statusLabel={t("portalBadge")} />
+                  <div className="space-y-1">
                     <h2 className="text-base font-extrabold text-white font-display">
                       {t("pendingTitle")}
                     </h2>
@@ -310,7 +295,7 @@ export function KidsPhysicalPortalSection({
                   </div>
                 </div>
 
-                {/* Illustrated Preview of the 4 Pediatric Pillars */}
+                {/* Illustrated Preview of the Pediatric Screening Pillars */}
                 <div className="rounded-2xl border border-white/10 bg-slate-900/85 p-4 space-y-4">
                   <div>
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
@@ -319,8 +304,8 @@ export function KidsPhysicalPortalSection({
                     <p className="text-[11px] text-slate-400 mt-0.5">{t("protocolSubtitle")}</p>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 space-y-2">
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 space-y-2.5">
                       <p className="text-xs font-bold text-white">{t("protocolPillar1")}</p>
                       <ScoliosisAdamsIllustration
                         labels={{
@@ -332,7 +317,7 @@ export function KidsPhysicalPortalSection({
                       />
                     </div>
 
-                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 space-y-2">
+                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 space-y-2.5">
                       <p className="text-xs font-bold text-white">{t("protocolPillar2")}</p>
                       <SagittalSpineIllustration
                         labels={{
@@ -344,27 +329,30 @@ export function KidsPhysicalPortalSection({
                       />
                     </div>
 
-                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 space-y-2">
+                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 space-y-3">
                       <p className="text-xs font-bold text-white">{t("protocolPillar3")}</p>
-                      <div className="space-y-2.5">
-                        <KneeAlignmentIllustration
-                          labels={{
-                            normal: t("illusKneeNormal"),
-                            valgum: t("illusKneeValgum"),
-                            varum: t("illusKneeVarum"),
-                            yourChild: t("yourChildResult"),
-                          }}
-                        />
-                        <FootArchIllustration
-                          labels={{
-                            normal: t("illusFootNormal"),
-                            flat: t("illusFootFlat"),
-                            jack: t("illusFootJack"),
-                            yourChild: t("yourChildResult"),
-                          }}
-                        />
-                      </div>
+                      <KneeAlignmentIllustration
+                        labels={{
+                          normal: t("illusKneeNormal"),
+                          valgum: t("illusKneeValgum"),
+                          varum: t("illusKneeVarum"),
+                          yourChild: t("yourChildResult"),
+                        }}
+                      />
+                      <FootArchIllustration
+                        labels={{
+                          normal: t("illusFootNormal"),
+                          flat: t("illusFootFlat"),
+                          jack: t("illusFootJack"),
+                          yourChild: t("yourChildResult"),
+                        }}
+                      />
                     </div>
+
+                    <AquaticProgramHeroBanner
+                      title={t("protocolPillar4")}
+                      subtitle={t("recsTitle")}
+                    />
                   </div>
                 </div>
 
@@ -374,81 +362,50 @@ export function KidsPhysicalPortalSection({
               /* ── CASE 2: FULL INTERACTIVE SUIVI PHYSIQUE DASHBOARD ── */
               <>
                 {/* Hero Child Summary Card */}
-                <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-slate-900/95 via-sky-950/40 to-slate-950/95 p-4 sm:p-5 shadow-[0_0_30px_rgba(0,242,255,0.1)]">
-                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <KidsHeroSuiviIllustration
-                        status={active.evaluation.overallStatus}
-                        className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 hidden sm:block"
-                      />
-                      <div className="space-y-1.5 min-w-0">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${statusConfig.pill}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
-                          {statusConfig.label}
-                        </span>
-                        <h1 className="text-base sm:text-lg font-extrabold text-white font-display truncate">
-                          {memberName}
-                        </h1>
-                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-300">
-                          <span className="font-mono text-cyan-300 font-bold">{swimId}</span>
-                          {active.evaluation.ageYears !== null && (
-                            <span className="font-mono">
-                              {active.evaluation.ageYears} {t("ageYears")}
-                            </span>
-                          )}
-                          <span>
-                            {t("assessedOn")}:{" "}
-                            <strong className="font-mono text-white">
-                              {fmtDate(active.assessment.assessedAt, locale)}
-                            </strong>
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-400">
-                          <span>
-                            {t("evaluator")}: <span className="text-slate-200">{active.assessment.evaluatorName}</span>
-                          </span>
-                          {active.assessment.nextCheckupDate && (
-                            <span className="text-sky-400">
-                              {t("nextCheckup")}:{" "}
-                              <span className="font-mono">{fmtDate(active.assessment.nextCheckupDate, locale)}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                <div className="rounded-2xl border border-cyan-500/30 bg-gradient-to-b from-slate-900/95 to-slate-950/95 p-4 space-y-3.5 shadow-[0_0_30px_rgba(0,242,255,0.1)]">
+                  <KidsHeroBannerVisual
+                    status={active.evaluation.overallStatus}
+                    score={active.evaluation.overallScore}
+                    statusLabel={statusConfig.label}
+                    scoreLabel={t("overallScore")}
+                  />
 
-                    {/* Circular Postural Index Ring */}
-                    <div className="shrink-0 flex flex-col items-center">
-                      <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center">
-                        <svg viewBox="0 0 64 64" className="w-full h-full -rotate-90">
-                          <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="5" />
-                          <circle
-                            cx="32"
-                            cy="32"
-                            r="26"
-                            fill="none"
-                            stroke={statusConfig.ring}
-                            strokeWidth="5"
-                            strokeLinecap="round"
-                            strokeDasharray={`${(active.evaluation.overallScore / 100) * 163.36} 163.36`}
-                          />
-                        </svg>
-                        <span className="absolute font-mono text-base sm:text-lg font-black text-white">
-                          {active.evaluation.overallScore}
-                        </span>
-                      </div>
-                      <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold mt-0.5">
-                        {t("overallScore")}
+                  <div className="space-y-1 px-0.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h1 className="text-lg font-extrabold text-white font-display">
+                        {memberName}
+                      </h1>
+                      <span className="font-mono text-xs text-cyan-300 font-bold rounded-lg bg-cyan-950/70 border border-cyan-500/30 px-2.5 py-0.5">
+                        {swimId}
                       </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-300">
+                      {active.evaluation.ageYears !== null && (
+                        <span className="font-mono text-cyan-200 font-semibold">
+                          {active.evaluation.ageYears} {t("ageYears")}
+                        </span>
+                      )}
+                      <span>
+                        {t("assessedOn")}:{" "}
+                        <strong className="font-mono text-white">
+                          {fmtDate(active.assessment.assessedAt, locale)}
+                        </strong>
+                      </span>
+                      <span>
+                        {t("evaluator")}: <strong className="text-white">{active.assessment.evaluatorName}</strong>
+                      </span>
+                      {active.assessment.nextCheckupDate && (
+                        <span className="text-sky-400">
+                          {t("nextCheckup")}:{" "}
+                          <strong className="font-mono">{fmtDate(active.assessment.nextCheckupDate, locale)}</strong>
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Assessment History Switcher */}
                   {assessments.length > 1 && (
-                    <div className="print:hidden mt-3.5 pt-3 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto">
+                    <div className="print:hidden pt-3 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 shrink-0 me-1">
                         {t("assessmentHistory")}:
                       </span>
@@ -513,17 +470,15 @@ export function KidsPhysicalPortalSection({
                   ))}
                 </div>
 
-                {/* ── TAB 1: OVERVIEW (BODY MAP + RADAR + FLAGS + SYNTHESIS) ── */}
+                {/* ── TAB 1: OVERVIEW (3D HOLOGRAPHIC SCANNER + RADAR + FLAGS + SYNTHESIS) ── */}
                 <div className={`${activeTab === "overview" ? "block" : "hidden print:block"} space-y-4`}>
-                  {/* Interactive 3-View Morphostatic Body Map */}
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-2.5">
+                  <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("bodyMapTitle")}
                     </h3>
                     <KidsBodyMapSvg
                       assessment={active.assessment}
                       bodyZones={active.evaluation.bodyZones}
-                      compact
                       formatValue={valLabel}
                       labels={{
                         backView: t("backView"),
@@ -549,7 +504,6 @@ export function KidsPhysicalPortalSection({
                     />
                   </div>
 
-                  {/* 6-Axis Clinical Radar */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-2.5">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("radarTitle")}
@@ -570,7 +524,6 @@ export function KidsPhysicalPortalSection({
                     />
                   </div>
 
-                  {/* Clinical Flags */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-2.5">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("flagsTitle")}
@@ -624,7 +577,6 @@ export function KidsPhysicalPortalSection({
                     )}
                   </div>
 
-                  {/* Evaluator Notes & Advice */}
                   {(active.assessment.clinicalSummary || active.assessment.parentAdvice) && (
                     <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                       <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
@@ -654,9 +606,8 @@ export function KidsPhysicalPortalSection({
                   )}
                 </div>
 
-                {/* ── TAB 2: POSTURE ILLUSTRATIONS & DETAILED KINE BILAN ── */}
+                {/* ── TAB 2: 3D POSTURE HOLOGRAMS & DETAILED KINE BILAN ── */}
                 <div className={`${activeTab === "illustrations" ? "block" : "hidden print:block"} space-y-4`}>
-                  {/* 1. Scoliosis & Adams Illustration + Metrics */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("illusScoliosisTitle")}
@@ -680,7 +631,6 @@ export function KidsPhysicalPortalSection({
                     </div>
                   </div>
 
-                  {/* 2. Sagittal Kyphosis / Lordosis Illustration + Metrics */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("illusSagittalTitle")}
@@ -699,20 +649,9 @@ export function KidsPhysicalPortalSection({
                       <div><span className="text-slate-400 block text-[10px]">{t("thoracicKyphosis")}</span><span className="text-white font-semibold">{valLabel(active.assessment.thoracicKyphosis)}</span></div>
                       <div><span className="text-slate-400 block text-[10px]">{t("lumbarLordosis")}</span><span className="text-white font-semibold">{valLabel(active.assessment.lumbarLordosis)}</span></div>
                       <div><span className="text-slate-400 block text-[10px]">{t("thoracicReducibility")}</span><span className="text-slate-200">{valLabel(active.assessment.thoracicReducibility)}</span></div>
-                      {(active.assessment.sagittalArrowC7Mm !== null ||
-                        active.assessment.sagittalArrowT6Mm !== null ||
-                        active.assessment.sagittalArrowL3Mm !== null) && (
-                        <div className="col-span-2">
-                          <span className="text-slate-400 block text-[10px]">{t("sagittalArrows")}</span>
-                          <span className="font-mono text-cyan-200" dir="ltr">
-                            C7: {active.assessment.sagittalArrowC7Mm ?? "-"} mm · T6: {active.assessment.sagittalArrowT6Mm ?? "-"} mm · L3: {active.assessment.sagittalArrowL3Mm ?? "-"} mm
-                          </span>
-                        </div>
-                      )}
                     </div>
                   </div>
 
-                  {/* 3. Lower Limbs / Knees Illustration + Metrics */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("illusKneesTitle")}
@@ -736,7 +675,6 @@ export function KidsPhysicalPortalSection({
                     </div>
                   </div>
 
-                  {/* 4. Foot Arch & Jack Test Illustration + Metrics */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("illusFootTitle")}
@@ -759,19 +697,49 @@ export function KidsPhysicalPortalSection({
                     </div>
                   </div>
 
-                  {/* 5. Functional & Mobility Visual Bars */}
+                  {/* Functional & Mobility Telemetry Bars */}
                   <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
                     <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
                       {t("functionalBarsTitle")}
                     </h3>
-                    <div className="grid grid-cols-2 gap-2.5 text-[11px]">
+                    <div className="space-y-3">
+                      {active.assessment.coreEnduranceSec !== null && (
+                        <FunctionalBar
+                          label={t("coreEndurance")}
+                          valueText={`${active.assessment.coreEnduranceSec} s`}
+                          pct={(active.assessment.coreEnduranceSec / 60) * 100}
+                          color="from-sky-500 to-cyan-300"
+                        />
+                      )}
+                      {active.assessment.backExtensorSec !== null && (
+                        <FunctionalBar
+                          label={t("backExtensor")}
+                          valueText={`${active.assessment.backExtensorSec} s`}
+                          pct={(active.assessment.backExtensorSec / 60) * 100}
+                          color="from-teal-500 to-emerald-300"
+                        />
+                      )}
+                      {active.assessment.singleLegBalanceSec !== null && (
+                        <FunctionalBar
+                          label={t("singleLegBalance")}
+                          valueText={`${active.assessment.singleLegBalanceSec} s`}
+                          pct={(active.assessment.singleLegBalanceSec / 30) * 100}
+                          color="from-sky-400 to-indigo-400"
+                        />
+                      )}
+                      {active.assessment.schoberCm !== null && (
+                        <FunctionalBar
+                          label={t("schoberTest")}
+                          valueText={`+${active.assessment.schoberCm} cm`}
+                          pct={(active.assessment.schoberCm / 6) * 100}
+                          color={active.assessment.schoberCm >= 4 ? "from-emerald-500 to-teal-300" : "from-amber-500 to-orange-400"}
+                        />
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-white/10 text-[11px]">
                       <div><span className="text-slate-400 block text-[10px]">{t("fingerFloorDist")}</span><span className="font-mono text-white font-semibold" dir="ltr">{active.assessment.fingerFloorDistCm !== null ? `${active.assessment.fingerFloorDistCm} cm` : "-"}</span></div>
-                      <div><span className="text-slate-400 block text-[10px]">{t("schoberTest")}</span><span className="font-mono text-white font-semibold" dir="ltr">{active.assessment.schoberCm !== null ? `+${active.assessment.schoberCm} cm` : "-"}</span></div>
-                      <div><span className="text-slate-400 block text-[10px]">{t("shoulderMobility")}</span><span className="text-slate-200">{valLabel(active.assessment.shoulderMobility)}</span></div>
                       <div><span className="text-slate-400 block text-[10px]">{t("beightonScore")}</span><span className="font-mono text-slate-200" dir="ltr">{active.assessment.beightonScore !== null ? `${active.assessment.beightonScore} / 9` : "-"}</span></div>
-                      <div><span className="text-slate-400 block text-[10px]">{t("coreEndurance")}</span><span className="font-mono text-cyan-300 font-semibold" dir="ltr">{active.assessment.coreEnduranceSec !== null ? `${active.assessment.coreEnduranceSec} s` : "-"}</span></div>
-                      <div><span className="text-slate-400 block text-[10px]">{t("backExtensor")}</span><span className="font-mono text-cyan-300 font-semibold" dir="ltr">{active.assessment.backExtensorSec !== null ? `${active.assessment.backExtensorSec} s` : "-"}</span></div>
-                      <div><span className="text-slate-400 block text-[10px]">{t("singleLegBalance")}</span><span className="font-mono text-slate-200" dir="ltr">{active.assessment.singleLegBalanceSec !== null ? `${active.assessment.singleLegBalanceSec} s` : "-"}</span></div>
+                      <div><span className="text-slate-400 block text-[10px]">{t("shoulderMobility")}</span><span className="text-slate-200">{valLabel(active.assessment.shoulderMobility)}</span></div>
                       <div><span className="text-slate-400 block text-[10px]">{t("breathingPattern")}</span><span className="text-slate-200">{valLabel(active.assessment.breathingPattern)}</span></div>
                     </div>
                   </div>
@@ -885,41 +853,43 @@ export function KidsPhysicalPortalSection({
 
                 {/* ── TAB 4: TAILORED AQUATIC CORRECTIVE PLAN ── */}
                 <div className={`${activeTab === "aquatic" ? "block" : "hidden print:block"} space-y-4`}>
-                  <div className="rounded-2xl border border-white/10 bg-slate-900/90 p-4 space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
-                      {t("recsTitle")}
-                    </h3>
-                    <div className="space-y-2.5">
-                      {active.evaluation.recommendations.map((rec) => (
-                        <div
-                          key={rec.code}
-                          className="rounded-xl border border-sky-500/25 bg-gradient-to-br from-sky-950/40 to-slate-950/80 p-3 flex items-start gap-3"
-                        >
-                          <AquaticCorrectiveIllustration code={rec.code} />
-                          <div className="min-w-0 flex-1 space-y-1">
-                            <div className="flex items-center justify-between gap-2 flex-wrap">
-                              <span className="text-xs font-bold text-white">
-                                {t(`rec_${rec.code}_title`)}
-                              </span>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase border ${
-                                  rec.priority === "high"
-                                    ? "bg-cyan-500/20 text-cyan-200 border-cyan-400/40"
-                                    : rec.priority === "medium"
-                                      ? "bg-sky-500/15 text-sky-300 border-sky-400/30"
-                                      : "bg-emerald-500/15 text-emerald-300 border-emerald-400/30"
-                                }`}
-                              >
-                                {t(`priority_${rec.priority}`)}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-300 leading-relaxed">
-                              {t(`rec_${rec.code}_desc`)}
-                            </p>
-                          </div>
+                  <AquaticProgramHeroBanner
+                    title={t("recsTitle")}
+                    subtitle={t("sectionSubtitle")}
+                  />
+
+                  <div className="space-y-2.5">
+                    {active.evaluation.recommendations.map((rec, idx) => (
+                      <div
+                        key={rec.code}
+                        className="rounded-2xl border border-sky-500/25 bg-gradient-to-br from-slate-900/95 via-sky-950/35 to-slate-950/95 p-4 flex items-start gap-3.5 shadow-lg"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-400/35 bg-cyan-950/70 font-mono text-xs font-black text-cyan-300">
+                          0{idx + 1}
                         </div>
-                      ))}
-                    </div>
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-xs font-bold text-white">
+                              {t(`rec_${rec.code}_title`)}
+                            </span>
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase border ${
+                                rec.priority === "high"
+                                  ? "bg-cyan-500/20 text-cyan-200 border-cyan-400/40"
+                                  : rec.priority === "medium"
+                                    ? "bg-sky-500/15 text-sky-300 border-sky-400/30"
+                                    : "bg-emerald-500/15 text-emerald-300 border-emerald-400/30"
+                              }`}
+                            >
+                              {t(`priority_${rec.priority}`)}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-300 leading-relaxed">
+                            {t(`rec_${rec.code}_desc`)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

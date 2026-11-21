@@ -37,79 +37,62 @@ interface KidsBodyMapSvgProps {
   formatValue?: (val: string) => string;
 }
 
-const STATUS_COLOR: Record<ClinicalSeverity, { stroke: string; fill: string; glow: string; badge: string }> = {
+const STATUS_STYLE: Record<
+  ClinicalSeverity,
+  {
+    dot: string;
+    ring: string;
+    pulse: string;
+    badge: string;
+    chipActive: string;
+  }
+> = {
   optimal: {
-    stroke: "#10b981",
-    fill: "rgba(16, 185, 129, 0.22)",
-    glow: "rgba(16, 185, 129, 0.55)",
-    badge: "bg-emerald-950/80 text-emerald-300 border-emerald-500/40",
+    dot: "bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.95)]",
+    ring: "border-emerald-400/80 bg-emerald-500/20",
+    pulse: "bg-emerald-400/35",
+    badge: "bg-emerald-950/85 text-emerald-300 border-emerald-500/45",
+    chipActive: "border-emerald-400/60 bg-emerald-950/70 text-emerald-200",
   },
   info: {
-    stroke: "#38bdf8",
-    fill: "rgba(56, 189, 248, 0.22)",
-    glow: "rgba(56, 189, 248, 0.55)",
-    badge: "bg-sky-950/80 text-sky-300 border-sky-500/40",
+    dot: "bg-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.95)]",
+    ring: "border-sky-400/80 bg-sky-500/20",
+    pulse: "bg-sky-400/35",
+    badge: "bg-sky-950/85 text-sky-300 border-sky-500/45",
+    chipActive: "border-sky-400/60 bg-sky-950/70 text-sky-200",
   },
   watch: {
-    stroke: "#f59e0b",
-    fill: "rgba(245, 158, 11, 0.24)",
-    glow: "rgba(245, 158, 11, 0.55)",
-    badge: "bg-amber-950/80 text-amber-300 border-amber-500/40",
+    dot: "bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.95)]",
+    ring: "border-amber-400/85 bg-amber-500/25",
+    pulse: "bg-amber-400/40",
+    badge: "bg-amber-950/85 text-amber-300 border-amber-500/45",
+    chipActive: "border-amber-400/60 bg-amber-950/70 text-amber-200",
   },
   referral: {
-    stroke: "#ef4444",
-    fill: "rgba(239, 68, 68, 0.26)",
-    glow: "rgba(239, 68, 68, 0.65)",
-    badge: "bg-rose-950/80 text-rose-300 border-rose-500/40",
+    dot: "bg-rose-500 shadow-[0_0_14px_rgba(239,68,68,1)]",
+    ring: "border-rose-400/90 bg-rose-500/30",
+    pulse: "bg-rose-500/45",
+    badge: "bg-rose-950/85 text-rose-300 border-rose-500/50",
+    chipActive: "border-rose-400/65 bg-rose-950/75 text-rose-200",
   },
 };
 
-function Hotspot({
-  cx,
-  cy,
-  severity,
-  selected,
-  onClick,
-  ariaLabel,
-}: {
-  cx: number;
-  cy: number;
-  severity: ClinicalSeverity;
-  selected: boolean;
-  onClick: () => void;
-  ariaLabel: string;
-}) {
-  const c = STATUS_COLOR[severity];
-  return (
-    <g
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      aria-label={ariaLabel}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      className="cursor-pointer outline-none"
-    >
-      <circle
-        cx={cx}
-        cy={cy}
-        r={selected ? 11 : 8.5}
-        fill={c.fill}
-        stroke={c.stroke}
-        strokeWidth={selected ? 1.8 : 1.2}
-      />
-      <circle cx={cx} cy={cy} r={3.5} fill={c.stroke} />
-    </g>
-  );
-}
+// Coordinates calibrated to /images/kids-suivi/hero-body-scan.jpg (16:9 3D child hologram)
+const LANDMARKS: { key: BodyZoneKey; leftPct: number; topPct: number }[] = [
+  { key: "head", leftPct: 50.2, topPct: 16.5 },
+  { key: "shoulders", leftPct: 45.8, topPct: 27.5 },
+  { key: "spineFrontal", leftPct: 49.4, topPct: 33.5 },
+  { key: "thoracic", leftPct: 51.6, topPct: 39.5 },
+  { key: "lumbar", leftPct: 49.6, topPct: 46.5 },
+  { key: "pelvis", leftPct: 49.8, topPct: 53.5 },
+  { key: "knees", leftPct: 49.8, topPct: 71.0 },
+  { key: "feet", leftPct: 49.8, topPct: 89.5 },
+];
 
 /**
- * Interactive 3-view clinical morphostatic posture diagram (Posterior, Lateral, Anterior Lower Limbs).
- * Dynamically adapts spine curve, shoulder tilt, sagittal curve, knee axis, and plantar arch.
+ * Interactive 3D Holographic Anatomical Posture Scanner.
+ * Renders the 4K Dark Ocean pediatric body scan with precision-pinned
+ * interactive clinical hotspots and glassmorphic telemetry readouts.
  */
 export function KidsBodyMapSvg({
   assessment,
@@ -138,65 +121,6 @@ export function KidsBodyMapSvg({
     knees: labels.zoneKnees,
     feet: labels.zoneFeet,
   };
-
-  // Dynamic anatomical geometry helpers
-  const shoulderTiltY =
-    assessment.shouldersLevel === "left_higher"
-      ? -3
-      : assessment.shouldersLevel === "right_higher"
-        ? 3
-        : 0;
-  const pelvisTiltY =
-    assessment.pelvisLevel === "left_higher"
-      ? -2.5
-      : assessment.pelvisLevel === "right_higher"
-        ? 2.5
-        : 0;
-  const spineCurveOffset =
-    bodyZones.spineFrontal === "referral"
-      ? 7
-      : bodyZones.spineFrontal === "watch"
-        ? 4
-        : 0;
-
-  const headForwardOffset =
-    assessment.headPosture === "forward_marked"
-      ? 6
-      : assessment.headPosture === "forward_mild"
-        ? 3
-        : 0;
-  const kyphosisCurve =
-    assessment.thoracicKyphosis === "hyperkyphosis_rigid"
-      ? -9
-      : assessment.thoracicKyphosis === "hyperkyphosis_reducible" ||
-          assessment.thoracicKyphosis === "postural_round_back"
-        ? -6
-        : assessment.thoracicKyphosis === "flat_back"
-          ? -1
-          : -3.5;
-  const lordosisCurve =
-    assessment.lumbarLordosis === "hyperlordosis"
-      ? 7.5
-      : assessment.lumbarLordosis === "hypolordosis"
-        ? 1.5
-        : 3.5;
-
-  const kneeXShift =
-    assessment.kneeAlignment === "genu_valgum"
-      ? 4.5
-      : assessment.kneeAlignment === "genu_varum"
-        ? -4.5
-        : 0;
-  const ankleXShift =
-    assessment.kneeAlignment === "genu_valgum"
-      ? -4
-      : assessment.kneeAlignment === "genu_varum"
-        ? 3
-        : 0;
-
-  const flatFoot =
-    assessment.footArch === "flat_flexible" || assessment.footArch === "flat_rigid";
-  const highArch = assessment.footArch === "high_arch";
 
   const selectedSeverity = bodyZones[selectedZone];
   const selectedMetrics = (() => {
@@ -249,7 +173,9 @@ export function KidsBodyMapSvg({
         return [
           fmtVal(assessment.footArch),
           fmtVal(assessment.heelAlignment),
-          assessment.jackTest !== "not_tested" ? `${labels.jackShort ?? "Jack"}: ${fmtVal(assessment.jackTest)}` : null,
+          assessment.jackTest !== "not_tested"
+            ? `${labels.jackShort ?? "Jack"}: ${fmtVal(assessment.jackTest)}`
+            : null,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -257,291 +183,106 @@ export function KidsBodyMapSvg({
   })();
 
   return (
-    <div className="space-y-3" dir="ltr">
-      <div className={`grid gap-2.5 ${compact ? "grid-cols-3" : "grid-cols-1 sm:grid-cols-3"}`}>
-        {/* 1. POSTERIOR VIEW — SCOLIOSIS & FRONTAL SPINE */}
-        <div className="rounded-xl border border-white/10 bg-slate-950/70 p-2.5 flex flex-col items-center">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-1 text-center">
-            {labels.backView}
+    <div className="space-y-3">
+      {/* 4K 3D Holographic Anatomical Scanner Viewport */}
+      <div
+        className={`relative w-full overflow-hidden rounded-2xl border border-cyan-500/25 bg-[#030712] shadow-[inset_0_0_40px_rgba(0,242,255,0.08)] ${
+          compact ? "aspect-[16/10]" : "aspect-[16/9]"
+        }`}
+        dir="ltr"
+      >
+        <img
+          src="/images/kids-suivi/hero-body-scan.jpg"
+          alt={labels.zoneSpineFrontal}
+          className="h-full w-full object-cover object-center select-none"
+        />
+
+        {/* Subtle Dark Ocean vignette & HUD corner framing brackets */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#030712]/80 via-transparent to-[#030712]/35" />
+        <div className="pointer-events-none absolute left-3 top-3 h-4 w-4 border-l-2 border-t-2 border-cyan-400/50 rounded-tl-sm" />
+        <div className="pointer-events-none absolute right-3 top-3 h-4 w-4 border-r-2 border-t-2 border-cyan-400/50 rounded-tr-sm" />
+        <div className="pointer-events-none absolute left-3 bottom-3 h-4 w-4 border-l-2 border-b-2 border-cyan-400/50 rounded-bl-sm" />
+        <div className="pointer-events-none absolute right-3 bottom-3 h-4 w-4 border-r-2 border-b-2 border-cyan-400/50 rounded-br-sm" />
+
+        {/* Interactive Glowing Anatomical Telemetry Hotspots */}
+        {LANDMARKS.map(({ key, leftPct, topPct }) => {
+          const sev = bodyZones[key];
+          const st = STATUS_STYLE[sev];
+          const isSelected = selectedZone === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSelectedZone(key)}
+              aria-label={zoneTitle[key]}
+              style={{ left: `${leftPct}%`, top: `${topPct}%` }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 group cursor-pointer focus:outline-none z-10"
+            >
+              {isSelected && (
+                <span
+                  className={`absolute inset-0 -m-2.5 rounded-full animate-ping ${st.pulse}`}
+                />
+              )}
+              <span
+                className={`relative flex items-center justify-center rounded-full border backdrop-blur-sm transition-transform ${st.ring} ${
+                  isSelected ? "h-6 w-6 scale-110" : "h-4.5 w-4.5 hover:scale-110"
+                }`}
+              >
+                <span className={`h-2 w-2 rounded-full ${st.dot}`} />
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Floating HUD hint in bottom corner */}
+        <div className="pointer-events-none absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[10px] text-cyan-200/80">
+          <span className="rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-0.5 backdrop-blur-md font-medium">
+            {zoneTitle[selectedZone]}
           </span>
-          <svg viewBox="0 0 120 220" className="w-full max-w-[120px] h-auto" role="img" aria-label={labels.backView}>
-            {/* Reference vertical plumb line */}
-            <line
-              x1="60"
-              y1="24"
-              x2="60"
-              y2="206"
-              stroke="rgba(0,242,255,0.22)"
-              strokeWidth="1"
-              strokeDasharray="3 3"
-            />
-            {/* Silhouette Back */}
-            <circle cx="60" cy="24" r="13" fill="rgba(30,41,59,0.75)" stroke="rgba(148,163,184,0.45)" strokeWidth="1.2" />
-            <path
-              d="M48 39 Q60 36 72 39 L84 48 L92 108 L84 110 L76 62 L73 108 L78 130 L74 198 L65 198 L62 136 L58 136 L55 198 L46 198 L42 130 L47 108 L44 62 L36 110 L28 108 L36 48 Z"
-              fill="rgba(30,41,59,0.7)"
-              stroke="rgba(148,163,184,0.45)"
-              strokeWidth="1.2"
-              strokeLinejoin="round"
-            />
-            {/* Shoulder bi-acromial line */}
-            <line
-              x1="36"
-              y1={48 + shoulderTiltY}
-              x2="84"
-              y2={48 - shoulderTiltY}
-              stroke={STATUS_COLOR[bodyZones.shoulders].stroke}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-            {/* Pelvic crest line */}
-            <line
-              x1="43"
-              y1={116 + pelvisTiltY}
-              x2="77"
-              y2={116 - pelvisTiltY}
-              stroke={STATUS_COLOR[bodyZones.pelvis].stroke}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-            {/* Dynamic Spine Curve C7 -> S2 */}
-            <path
-              d={`M60 42 Q${60 + spineCurveOffset} 72 60 92 Q${60 - spineCurveOffset * 0.6} 106 60 120`}
-              fill="none"
-              stroke={STATUS_COLOR[bodyZones.spineFrontal].stroke}
-              strokeWidth="2.4"
-              strokeLinecap="round"
-            />
-            {/* Hotspots */}
-            <Hotspot
-              cx={42}
-              cy={50}
-              severity={bodyZones.shoulders}
-              selected={selectedZone === "shoulders"}
-              onClick={() => setSelectedZone("shoulders")}
-              ariaLabel={labels.zoneShoulders}
-            />
-            <Hotspot
-              cx={60 + spineCurveOffset * 0.5}
-              cy={76}
-              severity={bodyZones.spineFrontal}
-              selected={selectedZone === "spineFrontal"}
-              onClick={() => setSelectedZone("spineFrontal")}
-              ariaLabel={labels.zoneSpineFrontal}
-            />
-            <Hotspot
-              cx={60}
-              cy={116}
-              severity={bodyZones.pelvis}
-              selected={selectedZone === "pelvis"}
-              onClick={() => setSelectedZone("pelvis")}
-              ariaLabel={labels.zonePelvis}
-            />
-          </svg>
-        </div>
-
-        {/* 2. LATERAL VIEW — CYPHOSE / HYPERLORDOSE */}
-        <div className="rounded-xl border border-white/10 bg-slate-950/70 p-2.5 flex flex-col items-center">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-1 text-center">
-            {labels.sideView}
+          <span className="hidden sm:inline rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-0.5 backdrop-blur-md text-slate-300">
+            {labels.tapZoneHint}
           </span>
-          <svg viewBox="0 0 120 220" className="w-full max-w-[120px] h-auto" role="img" aria-label={labels.sideView}>
-            {/* Sagittal plumb reference line */}
-            <line
-              x1="56"
-              y1="14"
-              x2="56"
-              y2="206"
-              stroke="rgba(0,242,255,0.25)"
-              strokeWidth="1"
-              strokeDasharray="3 3"
-            />
-            <text x="48" y="45" fontSize="7" fill="#64748b" textAnchor="end">C7</text>
-            <text x="45" y="75" fontSize="7" fill="#64748b" textAnchor="end">T6</text>
-            <text x="45" y="106" fontSize="7" fill="#64748b" textAnchor="end">L3</text>
-            <text x="48" y="124" fontSize="7" fill="#64748b" textAnchor="end">S2</text>
-
-            {/* Side Silhouette (facing right) */}
-            <circle
-              cx={60 + headForwardOffset}
-              cy="24"
-              r="12"
-              fill="rgba(30,41,59,0.75)"
-              stroke="rgba(148,163,184,0.45)"
-              strokeWidth="1.2"
-            />
-            <path
-              d={`M${56 + headForwardOffset * 0.5} 37 Q${54 + kyphosisCurve} 68 57 96 Q${57 + lordosisCurve * 0.4} 112 56 124 L54 198 L72 198 L72 192 L65 188 L67 128 Q74 108 72 88 Q74 62 68 42 Z`}
-              fill="rgba(30,41,59,0.7)"
-              stroke="rgba(148,163,184,0.45)"
-              strokeWidth="1.2"
-              strokeLinejoin="round"
-            />
-
-            {/* Dynamic Sagittal Spine */}
-            <path
-              d={`M${59 + headForwardOffset * 0.5} 40 Q${55 + kyphosisCurve} 70 58 92 Q${59 + lordosisCurve} 106 57 122`}
-              fill="none"
-              stroke={
-                bodyZones.thoracic === "referral" || bodyZones.lumbar === "referral"
-                  ? "#ef4444"
-                  : bodyZones.thoracic === "watch" || bodyZones.lumbar === "watch"
-                    ? "#f59e0b"
-                    : "#10b981"
-              }
-              strokeWidth="2.4"
-              strokeLinecap="round"
-            />
-
-            {/* Hotspots */}
-            <Hotspot
-              cx={60 + headForwardOffset}
-              cy={26}
-              severity={bodyZones.head}
-              selected={selectedZone === "head"}
-              onClick={() => setSelectedZone("head")}
-              ariaLabel={labels.zoneHead}
-            />
-            <Hotspot
-              cx={56 + kyphosisCurve * 0.6}
-              cy={72}
-              severity={bodyZones.thoracic}
-              selected={selectedZone === "thoracic"}
-              onClick={() => setSelectedZone("thoracic")}
-              ariaLabel={labels.zoneThoracic}
-            />
-            <Hotspot
-              cx={58 + lordosisCurve * 0.6}
-              cy={105}
-              severity={bodyZones.lumbar}
-              selected={selectedZone === "lumbar"}
-              onClick={() => setSelectedZone("lumbar")}
-              ariaLabel={labels.zoneLumbar}
-            />
-          </svg>
-        </div>
-
-        {/* 3. LOWER LIMBS & FEET — GENU VALGUM/VARUM & PIED PLAT */}
-        <div className="rounded-xl border border-white/10 bg-slate-950/70 p-2.5 flex flex-col items-center">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300 mb-1 text-center">
-            {labels.lowerLimbsView}
-          </span>
-          <svg viewBox="0 0 120 220" className="w-full max-w-[120px] h-auto" role="img" aria-label={labels.lowerLimbsView}>
-            {/* Pelvis anchor */}
-            <rect
-              x="36"
-              y="26"
-              width="48"
-              height="24"
-              rx="10"
-              fill="rgba(30,41,59,0.75)"
-              stroke="rgba(148,163,184,0.45)"
-              strokeWidth="1.2"
-            />
-            {/* Mechanical axis lines Left & Right Legs */}
-            <polyline
-              points={`46,48 ${48 + kneeXShift},112 ${46 + ankleXShift},176`}
-              fill="none"
-              stroke={STATUS_COLOR[bodyZones.knees].stroke}
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.35"
-            />
-            <polyline
-              points={`74,48 ${72 - kneeXShift},112 ${74 - ankleXShift},176`}
-              fill="none"
-              stroke={STATUS_COLOR[bodyZones.knees].stroke}
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity="0.35"
-            />
-            <polyline
-              points={`46,48 ${48 + kneeXShift},112 ${46 + ankleXShift},176`}
-              fill="none"
-              stroke={STATUS_COLOR[bodyZones.knees].stroke}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <polyline
-              points={`74,48 ${72 - kneeXShift},112 ${74 - ankleXShift},176`}
-              fill="none"
-              stroke={STATUS_COLOR[bodyZones.knees].stroke}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-
-            {/* Plantar Arch Schematic at Bottom */}
-            <line x1="20" y1="204" x2="100" y2="204" stroke="rgba(148,163,184,0.3)" strokeWidth="1" />
-            <path
-              d={
-                flatFoot
-                  ? "M24 203 Q42 202 55 203 L55 196 Q42 194 24 198 Z"
-                  : highArch
-                    ? "M24 203 Q40 190 55 203 L55 196 Q40 183 24 196 Z"
-                    : "M24 203 Q40 195 55 203 L55 196 Q40 190 24 197 Z"
-              }
-              fill={STATUS_COLOR[bodyZones.feet].fill}
-              stroke={STATUS_COLOR[bodyZones.feet].stroke}
-              strokeWidth="1.5"
-            />
-            <path
-              d={
-                flatFoot
-                  ? "M65 203 Q80 202 96 203 L96 198 Q80 194 65 196 Z"
-                  : highArch
-                    ? "M65 203 Q80 190 96 203 L96 196 Q80 183 65 196 Z"
-                    : "M65 203 Q80 195 96 203 L96 197 Q80 190 65 196 Z"
-              }
-              fill={STATUS_COLOR[bodyZones.feet].fill}
-              stroke={STATUS_COLOR[bodyZones.feet].stroke}
-              strokeWidth="1.5"
-            />
-
-            {/* Hotspots */}
-            <Hotspot
-              cx={60}
-              cy={112}
-              severity={bodyZones.knees}
-              selected={selectedZone === "knees"}
-              onClick={() => setSelectedZone("knees")}
-              ariaLabel={labels.zoneKnees}
-            />
-            <Hotspot
-              cx={60}
-              cy={192}
-              severity={bodyZones.feet}
-              selected={selectedZone === "feet"}
-              onClick={() => setSelectedZone("feet")}
-              ariaLabel={labels.zoneFeet}
-            />
-          </svg>
         </div>
       </div>
 
-      {/* Selected Zone Clinical Readout */}
-      <div className="rounded-xl border border-white/10 bg-slate-900/90 px-3.5 py-2.5 flex items-center justify-between gap-3">
-        <div className="min-w-0">
+      {/* Quick Anatomical Zone Selector Pills */}
+      <div className="flex flex-wrap gap-1.5">
+        {LANDMARKS.map(({ key }) => {
+          const sev = bodyZones[key];
+          const st = STATUS_STYLE[sev];
+          const isSelected = selectedZone === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSelectedZone(key)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-semibold transition-all cursor-pointer ${
+                isSelected
+                  ? st.chipActive
+                  : "border-white/10 bg-slate-950/70 text-slate-400 hover:border-white/20 hover:text-slate-200"
+              }`}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+              <span>{zoneTitle[key]}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Selected Zone Clinical Readout Card */}
+      <div className="rounded-xl border border-white/10 bg-slate-950/80 px-3.5 py-3 flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="h-2 w-2 rounded-full shrink-0"
-              style={{ backgroundColor: STATUS_COLOR[selectedSeverity].stroke }}
-            />
+            <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_STYLE[selectedSeverity].dot}`} />
             <span className="text-xs font-bold text-white">{zoneTitle[selectedZone]}</span>
             <span
-              className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_COLOR[selectedSeverity].badge}`}
+              className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_STYLE[selectedSeverity].badge}`}
             >
               {statusText(selectedSeverity)}
             </span>
           </div>
-          <p className="text-[11px] font-mono text-slate-300 mt-1 truncate">{selectedMetrics}</p>
+          <p className="text-[11px] font-mono text-cyan-100/90 leading-snug">{selectedMetrics}</p>
         </div>
-        <span className="text-[10px] text-slate-500 hidden sm:inline shrink-0">
-          {labels.tapZoneHint}
-        </span>
       </div>
     </div>
   );

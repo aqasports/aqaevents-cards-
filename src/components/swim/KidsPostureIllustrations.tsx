@@ -6,102 +6,102 @@ import type {
   OverallStatus,
 } from "@/lib/swim-kids-physical";
 
-// ─── 1. Hero Aquatic-Morphostatic Emblem Illustration ────────────────────────
+// ─── 1. Hero 3D Holographic Banner Visual ────────────────────────────────────
 
-export function KidsHeroSuiviIllustration({
-  status = "optimal",
-  className = "w-24 h-24",
+export function KidsHeroBannerVisual({
+  status = "pending",
+  score,
+  statusLabel,
+  scoreLabel,
+  compact = false,
 }: {
   status?: OverallStatus | "pending";
-  className?: string;
+  score?: number | null;
+  statusLabel: string;
+  scoreLabel?: string;
+  compact?: boolean;
 }) {
-  const accent =
+  const pillCls =
+    status === "referral"
+      ? "border-rose-400/50 bg-rose-950/85 text-rose-200"
+      : status === "watch"
+        ? "border-amber-400/50 bg-amber-950/85 text-amber-200"
+        : status === "optimal"
+          ? "border-emerald-400/50 bg-emerald-950/85 text-emerald-200"
+          : "border-cyan-400/45 bg-cyan-950/85 text-cyan-200";
+
+  const dotCls =
+    status === "referral"
+      ? "bg-rose-400"
+      : status === "watch"
+        ? "bg-amber-400"
+        : status === "optimal"
+          ? "bg-emerald-400"
+          : "bg-cyan-400";
+
+  const ringColor =
     status === "referral"
       ? "#ef4444"
       : status === "watch"
         ? "#f59e0b"
-        : status === "pending"
-          ? "#38bdf8"
-          : "#00f2ff";
+        : "#10b981";
 
   return (
-    <svg
-      viewBox="0 0 120 120"
-      className={className}
-      fill="none"
-      role="img"
-      aria-label="AQA Kids Suivi Physique"
+    <div
+      className={`relative w-full overflow-hidden rounded-xl border border-cyan-500/20 bg-[#030712] ${
+        compact ? "h-40 sm:h-44" : "h-44 sm:h-52"
+      }`}
     >
-      <defs>
-        <radialGradient id="kidsHeroGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={accent} stopOpacity="0.32" />
-          <stop offset="70%" stopColor="#0ea5e9" stopOpacity="0.08" />
-          <stop offset="100%" stopColor="#030712" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="kidsSpineGrad" x1="60" y1="22" x2="60" y2="96" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#38bdf8" />
-          <stop offset="50%" stopColor={accent} />
-          <stop offset="100%" stopColor="#10b981" />
-        </linearGradient>
-      </defs>
-
-      {/* Ambient radial aura */}
-      <circle cx="60" cy="60" r="56" fill="url(#kidsHeroGlow)" />
-      {/* Precision scan rings */}
-      <circle cx="60" cy="60" r="46" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="4 4" />
-      <circle cx="60" cy="60" r="34" stroke="rgba(0,242,255,0.18)" strokeWidth="1" />
-
-      {/* Subtle aquatic waves at bottom */}
-      <path
-        d="M22 86 Q34 80 46 86 T70 86 T98 86"
-        stroke="rgba(56,189,248,0.45)"
-        strokeWidth="1.5"
-        strokeLinecap="round"
+      <img
+        src="/images/kids-suivi/hero-body-scan.jpg"
+        alt={statusLabel}
+        className="h-full w-full object-cover object-[50%_26%] scale-[1.08] select-none"
       />
-      <path
-        d="M28 94 Q40 89 52 94 T76 94 T92 94"
-        stroke="rgba(0,242,255,0.28)"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-      />
+      {/* Seamless Dark Ocean glass gradient overlay */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/25 to-slate-950/35" />
 
-      {/* Stylized child swimmer/posture silhouette */}
-      <circle cx="60" cy="28" r="8.5" fill="rgba(15,23,42,0.9)" stroke={accent} strokeWidth="1.8" />
-      {/* Raised streamline / balanced posture shoulders & torso */}
-      <path
-        d="M36 46 Q48 40 60 40 Q72 40 84 46"
-        stroke="#38bdf8"
-        strokeWidth="2.4"
-        strokeLinecap="round"
-      />
-      <path
-        d="M48 44 L51 74 L69 74 L72 44"
-        fill="rgba(14,165,233,0.12)"
-        stroke="rgba(148,163,184,0.35)"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
+      {/* Top HUD Bar: Status Badge + Optional Score Ring */}
+      <div className="absolute inset-x-3 top-3 flex items-start justify-between gap-2">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-lg ${pillCls}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${dotCls}`} />
+          {statusLabel}
+        </span>
 
-      {/* Luminous vertebral alignment axis */}
-      <path
-        d="M60 39 L60 80"
-        stroke="url(#kidsSpineGrad)"
-        strokeWidth="2.8"
-        strokeLinecap="round"
-      />
-      {/* Vertebrae nodes */}
-      {[44, 53, 62, 71, 79].map((y) => (
-        <circle key={y} cx="60" cy={y} r="2.6" fill="#030712" stroke={accent} strokeWidth="1.6" />
-      ))}
-
-      {/* Alignment crosshair ticks */}
-      <line x1="20" y1="60" x2="28" y2="60" stroke={accent} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
-      <line x1="92" y1="60" x2="100" y2="60" stroke={accent} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
-    </svg>
+        {typeof score === "number" && (
+          <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/80 px-2.5 py-1.5 backdrop-blur-md shadow-lg">
+            <div className="relative h-9 w-9 flex items-center justify-center">
+              <svg viewBox="0 0 40 40" className="h-9 w-9 -rotate-90">
+                <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="3.5" />
+                <circle
+                  cx="20"
+                  cy="20"
+                  r="16"
+                  fill="none"
+                  stroke={ringColor}
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${(score / 100) * 100.53} 100.53`}
+                />
+              </svg>
+              <span className="absolute font-mono text-[11px] font-black text-white">
+                {score}
+              </span>
+            </div>
+            {scoreLabel && (
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-300 leading-tight max-w-[60px]">
+                {scoreLabel}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-// ─── 2. Scoliosis & Adams Forward Bend Illustration ──────────────────────────
+// ─── 2. 4K 3D Scoliosis Hologram Comparison Card ─────────────────────────────
 
 export function ScoliosisAdamsIllustration({
   assessment,
@@ -115,107 +115,89 @@ export function ScoliosisAdamsIllustration({
     yourChild: string;
   };
 }) {
-  const hasRibHump =
-    assessment &&
-    (assessment.adamsTest === "rib_hump_thoracic" ||
-      assessment.adamsTest === "rib_hump_lumbar" ||
-      assessment.adamsTest === "rib_hump_double" ||
-      (assessment.scoliometerAtrDeg !== null && assessment.scoliometerAtrDeg >= 7));
-  const hasWatch =
-    assessment &&
-    !hasRibHump &&
-    (assessment.adamsTest === "postural_asymmetry" ||
-      (assessment.scoliometerAtrDeg !== null && assessment.scoliometerAtrDeg >= 4) ||
-      assessment.shouldersLevel !== "balanced" ||
-      assessment.pelvisLevel !== "balanced");
+  const hasDeviation =
+    Boolean(assessment) &&
+    (assessment!.adamsTest !== "negative" ||
+      (assessment!.scoliometerAtrDeg !== null && assessment!.scoliometerAtrDeg >= 4) ||
+      assessment!.shouldersLevel !== "balanced" ||
+      assessment!.pelvisLevel !== "balanced");
 
-  const activeIdx = !assessment ? -1 : hasRibHump ? 2 : hasWatch ? 1 : 0;
+  const atr = assessment?.scoliometerAtrDeg ?? null;
+  const atrPct = atr !== null ? Math.min(96, Math.max(4, (atr / 12) * 100)) : null;
 
   return (
-    <div className="grid grid-cols-3 gap-2" dir="ltr">
-      {/* Panel 0: Aligned Spine */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center transition-all ${
-          activeIdx === 0
-            ? "border-emerald-400/70 bg-emerald-950/30 shadow-[0_0_14px_rgba(16,185,129,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <line x1="40" y1="10" x2="40" y2="86" stroke="rgba(16,185,129,0.35)" strokeWidth="1" strokeDasharray="3 2" />
-          <circle cx="40" cy="16" r="8" fill="rgba(30,41,59,0.8)" stroke="#94a3b8" strokeWidth="1.2" />
-          <path d="M24 30 L56 30 L52 72 L28 72 Z" fill="rgba(30,41,59,0.6)" stroke="#64748b" strokeWidth="1.1" strokeLinejoin="round" />
-          <line x1="25" y1="30" x2="55" y2="30" stroke="#10b981" strokeWidth="2" strokeLinecap="round" />
-          <line x1="40" y1="26" x2="40" y2="76" stroke="#10b981" strokeWidth="2.6" strokeLinecap="round" />
-          <line x1="28" y1="72" x2="52" y2="72" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.normal}</span>
-        {activeIdx === 0 && (
-          <span className="mt-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-emerald-300">
-            {labels.yourChild}
-          </span>
-        )}
-      </div>
+    <div className="space-y-3">
+      {/* 4K 3D Side-by-Side Pediatric Spine Hologram */}
+      <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
+        <img
+          src="/images/kids-suivi/scoliosis-hologram.jpg"
+          alt={labels.normal}
+          className="w-full aspect-[16/9] object-cover select-none"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-slate-950/25" />
 
-      {/* Panel 1: Scoliotic Attitude / Curve */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center transition-all ${
-          activeIdx === 1
-            ? "border-amber-400/70 bg-amber-950/30 shadow-[0_0_14px_rgba(245,158,11,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <line x1="40" y1="10" x2="40" y2="86" stroke="rgba(148,163,184,0.25)" strokeWidth="1" strokeDasharray="3 2" />
-          <circle cx="40" cy="16" r="8" fill="rgba(30,41,59,0.8)" stroke="#94a3b8" strokeWidth="1.2" />
-          <path d="M24 33 L56 27 L52 74 L28 70 Z" fill="rgba(30,41,59,0.6)" stroke="#64748b" strokeWidth="1.1" strokeLinejoin="round" />
-          <line x1="25" y1="33" x2="55" y2="27" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
-          <path d="M40 26 Q51 44 40 56 Q32 66 40 76" fill="none" stroke="#f59e0b" strokeWidth="2.6" strokeLinecap="round" />
-          <line x1="28" y1="70" x2="52" y2="74" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.curved}</span>
-        {activeIdx === 1 && (
-          <span className="mt-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
-            {labels.yourChild}
-          </span>
-        )}
-      </div>
-
-      {/* Panel 2: Adams Forward Bend Test (Rib Hump / Scoliometer) */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center transition-all ${
-          activeIdx === 2
-            ? "border-rose-400/70 bg-rose-950/30 shadow-[0_0_14px_rgba(239,68,68,0.25)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          {/* Bent back ribcage contour showing rib hump */}
-          <path
-            d="M14 54 Q26 42 40 44 Q55 32 66 54 L62 76 L18 76 Z"
-            fill="rgba(30,41,59,0.7)"
-            stroke="#94a3b8"
-            strokeWidth="1.2"
+        {/* Subtle split highlight border indicating the child's side */}
+        {assessment && (
+          <div
+            className={`pointer-events-none absolute inset-y-2 w-[47%] rounded-xl border-2 transition-all ${
+              hasDeviation
+                ? "right-2 border-amber-400/75 shadow-[0_0_24px_rgba(245,158,11,0.3)]"
+                : "left-2 border-emerald-400/75 shadow-[0_0_24px_rgba(16,185,129,0.28)]"
+            }`}
           />
-          {/* Scoliometer level bar tilted on rib hump */}
-          <line x1="16" y1="42" x2="64" y2="30" stroke="#ef4444" strokeWidth="2.4" strokeLinecap="round" />
-          <circle cx="52" cy="39" r="6" fill="rgba(239,68,68,0.28)" stroke="#ef4444" strokeWidth="1.4" />
-          {/* Horizontal reference */}
-          <line x1="14" y1="38" x2="66" y2="38" stroke="rgba(0,242,255,0.35)" strokeWidth="1" strokeDasharray="2 2" />
-          <text x="40" y="21" textAnchor="middle" fontSize="8" fontFamily="monospace" fill="#fda4af">ATR</text>
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.adams}</span>
-        {activeIdx === 2 && (
-          <span className="mt-1 rounded-full bg-rose-500/20 border border-rose-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-rose-300">
-            {labels.yourChild}
-          </span>
         )}
+
+        {/* Bottom HUD labels over Left (Aligned) & Right (Scoliotic) */}
+        <div className="absolute inset-x-2.5 bottom-2.5 grid grid-cols-2 gap-2">
+          <div className="flex items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-slate-950/85 px-2 py-1 backdrop-blur-md">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="text-[10px] font-bold text-emerald-200 truncate">{labels.normal}</span>
+            {assessment && !hasDeviation && (
+              <span className="rounded bg-emerald-500/25 px-1.5 py-0.5 text-[8px] font-black uppercase text-emerald-300">
+                {labels.yourChild}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/30 bg-slate-950/85 px-2 py-1 backdrop-blur-md">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+            <span className="text-[10px] font-bold text-amber-200 truncate">{labels.curved}</span>
+            {assessment && hasDeviation && (
+              <span className="rounded bg-amber-500/25 px-1.5 py-0.5 text-[8px] font-black uppercase text-amber-300">
+                {labels.yourChild}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Interactive Scoliometer ATR Clinical Scale (when ATR is recorded) */}
+      {atrPct !== null && (
+        <div className="rounded-xl border border-white/10 bg-slate-950/75 p-3 space-y-1.5" dir="ltr">
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="font-semibold text-slate-300">{labels.adams} · ATR</span>
+            <span className="font-mono font-bold text-cyan-300">{atr}°</span>
+          </div>
+          <div className="relative h-2 w-full rounded-full overflow-hidden flex">
+            <div className="h-full bg-emerald-500/80" style={{ width: "33%" }} />
+            <div className="h-full bg-amber-500/80" style={{ width: "25%" }} />
+            <div className="h-full bg-rose-500/80" style={{ width: "42%" }} />
+            <div
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(0,242,255,0.95)]"
+              style={{ left: `${atrPct}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-slate-500">
+            <span>0° - 3°</span>
+            <span>4° - 6°</span>
+            <span>7°+</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── 3. Sagittal Profile Illustration (Cyphose & Hyperlordose) ───────────────
+// ─── 3. Sagittal Spine 3D Focused Hologram Card ──────────────────────────────
 
 export function SagittalSpineIllustration({
   assessment,
@@ -235,80 +217,85 @@ export function SagittalSpineIllustration({
       assessment.thoracicKyphosis === "hyperkyphosis_reducible" ||
       assessment.thoracicKyphosis === "postural_round_back");
   const isLordosis = assessment && assessment.lumbarLordosis === "hyperlordosis";
-
-  const activeIdx = !assessment ? -1 : isKyphosis ? 1 : isLordosis ? 2 : 0;
+  const activeKey = !assessment ? null : isKyphosis ? "kyphosis" : isLordosis ? "lordosis" : "ideal";
 
   return (
-    <div className="grid grid-cols-3 gap-2" dir="ltr">
-      {/* Panel 0: Balanced Profile */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 0
-            ? "border-emerald-400/70 bg-emerald-950/30 shadow-[0_0_14px_rgba(16,185,129,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <line x1="38" y1="8" x2="38" y2="88" stroke="rgba(16,185,129,0.35)" strokeWidth="1" strokeDasharray="3 2" />
-          <circle cx="40" cy="16" r="7.5" fill="rgba(30,41,59,0.8)" stroke="#94a3b8" strokeWidth="1.2" />
-          <path d="M40 25 Q35 45 40 60 Q43 70 39 82" fill="none" stroke="#10b981" strokeWidth="2.8" strokeLinecap="round" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.ideal}</span>
-        {activeIdx === 0 && (
-          <span className="mt-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-emerald-300">
-            {labels.yourChild}
-          </span>
-        )}
+    <div className="space-y-2.5">
+      {/* Focused 3D Vertebral Column Hologram Viewport */}
+      <div className="relative h-40 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
+        <img
+          src="/images/kids-suivi/hero-body-scan.jpg"
+          alt={labels.ideal}
+          className="h-full w-full object-cover object-[50%_34%] scale-[1.55] select-none"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/25" />
+
+        {/* Sagittal Plumb Telemetry Badges (C7 / T6 / L3) */}
+        <div className="absolute left-3 top-3 space-y-1.5">
+          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
+            <span className="text-slate-400">C7 </span>
+            <span className="text-cyan-300 font-bold">
+              {assessment?.sagittalArrowC7Mm !== null && assessment?.sagittalArrowC7Mm !== undefined
+                ? `${assessment.sagittalArrowC7Mm} mm`
+                : "20-35 mm"}
+            </span>
+          </div>
+          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
+            <span className="text-slate-400">T6 </span>
+            <span className="text-cyan-300 font-bold">
+              {assessment?.sagittalArrowT6Mm !== null && assessment?.sagittalArrowT6Mm !== undefined
+                ? `${assessment.sagittalArrowT6Mm} mm`
+                : "0 mm"}
+            </span>
+          </div>
+          <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
+            <span className="text-slate-400">L3 </span>
+            <span className="text-cyan-300 font-bold">
+              {assessment?.sagittalArrowL3Mm !== null && assessment?.sagittalArrowL3Mm !== undefined
+                ? `${assessment.sagittalArrowL3Mm} mm`
+                : "25-40 mm"}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Panel 1: Cyphose / Dos Rond */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 1
-            ? "border-amber-400/70 bg-amber-950/30 shadow-[0_0_14px_rgba(245,158,11,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <line x1="38" y1="8" x2="38" y2="88" stroke="rgba(148,163,184,0.25)" strokeWidth="1" strokeDasharray="3 2" />
-          <circle cx="48" cy="18" r="7.5" fill="rgba(30,41,59,0.8)" stroke="#f59e0b" strokeWidth="1.3" />
-          <path d="M44 26 Q22 44 39 62 Q43 72 39 82" fill="none" stroke="#f59e0b" strokeWidth="2.8" strokeLinecap="round" />
-          <circle cx="30" cy="44" r="5" fill="rgba(245,158,11,0.25)" stroke="#f59e0b" strokeWidth="1.2" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.kyphosis}</span>
-        {activeIdx === 1 && (
-          <span className="mt-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
-            {labels.yourChild}
-          </span>
-        )}
-      </div>
-
-      {/* Panel 2: Hyperlordose */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 2
-            ? "border-amber-400/70 bg-amber-950/30 shadow-[0_0_14px_rgba(245,158,11,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <line x1="38" y1="8" x2="38" y2="88" stroke="rgba(148,163,184,0.25)" strokeWidth="1" strokeDasharray="3 2" />
-          <circle cx="40" cy="16" r="7.5" fill="rgba(30,41,59,0.8)" stroke="#94a3b8" strokeWidth="1.2" />
-          <path d="M40 25 Q35 42 40 54 Q55 68 38 82" fill="none" stroke="#f59e0b" strokeWidth="2.8" strokeLinecap="round" />
-          <circle cx="47" cy="67" r="5" fill="rgba(245,158,11,0.25)" stroke="#f59e0b" strokeWidth="1.2" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.lordosis}</span>
-        {activeIdx === 2 && (
-          <span className="mt-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
-            {labels.yourChild}
-          </span>
-        )}
+      {/* 3-State Clinical Classification Selector Strip */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {(
+          [
+            ["ideal", labels.ideal, "emerald"],
+            ["kyphosis", labels.kyphosis, "amber"],
+            ["lordosis", labels.lordosis, "amber"],
+          ] as const
+        ).map(([key, label, tone]) => {
+          const isMatch = activeKey === key;
+          const activeCls =
+            tone === "emerald"
+              ? "border-emerald-400/70 bg-emerald-950/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+              : "border-amber-400/70 bg-amber-950/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)]";
+          return (
+            <div
+              key={key}
+              className={`rounded-xl border px-2 py-2 transition-all ${
+                isMatch ? activeCls : "border-white/10 bg-slate-950/60 text-slate-400"
+              }`}
+            >
+              <span className="block text-[10px] font-bold leading-tight">{label}</span>
+              {isMatch && (
+                <span className="mt-1 inline-block rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase">
+                  {labels.yourChild}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ─── 4. Knees & Lower-Limb Axes Illustration (Salenius-Vankka) ───────────────
+// ─── 4. Knees & Lower-Limbs 3D Focused Hologram Card ─────────────────────────
 
 export function KneeAlignmentIllustration({
   assessment,
@@ -322,91 +309,80 @@ export function KneeAlignmentIllustration({
     yourChild: string;
   };
 }) {
-  const activeIdx = !assessment
-    ? -1
+  const activeKey = !assessment
+    ? null
     : assessment.kneeAlignment === "genu_valgum"
-      ? 1
+      ? "valgum"
       : assessment.kneeAlignment === "genu_varum"
-        ? 2
+        ? "varum"
         : assessment.kneeAlignment === "normal"
-          ? 0
-          : -1;
+          ? "normal"
+          : null;
 
   return (
-    <div className="grid grid-cols-3 gap-2" dir="ltr">
-      {/* Normal */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 0
-            ? "border-emerald-400/70 bg-emerald-950/30 shadow-[0_0_14px_rgba(16,185,129,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <rect x="24" y="10" width="32" height="12" rx="5" fill="rgba(30,41,59,0.8)" stroke="#64748b" strokeWidth="1.1" />
-          <polyline points="32,22 33,54 33,86" fill="none" stroke="#10b981" strokeWidth="3.2" strokeLinecap="round" />
-          <polyline points="48,22 47,54 47,86" fill="none" stroke="#10b981" strokeWidth="3.2" strokeLinecap="round" />
-          <circle cx="33" cy="54" r="3" fill="#030712" stroke="#10b981" strokeWidth="1.5" />
-          <circle cx="47" cy="54" r="3" fill="#030712" stroke="#10b981" strokeWidth="1.5" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.normal}</span>
-        {activeIdx === 0 && (
-          <span className="mt-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-emerald-300">
-            {labels.yourChild}
-          </span>
-        )}
+    <div className="space-y-2.5">
+      {/* Focused 3D Holographic Knee Joints Viewport */}
+      <div className="relative h-36 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
+        <img
+          src="/images/kids-suivi/hero-body-scan.jpg"
+          alt={labels.normal}
+          className="h-full w-full object-cover object-[50%_72%] scale-[1.8] select-none"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/20" />
+
+        <div className="absolute left-3 top-3 space-y-1.5">
+          {assessment?.intermalleolarDistCm !== null && assessment?.intermalleolarDistCm !== undefined && (
+            <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
+              <span className="text-slate-400">DIM </span>
+              <span className="text-cyan-300 font-bold">{assessment.intermalleolarDistCm} cm</span>
+            </div>
+          )}
+          {assessment?.intercondylarDistCm !== null && assessment?.intercondylarDistCm !== undefined && (
+            <div className="rounded-lg border border-cyan-500/30 bg-slate-950/85 px-2.5 py-1 backdrop-blur-md text-[10px] font-mono">
+              <span className="text-slate-400">DIC </span>
+              <span className="text-cyan-300 font-bold">{assessment.intercondylarDistCm} cm</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Genu Valgum (X) */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 1
-            ? "border-amber-400/70 bg-amber-950/30 shadow-[0_0_14px_rgba(245,158,11,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <rect x="24" y="10" width="32" height="12" rx="5" fill="rgba(30,41,59,0.8)" stroke="#64748b" strokeWidth="1.1" />
-          <polyline points="30,22 38,54 24,86" fill="none" stroke="#f59e0b" strokeWidth="3.2" strokeLinecap="round" />
-          <polyline points="50,22 42,54 56,86" fill="none" stroke="#f59e0b" strokeWidth="3.2" strokeLinecap="round" />
-          <line x1="27" y1="84" x2="53" y2="84" stroke="#38bdf8" strokeWidth="1.4" strokeDasharray="2 2" />
-          <text x="40" y="93" textAnchor="middle" fontSize="7.5" fontFamily="monospace" fill="#38bdf8">DIM</text>
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.valgum}</span>
-        {activeIdx === 1 && (
-          <span className="mt-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
-            {labels.yourChild}
-          </span>
-        )}
-      </div>
-
-      {/* Genu Varum ( ) */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 2
-            ? "border-amber-400/70 bg-amber-950/30 shadow-[0_0_14px_rgba(245,158,11,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 80 96" className="w-16 h-20">
-          <rect x="24" y="10" width="32" height="12" rx="5" fill="rgba(30,41,59,0.8)" stroke="#64748b" strokeWidth="1.1" />
-          <polyline points="32,22 23,54 35,86" fill="none" stroke="#f59e0b" strokeWidth="3.2" strokeLinecap="round" />
-          <polyline points="48,22 57,54 45,86" fill="none" stroke="#f59e0b" strokeWidth="3.2" strokeLinecap="round" />
-          <line x1="26" y1="54" x2="54" y2="54" stroke="#38bdf8" strokeWidth="1.4" strokeDasharray="2 2" />
-          <text x="40" y="51" textAnchor="middle" fontSize="7.5" fontFamily="monospace" fill="#38bdf8">DIC</text>
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.varum}</span>
-        {activeIdx === 2 && (
-          <span className="mt-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
-            {labels.yourChild}
-          </span>
-        )}
+      {/* 3-State Salenius-Vankka Axis Classification */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {(
+          [
+            ["normal", labels.normal, "emerald"],
+            ["valgum", labels.valgum, "amber"],
+            ["varum", labels.varum, "amber"],
+          ] as const
+        ).map(([key, label, tone]) => {
+          const isMatch = activeKey === key;
+          const activeCls =
+            tone === "emerald"
+              ? "border-emerald-400/70 bg-emerald-950/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+              : "border-amber-400/70 bg-amber-950/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)]";
+          return (
+            <div
+              key={key}
+              className={`rounded-xl border px-2 py-2 transition-all ${
+                isMatch ? activeCls : "border-white/10 bg-slate-950/60 text-slate-400"
+              }`}
+            >
+              <span className="block text-[10px] font-bold leading-tight">{label}</span>
+              {isMatch && (
+                <span className="mt-1 inline-block rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase">
+                  {labels.yourChild}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ─── 5. Plantar Arch & Jack Windlass Test Illustration ───────────────────────
+// ─── 5. Podology & Foot Arch 3D Focused Hologram Card ────────────────────────
 
 export function FootArchIllustration({
   assessment,
@@ -423,146 +399,89 @@ export function FootArchIllustration({
   const isFlat =
     assessment && (assessment.footArch === "flat_flexible" || assessment.footArch === "flat_rigid");
   const isJackPositiveFlat = isFlat && assessment?.jackTest === "positive_reducible";
-  const activeIdx = !assessment
-    ? -1
+  const activeKey = !assessment
+    ? null
     : isJackPositiveFlat
-      ? 2
+      ? "jack"
       : isFlat
-        ? 1
+        ? "flat"
         : assessment.footArch === "normal"
-          ? 0
-          : -1;
+          ? "normal"
+          : null;
 
   return (
-    <div className="grid grid-cols-3 gap-2" dir="ltr">
-      {/* Normal Arch */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 0
-            ? "border-emerald-400/70 bg-emerald-950/30 shadow-[0_0_14px_rgba(16,185,129,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 86 64" className="w-20 h-14">
-          <line x1="8" y1="52" x2="78" y2="52" stroke="rgba(148,163,184,0.35)" strokeWidth="1.2" />
-          <path
-            d="M16 51 L16 32 Q22 24 30 34 Q46 36 68 42 Q76 45 74 51 L56 51 Q40 40 28 51 Z"
-            fill="rgba(16,185,129,0.2)"
-            stroke="#10b981"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.normal}</span>
-        {activeIdx === 0 && (
-          <span className="mt-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-emerald-300">
-            {labels.yourChild}
-          </span>
-        )}
+    <div className="space-y-2.5">
+      {/* Focused 3D Holographic Feet & Plantar Arch Viewport */}
+      <div className="relative h-36 w-full overflow-hidden rounded-xl border border-white/10 bg-[#030712]" dir="ltr">
+        <img
+          src="/images/kids-suivi/hero-body-scan.jpg"
+          alt={labels.normal}
+          className="h-full w-full object-cover object-[50%_94%] scale-[2.1] select-none"
+        />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/90 via-transparent to-slate-950/90" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/20" />
       </div>
 
-      {/* Flatfoot */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 1
-            ? "border-amber-400/70 bg-amber-950/30 shadow-[0_0_14px_rgba(245,158,11,0.2)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 86 64" className="w-20 h-14">
-          <line x1="8" y1="52" x2="78" y2="52" stroke="rgba(148,163,184,0.35)" strokeWidth="1.2" />
-          <path
-            d="M16 51 L16 32 Q22 24 30 35 Q46 38 68 43 Q76 46 74 51 L16 51 Z"
-            fill="rgba(245,158,11,0.22)"
-            stroke="#f59e0b"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.flat}</span>
-        {activeIdx === 1 && (
-          <span className="mt-1 rounded-full bg-amber-500/20 border border-amber-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-amber-300">
-            {labels.yourChild}
-          </span>
-        )}
-      </div>
-
-      {/* Jack Windlass Test (Big Toe Lift -> Arch Reforms) */}
-      <div
-        className={`rounded-xl border p-2 flex flex-col items-center text-center ${
-          activeIdx === 2
-            ? "border-sky-400/70 bg-sky-950/30 shadow-[0_0_14px_rgba(56,189,248,0.22)]"
-            : "border-white/10 bg-slate-950/60 opacity-75"
-        }`}
-      >
-        <svg viewBox="0 0 86 64" className="w-20 h-14">
-          <line x1="8" y1="52" x2="78" y2="52" stroke="rgba(148,163,184,0.35)" strokeWidth="1.2" />
-          <path
-            d="M16 51 L16 32 Q22 24 30 34 Q46 35 62 42 L74 32 L76 38 L62 50 L54 51 Q40 40 28 51 Z"
-            fill="rgba(56,189,248,0.22)"
-            stroke="#38bdf8"
-            strokeWidth="1.8"
-            strokeLinejoin="round"
-          />
-          {/* Upward arrow on big toe & arch */}
-          <path d="M42 50 L42 43 M39 46 L42 43 L45 46" stroke="#00f2ff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        <span className="text-[10px] font-bold text-slate-200 leading-tight">{labels.jack}</span>
-        {activeIdx === 2 && (
-          <span className="mt-1 rounded-full bg-sky-500/20 border border-sky-400/40 px-1.5 py-0.5 text-[8px] font-bold uppercase text-sky-300">
-            {labels.yourChild}
-          </span>
-        )}
+      {/* 3-State Staheli / Jack Test Classification */}
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {(
+          [
+            ["normal", labels.normal, "emerald"],
+            ["flat", labels.flat, "amber"],
+            ["jack", labels.jack, "sky"],
+          ] as const
+        ).map(([key, label, tone]) => {
+          const isMatch = activeKey === key;
+          const activeCls =
+            tone === "emerald"
+              ? "border-emerald-400/70 bg-emerald-950/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+              : tone === "sky"
+                ? "border-sky-400/70 bg-sky-950/50 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.2)]"
+                : "border-amber-400/70 bg-amber-950/50 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.2)]";
+          return (
+            <div
+              key={key}
+              className={`rounded-xl border px-2 py-2 transition-all ${
+                isMatch ? activeCls : "border-white/10 bg-slate-950/60 text-slate-400"
+              }`}
+            >
+              <span className="block text-[10px] font-bold leading-tight">{label}</span>
+              {isMatch && (
+                <span className="mt-1 inline-block rounded-full bg-white/10 px-1.5 py-0.5 text-[8px] font-black uppercase">
+                  {labels.yourChild}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// ─── 6. Aquatic Corrective Swim Drill Illustrations ──────────────────────────
+// ─── 6. Cinematic Underwater Ocean Banner for Aquatic Corrective Plan ────────
 
-export function AquaticCorrectiveIllustration({ code }: { code: string }) {
+export function AquaticProgramHeroBanner({
+  title,
+  subtitle,
+}: {
+  title: string;
+  subtitle: string;
+}) {
   return (
-    <div
-      className="w-16 h-12 rounded-xl border border-cyan-500/25 bg-slate-950/80 flex items-center justify-center shrink-0"
-      dir="ltr"
-    >
-      <svg viewBox="0 0 64 44" className="w-14 h-10" fill="none">
-        {/* Water surface wave */}
-        <path d="M4 32 Q14 28 24 32 T44 32 T60 32" stroke="rgba(56,189,248,0.45)" strokeWidth="1.4" strokeLinecap="round" />
-
-        {code.includes("kyphosis") || code.includes("scapular") ? (
-          /* Backstroke chest opening */
-          <>
-            <circle cx="16" cy="24" r="4.5" stroke="#00f2ff" strokeWidth="1.6" />
-            <line x1="21" y1="25" x2="48" y2="27" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" />
-            <path d="M26 24 L36 10" stroke="#00f2ff" strokeWidth="2" strokeLinecap="round" />
-            <path d="M48 27 L58 23 M48 27 L58 31" stroke="#38bdf8" strokeWidth="1.8" strokeLinecap="round" />
-          </>
-        ) : code.includes("flatfoot") || code.includes("genu_valgum") ? (
-          /* Straight flutter kick with pointed toes */
-          <>
-            <line x1="10" y1="22" x2="36" y2="22" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" />
-            <path d="M36 22 L54 17 M36 22 L54 27" stroke="#00f2ff" strokeWidth="2.2" strokeLinecap="round" />
-            <path d="M56 14 L56 29" stroke="#10b981" strokeWidth="1.3" strokeDasharray="2 2" />
-          </>
-        ) : code.includes("respiratory") ? (
-          /* Bubbles & thoracic expansion */
-          <>
-            <circle cx="24" cy="24" r="7" stroke="#00f2ff" strokeWidth="1.8" />
-            <circle cx="38" cy="18" r="2.5" stroke="#38bdf8" strokeWidth="1.4" />
-            <circle cx="45" cy="12" r="3.5" stroke="#00f2ff" strokeWidth="1.4" />
-            <circle cx="52" cy="19" r="2" stroke="#38bdf8" strokeWidth="1.2" />
-          </>
-        ) : (
-          /* Streamline axial elongation & balanced swimming */
-          <>
-            <circle cx="22" cy="21" r="4.2" stroke="#00f2ff" strokeWidth="1.6" />
-            <line x1="8" y1="20" x2="54" y2="24" stroke="#00f2ff" strokeWidth="2.4" strokeLinecap="round" />
-            <path d="M8 20 L14 16 M8 20 L14 24" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" />
-            <path d="M54 24 L59 21 M54 24 L59 27" stroke="#38bdf8" strokeWidth="1.6" strokeLinecap="round" />
-          </>
-        )}
-      </svg>
+    <div className="relative h-36 w-full overflow-hidden rounded-2xl border border-cyan-500/30 bg-[#030712]">
+      <img
+        src="/images/kids-suivi/ocean-rays.jpg"
+        alt={title}
+        className="h-full w-full object-cover object-center select-none"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-950/45 to-sky-950/20" />
+      <div className="absolute inset-x-4 bottom-3.5 space-y-1">
+        <h3 className="text-sm font-extrabold text-white font-display tracking-wide">
+          {title}
+        </h3>
+        <p className="text-[11px] text-cyan-100/85 leading-snug">{subtitle}</p>
+      </div>
     </div>
   );
 }
