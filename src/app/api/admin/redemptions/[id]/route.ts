@@ -20,6 +20,9 @@ export async function DELETE(
   } catch (err: unknown) {
     logger.error("DELETE redemption API error:", err);
     const message = err instanceof Error ? err.message : "Failed to delete redemption.";
+    if (message === "Redemption not found") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

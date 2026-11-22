@@ -10,32 +10,64 @@ export async function syncClientCRM(clientId: string, prismaTx?: any) {
     return;
   }
 
-  // 1. Calculate totalSpent (sum of paid invoices)
-  const invoiceAggregate = await db.invoice.aggregate({
-    where: { clientId, status: "paid" },
-    _sum: { amount: true },
-  });
-  const totalSpent = invoiceAggregate._sum.amount ?? 0;
+  const readClient = () =>
+    typeof db.client.findUnique === "function"
+      ? db.client.findUnique({ where: { id: clientId }, select: { createdAt: true } })
+      : Promise.resolve(null);
 
-  // 2. Calculate lastActivityDate (most recent redemption)
-  const lastRedemption = await db.redemption.findFirst({
-    where: { clientId },
-    orderBy: { redeemedAt: "desc" },
-  });
+  let invoiceAggregate: any;
+  let lastRedemption: any;
+  let redemptionsByActivity: any[];
+  let creditRate: number;
+  let client: { createdAt: Date } | null;
+
+  // Parallelize reads on top-level prisma client; keep sequential inside interactive transactions
+  if (!prismaTx) {
+    [invoiceAggregate, lastRedemption, redemptionsByActivity, creditRate, client] = await Promise.all([
+      db.invoice.aggregate({
+        where: { clientId, status: "paid" },
+        _sum: { amount: true },
+      }),
+      db.redemption.findFirst({
+        where: { clientId },
+        orderBy: { redeemedAt: "desc" },
+      }),
+      db.redemption.groupBy({
+        by: ["activityId"],
+        where: { clientId },
+        _count: { activityId: true },
+        orderBy: { _count: { activityId: "desc" } },
+        take: 1,
+      }),
+      getCreditRate(db),
+      readClient(),
+    ]);
+  } else {
+    invoiceAggregate = await db.invoice.aggregate({
+      where: { clientId, status: "paid" },
+      _sum: { amount: true },
+    });
+    lastRedemption = await db.redemption.findFirst({
+      where: { clientId },
+      orderBy: { redeemedAt: "desc" },
+    });
+    redemptionsByActivity = await db.redemption.groupBy({
+      by: ["activityId"],
+      where: { clientId },
+      _count: { activityId: true },
+      orderBy: { _count: { activityId: "desc" } },
+      take: 1,
+    });
+    creditRate = await getCreditRate(db);
+    client = await readClient();
+  }
+
+  if (typeof db.client.findUnique === "function" && !client) {
+    return;
+  }
+
+  const totalSpent = Math.round(invoiceAggregate._sum.amount ?? 0);
   const lastActivityDate = lastRedemption?.redeemedAt ?? null;
-
-  // 3. Calculate favoriteActivity (activity with the most redemptions)
-  const redemptionsByActivity = await db.redemption.groupBy({
-    by: ["activityId"],
-    where: { clientId },
-    _count: { activityId: true },
-    orderBy: {
-      _count: {
-        activityId: "desc",
-      },
-    },
-    take: 1,
-  });
 
   let favoriteActivityName: string | null = null;
   if (redemptionsByActivity.length > 0) {
@@ -46,15 +78,8 @@ export async function syncClientCRM(clientId: string, prismaTx?: any) {
     favoriteActivityName = act?.name ?? null;
   }
 
-  // 4. Calculate customerSegment
-  const creditRate = await getCreditRate(db);
   const vipThreshold = 20 * creditRate; // Default 38,000 DA
   const highValueThreshold = 10 * creditRate; // Default 19,000 DA
-
-  const client = await db.client.findUnique({
-    where: { id: clientId },
-    select: { createdAt: true },
-  });
 
   let customerSegment = "Standard";
   if (totalSpent >= vipThreshold) {

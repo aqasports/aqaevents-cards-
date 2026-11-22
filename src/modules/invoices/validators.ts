@@ -11,20 +11,20 @@ export const invoiceLineItemSchema = z.object({
 
 export const createInvoiceSchema = z.object({
   clientId: z.string(),
-  amount: z.number().positive(),
+  amount: z.number().positive().finite(),
   category: z.enum(["package", "custom", "adhoc", "sale"]),
   items: z.string().min(1),
   notes: z.string().optional(),
   status: z.enum(["paid", "unpaid"]).default("paid"),
   packageId: z.string().optional(),
-  creditDelta: z.number().optional(),
+  creditDelta: z.number().min(-500).max(500).finite().optional(),
   creditReason: z.string().optional(),
 });
 
 export const updateInvoiceSchema = z.object({
   status: z.enum(["paid", "unpaid", "refunded"]).optional(),
   notes: z.string().optional().nullable(),
-  amount: z.number().positive().optional(),
+  amount: z.number().positive().finite().optional(),
   category: z.enum(["package", "custom", "adhoc", "sale"]).optional(),
   items: z.string().min(1).optional(),
   createdAt: z.string().optional(),
@@ -33,11 +33,16 @@ export const updateInvoiceSchema = z.object({
 
 export const addCreditsSchema = z.object({
   packageId: z.string().optional(),
-  customAmount: z.number().max(500, "Custom credit amount cannot exceed 500 credits.").optional(),
+  customAmount: z
+    .number()
+    .min(-500, "Custom credit deduction cannot exceed 500 credits.")
+    .max(500, "Custom credit amount cannot exceed 500 credits.")
+    .finite()
+    .optional(),
   reason: z.string().optional(),
   invoice: z
     .object({
-      amount: z.number().positive(),
+      amount: z.number().positive().finite(),
       category: z.enum(["package", "custom", "adhoc"]).default("custom"),
       items: z.string().min(1),
       notes: z.string().optional(),
@@ -86,14 +91,14 @@ export const redeemSchema = z.object({
   sessionId: z.string().optional(),
   notes: z.string().optional(),
   bypassBalanceCheck: z.boolean().optional(),
-  creditsUsed: z.number().optional(),
+  creditsUsed: z.number().min(0, "Credits used cannot be negative").finite().optional(),
   bypassPastSessionCheck: z.boolean().optional(),
   isWalkIn: z.boolean().optional(),
   walkinName: z.string().optional(),
-  paidAmount: z.number().min(0).optional(),
+  paidAmount: z.number().min(0).finite().optional(),
 });
 
 export const updateLedgerSchema = z.object({
-  delta: z.number().optional(),
+  delta: z.number().finite().optional(),
   reason: z.string().optional(),
 });

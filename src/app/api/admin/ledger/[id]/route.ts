@@ -26,6 +26,10 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (err: unknown) {
     logger.error("PATCH ledger entry API error:", err);
+    const message = err instanceof Error ? err.message : "";
+    if (message === "Ledger entry not found") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
     return NextResponse.json({ error: "Failed to update ledger entry" }, { status: 500 });
   }
 }
@@ -44,6 +48,13 @@ export async function DELETE(
     return NextResponse.json(result);
   } catch (err: unknown) {
     logger.error("DELETE ledger entry API error:", err);
+    const message = err instanceof Error ? err.message : "";
+    if (message === "Ledger entry not found") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+    if (message === "Ledger entry has already been reversed") {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Failed to delete ledger entry" }, { status: 500 });
   }
 }

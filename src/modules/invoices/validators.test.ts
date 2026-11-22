@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { invoiceLineItemSchema, createInvoiceSchema } from "./validators";
+import {
+  invoiceLineItemSchema,
+  createInvoiceSchema,
+  addCreditsSchema,
+  redeemSchema,
+} from "./validators";
 
 describe("Invoice Line Item Validators", () => {
   it("should validate a line item with positive quantity, non-negative unitPrice, and taxRate in {9, 19}", () => {
@@ -77,5 +82,47 @@ describe("Invoice Line Item Validators", () => {
     };
     const res = createInvoiceSchema.safeParse(invoice);
     expect(res.success).toBe(true);
+  });
+
+  it("should reject negative or non-finite creditsUsed and paidAmount in redeemSchema", () => {
+    expect(
+      redeemSchema.safeParse({ clientId: "c1", activityId: "a1", creditsUsed: -5 }).success
+    ).toBe(false);
+    expect(
+      redeemSchema.safeParse({ clientId: "c1", activityId: "a1", creditsUsed: Infinity }).success
+    ).toBe(false);
+    expect(
+      redeemSchema.safeParse({ clientId: "c1", activityId: "a1", creditsUsed: 0, paidAmount: -10 })
+        .success
+    ).toBe(false);
+    expect(
+      redeemSchema.safeParse({ clientId: "c1", activityId: "a1", creditsUsed: 0, paidAmount: 0 })
+        .success
+    ).toBe(true);
+  });
+
+  it("should enforce [-500, 500] finite bounds on addCreditsSchema.customAmount and createInvoiceSchema.creditDelta", () => {
+    expect(addCreditsSchema.safeParse({ customAmount: -501 }).success).toBe(false);
+    expect(addCreditsSchema.safeParse({ customAmount: 501 }).success).toBe(false);
+    expect(addCreditsSchema.safeParse({ customAmount: -10 }).success).toBe(true);
+
+    expect(
+      createInvoiceSchema.safeParse({
+        clientId: "c1",
+        amount: 1000,
+        category: "custom",
+        items: "Adjustment",
+        creditDelta: -600,
+      }).success
+    ).toBe(false);
+    expect(
+      createInvoiceSchema.safeParse({
+        clientId: "c1",
+        amount: 1000,
+        category: "custom",
+        items: "Recharge",
+        creditDelta: 500,
+      }).success
+    ).toBe(true);
   });
 });

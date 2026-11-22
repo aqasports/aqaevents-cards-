@@ -4,15 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { logAdminAction } from "@/lib/audit";
 import { nanoid } from "nanoid";
+import { generatePublicToken } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
 
 const allocateCreditsSchema = z.object({
   action: z.enum(["allocate_individual", "toggle_shared_pool", "request_credits"]),
   clientId: z.string().optional(),
-  creditAmount: z.number().positive().optional(),
+  creditAmount: z.number().positive().finite().optional(),
   useSharedPool: z.boolean().optional(),
-  requestedCredits: z.number().int().positive().optional(),
+  requestedCredits: z.number().int().positive().max(10000).optional(),
   notes: z.string().optional(),
 });
 
@@ -82,16 +83,17 @@ export async function POST(request: NextRequest) {
       }
 
       const result = await prisma.$transaction(async (tx) => {
-        const org = await tx.organization.findUnique({ where: { id: organizationId } });
-        if (!org || org.sharedCreditPool < validated.creditAmount!) {
+        // Atomically check and deduct from sharedCreditPool to prevent concurrent overdraft
+        const deducted = await tx.organization.updateMany({
+          where: {
+            id: organizationId,
+            sharedCreditPool: { gte: validated.creditAmount! },
+          },
+          data: { sharedCreditPool: { decrement: validated.creditAmount! } },
+        });
+        if (deducted.count === 0) {
           throw new Error("Insufficient organization credit pool balance");
         }
-
-        // Deduct from pool
-        await tx.organization.update({
-          where: { id: organizationId },
-          data: { sharedCreditPool: { decrement: validated.creditAmount } },
-        });
 
         // Add ledger entry for client card
         const entry = await tx.ledgerEntry.create({
@@ -108,10 +110,10 @@ export async function POST(request: NextRequest) {
       });
 
       await logAdminAction(
-        session.user.id,
+        null,
         "ALLOCATE_POOL_CREDITS",
         client.fullName,
-        `Allocated ${validated.creditAmount} credits from pool to ${client.fullName}`
+        `Allocated ${validated.creditAmount} credits from pool to ${client.fullName} (orgUserId: ${session.user.id}, orgId: ${organizationId})`
       );
 
       return NextResponse.json({ success: true, entry: result });
@@ -128,10 +130,10 @@ export async function POST(request: NextRequest) {
       });
 
       await logAdminAction(
-        session.user.id,
+        null,
         "TOGGLE_SHARED_POOL",
         organizationId,
-        `Set org shared pool mode to ${validated.useSharedPool}`
+        `Set org shared pool mode to ${validated.useSharedPool} (orgUserId: ${session.user.id}, orgId: ${organizationId})`
       );
 
       return NextResponse.json({ success: true, organization: updated });
@@ -159,7 +161,8 @@ export async function POST(request: NextRequest) {
         card = await prisma.card.create({
           data: {
             clientId: client.id,
-            publicToken: nanoid(12),
+            organizationId,
+            publicToken: generatePublicToken(),
             cardCode: `AQA-CORP-${nanoid(6).toUpperCase()}`,
             status: "active",
           },
@@ -184,10 +187,10 @@ export async function POST(request: NextRequest) {
       });
 
       await logAdminAction(
-        session.user.id,
+        null,
         "REQUEST_CORPORATE_CREDITS",
         organizationId,
-        `Submitted request for ${validated.requestedCredits} credits for staff review`
+        `Submitted request for ${validated.requestedCredits} credits for staff review (orgUserId: ${session.user.id}, orgId: ${organizationId})`
       );
 
       return NextResponse.json({ success: true, request: purchaseReq }, { status: 201 });

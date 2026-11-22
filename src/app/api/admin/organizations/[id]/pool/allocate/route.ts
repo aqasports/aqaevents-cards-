@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const allocateSchema = z.object({
   clientId: z.string().min(1, "Employee ID is required"),
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.number().positive("Amount must be positive").finite(),
   reason: z.string().min(1, "Reason is required").default("Pool allocation"),
 });
 
@@ -72,9 +72,22 @@ export async function POST(
 
       const card = client.cards[0];
 
-      await tx.organization.update({
-        where: { id: orgId },
+      const deducted = await tx.organization.updateMany({
+        where: {
+          id: orgId,
+          useSharedPool: true,
+          sharedCreditPool: { gte: amount },
+        },
         data: { sharedCreditPool: { decrement: amount } },
+      });
+
+      if (deducted.count === 0) {
+        throw new Error("Insufficient pool balance or shared pool disabled");
+      }
+
+      const updatedOrg = await tx.organization.findUnique({
+        where: { id: orgId },
+        select: { sharedCreditPool: true },
       });
 
       await tx.ledgerEntry.create({
@@ -89,7 +102,7 @@ export async function POST(
       });
 
       return {
-        newPoolBalance: org.sharedCreditPool - amount,
+        newPoolBalance: updatedOrg?.sharedCreditPool ?? org.sharedCreditPool - amount,
         allocatedAmount: amount,
         employeeName: client.fullName,
         cardCode: card.cardCode,

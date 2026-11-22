@@ -90,7 +90,7 @@ describe("Organization Bulk Provisioning POST API", () => {
     vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
       const mockTx = {
         organization: {
-          update: vi.fn().mockResolvedValue({ id: "org-1" }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
         client: {
           findFirst: vi.fn().mockResolvedValue(null),
@@ -132,6 +132,86 @@ describe("Organization Bulk Provisioning POST API", () => {
       updatedCount: 0,
       totalCreditsGranted: 25,
       cardsGenerated: 2,
+    });
+  });
+
+  it("should return 400 when concurrent pool depletion makes atomic updateMany return count 0", async () => {
+    vi.mocked(prisma.organization.findUnique).mockResolvedValue({
+      id: "org-1",
+      name: "Acme Corp",
+      sharedCreditPool: 50,
+    } as any);
+
+    const clientCreate = vi.fn();
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
+      const mockTx = {
+        organization: {
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        client: { create: clientCreate },
+      };
+      return await callback(mockTx as any);
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/organizations/org-1/provision", {
+      method: "POST",
+      body: JSON.stringify({
+        grantInitialCreditsFromPool: true,
+        employees: [{ fullName: "Alice Smith", initialCredits: 20 }],
+      }),
+    });
+
+    const res = await POST(request, { params: Promise.resolve({ id: "org-1" }) });
+    expect(res.status).toBe(400);
+    expect(clientCreate).not.toHaveBeenCalled();
+  });
+
+  it("should ignore skipped blank employee names when computing pool deduction", async () => {
+    vi.mocked(prisma.organization.findUnique).mockResolvedValue({
+      id: "org-1",
+      name: "Acme Corp",
+      sharedCreditPool: 50,
+    } as any);
+
+    const orgUpdateMany = vi.fn().mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
+      const mockTx = {
+        organization: { updateMany: orgUpdateMany },
+        client: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockImplementation(({ data }) =>
+            Promise.resolve({ id: `client-${data.fullName}`, ...data })
+          ),
+          update: vi.fn(),
+        },
+        card: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findUnique: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockImplementation(({ data }) =>
+            Promise.resolve({ id: `card-${data.clientId}`, ...data })
+          ),
+        },
+        ledgerEntry: { create: vi.fn().mockResolvedValue({ id: "l1" }) },
+      };
+      return await callback(mockTx as any);
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/admin/organizations/org-1/provision", {
+      method: "POST",
+      body: JSON.stringify({
+        grantInitialCreditsFromPool: true,
+        employees: [
+          { fullName: "   ", initialCredits: 40 },
+          { fullName: "Valid User", initialCredits: 10 },
+        ],
+      }),
+    });
+
+    const res = await POST(request, { params: Promise.resolve({ id: "org-1" }) });
+    expect(res.status).toBe(201);
+    expect(orgUpdateMany).toHaveBeenCalledWith({
+      where: { id: "org-1", sharedCreditPool: { gte: 10 } },
+      data: { sharedCreditPool: { decrement: 10 } },
     });
   });
 });

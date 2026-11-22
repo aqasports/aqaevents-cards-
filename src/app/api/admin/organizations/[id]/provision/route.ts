@@ -48,8 +48,28 @@ export async function POST(
       );
     }
 
-    // Calculate total credits requested
-    const totalCreditsRequested = employees.reduce((sum, emp) => {
+    const validEmployees = employees.filter((emp) => Boolean(emp.fullName?.trim()));
+    if (validEmployees.length === 0) {
+      return NextResponse.json(
+        { error: "At least one employee with a valid fullName is required" },
+        { status: 400 }
+      );
+    }
+
+    for (const emp of validEmployees) {
+      if (emp.initialCredits !== undefined && emp.initialCredits !== null) {
+        const rawCredits = Number(emp.initialCredits);
+        if (!Number.isFinite(rawCredits) || rawCredits < 0) {
+          return NextResponse.json(
+            { error: "Employee initialCredits must be a non-negative finite number" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    // Calculate total credits requested across valid employees only
+    const totalCreditsRequested = validEmployees.reduce((sum, emp) => {
       const credits = Number(emp.initialCredits) || 0;
       return sum + (credits > 0 ? credits : 0);
     }, 0);
@@ -72,19 +92,24 @@ export async function POST(
       let cardsGenerated = 0;
 
       if (grantInitialCreditsFromPool && totalCreditsRequested > 0) {
-        await tx.organization.update({
-          where: { id: organizationId },
+        const deducted = await tx.organization.updateMany({
+          where: {
+            id: organizationId,
+            sharedCreditPool: { gte: totalCreditsRequested },
+          },
           data: {
             sharedCreditPool: {
               decrement: totalCreditsRequested,
             },
           },
         });
+        if (deducted.count === 0) {
+          throw new Error("INSUFFICIENT_POOL");
+        }
       }
 
-      for (const emp of employees) {
-        const name = emp.fullName?.trim();
-        if (!name) continue;
+      for (const emp of validEmployees) {
+        const name = emp.fullName.trim();
 
         const email = emp.email?.trim() || null;
         const phone = emp.phone?.trim() || null;
@@ -147,6 +172,7 @@ export async function POST(
           card = await tx.card.create({
             data: {
               clientId: client.id,
+              organizationId,
               cardCode,
               publicToken,
               status: "active",
@@ -181,6 +207,12 @@ export async function POST(
     return NextResponse.json(result, { status: 201 });
   } catch (err: unknown) {
     logger.error("POST provision error:", err);
+    if (err instanceof Error && err.message === "INSUFFICIENT_POOL") {
+      return NextResponse.json(
+        { error: "Insufficient organization shared credit pool balance" },
+        { status: 400 }
+      );
+    }
     const details = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
       { error: `Provisioning failed: ${details}` },

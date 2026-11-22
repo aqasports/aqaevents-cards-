@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, isSqlite } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 import { decodeMemberGroupIds } from "@/lib/swim-groups";
@@ -89,6 +89,18 @@ export async function PATCH(
     const { amount, method, paidAt, notes, cycleMode, cycleMonth } = parsed.data;
 
     const executeUpdate = async (tx: typeof prisma) => {
+      const lookup = await tx.swimPayment.findUnique({
+        where: { id },
+        select: { memberId: true },
+      });
+      if (!lookup) {
+        return null;
+      }
+
+      if (!isSqlite && typeof (tx as any).$executeRaw === "function") {
+        await (tx as any).$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lookup.memberId}))`;
+      }
+
       const existing = await tx.swimPayment.findUnique({
         where: { id },
         include: {
@@ -223,6 +235,18 @@ export async function DELETE(
     const revertUpgrade = parsed.success ? parsed.data.revertUpgrade : true;
 
     const executeDelete = async (tx: typeof prisma) => {
+      const lookup = await tx.swimPayment.findUnique({
+        where: { id },
+        select: { memberId: true },
+      });
+      if (!lookup) {
+        return null;
+      }
+
+      if (!isSqlite && typeof (tx as any).$executeRaw === "function") {
+        await (tx as any).$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lookup.memberId}))`;
+      }
+
       const existing = await tx.swimPayment.findUnique({
         where: { id },
         include: {

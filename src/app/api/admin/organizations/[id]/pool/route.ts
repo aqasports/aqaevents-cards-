@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, isSqlite } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
 import { poolAdjustmentSchema } from "@/modules/organizations/validators";
 
@@ -17,33 +17,45 @@ export async function POST(
     const body = await req.json();
     const validated = poolAdjustmentSchema.parse(body);
 
-    const org = await prisma.organization.findUnique({
-      where: { id: orgId },
+    const txResult = await prisma.$transaction(async (tx) => {
+      if (!isSqlite && typeof (tx as any).$executeRaw === "function") {
+        await (tx as any).$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${orgId}))`;
+      }
+
+      const org = await tx.organization.findUnique({
+        where: { id: orgId },
+      });
+
+      if (!org) {
+        return null;
+      }
+
+      const newPoolBalance = Math.max(0, org.sharedCreditPool + validated.delta);
+
+      const updatedOrg = await tx.organization.update({
+        where: { id: orgId },
+        data: {
+          sharedCreditPool: newPoolBalance,
+        },
+      });
+
+      return { org, updatedOrg, newPoolBalance };
     });
 
-    if (!org) {
+    if (!txResult) {
       return NextResponse.json({ error: "Organization not found" }, { status: 404 });
     }
-
-    const newPoolBalance = Math.max(0, org.sharedCreditPool + validated.delta);
-
-    const updatedOrg = await prisma.organization.update({
-      where: { id: orgId },
-      data: {
-        sharedCreditPool: newPoolBalance,
-      },
-    });
 
     await logAdminAction(
       session.user.id,
       "ADJUST_ORGANIZATION_CREDIT_POOL",
-      org.name,
-      `Adjusted credit pool for ${org.name} by ${validated.delta > 0 ? "+" : ""}${validated.delta} credits. New pool: ${newPoolBalance}. Reason: ${validated.reason}`
+      txResult.org.name,
+      `Adjusted credit pool for ${txResult.org.name} by ${validated.delta > 0 ? "+" : ""}${validated.delta} credits. New pool: ${txResult.newPoolBalance}. Reason: ${validated.reason}`
     );
 
     return NextResponse.json({
       success: true,
-      sharedCreditPool: updatedOrg.sharedCreditPool,
+      sharedCreditPool: txResult.updatedOrg.sharedCreditPool,
       delta: validated.delta,
       reason: validated.reason,
     });

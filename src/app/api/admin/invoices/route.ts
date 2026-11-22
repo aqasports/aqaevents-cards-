@@ -43,12 +43,35 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (
+    parsed.data.creditDelta !== undefined &&
+    Math.abs(parsed.data.creditDelta) > 50 &&
+    session.user.role !== "super_admin"
+  ) {
+    return NextResponse.json(
+      { error: "Forbidden: Staff members are restricted to a maximum of 50 custom credits per invoice." },
+      { status: 403 }
+    );
+  }
+
   try {
     const result = await billingService.createInvoiceWithCredits(parsed.data, session.user.id);
     return NextResponse.json(result, { status: 201 });
   } catch (err: unknown) {
     logger.error("POST invoice API error:", err);
     const details = err instanceof Error ? err.message : String(err);
+    if (details === "DUPLICATE_RECHARGE") {
+      return NextResponse.json(
+        { error: "Duplicate invoice recharge blocked. Please wait a few seconds before retrying." },
+        { status: 409 }
+      );
+    }
+    if (details === "Client not found" || details === "Package not found") {
+      return NextResponse.json({ error: details }, { status: 404 });
+    }
+    if (details.includes("Insufficient credit balance") || details.includes("Invalid credits")) {
+      return NextResponse.json({ error: details }, { status: 400 });
+    }
     return NextResponse.json(
       {
         error: `Database error during invoice creation: ${details}. If you recently reset the database, please try logging out of the admin panel and logging back in to refresh your session.`

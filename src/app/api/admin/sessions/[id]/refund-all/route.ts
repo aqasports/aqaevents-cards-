@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/api-auth";
+import { requireSuperAdminSession } from "@/lib/api-auth";
 import { BillingService } from "@/modules/invoices/service";
 import { logger } from "@/lib/logger";
 
@@ -9,7 +9,7 @@ export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { session, error } = await requireAdminSession();
+  const { session, error } = await requireSuperAdminSession();
   if (error || !session) return error;
 
   const { id: sessionId } = await params;

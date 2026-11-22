@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAdminSession } from "@/lib/api-auth";
-import { prisma } from "@/lib/prisma";
+import { prisma, isSqlite } from "@/lib/prisma";
 import { logAdminAction } from "@/lib/audit";
 import { logger } from "@/lib/logger";
 import {
@@ -75,7 +75,42 @@ export async function POST(request: NextRequest) {
       eventCardCode,
     } = parsed.data;
 
+    if (
+      (action === "settle" || action === "cover_month") &&
+      paymentAmount <= 0
+    ) {
+      return NextResponse.json(
+        { error: "Payment amount must be greater than 0 for settle or cover_month actions" },
+        { status: 400 }
+      );
+    }
+
+    if (action === "side_pocket" && (sidePocketAmount ?? paymentAmount) <= 0) {
+      return NextResponse.json(
+        { error: "Side pocket deposit amount must be greater than 0" },
+        { status: 400 }
+      );
+    }
+
+    if (action === "use_side_pocket" && (sidePocketAmount ?? 0) <= 0) {
+      return NextResponse.json(
+        { error: "Side pocket amount to use must be greater than 0" },
+        { status: 400 }
+      );
+    }
+
+    if (action === "link_event_card" && !eventCardCode?.trim()) {
+      return NextResponse.json(
+        { error: "Event card code is required for link_event_card" },
+        { status: 400 }
+      );
+    }
+
     const executePayment = async (tx: typeof prisma) => {
+      if (!isSqlite && typeof (tx as any).$executeRaw === "function") {
+        await (tx as any).$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${memberId}))`;
+      }
+
       const member = await tx.swimMember.findUnique({
         where: { id: memberId },
         include: { payments: true },
@@ -168,9 +203,12 @@ export async function POST(request: NextRequest) {
       // Handle Side Pocket deduction if specified
       if (action === "use_side_pocket" && sidePocketAmount && sidePocketAmount > 0) {
         const currentPocket = parseSidePocketBalance(member.notes);
+        if (sidePocketAmount > currentPocket) {
+          throw new Error(`INSUFFICIENT_SIDE_POCKET:${currentPocket}:${sidePocketAmount}`);
+        }
         updatedMemberNotes = encodeSidePocketBalance(
           updatedMemberNotes,
-          Math.max(0, currentPocket - sidePocketAmount)
+          currentPocket - sidePocketAmount
         );
         finalPaymentNotes = `[USED_SIDE_POCKET:${sidePocketAmount}] ${finalPaymentNotes}`.trim();
       }
@@ -283,6 +321,13 @@ export async function POST(request: NextRequest) {
     );
   } catch (err: unknown) {
     logger.error("POST record swim payment error:", err);
+    if (err instanceof Error && err.message.startsWith("INSUFFICIENT_SIDE_POCKET:")) {
+      const [, available, requested] = err.message.split(":");
+      return NextResponse.json(
+        { error: `Insufficient side pocket balance (available: ${available} DA, requested: ${requested} DA)` },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({ error: "Failed to record swim payment" }, { status: 500 });
   }
 }

@@ -101,6 +101,12 @@ export async function POST(request: NextRequest) {
       if (err.message === "SESSION_NOT_AVAILABLE") {
         return NextResponse.json({ error: "The selected event session is not available." }, { status: 400 });
       }
+      if (err.message === "DUPLICATE_REDEMPTION") {
+        return NextResponse.json({ error: "Duplicate redemption blocked. Please wait a moment before retrying." }, { status: 409 });
+      }
+      if (err.message === "INVALID_CREDITS_USED") {
+        return NextResponse.json({ error: "Credits used must be a valid non-negative number." }, { status: 400 });
+      }
     }
 
     return NextResponse.json({ error: "Failed to create redemption" }, { status: 500 });

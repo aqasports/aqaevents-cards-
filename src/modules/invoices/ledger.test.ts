@@ -10,6 +10,8 @@ vi.mock("@/lib/prisma", () => ({
       create: vi.fn(),
       update: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue(null),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { delta: 0 } }),
       delete: vi.fn(),
     },
     client: {
@@ -25,7 +27,9 @@ describe("BillingService Ledger Audit Logging", () => {
   let billingService: BillingService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    vi.mocked(prisma.ledgerEntry.findFirst).mockResolvedValue(null as any);
+    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 0 } } as any);
     billingService = new BillingService();
   });
 
@@ -97,5 +101,58 @@ describe("BillingService Ledger Audit Logging", () => {
         target: "Jane Smith",
       }),
     });
+  });
+
+  it("should account for prior [ADJUSTMENT of ...] entries on repeated updateLedgerEntry calls", async () => {
+    vi.mocked(prisma.ledgerEntry.findUnique).mockResolvedValue({
+      id: "ledger-3",
+      clientId: "client-3",
+      delta: 10,
+      reason: "Initial recharge",
+      type: "credit",
+    } as any);
+    vi.mocked(prisma.ledgerEntry.aggregate).mockResolvedValue({ _sum: { delta: 5 } } as any);
+    vi.mocked(prisma.client.findUnique).mockResolvedValue({ id: "client-3", fullName: "Ali" } as any);
+    vi.mocked(prisma.ledgerEntry.create).mockResolvedValue({ id: "adj-2" } as any);
+
+    await billingService.updateLedgerEntry("ledger-3", { delta: 12 }, "admin-1");
+
+    // Current effective delta is 10 + 5 = 15, so updating target to 12 creates -3 adjustment
+    expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        clientId: "client-3",
+        delta: -3,
+        type: "debit",
+      }),
+    });
+  });
+
+  it("should reject double-reversal on deleteLedgerEntry and reject reversing a [REVERSAL of ...] entry", async () => {
+    vi.mocked(prisma.ledgerEntry.findUnique).mockResolvedValueOnce({
+      id: "ledger-4",
+      clientId: "client-4",
+      delta: 5,
+      reason: "Initial credit",
+      type: "credit",
+    } as any);
+    vi.mocked(prisma.ledgerEntry.findFirst).mockResolvedValueOnce({ id: "rev-1" } as any);
+
+    await expect(billingService.deleteLedgerEntry("ledger-4", "admin-1")).rejects.toThrow(
+      "Ledger entry has already been reversed"
+    );
+    expect(prisma.ledgerEntry.create).not.toHaveBeenCalled();
+
+    vi.mocked(prisma.ledgerEntry.findUnique).mockResolvedValueOnce({
+      id: "rev-1",
+      clientId: "client-4",
+      delta: -5,
+      reason: "[REVERSAL of ledger-4] Initial credit",
+      type: "debit",
+    } as any);
+
+    await expect(billingService.deleteLedgerEntry("rev-1", "admin-1")).rejects.toThrow(
+      "Ledger entry has already been reversed"
+    );
+    expect(prisma.ledgerEntry.create).not.toHaveBeenCalled();
   });
 });

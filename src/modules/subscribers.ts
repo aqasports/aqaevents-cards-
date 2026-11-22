@@ -10,6 +10,11 @@ import { ReportingRepository } from "./reports/repository";
 
 const getPrisma = () => (globalThis as any).prisma;
 
+const isSqliteDb = (): boolean => {
+  const url = process.env.DATABASE_URL;
+  return !url || url.startsWith("file:") || url.startsWith("sqlite:");
+};
+
 const clientsRepo = new ClientsRepository();
 const cardsRepo = new CardsRepository();
 const billingRepo = new BillingRepository();
@@ -49,6 +54,18 @@ async function resolveAdminId(adminId: string | null | undefined, tx?: any): Pro
   } catch {
     return null;
   }
+}
+
+async function resolveSafeAuditUserId(payload: any, tx?: any): Promise<string | null> {
+  const client = tx || getPrisma();
+  const hasAdminLookup = Boolean(client?.adminUser && typeof client.adminUser.findUnique === "function");
+  if (!hasAdminLookup) {
+    return payload.adminId ?? null;
+  }
+  if (payload.validAdminId !== undefined) {
+    return payload.validAdminId;
+  }
+  return resolveAdminId(payload.adminId, tx);
 }
 
 // -------------------------------------------------------------
@@ -119,9 +136,10 @@ eventBus.on(EVENTS.CLIENT_CREATED, async (payload: any) => {
   payload.postCommitActions = payload.postCommitActions ?? [];
   payload.postCommitActions.push(async () => {
     const finalBalance = await getClientBalance(payload.client.id);
+    const auditUserId = await resolveSafeAuditUserId(payload);
     await reportingRepo.createAudit({
       data: {
-        userId: payload.adminId,
+        userId: auditUserId,
         action: "CREATE_CLIENT",
         target: `Client ${payload.client.fullName}`,
         details: `Created client ${payload.client.fullName} (${payload.client.email || "No email"}). Card code: ${payload.card?.cardCode || "None"}. Initial Balance: ${finalBalance} credits.`,
@@ -171,7 +189,7 @@ eventBus.on(EVENTS.CLIENT_CREATED, async (payload: any) => {
 
 // Ledger Listener
 eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
-  if (payload.tx && typeof payload.tx.$executeRaw === "function") {
+  if (!isSqliteDb() && payload.tx && typeof payload.tx.$executeRaw === "function") {
     await payload.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${payload.clientId}))`;
   }
   let activeCardId = payload.cardId;
@@ -202,6 +220,9 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
   }
 
   const validAdminId = await resolveAdminId(payload.adminId, payload.tx);
+  payload.validAdminId = validAdminId;
+
+  const baseReason = reason || (delta > 0 ? "Manual credit addition" : "Manual debit adjustment");
 
   // Duplicate recharge guard within 5 seconds inside the advisory-locked transaction
   if (
@@ -214,7 +235,7 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
       where: {
         clientId: payload.clientId,
         delta,
-        reason: reason || (delta > 0 ? "Manual credit addition" : "Manual debit adjustment"),
+        reason: { startsWith: baseReason },
         createdAt: { gte: fiveSecondsAgo },
       },
       select: { id: true },
@@ -224,6 +245,20 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
     }
   }
 
+  let invoiceCode: string | null = null;
+  const hasInvoiceLookup =
+    typeof payload.tx?.invoice?.findUnique === "function" ||
+    typeof getPrisma()?.invoice?.findUnique === "function";
+  if ((payload.invoice || pkgData) && hasInvoiceLookup) {
+    invoiceCode = await uniqueInvoiceCode(payload.tx);
+    payload.invoiceCode = invoiceCode;
+  }
+
+  const ledgerReason =
+    invoiceCode && !baseReason.includes(invoiceCode)
+      ? `${baseReason} (Invoice ${invoiceCode})`
+      : baseReason;
+
   const ledger = await billingRepo.createLedger(
     {
       data: {
@@ -232,7 +267,7 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
         packageId: payload.packageId || null,
         delta,
         type: delta > 0 ? "credit" : "debit",
-        reason: reason || (delta > 0 ? "Manual credit addition" : "Manual debit adjustment"),
+        reason: ledgerReason,
         createdById: validAdminId,
       },
     },
@@ -241,7 +276,7 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
 
   payload.ledgerEntry = ledger;
   payload.delta = delta;
-  payload.reason = reason;
+  payload.reason = baseReason;
   payload.pkgData = pkgData;
 });
 
@@ -250,7 +285,7 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
   let inv = null;
   if (payload.invoice) {
     const { amount, category, items, notes, status } = payload.invoice;
-    const code = await uniqueInvoiceCode(payload.tx);
+    const code = payload.invoiceCode || (await uniqueInvoiceCode(payload.tx));
     inv = await billingRepo.createInvoice(
       {
         data: {
@@ -280,7 +315,7 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
       payload.tx
     );
   } else if (payload.pkgData) {
-    const code = await uniqueInvoiceCode(payload.tx);
+    const code = payload.invoiceCode || (await uniqueInvoiceCode(payload.tx));
     inv = await billingRepo.createInvoice(
       {
         data: {
@@ -325,10 +360,11 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
   if (payload.tx && typeof payload.tx.auditLog?.create === "function") {
     const balance = Math.round((await billingRepo.sumLedgerDelta(payload.clientId, payload.tx)) * 100) / 100;
     const client = await clientsRepo.findUnique({ where: { id: payload.clientId } }, payload.tx);
+    const auditUserId = await resolveSafeAuditUserId(payload, payload.tx);
     await reportingRepo.createAudit(
       {
         data: {
-          userId: payload.adminId,
+          userId: auditUserId,
           action: "RECHARGE_CLIENT",
           target: `Client ${client?.fullName ?? payload.clientId}`,
           details: `Recharged ${client?.fullName ?? payload.clientId} with ${payload.delta} credits. Reason: ${payload.reason}. New Balance: ${balance} credits.`,
@@ -343,10 +379,11 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
   payload.postCommitActions.push(async () => {
     const client = await clientsRepo.findUnique({ where: { id: payload.clientId } });
     const balance = await getClientBalance(payload.clientId);
+    const auditUserId = await resolveSafeAuditUserId(payload);
 
     await reportingRepo.createAudit({
       data: {
-        userId: payload.adminId,
+        userId: auditUserId,
         action: "RECHARGE_CLIENT",
         target: `Client ${client.fullName}`,
         details: `Recharged ${client.fullName} with ${payload.delta} credits. Reason: ${payload.reason}. New Balance: ${balance} credits.`,
@@ -383,16 +420,20 @@ eventBus.on(EVENTS.PACKAGE_PURCHASED, async (payload: any) => {
 
 // Ledger Listener
 eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
-  if (payload.tx && typeof payload.tx.$executeRaw === "function") {
+  if (!isSqliteDb() && payload.tx && typeof payload.tx.$executeRaw === "function") {
     await payload.tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${payload.client.id}))`;
   }
   const currentBalance = Math.round((await billingRepo.sumLedgerDelta(payload.client.id, payload.tx)) * 100) / 100;
   const cost = Math.round((payload.creditsUsed ?? payload.activity.creditCost) * 100) / 100;
+  if (!Number.isFinite(cost) || cost < 0) {
+    throw new Error("INVALID_CREDITS_USED");
+  }
   if (currentBalance < cost && !payload.bypassBalanceCheck) {
     throw new Error("INSUFFICIENT_BALANCE");
   }
 
   const validAdminId = await resolveAdminId(payload.adminId, payload.tx);
+  payload.validAdminId = validAdminId;
 
   // Duplicate redemption guard within 5 seconds inside the advisory-locked transaction
   if (payload.tx && typeof payload.tx.redemption?.findFirst === "function") {
@@ -461,10 +502,11 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
   if (payload.tx && typeof payload.tx.auditLog?.create === "function") {
     const newBalance = Math.round((await billingRepo.sumLedgerDelta(payload.client.id, payload.tx)) * 100) / 100;
     const cost = payload.redemptionResult?.creditsUsed ?? payload.activity.creditCost;
+    const auditUserId = await resolveSafeAuditUserId(payload, payload.tx);
     await reportingRepo.createAudit(
       {
         data: {
-          userId: payload.adminId,
+          userId: auditUserId,
           action: "REDEEM_ACTIVITY",
           target: `Client ${payload.client.fullName}`,
           details: `Redeemed activity "${payload.activity.name}" for ${payload.client.fullName}. Credits deducted: -${cost}. New Balance: ${newBalance} credits.`,
@@ -479,9 +521,10 @@ eventBus.on(EVENTS.ACTIVITY_REDEEMED, async (payload: any) => {
   payload.postCommitActions.push(async () => {
     const newBalance = await getClientBalance(payload.client.id);
     const cost = payload.redemptionResult?.creditsUsed ?? payload.activity.creditCost;
+    const auditUserId = await resolveSafeAuditUserId(payload);
     await reportingRepo.createAudit({
       data: {
-        userId: payload.adminId,
+        userId: auditUserId,
         action: "REDEEM_ACTIVITY",
         target: `Client ${payload.client.fullName}`,
         details: `Redeemed activity "${payload.activity.name}" for ${payload.client.fullName}. Credits deducted: -${cost}. New Balance: ${newBalance} credits.`,
@@ -524,10 +567,11 @@ eventBus.on(EVENTS.REDEMPTION_DELETED, async (payload: any) => {
   payload.postCommitActions.push(async () => {
     const client = await clientsRepo.findUnique({ where: { id: payload.clientId } });
     const newBalance = await getClientBalance(payload.clientId);
+    const auditUserId = await resolveSafeAuditUserId(payload);
 
     await reportingRepo.createAudit({
       data: {
-        userId: payload.adminId,
+        userId: auditUserId,
         action: "DELETE_REDEMPTION",
         target: `Client ${client.fullName}`,
         details: `Deleted redemption of "${payload.redemption.activity.name}" for ${client.fullName}. Credits restored: +${payload.redemption.creditsUsed}. New Balance: ${newBalance} credits.`,

@@ -23,11 +23,11 @@ export async function POST(
     return NextResponse.json({ error: "Invalid input", details: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Role-based custom credit limit: staff users can recharge at most 50 custom credits
+  // Role-based custom credit limit: staff users can adjust at most 50 custom credits
   const customAmount = parsed.data.customAmount;
-  if (customAmount && customAmount > 50 && session.user.role !== "super_admin") {
+  if (customAmount !== undefined && Math.abs(customAmount) > 50 && session.user.role !== "super_admin") {
     return NextResponse.json(
-      { error: "Forbidden: Staff members are restricted to a maximum of 50 custom credits per recharge. Please request a Super Admin to perform this action." },
+      { error: "Forbidden: Staff members are restricted to a maximum of 50 custom credits per recharge or deduction. Please request a Super Admin to perform this action." },
       { status: 403 }
     );
   }
@@ -38,6 +38,18 @@ export async function POST(
   } catch (err: unknown) {
     logger.error("POST client credits recharge API error:", err);
     const details = err instanceof Error ? err.message : String(err);
+    if (details === "DUPLICATE_RECHARGE") {
+      return NextResponse.json(
+        { error: "Duplicate recharge blocked. Please wait a few seconds before retrying." },
+        { status: 409 },
+      );
+    }
+    if (details === "Client not found" || details === "Package not found") {
+      return NextResponse.json({ error: details }, { status: 404 });
+    }
+    if (details.startsWith("Provide packageId")) {
+      return NextResponse.json({ error: details }, { status: 400 });
+    }
     return NextResponse.json(
       {
         error: `Database error during credit transaction: ${details}. If you recently reset the database, please try logging out of the admin panel and logging back in to refresh your session.`,

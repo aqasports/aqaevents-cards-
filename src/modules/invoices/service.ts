@@ -16,6 +16,25 @@ export class BillingService {
   private clientsRepo = new ClientsRepository();
   private reportingRepo = new ReportingRepository();
 
+  private async acquireClientLock(tx: Prisma.TransactionClient | any, clientId: string) {
+    if (!isSqlite && tx && typeof tx.$executeRaw === "function") {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${clientId}))`;
+    }
+  }
+
+  private async resolveTxAdminId(tx: any, adminId?: string | null): Promise<string | null> {
+    if (!adminId) return null;
+    if (!tx?.adminUser || typeof tx.adminUser.findUnique !== "function") {
+      return adminId;
+    }
+    try {
+      const admin = await tx.adminUser.findUnique({ where: { id: adminId }, select: { id: true } });
+      return admin?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   private generateInvoiceCode(): string {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "INV-";
@@ -73,6 +92,7 @@ export class BillingService {
         items: true,
         notes: true,
         paidAt: true,
+        dueDate: true,
         createdAt: true,
         client: {
           select: {
@@ -162,6 +182,7 @@ export class BillingService {
         items: true,
         notes: true,
         paidAt: true,
+        dueDate: true,
         createdAt: true,
         client: { select: { id: true, fullName: true, phone: true, email: true } },
       },
@@ -254,9 +275,10 @@ export class BillingService {
         }
 
         if (isCardPayment && data.status === "paid") {
-          if (typeof (tx as any).$executeRaw === "function") {
-            await (tx as any).$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.clientId}))`;
+          if (!Number.isFinite(cardCreditsToDeduct) || cardCreditsToDeduct <= 0) {
+            throw new Error("Invalid credits deducted amount");
           }
+          await this.acquireClientLock(tx, data.clientId);
           const currentBalance = await getClientBalance(data.clientId, tx);
           if (currentBalance < cardCreditsToDeduct) {
             throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
@@ -296,6 +318,7 @@ export class BillingService {
         let ledgerEntry = null;
         if (isCardPayment && data.status === "paid") {
           const activeCard = client.cards[0] ?? null;
+          const validAdminId = await this.resolveTxAdminId(tx, adminId);
           ledgerEntry = await tx.ledgerEntry.create({
             data: {
               clientId: data.clientId,
@@ -303,7 +326,7 @@ export class BillingService {
               delta: -cardCreditsToDeduct,
               type: "debit",
               reason: `Store Purchase: ${data.items} (Invoice ${invoiceCode})`,
-              createdById: adminId,
+              createdById: validAdminId,
             },
           });
         }
@@ -344,6 +367,7 @@ export class BillingService {
         items: true,
         notes: true,
         paidAt: true,
+        dueDate: true,
         createdAt: true,
         client: {
           select: {
@@ -359,77 +383,130 @@ export class BillingService {
 
     if (!invoice) throw new Error("Invoice not found");
 
-    const updateData: any = {};
-    if (data.notes !== undefined) {
-      if (invoice.notes && invoice.notes.startsWith("{") && invoice.notes.endsWith("}")) {
-        try {
-          const parsed = JSON.parse(invoice.notes);
-          parsed.originalNotes = data.notes;
-          updateData.notes = JSON.stringify(parsed);
-        } catch {
-          updateData.notes = data.notes;
-        }
-      } else {
-        updateData.notes = data.notes;
-      }
-    }
-    if (data.amount !== undefined) updateData.amount = data.amount;
-    if (data.category !== undefined) updateData.category = data.category;
-    if (data.items !== undefined) updateData.items = data.items;
-    if (data.createdAt !== undefined) updateData.createdAt = new Date(data.createdAt);
-    if (data.paidAt !== undefined) updateData.paidAt = data.paidAt ? new Date(data.paidAt) : null;
+    const baseUpdateData: any = {};
+    if (data.amount !== undefined) baseUpdateData.amount = data.amount;
+    if (data.category !== undefined) baseUpdateData.category = data.category;
+    if (data.items !== undefined) baseUpdateData.items = data.items;
+    if (data.createdAt !== undefined) baseUpdateData.createdAt = new Date(data.createdAt);
+    if (data.paidAt !== undefined) baseUpdateData.paidAt = data.paidAt ? new Date(data.paidAt) : null;
 
     let compensatingLedgerDetails = "";
 
     const result = await prisma.$transaction(async (tx) => {
+      await this.acquireClientLock(tx, invoice.clientId);
+
+      const hasTxInvoiceFindUnique = typeof (tx as any).invoice?.findUnique === "function";
+      const lockedInvoice = hasTxInvoiceFindUnique
+        ? await (tx as any).invoice.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              clientId: true,
+              organizationId: true,
+              invoiceCode: true,
+              amount: true,
+              status: true,
+              category: true,
+              items: true,
+              notes: true,
+              paidAt: true,
+              dueDate: true,
+              createdAt: true,
+              client: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  phone: true,
+                  cards: { where: { status: "active" }, take: 1, select: { id: true } },
+                },
+              },
+            },
+          })
+        : invoice;
+
+      if (!lockedInvoice) throw new Error("Invoice not found");
+
+      const updateData: any = { ...baseUpdateData };
+      if (data.notes !== undefined) {
+        if (lockedInvoice.notes && lockedInvoice.notes.startsWith("{") && lockedInvoice.notes.endsWith("}")) {
+          try {
+            const parsed = JSON.parse(lockedInvoice.notes);
+            parsed.originalNotes = data.notes;
+            updateData.notes = JSON.stringify(parsed);
+          } catch {
+            updateData.notes = data.notes;
+          }
+        } else {
+          updateData.notes = data.notes;
+        }
+      }
+
+      const validAdminId = await this.resolveTxAdminId(tx, adminId);
+
       if (data.status) {
         updateData.status = data.status;
-        if (data.status === "paid" && invoice.status !== "paid") {
+        if (data.status === "paid" && lockedInvoice.status !== "paid") {
           if (data.paidAt === undefined) {
             updateData.paidAt = new Date();
           }
-          if (invoice.notes) {
+          if (lockedInvoice.notes) {
+            let metadata: any = null;
             try {
-              const metadata = JSON.parse(invoice.notes);
-              if (metadata && (metadata.type === "package" || metadata.type === "custom")) {
-                const activeCard = invoice.client.cards[0];
-                await tx.ledgerEntry.create({
-                  data: {
-                    clientId: invoice.clientId,
-                    cardId: activeCard?.id ?? null,
-                    packageId: metadata.packageId || null,
-                    delta: metadata.credits,
-                    type: "credit",
-                    reason: metadata.reason ?? `Approved Demand: ${invoice.items}`,
-                    createdById: adminId,
-                  },
-                });
-                compensatingLedgerDetails = `Credit recharge of ${metadata.credits} credits`;
-              } else if (metadata && metadata.type === "sale" && metadata.paymentMethod === "card") {
-                const creditRate = await getCreditRate(tx);
-                const cardCreditsToDeduct = metadata.creditsDeducted ?? (Math.floor((invoice.amount / creditRate) * 100) / 100);
-                const currentBalance = await getClientBalance(invoice.clientId, tx);
-                if (currentBalance < cardCreditsToDeduct) {
-                  throw new Error(`Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`);
-                }
-                const activeCard = invoice.client.cards[0];
-                await tx.ledgerEntry.create({
-                  data: {
-                    clientId: invoice.clientId,
-                    cardId: activeCard?.id ?? null,
-                    delta: -cardCreditsToDeduct,
-                    type: "debit",
-                    reason: `Store Purchase: ${invoice.items} (Invoice ${invoice.invoiceCode})`,
-                    createdById: adminId,
-                  },
-                });
-                compensatingLedgerDetails = `Deducted ${cardCreditsToDeduct} credits`;
+              metadata = JSON.parse(lockedInvoice.notes);
+            } catch {
+              metadata = null;
+            }
+            if (metadata && (metadata.type === "package" || metadata.type === "custom")) {
+              if (
+                typeof metadata.credits !== "number" ||
+                !Number.isFinite(metadata.credits) ||
+                metadata.credits <= 0
+              ) {
+                throw new Error("Invalid credits metadata on invoice");
               }
-            } catch (e: any) {
-              if (e instanceof Error && e.message.includes("Insufficient")) {
-                throw e;
+              const activeCard = lockedInvoice.client.cards[0];
+              const baseReason = metadata.reason ?? `Approved Demand: ${lockedInvoice.items}`;
+              const ledgerReason = baseReason.includes(lockedInvoice.invoiceCode)
+                ? baseReason
+                : `${baseReason} (Invoice ${lockedInvoice.invoiceCode})`;
+              await tx.ledgerEntry.create({
+                data: {
+                  clientId: lockedInvoice.clientId,
+                  cardId: activeCard?.id ?? null,
+                  packageId: metadata.packageId || null,
+                  delta: metadata.credits,
+                  type: "credit",
+                  reason: ledgerReason,
+                  createdById: validAdminId,
+                },
+              });
+              compensatingLedgerDetails = `Credit recharge of ${metadata.credits} credits`;
+            } else if (metadata && metadata.type === "sale" && metadata.paymentMethod === "card") {
+              const creditRate = await getCreditRate(tx);
+              const cardCreditsToDeduct =
+                metadata.creditsDeducted ?? Math.floor((lockedInvoice.amount / creditRate) * 100) / 100;
+              if (!Number.isFinite(cardCreditsToDeduct) || cardCreditsToDeduct <= 0) {
+                throw new Error("Invalid credits deducted amount");
               }
-              // Ignore other non-JSON notes parsing errors
+              const currentBalance = await getClientBalance(lockedInvoice.clientId, tx);
+              if (currentBalance < cardCreditsToDeduct) {
+                throw new Error(
+                  `Insufficient credit balance. Client has ${currentBalance.toFixed(2)} credits, but this sale requires ${cardCreditsToDeduct.toFixed(2)} credits.`
+                );
+              }
+              const activeCard = lockedInvoice.client.cards[0];
+              await tx.ledgerEntry.create({
+                data: {
+                  clientId: lockedInvoice.clientId,
+                  cardId: activeCard?.id ?? null,
+                  delta: -cardCreditsToDeduct,
+                  type: "debit",
+                  reason: `Store Purchase: ${lockedInvoice.items} (Invoice ${lockedInvoice.invoiceCode})`,
+                  createdById: validAdminId,
+                },
+              });
+              compensatingLedgerDetails = `Deducted ${cardCreditsToDeduct} credits`;
             }
           }
         } else if (data.status === "unpaid") {
@@ -437,51 +514,75 @@ export class BillingService {
         }
 
         // Refund/Unpaid reversal logic
-        if ((data.status === "refunded" || data.status === "unpaid") && invoice.status === "paid") {
+        if ((data.status === "refunded" || data.status === "unpaid") && lockedInvoice.status === "paid") {
           const actionWord = data.status === "refunded" ? "Refund" : "Unpaid";
-          if (invoice.category !== "adhoc" && invoice.category !== "sale") {
+          if (lockedInvoice.category !== "adhoc" && lockedInvoice.category !== "sale") {
             const matchingEntry = await tx.ledgerEntry.findFirst({
               where: {
-                clientId: invoice.clientId,
-                reason: { contains: invoice.invoiceCode },
+                clientId: lockedInvoice.clientId,
+                delta: { gt: 0 },
+                reason: { contains: lockedInvoice.invoiceCode },
               },
               orderBy: { createdAt: "desc" },
             });
 
-            if (matchingEntry && matchingEntry.delta > 0) {
+            let creditsToReverse = matchingEntry && matchingEntry.delta > 0 ? matchingEntry.delta : 0;
+            if (creditsToReverse === 0 && lockedInvoice.notes) {
+              try {
+                const parsedNotes = JSON.parse(lockedInvoice.notes);
+                if (
+                  parsedNotes &&
+                  (parsedNotes.type === "package" || parsedNotes.type === "custom") &&
+                  typeof parsedNotes.credits === "number" &&
+                  Number.isFinite(parsedNotes.credits) &&
+                  parsedNotes.credits > 0
+                ) {
+                  creditsToReverse = parsedNotes.credits;
+                }
+              } catch {
+                // Ignore non-JSON notes
+              }
+            }
+
+            if (creditsToReverse > 0) {
               await tx.ledgerEntry.create({
                 data: {
-                  clientId: invoice.clientId,
-                  cardId: invoice.client.cards[0]?.id ?? null,
-                  delta: -matchingEntry.delta,
+                  clientId: lockedInvoice.clientId,
+                  cardId: lockedInvoice.client.cards[0]?.id ?? null,
+                  delta: -creditsToReverse,
                   type: "debit",
-                  reason: `${actionWord}: Invoice ${invoice.invoiceCode} reversed`,
-                  createdById: adminId,
+                  reason: `${actionWord}: Invoice ${lockedInvoice.invoiceCode} reversed`,
+                  createdById: validAdminId,
                 },
               });
-              compensatingLedgerDetails = `Reversed ${matchingEntry.delta} credits`;
+              compensatingLedgerDetails = `Reversed ${creditsToReverse} credits`;
             }
-          } else if (invoice.category === "sale" && invoice.notes) {
+          } else if (lockedInvoice.category === "sale" && lockedInvoice.notes) {
+            let parsed: any = null;
             try {
-              const parsed = JSON.parse(invoice.notes);
-              if (parsed.type === "sale" && parsed.paymentMethod === "card") {
-                const creditRate = await getCreditRate(tx);
-                const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / creditRate) * 100) / 100);
-                const activeCard = invoice.client.cards[0];
-                await tx.ledgerEntry.create({
-                  data: {
-                    clientId: invoice.clientId,
-                    cardId: activeCard?.id ?? null,
-                    delta: cardCreditsToRefund,
-                    type: "credit",
-                    reason: `${actionWord}: Sale Invoice ${invoice.invoiceCode} returned`,
-                    createdById: adminId,
-                  },
-                });
-                compensatingLedgerDetails = `Refunded ${cardCreditsToRefund} credits`;
-              }
+              parsed = JSON.parse(lockedInvoice.notes);
             } catch {
-              // ignore
+              parsed = null;
+            }
+            if (parsed && parsed.type === "sale" && parsed.paymentMethod === "card") {
+              const creditRate = await getCreditRate(tx);
+              const cardCreditsToRefund =
+                parsed.creditsDeducted ?? Math.floor((lockedInvoice.amount / creditRate) * 100) / 100;
+              if (!Number.isFinite(cardCreditsToRefund) || cardCreditsToRefund <= 0) {
+                throw new Error("Invalid credits refund amount");
+              }
+              const activeCard = lockedInvoice.client.cards[0];
+              await tx.ledgerEntry.create({
+                data: {
+                  clientId: lockedInvoice.clientId,
+                  cardId: activeCard?.id ?? null,
+                  delta: cardCreditsToRefund,
+                  type: "credit",
+                  reason: `${actionWord}: Sale Invoice ${lockedInvoice.invoiceCode} returned`,
+                  createdById: validAdminId,
+                },
+              });
+              compensatingLedgerDetails = `Refunded ${cardCreditsToRefund} credits`;
             }
           }
         }
@@ -495,25 +596,25 @@ export class BillingService {
         },
       });
 
-      return updated;
+      return { updated, previousStatus: lockedInvoice.status, invoiceCode: lockedInvoice.invoiceCode, clientId: lockedInvoice.clientId };
     });
 
     if (adminId) {
-      const action = data.status && data.status !== invoice.status ? "UPDATE_INVOICE_STATUS" : "UPDATE_INVOICE";
+      const action = data.status && data.status !== result.previousStatus ? "UPDATE_INVOICE_STATUS" : "UPDATE_INVOICE";
       await this.reportingRepo.createAudit({
         data: {
           userId: adminId,
           action,
-          target: `Invoice ${invoice.invoiceCode}`,
-          details: `Updated invoice ${invoice.invoiceCode}. Status: ${invoice.status} -> ${result.status}. Amount: ${result.amount} DA. Compensating ledger entry: ${compensatingLedgerDetails || "None"}.`,
+          target: `Invoice ${result.invoiceCode}`,
+          details: `Updated invoice ${result.invoiceCode}. Status: ${result.previousStatus} -> ${result.updated.status}. Amount: ${result.updated.amount} DA. Compensating ledger entry: ${compensatingLedgerDetails || "None"}.`,
         },
       });
     }
 
-    await syncClientCRM(invoice.clientId);
-    const balance = await getClientBalance(invoice.clientId);
+    await syncClientCRM(result.clientId);
+    const balance = await getClientBalance(result.clientId);
 
-    return { invoice: result, balance };
+    return { invoice: result.updated, balance };
   }
 
   async deleteInvoice(id: string, adminId?: string | null) {
@@ -530,6 +631,7 @@ export class BillingService {
         items: true,
         notes: true,
         paidAt: true,
+        dueDate: true,
         createdAt: true,
         client: {
           select: {
@@ -546,31 +648,64 @@ export class BillingService {
 
     let refundCreated = false;
 
-    await prisma.$transaction(async (tx) => {
-      if (invoice.category === "sale" && invoice.notes && invoice.status === "paid") {
-        try {
-          const parsed = JSON.parse(invoice.notes);
-          if (parsed.type === "sale" && parsed.paymentMethod === "card") {
-            const creditRate = await getCreditRate(tx);
-            const cardCreditsToRefund = parsed.creditsDeducted ?? (Math.floor((invoice.amount / creditRate) * 100) / 100);
-            const activeCard = invoice.client.cards[0] ?? null;
-            await tx.ledgerEntry.create({
-              data: {
-                clientId: invoice.clientId,
-                cardId: activeCard?.id ?? null,
-                delta: cardCreditsToRefund,
-                type: "credit",
-                reason: `Cancelled Sale: Invoice ${invoice.invoiceCode} deleted`,
-                createdById: adminId,
+    const deletedInfo = await prisma.$transaction(async (tx) => {
+      await this.acquireClientLock(tx, invoice.clientId);
+
+      const hasTxInvoiceFindUnique = typeof (tx as any).invoice?.findUnique === "function";
+      const lockedInvoice = hasTxInvoiceFindUnique
+        ? await (tx as any).invoice.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              clientId: true,
+              invoiceCode: true,
+              amount: true,
+              status: true,
+              category: true,
+              notes: true,
+              client: {
+                select: {
+                  cards: { where: { status: "active" }, take: 1, select: { id: true } },
+                },
               },
-            });
-            refundCreated = true;
-          }
+            },
+          })
+        : invoice;
+
+      if (!lockedInvoice) throw new Error("Invoice not found");
+
+      if (lockedInvoice.category === "sale" && lockedInvoice.notes && lockedInvoice.status === "paid") {
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(lockedInvoice.notes);
         } catch {
-          // ignore
+          parsed = null;
+        }
+        if (parsed && parsed.type === "sale" && parsed.paymentMethod === "card") {
+          const creditRate = await getCreditRate(tx);
+          const cardCreditsToRefund =
+            parsed.creditsDeducted ?? Math.floor((lockedInvoice.amount / creditRate) * 100) / 100;
+          if (!Number.isFinite(cardCreditsToRefund) || cardCreditsToRefund <= 0) {
+            throw new Error("Invalid credits refund amount");
+          }
+          const activeCard = lockedInvoice.client.cards[0] ?? null;
+          const validAdminId = await this.resolveTxAdminId(tx, adminId);
+          await tx.ledgerEntry.create({
+            data: {
+              clientId: lockedInvoice.clientId,
+              cardId: activeCard?.id ?? null,
+              delta: cardCreditsToRefund,
+              type: "credit",
+              reason: `Cancelled Sale: Invoice ${lockedInvoice.invoiceCode} deleted`,
+              createdById: validAdminId,
+            },
+          });
+          refundCreated = true;
         }
       }
       await tx.invoice.delete({ where: { id } });
+
+      return lockedInvoice;
     });
 
     if (adminId) {
@@ -578,13 +713,13 @@ export class BillingService {
         data: {
           userId: adminId,
           action: "DELETE_INVOICE",
-          target: `Invoice ${invoice.invoiceCode}`,
-          details: `Deleted invoice ${invoice.invoiceCode}. Amount: ${invoice.amount} DA, Category: ${invoice.category}, Status at deletion: ${invoice.status}. Refund ledger entry created: ${refundCreated ? "Yes" : "No"}.`,
+          target: `Invoice ${deletedInfo.invoiceCode}`,
+          details: `Deleted invoice ${deletedInfo.invoiceCode}. Amount: ${deletedInfo.amount} DA, Category: ${deletedInfo.category}, Status at deletion: ${deletedInfo.status}. Refund ledger entry created: ${refundCreated ? "Yes" : "No"}.`,
         },
       });
     }
 
-    await syncClientCRM(invoice.clientId);
+    await syncClientCRM(deletedInfo.clientId);
     return { success: true };
   }
 
@@ -714,87 +849,154 @@ export class BillingService {
     data: { delta?: number; reason?: string },
     adminId?: string
   ) {
-    const entry = await this.billingRepo.findLedgerUnique({ where: { id } });
-    if (!entry) throw new Error("Ledger entry not found");
+    const initialEntry = await this.billingRepo.findLedgerUnique({ where: { id } });
+    if (!initialEntry) throw new Error("Ledger entry not found");
 
-    const client = await this.clientsRepo.findUnique({ where: { id: entry.clientId } });
+    const client = await this.clientsRepo.findUnique({ where: { id: initialEntry.clientId } });
 
-    const newDelta = data.delta !== undefined ? data.delta : entry.delta;
-    const adjustmentDelta = Math.round((newDelta - entry.delta) * 100) / 100;
-    const newReason = data.reason !== undefined ? data.reason : entry.reason;
+    const executeUpdate = async (db: any) => {
+      await this.acquireClientLock(db, initialEntry.clientId);
 
-    let result = entry;
-    if (adjustmentDelta !== 0 && typeof prisma.ledgerEntry.create === "function") {
-      result = await prisma.ledgerEntry.create({
-        data: {
-          clientId: entry.clientId,
-          cardId: entry.cardId ?? null,
-          packageId: entry.packageId ?? null,
-          redemptionId: entry.redemptionId ?? null,
-          delta: adjustmentDelta,
-          type: adjustmentDelta > 0 ? "credit" : "debit",
-          reason: `[ADJUSTMENT of ${id}] ${newReason ?? "Ledger adjustment"}`,
-          createdById: adminId ?? null,
-        },
-      });
-    } else if (typeof prisma.ledgerEntry.update === "function") {
-      result = await prisma.ledgerEntry.update({
-        where: { id },
-        data: {
-          delta: newDelta,
-          reason: newReason,
-          type: data.delta !== undefined ? (data.delta > 0 ? "credit" : "debit") : entry.type,
-        },
-      });
-    }
+      const entry =
+        db !== prisma && typeof db.ledgerEntry?.findUnique === "function"
+          ? await db.ledgerEntry.findUnique({ where: { id } })
+          : initialEntry;
+      if (!entry) throw new Error("Ledger entry not found");
+
+      let priorAdjustments = 0;
+      if (typeof db.ledgerEntry?.aggregate === "function") {
+        const adjAgg = await db.ledgerEntry.aggregate({
+          where: {
+            clientId: entry.clientId,
+            reason: { startsWith: `[ADJUSTMENT of ${id}]` },
+          },
+          _sum: { delta: true },
+        });
+        priorAdjustments = adjAgg?._sum?.delta ?? 0;
+      }
+
+      const effectiveCurrentDelta = Math.round((entry.delta + priorAdjustments) * 100) / 100;
+      const newDelta = data.delta !== undefined ? data.delta : effectiveCurrentDelta;
+      const adjustmentDelta = Math.round((newDelta - effectiveCurrentDelta) * 100) / 100;
+      const newReason = data.reason !== undefined ? data.reason : entry.reason;
+      const validAdminId = await this.resolveTxAdminId(db, adminId);
+
+      let result = entry;
+      if (adjustmentDelta !== 0 && typeof db.ledgerEntry?.create === "function") {
+        result = await db.ledgerEntry.create({
+          data: {
+            clientId: entry.clientId,
+            cardId: entry.cardId ?? null,
+            packageId: entry.packageId ?? null,
+            redemptionId: entry.redemptionId ?? null,
+            delta: adjustmentDelta,
+            type: adjustmentDelta > 0 ? "credit" : "debit",
+            reason: `[ADJUSTMENT of ${id}] ${newReason ?? "Ledger adjustment"}`,
+            createdById: validAdminId,
+          },
+        });
+      } else if (typeof db.ledgerEntry?.update === "function") {
+        result = await db.ledgerEntry.update({
+          where: { id },
+          data: {
+            delta: newDelta,
+            reason: newReason,
+            type: data.delta !== undefined ? (data.delta > 0 ? "credit" : "debit") : entry.type,
+          },
+        });
+      }
+
+      return { result, entry, newDelta, adjustmentDelta, newReason };
+    };
+
+    const txResult =
+      typeof (prisma as any).$transaction === "function"
+        ? await prisma.$transaction((tx) => executeUpdate(tx))
+        : await executeUpdate(prisma);
 
     if (adminId) {
-      const oldReason = entry.reason ?? "none";
-      const targetReason = newReason ?? "none";
+      const oldReason = txResult.entry.reason ?? "none";
+      const targetReason = txResult.newReason ?? "none";
       await this.reportingRepo.createAudit({
         data: {
           userId: adminId,
           action: "UPDATE_LEDGER_ENTRY",
-          target: client?.fullName ?? entry.clientId,
-          details: `Adjusted ledger entry (${id}): delta (${entry.delta} -> ${newDelta}, net adjustment ${adjustmentDelta}), reason (${oldReason} -> ${targetReason})`,
+          target: client?.fullName ?? txResult.entry.clientId,
+          details: `Adjusted ledger entry (${id}): delta (${txResult.entry.delta} -> ${txResult.newDelta}, net adjustment ${txResult.adjustmentDelta}), reason (${oldReason} -> ${targetReason})`,
         },
       });
     }
 
-    return result;
+    return txResult.result;
   }
 
   async deleteLedgerEntry(id: string, adminId?: string) {
-    const entry = await prisma.ledgerEntry.findUnique({ where: { id } });
-    if (!entry) throw new Error("Ledger entry not found");
+    const initialEntry = await prisma.ledgerEntry.findUnique({ where: { id } });
+    if (!initialEntry) throw new Error("Ledger entry not found");
 
-    const client = await this.clientsRepo.findUnique({ where: { id: entry.clientId } });
-    const reversalDelta = Math.round((-entry.delta) * 100) / 100;
+    const client = await this.clientsRepo.findUnique({ where: { id: initialEntry.clientId } });
 
-    if (reversalDelta !== 0 && typeof prisma.ledgerEntry.create === "function") {
-      await prisma.ledgerEntry.create({
-        data: {
-          clientId: entry.clientId,
-          cardId: entry.cardId ?? null,
-          packageId: entry.packageId ?? null,
-          redemptionId: entry.redemptionId ?? null,
-          delta: reversalDelta,
-          type: reversalDelta > 0 ? "credit" : "debit",
-          reason: `[REVERSAL of ${id}] ${entry.reason ?? "Reversed ledger entry"}`,
-          createdById: adminId ?? null,
-        },
-      });
-    } else if (typeof prisma.ledgerEntry.delete === "function") {
-      await prisma.ledgerEntry.delete({ where: { id } });
-    }
+    const executeReverse = async (db: any) => {
+      await this.acquireClientLock(db, initialEntry.clientId);
+
+      const entry =
+        db !== prisma && typeof db.ledgerEntry?.findUnique === "function"
+          ? await db.ledgerEntry.findUnique({ where: { id } })
+          : initialEntry;
+      if (!entry) throw new Error("Ledger entry not found");
+
+      if (entry.reason?.startsWith("[REVERSAL of ")) {
+        throw new Error("Ledger entry has already been reversed");
+      }
+
+      if (typeof db.ledgerEntry?.findFirst === "function") {
+        const existingReversal = await db.ledgerEntry.findFirst({
+          where: {
+            clientId: entry.clientId,
+            reason: { startsWith: `[REVERSAL of ${id}]` },
+          },
+          select: { id: true },
+        });
+        if (existingReversal) {
+          throw new Error("Ledger entry has already been reversed");
+        }
+      }
+
+      const reversalDelta = Math.round((-entry.delta) * 100) / 100;
+      const validAdminId = await this.resolveTxAdminId(db, adminId);
+
+      if (reversalDelta !== 0 && typeof db.ledgerEntry?.create === "function") {
+        await db.ledgerEntry.create({
+          data: {
+            clientId: entry.clientId,
+            cardId: entry.cardId ?? null,
+            packageId: entry.packageId ?? null,
+            redemptionId: entry.redemptionId ?? null,
+            delta: reversalDelta,
+            type: reversalDelta > 0 ? "credit" : "debit",
+            reason: `[REVERSAL of ${id}] ${entry.reason ?? "Reversed ledger entry"}`,
+            createdById: validAdminId,
+          },
+        });
+      } else if (typeof db.ledgerEntry?.delete === "function") {
+        await db.ledgerEntry.delete({ where: { id } });
+      }
+
+      return { entry, reversalDelta };
+    };
+
+    const txResult =
+      typeof (prisma as any).$transaction === "function"
+        ? await prisma.$transaction((tx) => executeReverse(tx))
+        : await executeReverse(prisma);
 
     if (adminId) {
       await this.reportingRepo.createAudit({
         data: {
           userId: adminId,
           action: "DELETE_LEDGER_ENTRY",
-          target: client?.fullName ?? entry.clientId,
-          details: `Reversed ledger entry (${id}) delta ${entry.delta} with compensating entry ${reversalDelta}, reason: ${entry.reason ?? "none"}`,
+          target: client?.fullName ?? txResult.entry.clientId,
+          details: `Reversed ledger entry (${id}) delta ${txResult.entry.delta} with compensating entry ${txResult.reversalDelta}, reason: ${txResult.entry.reason ?? "none"}`,
         },
       });
     }
@@ -1099,21 +1301,36 @@ export class BillingService {
 
     if (!redemption) throw new Error("Redemption not found");
 
+    const isWalkIn = redemption.client?.email === "__walkin__@system.aqa";
+
     const result = await prisma.$transaction(async (tx) => {
+      await this.acquireClientLock(tx, redemption.clientId);
+
+      if (typeof (tx as any).redemption?.findUnique === "function") {
+        const currentRedemption = await (tx as any).redemption.findUnique({
+          where: { id },
+          select: { id: true },
+        });
+        if (!currentRedemption) {
+          throw new Error("Redemption not found");
+        }
+      }
+
       if (typeof (tx as any).ledgerEntry?.updateMany === "function") {
         await (tx as any).ledgerEntry.updateMany({
           where: { redemptionId: id },
           data: { redemptionId: null },
         });
       }
-      if (redemption.creditsUsed > 0 && typeof (tx as any).ledgerEntry?.create === "function") {
+      const validAdminId = await this.resolveTxAdminId(tx, adminId);
+      if (!isWalkIn && redemption.creditsUsed > 0 && typeof (tx as any).ledgerEntry?.create === "function") {
         await (tx as any).ledgerEntry.create({
           data: {
             clientId: redemption.clientId,
             delta: redemption.creditsUsed,
             type: "credit",
             reason: `Refund: ${redemption.activity?.name ?? "Activity"} (Redemption ${id})`,
-            createdById: adminId,
+            createdById: validAdminId,
           },
         });
       }
@@ -1160,24 +1377,39 @@ export class BillingService {
       return { refunded: 0, totalCreditsRestored: 0 };
     }
 
+    let refundedCount = 0;
     let totalCreditsRestored = 0;
 
     for (const redemption of redemptions) {
+      const isWalkIn = redemption.client?.email === "__walkin__@system.aqa";
       const result = await prisma.$transaction(async (tx) => {
+        await this.acquireClientLock(tx, redemption.clientId);
+
+        if (typeof (tx as any).redemption?.findUnique === "function") {
+          const currentRedemption = await (tx as any).redemption.findUnique({
+            where: { id: redemption.id },
+            select: { id: true },
+          });
+          if (!currentRedemption) {
+            return { skipped: true, postCommitActions: [] };
+          }
+        }
+
         if (typeof (tx as any).ledgerEntry?.updateMany === "function") {
           await (tx as any).ledgerEntry.updateMany({
             where: { redemptionId: redemption.id },
             data: { redemptionId: null },
           });
         }
-        if (redemption.creditsUsed > 0 && typeof (tx as any).ledgerEntry?.create === "function") {
+        const validAdminId = await this.resolveTxAdminId(tx, adminId);
+        if (!isWalkIn && redemption.creditsUsed > 0 && typeof (tx as any).ledgerEntry?.create === "function") {
           await (tx as any).ledgerEntry.create({
             data: {
               clientId: redemption.clientId,
               delta: redemption.creditsUsed,
               type: "credit",
               reason: `Session Refund: ${redemption.activity?.name ?? "Activity"} (Session ${sessionId})`,
-              createdById: adminId,
+              createdById: validAdminId,
             },
           });
         }
@@ -1194,16 +1426,21 @@ export class BillingService {
 
         await eventBus.emit(EVENTS.REDEMPTION_DELETED, eventPayload);
 
-        return { postCommitActions: eventPayload.postCommitActions };
+        return { skipped: false, postCommitActions: eventPayload.postCommitActions };
       });
 
-      if (result.postCommitActions) {
-        for (const action of result.postCommitActions) {
-          await action().catch((e: any) => logger.error("Post-commit action error:", e));
+      if (!result.skipped) {
+        if (result.postCommitActions) {
+          for (const action of result.postCommitActions) {
+            await action().catch((e: any) => logger.error("Post-commit action error:", e));
+          }
+        }
+
+        refundedCount += 1;
+        if (!isWalkIn) {
+          totalCreditsRestored += redemption.creditsUsed;
         }
       }
-
-      totalCreditsRestored += redemption.creditsUsed;
     }
 
     await this.reportingRepo.createAudit({
@@ -1211,11 +1448,11 @@ export class BillingService {
         userId: adminId,
         action: "BULK_REFUND_SESSION",
         target: `Session ${sessionId}`,
-        details: `Bulk refunded ${redemptions.length} client(s), restoring ${totalCreditsRestored} credits.`,
+        details: `Bulk refunded ${refundedCount} client(s), restoring ${totalCreditsRestored} credits.`,
       },
     });
 
-    return { refunded: redemptions.length, totalCreditsRestored };
+    return { refunded: refundedCount, totalCreditsRestored };
   }
 }
 

@@ -47,6 +47,13 @@ export async function PATCH(
     return NextResponse.json(result);
   } catch (err: unknown) {
     logger.error("PATCH invoice API error:", err);
+    const message = err instanceof Error ? err.message : "";
+    if (message === "Invoice not found") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+    if (message.includes("Insufficient credit balance") || message.includes("Invalid credits")) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
     return NextResponse.json({ error: "Failed to update invoice" }, { status: 500 });
   }
 }
@@ -65,6 +72,13 @@ export async function DELETE(
     return NextResponse.json(result);
   } catch (err: unknown) {
     logger.error("DELETE invoice API error:", err);
+    const message = err instanceof Error ? err.message : "";
+    if (message === "Invoice not found") {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+    if (message.includes("Invalid credits")) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
     return NextResponse.json({ error: "Failed to delete invoice" }, { status: 500 });
   }
 }

@@ -19,6 +19,9 @@ vi.mock("@/lib/prisma", () => ({
     invoice: {
       findUnique: vi.fn(),
     },
+    redemption: {
+      findUnique: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -190,5 +193,107 @@ describe("BillingService Invoice Audit Logging", () => {
         target: "Invoice INV-1004",
       }),
     });
+  });
+
+  it("should skip duplicate credit creation when concurrent tx re-read shows invoice is already paid", async () => {
+    const stalePreTxInvoice = {
+      id: "inv-5",
+      clientId: "client-1",
+      invoiceCode: "INV-1005",
+      amount: 1900,
+      status: "unpaid",
+      category: "package",
+      notes: JSON.stringify({ type: "package", credits: 5 }),
+      items: "Solo Package",
+      client: { cards: [{ id: "card-1" }] },
+    };
+
+    const alreadyPaidInTx = {
+      ...stalePreTxInvoice,
+      status: "paid",
+    };
+
+    const ledgerCreate = vi.fn();
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(stalePreTxInvoice as any);
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
+      return cb({
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(alreadyPaidInTx),
+          update: vi.fn().mockResolvedValue(alreadyPaidInTx),
+        },
+        ledgerEntry: { create: ledgerCreate },
+      });
+    });
+
+    await billingService.updateInvoiceWithCredits("inv-5", { status: "paid" }, "admin-1");
+    expect(ledgerCreate).not.toHaveBeenCalled();
+  });
+
+  it("should fall back to notes.credits when refunding a paid legacy package/custom invoice without invoiceCode in ledger reason", async () => {
+    const legacyPaidInvoice = {
+      id: "inv-6",
+      clientId: "client-1",
+      invoiceCode: "INV-1006",
+      amount: 3800,
+      status: "paid",
+      category: "package",
+      notes: JSON.stringify({ type: "package", credits: 8 }),
+      items: "Duo Package",
+      client: { cards: [{ id: "card-1" }] },
+    };
+
+    const ledgerCreate = vi.fn().mockResolvedValue({});
+    vi.mocked(prisma.invoice.findUnique).mockResolvedValue(legacyPaidInvoice as any);
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
+      return cb({
+        invoice: {
+          findUnique: vi.fn().mockResolvedValue(legacyPaidInvoice),
+          update: vi.fn().mockResolvedValue({ ...legacyPaidInvoice, status: "refunded" }),
+        },
+        ledgerEntry: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: ledgerCreate,
+        },
+      });
+    });
+
+    await billingService.updateInvoiceWithCredits("inv-6", { status: "refunded" }, "admin-1");
+
+    expect(ledgerCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        clientId: "client-1",
+        delta: -8,
+        type: "debit",
+      }),
+    });
+  });
+
+  it("should skip creating a refund ledger entry when deleting a walk-in sentinel redemption", async () => {
+    const walkinRedemption = {
+      id: "red-walkin-1",
+      clientId: "sentinel-1",
+      creditsUsed: 2,
+      client: { id: "sentinel-1", email: "__walkin__@system.aqa", fullName: "Walk-in Attendees" },
+      activity: { name: "Kayaking" },
+    };
+
+    const ledgerCreate = vi.fn();
+    vi.mocked(prisma.redemption.findUnique).mockResolvedValue(walkinRedemption as any);
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => {
+      return cb({
+        redemption: {
+          findUnique: vi.fn().mockResolvedValue({ id: "red-walkin-1" }),
+          delete: vi.fn().mockResolvedValue(walkinRedemption),
+        },
+        ledgerEntry: {
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+          create: ledgerCreate,
+        },
+        checkIn: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      });
+    });
+
+    await billingService.deleteRedemption("red-walkin-1", "admin-1");
+    expect(ledgerCreate).not.toHaveBeenCalled();
   });
 });
