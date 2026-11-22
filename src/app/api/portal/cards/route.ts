@@ -82,6 +82,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Card not found or does not belong to this organization" }, { status: 404 });
       }
 
+      if (card.status !== "active") {
+        return NextResponse.json({ error: "Card is not active" }, { status: 400 });
+      }
+
       if (card.clientId) {
         return NextResponse.json({ error: "Card is already linked to a client" }, { status: 400 });
       }
@@ -94,16 +98,33 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Client not found or does not belong to this organization" }, { status: 404 });
       }
 
-      const updatedCard = await prisma.card.update({
-        where: { id: validated.cardId },
+      const claimed = await prisma.card.updateMany({
+        where: {
+          id: validated.cardId,
+          organizationId,
+          clientId: null,
+          status: "active",
+        },
         data: { clientId: validated.clientId },
       });
 
+      if (claimed.count !== 1) {
+        return NextResponse.json({ error: "Card is already linked or unavailable" }, { status: 409 });
+      }
+
+      const updatedCard = await prisma.card.findUnique({
+        where: { id: validated.cardId },
+      });
+
+      if (!updatedCard) {
+        return NextResponse.json({ error: "Card not found" }, { status: 404 });
+      }
+
       await logAdminAction(
-        session.user.id,
+        null,
         "PORTAL_LINK_CARD",
         updatedCard.cardCode,
-        `Linked card ${updatedCard.cardCode} to client ${client.fullName} in portal (${role})`
+        `Linked card ${updatedCard.cardCode} to client ${client.fullName} in portal (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
       );
 
       return NextResponse.json(updatedCard);
@@ -124,14 +145,17 @@ export async function POST(request: NextRequest) {
 
       const updatedCard = await prisma.card.update({
         where: { id: validated.cardId },
-        data: { clientId: null },
+        data: {
+          clientId: null,
+          organizationId: card.organizationId ?? organizationId,
+        },
       });
 
       await logAdminAction(
-        session.user.id,
+        null,
         "PORTAL_UNLINK_CARD",
         updatedCard.cardCode,
-        `Unlinked card ${updatedCard.cardCode} in portal (${role})`
+        `Unlinked card ${updatedCard.cardCode} in portal (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
       );
 
       return NextResponse.json(updatedCard);

@@ -59,10 +59,10 @@ export async function POST(request: NextRequest) {
     });
 
     await logAdminAction(
-      session.user.id,
+      null,
       "PROPOSE_ACTIVITY_PORTAL",
       proposal.title,
-      `Submitted activity proposal "${proposal.title}" from portal (${role})`
+      `Submitted activity proposal "${proposal.title}" from portal (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
     );
 
     return NextResponse.json(proposal, { status: 201 });

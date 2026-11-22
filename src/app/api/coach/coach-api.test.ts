@@ -20,6 +20,7 @@ import {
 
 vi.mock("@/lib/rate-limit", () => ({
   checkAndIncrement: vi.fn().mockResolvedValue({ allowed: true }),
+  getClientIp: vi.fn(() => "127.0.0.1"),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -40,6 +41,11 @@ vi.mock("@/lib/prisma", () => ({
     coachAuthSession: {
       create: vi.fn().mockResolvedValue({ id: "session_mock_123" }),
       update: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({
+        id: "session_mock_123",
+        revokedAt: null,
+        expiresAt: new Date(Date.now() + 600_000),
+      }),
     },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: "audit_123" }),

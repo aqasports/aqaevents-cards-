@@ -62,12 +62,13 @@ export class PurchaseRequestsService {
   async confirmPurchaseRequest(data: {
     requestId: string;
     confirmationCode: string;
+    cardId?: string;
   }) {
     const request = await this.repo.findUnique({
       where: { id: data.requestId },
     });
 
-    if (!request) {
+    if (!request || (data.cardId && request.cardId !== data.cardId)) {
       throw new Error("Purchase request not found");
     }
 
@@ -92,10 +93,27 @@ export class PurchaseRequestsService {
     }
 
     // Atomically mark as confirmed before issuing credits so concurrent requests cannot double-confirm
-    await this.repo.update({
-      where: { id: request.id },
-      data: { status: "confirmed" },
-    });
+    if (
+      typeof (this.repo as any).hasAtomicUpdateMany === "function" &&
+      (this.repo as any).hasAtomicUpdateMany()
+    ) {
+      const claimed = await (this.repo as any).updateMany({
+        where: {
+          id: request.id,
+          ...(data.cardId ? { cardId: data.cardId } : {}),
+          status: "pending_confirmation",
+        },
+        data: { status: "confirmed" },
+      });
+      if (!claimed || claimed.count !== 1) {
+        throw new Error("Purchase request has already been confirmed");
+      }
+    } else {
+      await this.repo.update({
+        where: { id: request.id },
+        data: { status: "confirmed" },
+      });
+    }
 
     const payload = JSON.parse(request.payload);
 

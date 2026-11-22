@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { signClientToken, verifyClientToken, requireClientSession } from "./client-auth";
 import { GET as getPublicSwimMember } from "@/app/api/public/swim/member/[swimId]/route";
-import { POST as postAdminBackup } from "@/app/api/admin/backup/route";
+import { GET as getAdminBackup, POST as postAdminBackup } from "@/app/api/admin/backup/route";
+import { GET as getImportRoster } from "@/app/api/admin/swim/members/import-roster/route";
 import { POST as postSwimPayment } from "@/app/api/admin/swim/payments/route";
 import { prisma } from "@/lib/prisma";
 import { requireSuperAdminSession, requireAdminSession } from "@/lib/api-auth";
@@ -165,7 +166,7 @@ describe("Security Hardening Suite", () => {
     });
   });
 
-  describe("P1-2: Backup Endpoint Auth Enforcement", () => {
+  describe("P1-2: Backup Endpoint & Roster Import Auth Enforcement", () => {
     it("rejects unauthenticated requests even if an arbitrary Authorization header is present", async () => {
       vi.mocked(requireSuperAdminSession).mockResolvedValueOnce({
         session: null,
@@ -178,6 +179,36 @@ describe("Security Hardening Suite", () => {
       });
       const res = await postAdminBackup(req);
       expect(res.status).toBe(401);
+    });
+
+    it("rejects unauthenticated GET backup download requests", async () => {
+      vi.mocked(requireSuperAdminSession).mockResolvedValueOnce({
+        session: null,
+        error: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) as any,
+      });
+
+      const res = await getAdminBackup();
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects the legacy hardcoded fallback import-roster secret", async () => {
+      vi.mocked(requireAdminSession).mockResolvedValueOnce({
+        session: null,
+        error: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) as any,
+      });
+
+      const prevSecret = process.env.IMPORT_ROSTER_SECRET;
+      delete process.env.IMPORT_ROSTER_SECRET;
+      try {
+        const req = new NextRequest("http://localhost:3000/api/admin/swim/members/import-roster", {
+          method: "GET",
+          headers: { "x-import-key": "aqa-homme-roster-import-2026" },
+        });
+        const res = await getImportRoster(req);
+        expect(res.status).toBe(401);
+      } finally {
+        if (prevSecret !== undefined) process.env.IMPORT_ROSTER_SECRET = prevSecret;
+      }
     });
   });
 

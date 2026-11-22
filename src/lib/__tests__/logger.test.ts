@@ -30,6 +30,21 @@ describe("logger", () => {
     );
   });
 
+  it("calls Sentry.captureException when logger.error receives an Error instance", () => {
+    const boom = new Error("boom");
+    logger.error("api/test", boom, { requestId: "req-1" });
+
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    expect(Sentry.captureException).toHaveBeenCalledWith(boom, {
+      extra: {
+        context: "api/test",
+        message: boom,
+        args: [{ requestId: "req-1" }],
+      },
+    });
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
   it("calls Sentry.captureMessage when logger.warn is called", () => {
     logger.warn("api/test", "A warning message");
 

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
@@ -10,8 +11,12 @@ export const dynamic = "force-dynamic";
 function isAuthorized(request: NextRequest, sessionUser: unknown): boolean {
   if (sessionUser) return true;
   const headerKey = request.headers.get("x-import-key");
-  const secretKey = process.env.IMPORT_ROSTER_SECRET || "aqa-homme-roster-import-2026";
-  return headerKey === secretKey;
+  const secretKey = process.env.IMPORT_ROSTER_SECRET;
+  if (!secretKey || !headerKey) return false;
+  const bufA = Buffer.from(headerKey);
+  const bufB = Buffer.from(secretKey);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 export async function GET(request: NextRequest) {

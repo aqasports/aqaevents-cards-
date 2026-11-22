@@ -121,7 +121,6 @@ export class ClientsService {
             publicToken: true,
             status: true,
             issuedAt: true,
-            revokedAt: true,
           },
           orderBy: { issuedAt: "desc" as const },
         },
@@ -161,7 +160,7 @@ export class ClientsService {
               select: { id: true, name: true },
             },
             session: {
-              select: { id: true, startTime: true },
+              select: { id: true, sessionDate: true },
             },
             staff: { select: { name: true } },
             checkIns: {

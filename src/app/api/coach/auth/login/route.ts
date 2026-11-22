@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { logAdminAction } from "@/lib/audit";
 import { verifyPassword, createCoachAuthSession } from "@/lib/coach-auth";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { getFlag } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
+    const ip = getClientIp(req);
     const body = await req.json();
     const parsed = loginSchema.safeParse(body);
 

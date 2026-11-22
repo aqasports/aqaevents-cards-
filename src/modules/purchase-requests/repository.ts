@@ -27,6 +27,14 @@ export class PurchaseRequestsRepository {
     return this.db(tx).publicPurchaseRequest.update(args);
   }
 
+  hasAtomicUpdateMany(tx?: Prisma.TransactionClient): boolean {
+    return typeof (this.db(tx) as any)?.publicPurchaseRequest?.updateMany === "function";
+  }
+
+  async updateMany(args: Prisma.PublicPurchaseRequestUpdateManyArgs, tx?: Prisma.TransactionClient): Promise<any> {
+    return this.db(tx).publicPurchaseRequest.updateMany(args);
+  }
+
   async delete(args: Prisma.PublicPurchaseRequestDeleteArgs, tx?: Prisma.TransactionClient): Promise<any> {
     return this.db(tx).publicPurchaseRequest.delete(args);
   }

@@ -66,13 +66,27 @@ export async function PATCH(request: NextRequest) {
         ...(validated.rc !== undefined ? { rc: validated.rc } : {}),
         ...(validated.defaultPaymentTermDays !== undefined ? { defaultPaymentTermDays: validated.defaultPaymentTermDays } : {}),
       },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        contactName: true,
+        contactEmail: true,
+        contactPhone: true,
+        billingAddress: true,
+        nif: true,
+        nis: true,
+        rc: true,
+        defaultPaymentTermDays: true,
+        updatedAt: true,
+      },
     });
 
     await logAdminAction(
-      session.user.id,
+      null,
       "UPDATE_ORG_SETTINGS",
       updated.name,
-      `Updated organization contact/tax settings in portal (${role})`
+      `Updated organization contact/tax settings in portal (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
     );
 
     return NextResponse.json(updated);

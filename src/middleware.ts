@@ -177,7 +177,7 @@ export async function middleware(request: NextRequest) {
       secret: process.env.NEXTAUTH_SECRET,
     });
 
-    if (!token) {
+    if (!token || token.userType === "org" || Boolean(token.organizationId)) {
       const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       const redirectRes = NextResponse.redirect(loginUrl);
@@ -187,6 +187,19 @@ export async function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/portal")) {
+    if (!process.env.NEXTAUTH_SECRET) {
+      console.error(
+        "[middleware] NEXTAUTH_SECRET is not set. Portal routes are not safe to serve."
+      );
+      return new NextResponse("Server misconfiguration: authentication secret is missing.", {
+        status: 500,
+        headers: {
+          "cache-control": "no-store, max-age=0",
+          "X-API-Contract-Version": API_CONTRACT_VERSION,
+        },
+      });
+    }
+
     if (pathname === "/portal/login") {
       const res = NextResponse.next();
       res.headers.set("X-API-Contract-Version", API_CONTRACT_VERSION);

@@ -12,6 +12,10 @@ export default function Scanner({
 }) {
   const containerId = "qrc-reader";
   const html5QrcodeRef = useRef<Html5Qrcode | null>(null);
+  const isPausedRef = useRef(isPaused);
+  const onScanSuccessRef = useRef(onScanSuccess);
+  isPausedRef.current = isPaused;
+  onScanSuccessRef.current = onScanSuccess;
   const [cameraPermission, setCameraPermission] = useState<"pending" | "granted" | "denied">("pending");
   const [cameras, setCameras] = useState<CameraDevice[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>("");
@@ -61,8 +65,8 @@ export default function Scanner({
         selectedCameraId,
         config,
         (decodedText) => {
-          if (!isPaused) {
-            onScanSuccess(decodedText);
+          if (!isPausedRef.current) {
+            onScanSuccessRef.current(decodedText);
           }
         },
         (errorMessage) => {
@@ -78,7 +82,7 @@ export default function Scanner({
         html5Qrcode.stop().catch(console.error);
       }
     };
-  }, [selectedCameraId, cameraPermission, isPaused]);
+  }, [selectedCameraId, cameraPermission]);
 
   return (
     <div className="space-y-4">

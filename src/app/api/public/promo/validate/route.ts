@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateAndApplyPromoCode } from "@/lib/campaigns";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +16,7 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`promo:${ip}`, { windowMs: 60_000, max: 20 });
   if (limited) {

@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { requireSuperAdminSession } from "@/lib/api-auth";
+import { requireAdminSession, requireSuperAdminSession } from "@/lib/api-auth";
 import { getCreditRate, setCreditRate } from "@/lib/settings";
 import { ReportingRepository } from "@/modules/reports/repository";
 
 const reportingRepo = new ReportingRepository();
 
 export async function GET() {
+  const { session, error } = await requireAdminSession();
+  if (error || !session) return error;
+
   try {
     const rate = await getCreditRate();
     return NextResponse.json({ creditRate: rate });

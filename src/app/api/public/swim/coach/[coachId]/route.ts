@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import {
   decodeSolidNotes,
   decodeMemberGroupIds,
@@ -59,10 +59,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ coachId: string }> }
 ) {
-  const ip =
-    req.headers.get("x-nf-client-connection-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown";
+  const ip = getClientIp(req);
 
   const { limited } = await checkAndIncrement(`swim_coach_terminal:${ip}`, {
     windowMs: 60_000,

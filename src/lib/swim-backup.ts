@@ -430,15 +430,46 @@ export async function listSwimBackupsFromSupabase(): Promise<
     if (listRes.ok) {
       const objects: Array<{ name: string; created_at: string; metadata?: { size?: number } }> =
         await listRes.json();
-      return objects
-        .filter((obj) => obj.name.endsWith(".json"))
-        .map((obj) => ({
-          name: obj.name,
-          created_at: obj.created_at,
-          size: obj.metadata?.size,
-          downloadUrl: `${supabaseUrl}/storage/v1/object/public/db-backups/${obj.name}`,
-        }))
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const baseStorageUrl = supabaseUrl.replace(/\/$/, "");
+      const signedItems = await Promise.all(
+        objects
+          .filter((obj) => obj.name.endsWith(".json"))
+          .map(async (obj) => {
+            let downloadUrl: string | undefined;
+            try {
+              const signRes = await fetch(
+                `${baseStorageUrl}/storage/v1/object/sign/db-backups/swim/${encodeURIComponent(obj.name)}`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${supabaseKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({ expiresIn: 300 }),
+                }
+              );
+              if (signRes.ok) {
+                const signed = (await signRes.json()) as { signedURL?: string };
+                if (signed?.signedURL) {
+                  downloadUrl = signed.signedURL.startsWith("http")
+                    ? signed.signedURL
+                    : `${baseStorageUrl}/storage/v1${signed.signedURL}`;
+                }
+              }
+            } catch (signErr) {
+              logger.warn("Failed to generate signed URL for swim backup:", signErr);
+            }
+            return {
+              name: obj.name,
+              created_at: obj.created_at,
+              size: obj.metadata?.size,
+              downloadUrl,
+            };
+          })
+      );
+      return signedItems.sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     }
   } catch (err) {
     logger.error("Failed to list Swim backups from Supabase:", err);

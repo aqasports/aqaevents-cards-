@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useTranslations } from "@/lib/i18n";
 import { CommandPalette } from "@/components/admin/command-palette";
+import { invalidateCache } from "@/lib/use-data-cache";
 
 type FiliereId = "all" | "academy" | "events" | "store";
 
@@ -360,7 +361,7 @@ function AdminNavInner() {
     const handleVisibilityChange = () => {
       if (
         document.visibilityState === "visible" &&
-        Date.now() - lastFetchTime >= 60000
+        Date.now() - lastFetchTime >= 120000
       ) {
         fetchNavCounts();
       }
@@ -726,7 +727,10 @@ function AdminNavInner() {
           {/* Sign Out Button */}
           <button
             type="button"
-            onClick={() => signOut({ callbackUrl: "/admin/login" })}
+            onClick={() => {
+              invalidateCache();
+              signOut({ callbackUrl: "/admin/login" });
+            }}
             className="flex items-center justify-center gap-2 w-full rounded-xl py-2 text-xs font-bold text-[var(--muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-text)] border border-transparent hover:border-[var(--danger)]/10 transition-all active:scale-[0.98]"
           >
             <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -991,6 +995,7 @@ function AdminNavInner() {
                 type="button"
                 onClick={() => {
                   setMobileOpen(false);
+                  invalidateCache();
                   signOut({ callbackUrl: "/admin/login" });
                 }}
                 className="flex items-center justify-center gap-2 w-full rounded-xl py-3 text-xs font-bold text-[var(--muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger-text)] border border-transparent transition-all active:scale-95 cursor-pointer"

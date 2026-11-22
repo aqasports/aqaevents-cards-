@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { prisma } from "./prisma";
+import { getCreditRate } from "./settings";
 
 export async function getBusinessOverviewMetrics() {
   const activeClientsCount = await prisma.client.count({
@@ -7,7 +8,7 @@ export async function getBusinessOverviewMetrics() {
   });
 
   const creditSum = await prisma.ledgerEntry.aggregate({
-    where: { type: "CREDIT" },
+    where: { type: { in: ["credit", "CREDIT"] } },
     _sum: { delta: true },
   });
 
@@ -45,14 +46,27 @@ export async function getClientInsights(clientId: string) {
   if (!client) return null;
 
   const creditsSum = client.ledgerEntries
-    .filter((e) => e.type === "CREDIT")
+    .filter((e) => e.type?.toUpperCase() === "CREDIT")
     .reduce((sum, e) => sum + e.delta, 0);
 
   const debitsSum = client.ledgerEntries
-    .filter((e) => e.type === "DEBIT")
+    .filter((e) => e.type?.toUpperCase() === "DEBIT")
     .reduce((sum, e) => sum + Math.abs(e.delta), 0);
 
-  const balance = creditsSum - debitsSum;
+  let balance = Math.round((creditsSum - debitsSum) * 100) / 100;
+  if (typeof prisma.ledgerEntry?.aggregate === "function") {
+    try {
+      const agg = await prisma.ledgerEntry.aggregate({
+        where: { clientId },
+        _sum: { delta: true },
+      });
+      if (agg && agg._sum && typeof agg._sum.delta === "number") {
+        balance = Math.round(agg._sum.delta * 100) / 100;
+      }
+    } catch {
+      // Fallback to computed ledger entries sum if aggregate fails
+    }
+  }
 
   return {
     client: {
@@ -81,13 +95,15 @@ export async function getTopPerformingActivities(limit: number = 10) {
     },
   });
 
+  const creditRate = await getCreditRate().catch(() => 1900);
+
   const sorted = activities
     .map((act) => ({
       id: act.id,
       name: act.name,
       creditCost: act.creditCost,
       redemptionsCount: act._count.redemptions,
-      estimatedRevenue: Math.round(act._count.redemptions * act.creditCost * 1900),
+      estimatedRevenue: Math.round(act._count.redemptions * act.creditCost * creditRate),
     }))
     .sort((a, b) => b.redemptionsCount - a.redemptionsCount)
     .slice(0, takeLimit);

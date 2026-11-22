@@ -7,8 +7,20 @@ interface CacheEntry<T> {
   timestamp: number;
 }
 
-// Global in-memory cache for client session
+// Global in-memory cache for client session (bounded LRU/FIFO)
+const MAX_CACHE_ENTRIES = 100;
 const globalCache = new Map<string, CacheEntry<any>>();
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+function setCacheEntry<T>(key: string, entry: CacheEntry<T>) {
+  if (!globalCache.has(key) && globalCache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = globalCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      globalCache.delete(oldestKey);
+    }
+  }
+  globalCache.set(key, entry);
+}
 
 // Cache listeners for reactive updates across components
 type Listener = () => void;
@@ -73,25 +85,54 @@ export function useDataCache<T>(
     fetcherRef.current = fetcher;
   });
 
+  const activeKeyRef = useRef(key);
+  activeKeyRef.current = key;
+
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const performFetch = useCallback(
-    async (isBackground = false) => {
+    async (isBackground = false, forceFresh = false) => {
       if (!key || !enabled) return;
 
-      if (!isBackground) {
+      if (!isBackground && mountedRef.current && activeKeyRef.current === key) {
         setLoading(true);
       }
-      setError(null);
+      if (mountedRef.current && activeKeyRef.current === key) {
+        setError(null);
+      }
 
       try {
-        const freshData = await fetcherRef.current();
-        globalCache.set(key, { data: freshData, timestamp: Date.now() });
-        setData(freshData);
+        let pending = !forceFresh ? (inflightRequests.get(key) as Promise<T> | undefined) : undefined;
+        if (!pending) {
+          pending = fetcherRef.current().finally(() => {
+            if (inflightRequests.get(key) === pending) {
+              inflightRequests.delete(key);
+            }
+          });
+          inflightRequests.set(key, pending);
+        }
+
+        const freshData = await pending;
+        setCacheEntry(key, { data: freshData, timestamp: Date.now() });
+        if (mountedRef.current && activeKeyRef.current === key) {
+          setData(freshData);
+        }
         notify(key);
       } catch (err: any) {
-        const errMsg = err?.message || "Failed to load data";
-        setError(errMsg);
+        if (mountedRef.current && activeKeyRef.current === key) {
+          const errMsg = err?.message || "Failed to load data";
+          setError(errMsg);
+        }
       } finally {
-        setLoading(false);
+        if (mountedRef.current && activeKeyRef.current === key) {
+          setLoading(false);
+        }
       }
     },
     [key, enabled]
@@ -103,7 +144,7 @@ export function useDataCache<T>(
 
     const handleCacheUpdate = () => {
       const entry = globalCache.get(key);
-      if (entry) {
+      if (entry && mountedRef.current && activeKeyRef.current === key) {
         setData(entry.data);
       }
     };
@@ -111,7 +152,7 @@ export function useDataCache<T>(
     return subscribe(key, handleCacheUpdate);
   }, [key]);
 
-  // Main SWR logic: immediate cached data + background revalidate
+  // Main SWR logic: enforce ttlMs before triggering background revalidation
   useEffect(() => {
     if (!key || !enabled) return;
 
@@ -119,15 +160,17 @@ export function useDataCache<T>(
     if (currentCached) {
       setData(currentCached.data);
       setLoading(false);
-      // SWR: serve cached data instantly for zero-latency UI, and always revalidate in background
-      performFetch(true);
+      const isFresh = Date.now() - currentCached.timestamp < ttlMs;
+      if (!isFresh) {
+        performFetch(true);
+      }
     } else {
       performFetch(false);
     }
-  }, [key, enabled, performFetch]);
+  }, [key, enabled, ttlMs, performFetch]);
 
   const refetch = useCallback(async () => {
-    await performFetch(false);
+    await performFetch(false, true);
   }, [performFetch]);
 
   const mutate = useCallback(
@@ -142,13 +185,13 @@ export function useDataCache<T>(
           typeof updater === "function"
             ? (updater as (prev: T | null) => T)(data)
             : updater;
-        globalCache.set(key, { data: newData, timestamp: Date.now() });
+        setCacheEntry(key, { data: newData, timestamp: Date.now() });
         setData(newData);
         notify(key);
       }
 
       if (revalidate) {
-        await performFetch(true);
+        await performFetch(true, true);
       }
     },
     [key, data, performFetch]

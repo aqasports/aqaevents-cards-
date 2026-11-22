@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
 import { useTranslations, useLocale } from "@/lib/i18n";
 import { SwimFlipCard } from "@/components/swim/SwimFlipCard";
@@ -253,6 +253,8 @@ export default function SwimmerProfilePage({
 }) {
   const { swimId } = use(params);
   const { t } = useTranslations("swimPublic");
+  const tRef = useRef(t);
+  tRef.current = t;
   const { t: tKids } = useTranslations("swimKidsPhysical");
   const { locale, setLocale, dir } = useLocale();
 
@@ -273,19 +275,19 @@ export default function SwimmerProfilePage({
       try {
         const res = await fetch(`/api/public/swim/member/${encodeURIComponent(swimId)}`);
         if (!res.ok) {
-          setError(t("notFound"));
+          setError(tRef.current("notFound"));
           return;
         }
         const data = await res.json();
         setMember(data);
       } catch {
-        setError(t("notFound"));
+        setError(tRef.current("notFound"));
       } finally {
         setLoading(false);
       }
     }
     loadProfile();
-  }, [swimId, t]);
+  }, [swimId]);
 
   async function handleDecision(action: "accept" | "reject") {
     setSubmitting(true);

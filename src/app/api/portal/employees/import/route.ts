@@ -24,10 +24,10 @@ export async function POST(request: NextRequest) {
 
     if (validated.commit && result.importedCount && result.importedCount > 0) {
       await logAdminAction(
-        session.user.id,
+        null,
         "BULK_EMPLOYEE_IMPORT",
         organizationId,
-        `Bulk imported ${result.importedCount} employees via CSV (${role})`
+        `Bulk imported ${result.importedCount} employees via CSV (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
       );
     }
 

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { getClientBalance } from "@/lib/balance";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 const checkInSchema = z.object({
@@ -24,7 +24,7 @@ export async function GET(
   { params }: { params: Promise<{ clubToken: string }> }
 ) {
   const { clubToken } = await params;
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`checkin:${clubToken}:${ip}`, { windowMs: 60_000, max: 120 });
   if (limited) {
@@ -120,7 +120,7 @@ export async function POST(
   { params }: { params: Promise<{ clubToken: string }> }
 ) {
   const { clubToken } = await params;
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`checkin:${clubToken}:${ip}`, { windowMs: 60_000, max: 120 });
   if (limited) {

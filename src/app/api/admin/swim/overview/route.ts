@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (error || !session) return error;
 
   try {
-    const [rawMembers, rawLeads, rawGroups, multiGroupMembers, rawCards] = await Promise.all([
+    const [rawMembers, rawLeads, rawGroups, rawCards] = await Promise.all([
       // 1. Swimmer members with relations
       prisma.swimMember.findMany({
         orderBy: { createdAt: "desc" },
@@ -69,16 +69,7 @@ export async function GET(request: NextRequest) {
         },
       }),
 
-      // 4. Secondary multi-group assignments stored in member notes
-      prisma.swimMember.findMany({
-        where: {
-          groupId: { not: null },
-          notes: { contains: "[GROUPS:" },
-        },
-        select: { id: true, groupId: true, notes: true },
-      }),
-
-      // 5. Swim cards
+      // 4. Swim cards
       prisma.swimCard.findMany({
         orderBy: { issuedAt: "desc" },
         include: {
@@ -91,6 +82,10 @@ export async function GET(request: NextRequest) {
         },
       }),
     ]);
+
+    const multiGroupMembers = rawMembers.filter((m) =>
+      Boolean(m.groupId && m.notes && m.notes.includes("[GROUPS:"))
+    );
 
     // Member enrichment: calculate effectiveGroup, effectivelyUnassigned, and paymentSituation
     const now = new Date();

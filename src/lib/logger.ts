@@ -7,6 +7,16 @@ const pinoLogger =
     ? pino({
         level: process.env.LOG_LEVEL || "info",
         base: { env: process.env.NODE_ENV },
+        redact: [
+          "password",
+          "passwordHash",
+          "token",
+          "refreshToken",
+          "authorization",
+          "*.password",
+          "*.passwordHash",
+          "*.token",
+        ],
       })
     : null;
 
@@ -71,9 +81,20 @@ export const logger = {
       console.error(formatted);
     }
 
-    Sentry.captureMessage(formatted, {
-      level: "error",
-      extra: { context, message, args },
-    });
+    const foundError =
+      message instanceof Error
+        ? message
+        : args.find((a): a is Error => a instanceof Error);
+
+    if (foundError) {
+      Sentry.captureException(foundError, {
+        extra: { context, message, args },
+      });
+    } else {
+      Sentry.captureMessage(formatted, {
+        level: "error",
+        extra: { context, message, args },
+      });
+    }
   },
 };

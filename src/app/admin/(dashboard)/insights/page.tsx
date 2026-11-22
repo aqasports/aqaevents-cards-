@@ -28,7 +28,23 @@ export default function InsightsPage() {
       const res = await fetch("/api/admin/reports/anomalies");
       if (res.ok) {
         const data = await res.json();
-        setDigests(Array.isArray(data) ? data : [data]);
+        if (Array.isArray(data)) {
+          setDigests(data);
+        } else {
+          const anomalies: Anomaly[] = Array.isArray(data?.anomalies) ? data.anomalies : [];
+          const count = typeof data?.count === "number" ? data.count : anomalies.length;
+          setDigests([
+            {
+              id: "latest",
+              sentAt: new Date().toISOString(),
+              summaryText:
+                count > 0
+                  ? `Detected ${count} anomaly flag(s) requiring review.`
+                  : "No critical anomalies detected in the database. Operational metrics are normal.",
+              anomalies,
+            },
+          ]);
+        }
       } else {
         setMessage({ text: "Failed to load weekly insights digest.", tone: "danger" });
       }

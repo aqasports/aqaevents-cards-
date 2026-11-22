@@ -44,21 +44,50 @@ import {
   getStarterNominalDays,
 } from "@/lib/swim-subscription";
 import { getSwimRenewalWhatsAppUrl } from "@/lib/swim-whatsapp";
-import { SwimBackupDesk } from "@/components/admin/swim/backup/SwimBackupDesk";
-import { SwimEquipmentDesk } from "@/components/admin/swim/equipment/SwimEquipmentDesk";
-import { SwimPoolDesk } from "@/components/admin/swim/pool/SwimPoolDesk";
-import { SwimApneaDesk } from "@/components/admin/swim/apnea/SwimApneaDesk";
-import { SwimKidsPhysicalDesk } from "@/components/admin/swim/kids/SwimKidsPhysicalDesk";
-import { SwimFinanceDesk } from "@/components/admin/swim/finance/SwimFinanceDesk";
-import { SwimStarterDesk } from "@/components/admin/swim/payments/SwimStarterDesk";
-import { SwimPremiumDesk } from "@/components/admin/swim/payments/SwimPremiumDesk";
-import { SmartSwimPaymentModal } from "@/components/admin/swim/payments/SmartSwimPaymentModal";
-import {
-  SwimPaymentRequestsDesk,
-  type PaymentRequestMemberRow,
-} from "@/components/admin/swim/payments/SwimPaymentRequestsDesk";
+import type { PaymentRequestMemberRow } from "@/components/admin/swim/payments/SwimPaymentRequestsDesk";
 import { isPremiumFormula } from "@/lib/swim-perks";
 import { useTranslations } from "@/lib/i18n";
+
+const SwimBackupDesk = dynamic(
+  () => import("@/components/admin/swim/backup/SwimBackupDesk").then((mod) => mod.SwimBackupDesk),
+  { ssr: false }
+);
+const SwimEquipmentDesk = dynamic(
+  () => import("@/components/admin/swim/equipment/SwimEquipmentDesk").then((mod) => mod.SwimEquipmentDesk),
+  { ssr: false }
+);
+const SwimPoolDesk = dynamic(
+  () => import("@/components/admin/swim/pool/SwimPoolDesk").then((mod) => mod.SwimPoolDesk),
+  { ssr: false }
+);
+const SwimApneaDesk = dynamic(
+  () => import("@/components/admin/swim/apnea/SwimApneaDesk").then((mod) => mod.SwimApneaDesk),
+  { ssr: false }
+);
+const SwimKidsPhysicalDesk = dynamic(
+  () => import("@/components/admin/swim/kids/SwimKidsPhysicalDesk").then((mod) => mod.SwimKidsPhysicalDesk),
+  { ssr: false }
+);
+const SwimFinanceDesk = dynamic(
+  () => import("@/components/admin/swim/finance/SwimFinanceDesk").then((mod) => mod.SwimFinanceDesk),
+  { ssr: false }
+);
+const SwimStarterDesk = dynamic(
+  () => import("@/components/admin/swim/payments/SwimStarterDesk").then((mod) => mod.SwimStarterDesk),
+  { ssr: false }
+);
+const SwimPremiumDesk = dynamic(
+  () => import("@/components/admin/swim/payments/SwimPremiumDesk").then((mod) => mod.SwimPremiumDesk),
+  { ssr: false }
+);
+const SmartSwimPaymentModal = dynamic(
+  () => import("@/components/admin/swim/payments/SmartSwimPaymentModal").then((mod) => mod.SmartSwimPaymentModal),
+  { ssr: false }
+);
+const SwimPaymentRequestsDesk = dynamic(
+  () => import("@/components/admin/swim/payments/SwimPaymentRequestsDesk").then((mod) => mod.SwimPaymentRequestsDesk),
+  { ssr: false }
+);
 
 function formatDA(amount: number): string {
   return `${amount.toLocaleString("fr-DZ")} DA`;

@@ -1,9 +1,16 @@
 export const dynamic = "force-dynamic";
 
+import { redirect } from "next/navigation";
+import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import AcademyClient from "./academy-client";
 
 export default async function AcademyHubPage() {
+  const { session, error } = await requireAdminSession();
+  if (error || !session) {
+    redirect("/admin/login");
+  }
+
   try {
     const [
       swimmersCount,

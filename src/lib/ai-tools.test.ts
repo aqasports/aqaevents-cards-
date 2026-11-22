@@ -35,6 +35,7 @@ vi.mock("./prisma", () => ({
 describe("Read-Only AI Analytics Tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(prisma.ledgerEntry.aggregate).mockReset();
   });
 
   describe("getBusinessOverviewMetrics", () => {

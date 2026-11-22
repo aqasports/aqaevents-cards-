@@ -17,7 +17,7 @@ export async function GET() {
       },
       include: {
         activity: { select: { id: true, name: true } },
-        client: { select: { id: true, fullName: true } },
+        client: { select: { id: true, fullName: true, departmentId: true } },
       },
       orderBy: { redeemedAt: "desc" },
     });

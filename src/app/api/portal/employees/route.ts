@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { logAdminAction } from "@/lib/audit";
+import { generatePublicToken } from "@/lib/tokens";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validated = createEmployeeSchema.parse(body);
 
+    if (validated.departmentId) {
+      const dept = await prisma.department.findFirst({
+        where: { id: validated.departmentId, organizationId },
+        select: { id: true },
+      });
+      if (!dept) {
+        return NextResponse.json({ error: "Department not found in organization" }, { status: 400 });
+      }
+    }
+
     const client = await prisma.client.create({
       data: {
         fullName: validated.fullName.trim(),
@@ -74,7 +85,8 @@ export async function POST(request: NextRequest) {
       await prisma.card.create({
         data: {
           clientId: client.id,
-          publicToken: nanoid(12),
+          organizationId,
+          publicToken: generatePublicToken(),
           cardCode: `AQA-CORP-${nanoid(6).toUpperCase()}`,
           status: "active",
         },
@@ -82,10 +94,10 @@ export async function POST(request: NextRequest) {
     }
 
     await logAdminAction(
-      session.user.id,
+      null,
       "ADD_EMPLOYEE",
       client.fullName,
-      `Added employee ${client.fullName} in portal (${role})`
+      `Added employee ${client.fullName} in portal (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
     );
 
     return NextResponse.json(client, { status: 201 });
@@ -111,6 +123,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Employee not found in organization" }, { status: 404 });
     }
 
+    if (validated.departmentId) {
+      const dept = await prisma.department.findFirst({
+        where: { id: validated.departmentId, organizationId },
+        select: { id: true },
+      });
+      if (!dept) {
+        return NextResponse.json({ error: "Department not found in organization" }, { status: 400 });
+      }
+    }
+
     const updated = await prisma.client.update({
       where: { id: validated.clientId },
       data: {
@@ -120,10 +142,10 @@ export async function PATCH(request: NextRequest) {
     });
 
     await logAdminAction(
-      session.user.id,
+      null,
       "UPDATE_EMPLOYEE",
       updated.fullName,
-      `Updated employee ${updated.fullName} in portal (${role})`
+      `Updated employee ${updated.fullName} in portal (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
     );
 
     return NextResponse.json(updated);

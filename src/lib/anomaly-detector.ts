@@ -15,14 +15,34 @@ export async function detectBusinessAnomalies(): Promise<AnomalyItem[]> {
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
 
-  // Rule 1: High manual ledger credit additions in last 7 days
-  const recentCreditsSum = await prisma.ledgerEntry.aggregate({
-    where: {
-      type: "CREDIT",
-      createdAt: { gte: sevenDaysAgo },
-    },
-    _sum: { delta: true },
-  });
+  const [recentCreditsSum, overdueInvoicesSum, activeClients, recentCheckIns] =
+    await Promise.all([
+      // Rule 1: High manual ledger credit additions in last 7 days
+      prisma.ledgerEntry.aggregate({
+        where: {
+          type: { in: ["credit", "CREDIT"] },
+          createdAt: { gte: sevenDaysAgo },
+        },
+        _sum: { delta: true },
+      }),
+      // Rule 2: High overdue accounts receivable (>60 days old unpaid invoices)
+      prisma.invoice.aggregate({
+        where: {
+          status: { notIn: ["paid", "refunded", "cancelled"] },
+          createdAt: { lte: sixtyDaysAgo },
+        },
+        _sum: { amount: true },
+      }),
+      // Rule 3: Low check-in volume
+      prisma.client.count({
+        where: { archived: false },
+      }),
+      prisma.checkIn.count({
+        where: {
+          scannedAt: { gte: sevenDaysAgo },
+        },
+      }),
+    ]);
 
   const manualCreditTotal = recentCreditsSum._sum.delta ?? 0;
   if (manualCreditTotal > 50000) {
@@ -35,15 +55,6 @@ export async function detectBusinessAnomalies(): Promise<AnomalyItem[]> {
     });
   }
 
-  // Rule 2: High overdue accounts receivable (>60 days old unpaid invoices)
-  const overdueInvoicesSum = await prisma.invoice.aggregate({
-    where: {
-      status: { not: "paid" },
-      createdAt: { lte: sixtyDaysAgo },
-    },
-    _sum: { amount: true },
-  });
-
   const overdueTotal = overdueInvoicesSum._sum.amount ?? 0;
   if (overdueTotal > 100000) {
     anomalies.push({
@@ -54,17 +65,6 @@ export async function detectBusinessAnomalies(): Promise<AnomalyItem[]> {
       detectedAt: now,
     });
   }
-
-  // Rule 3: Low check-in volume
-  const activeClients = await prisma.client.count({
-    where: { archived: false },
-  });
-
-  const recentCheckIns = await prisma.checkIn.count({
-    where: {
-      scannedAt: { gte: sevenDaysAgo },
-    },
-  });
 
   if (activeClients > 10 && recentCheckIns < 5) {
     anomalies.push({

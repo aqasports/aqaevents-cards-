@@ -27,11 +27,11 @@ export class ReportingService {
     ] = await Promise.all([
       this.billingRepo.countRedemption(),
       prisma.ledgerEntry.aggregate({
-        where: { type: "credit" },
+        where: { type: { in: ["credit", "CREDIT"] } },
         _sum: { delta: true },
       }),
       prisma.ledgerEntry.aggregate({
-        where: { type: "debit" },
+        where: { type: { in: ["debit", "DEBIT"] } },
         _sum: { delta: true },
       }),
       this.cardsRepo.findMany({
@@ -40,22 +40,32 @@ export class ReportingService {
           clientId: { not: null },
         },
         select: {
-          client: {
-            select: {
-              ledgerEntries: {
-                select: { delta: true },
-              },
-            },
-          },
+          clientId: true,
         },
       }),
     ]);
 
-    const totalClientsWithCards = (activeClientCards as any[]).filter((card: any) => {
-      if (!card.client) return false;
-      const balance = card.client.ledgerEntries.reduce((sum: number, e: any) => sum + e.delta, 0);
-      return balance > 0;
-    }).length;
+    const cardClientIds = (activeClientCards as Array<{ clientId: string | null }>)
+      .map((card) => card.clientId)
+      .filter((id): id is string => Boolean(id));
+    const uniqueClientIds = Array.from(new Set(cardClientIds));
+
+    let totalClientsWithCards = 0;
+    if (uniqueClientIds.length > 0) {
+      const balances = await prisma.ledgerEntry.groupBy({
+        by: ["clientId"],
+        where: { clientId: { in: uniqueClientIds } },
+        _sum: { delta: true },
+      });
+      const positiveClients = new Set(
+        balances
+          .filter((b) => Math.round((b._sum.delta ?? 0) * 100) / 100 > 0)
+          .map((b) => b.clientId)
+      );
+      totalClientsWithCards = cardClientIds.filter((id) =>
+        positiveClients.has(id)
+      ).length;
+    }
 
     return {
       totalRedemptions,

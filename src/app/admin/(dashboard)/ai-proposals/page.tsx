@@ -44,11 +44,11 @@ export default function AiProposalsPage() {
     setActionLoading(proposalId);
     setMessage(null);
     try {
-      const res = await fetch("/api/admin/ai/queue", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalId, status }),
-      });
+      const actionSegment = status === "approved" ? "approve" : "reject";
+      const res = await fetch(
+        `/api/admin/ai/queue/${encodeURIComponent(proposalId)}/${actionSegment}`,
+        { method: "POST" }
+      );
 
       if (res.ok) {
         setMessage({ text: `Proposal ${status} successfully.`, tone: "success" });

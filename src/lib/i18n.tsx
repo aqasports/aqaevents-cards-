@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 
 export type Locale = "en" | "fr" | "ar";
 
@@ -7142,14 +7142,14 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const setLocale = (l: Locale) => {
+  const setLocale = useCallback((l: Locale) => {
     setLocaleState(l);
     localStorage.setItem("aqa_locale", l);
     document.documentElement.dir = l === "ar" ? "rtl" : "ltr";
     document.documentElement.lang = l;
-  };
+  }, []);
 
-  const t = (keyPath: string, replacements?: Record<string, string | number>): string => {
+  const t = useCallback((keyPath: string, replacements?: Record<string, string | number>): string => {
     const keys = keyPath.split(".");
     let current: unknown = dictionaries[locale];
 
@@ -7212,12 +7212,17 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     }
 
     return result;
-  };
+  }, [locale]);
 
-  const dir = locale === "ar" ? "rtl" : "ltr";
+  const dir: "ltr" | "rtl" = locale === "ar" ? "rtl" : "ltr";
+
+  const contextValue = useMemo<I18nContextProps>(
+    () => ({ locale, setLocale, t, dir }),
+    [locale, setLocale, t, dir]
+  );
 
   return (
-    <I18nContext.Provider value={{ locale, setLocale, t, dir }}>
+    <I18nContext.Provider value={contextValue}>
       {children}
     </I18nContext.Provider>
   );
@@ -7233,26 +7238,35 @@ export function useTranslations(namespace?: string) {
   const context = useContext(I18nContext);
   if (!context) throw new Error("useTranslations must be used within I18nProvider");
 
-  return {
-    t: (key: string, replacements?: Record<string, string | number>) => {
+  const contextT = context.t;
+  const scopedT = useCallback(
+    (key: string, replacements?: Record<string, string | number>) => {
       if (namespace && key.includes(".")) {
         const firstSegment = key.split(".")[0];
         if (firstSegment in dictionaries.en) {
-          return context.t(key, replacements);
+          return contextT(key, replacements);
         }
       }
       const fullPath = namespace ? `${namespace}.${key}` : key;
-      const res = context.t(fullPath, replacements);
+      const res = contextT(fullPath, replacements);
       if (res === fullPath && namespace) {
-        const fallbackRes = context.t(key, replacements);
+        const fallbackRes = contextT(key, replacements);
         if (fallbackRes !== key) return fallbackRes;
       }
       return res;
     },
-    locale: context.locale,
-    setLocale: context.setLocale,
-    dir: context.dir,
-  };
+    [contextT, namespace]
+  );
+
+  return useMemo(
+    () => ({
+      t: scopedT,
+      locale: context.locale,
+      setLocale: context.setLocale,
+      dir: context.dir,
+    }),
+    [scopedT, context.locale, context.setLocale, context.dir]
+  );
 }
 
 export const useI18n = useTranslations;

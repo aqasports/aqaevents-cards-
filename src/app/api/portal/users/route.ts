@@ -88,10 +88,10 @@ export async function POST(request: NextRequest) {
     });
 
     await logAdminAction(
-      session.user.id,
+      null,
       "ADD_PORTAL_USER",
       newUser.email,
-      `Created portal user ${newUser.email} with role ${newUser.role} (${role})`
+      `Created portal user ${newUser.email} with role ${newUser.role} (${role}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
     );
 
     return NextResponse.json(newUser, { status: 201 });
@@ -117,6 +117,16 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "User not found in organization" }, { status: 404 });
     }
 
+    if (
+      validated.userId === session.user.id &&
+      (validated.active === false || (validated.role && validated.role !== "OWNER"))
+    ) {
+      return NextResponse.json(
+        { error: "Cannot demote or deactivate your own OWNER account" },
+        { status: 400 }
+      );
+    }
+
     const updated = await prisma.organizationUser.update({
       where: { id: validated.userId },
       data: {
@@ -127,10 +137,10 @@ export async function PATCH(request: NextRequest) {
     });
 
     await logAdminAction(
-      session.user.id,
+      null,
       "UPDATE_PORTAL_USER",
       updated.email,
-      `Updated portal user ${updated.email} role to ${updated.role} (active: ${updated.active})`
+      `Updated portal user ${updated.email} role to ${updated.role} (active: ${updated.active}, orgUserId: ${session.user.id}, orgId: ${organizationId})`
     );
 
     return NextResponse.json(updated);

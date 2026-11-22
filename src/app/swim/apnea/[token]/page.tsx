@@ -1,6 +1,6 @@
 "use client";
 
-import React, { use, useCallback, useEffect, useMemo, useState } from "react";
+import React, { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "@/lib/i18n";
 import { formatApneaDuration } from "@/lib/swim-apnea";
 
@@ -44,6 +44,8 @@ export default function ApneaCoachTerminalPage({
 }) {
   const { token } = use(params);
   const { t } = useTranslations("swimApnea");
+  const tRef = useRef(t);
+  tRef.current = t;
   const { locale, setLocale, dir } = useLocale();
 
   const [data, setData] = useState<TerminalData | null>(null);
@@ -69,11 +71,11 @@ export default function ApneaCoachTerminalPage({
       setData(await res.json());
       setInvalid(false);
     } catch {
-      setMessage({ kind: "error", text: t("loadError") });
+      setMessage({ kind: "error", text: tRef.current("loadError") });
     } finally {
       setLoading(false);
     }
-  }, [endpoint, t]);
+  }, [endpoint]);
 
   // Single read on mount. No polling: the coach can refresh manually.
   useEffect(() => {

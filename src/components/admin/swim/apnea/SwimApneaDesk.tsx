@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "@/lib/i18n";
 import { formatApneaDuration } from "@/lib/swim-apnea";
 import { ConfirmModal } from "@/components/admin/ui";
@@ -92,6 +92,8 @@ function parseSeconds(raw: string): number {
  */
 export function SwimApneaDesk() {
   const { t } = useTranslations("swimApnea");
+  const tRef = useRef(t);
+  tRef.current = t;
   const [data, setData] = useState<DeskData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,11 +116,11 @@ export function SwimApneaDesk() {
       setData(await res.json());
       setError(null);
     } catch {
-      setError(t("loadError"));
+      setError(tRef.current("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     load();

@@ -15,7 +15,25 @@ app.commandLine.appendSwitch("disable-http-cache");
 // ─── Config ──────────────────────────────────────────────────────────────────
 const ADMIN_URL  = "https://aqasports.com/admin";
 const APP_TOKEN  = process.env.AQA_ADMIN_APP_TOKEN || "";
-const TOKEN_URLS = ["https://*.aqasports.com/*", "https://*.netlify.app/*"];
+const TOKEN_URLS = [
+  "https://aqasports.com/*",
+  "https://*.aqasports.com/*",
+  "https://delightful-torte-bcca6a.netlify.app/*",
+];
+
+function isAllowedAdminUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl);
+    if (u.protocol !== "https:") return false;
+    return (
+      u.hostname === "aqasports.com" ||
+      u.hostname === "www.aqasports.com" ||
+      u.hostname === "delightful-torte-bcca6a.netlify.app"
+    );
+  } catch {
+    return false;
+  }
+}
 
 // ─── Persistent window state ──────────────────────────────────────────────────
 const store = new Store({
@@ -114,15 +132,11 @@ function createMainWindow() {
 
   // ── Lock navigation inside allowed domains ─────────────────────────────────
   mainWin.webContents.on("will-navigate", (e, url) => {
-    const ok = url.startsWith("https://aqasports.com") ||
-               url.startsWith("https://delightful-torte-bcca6a.netlify.app");
-    if (!ok) { e.preventDefault(); shell.openExternal(url); }
+    if (!isAllowedAdminUrl(url)) { e.preventDefault(); shell.openExternal(url); }
   });
 
   mainWin.webContents.setWindowOpenHandler(({ url }) => {
-    const ok = url.startsWith("https://aqasports.com") ||
-               url.startsWith("https://delightful-torte-bcca6a.netlify.app");
-    if (ok) return { action: "allow" };
+    if (isAllowedAdminUrl(url)) return { action: "allow" };
     shell.openExternal(url);
     return { action: "deny" };
   });

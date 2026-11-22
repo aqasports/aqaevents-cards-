@@ -11,6 +11,7 @@ vi.mock("@/lib/prisma", () => ({
     publicPurchaseRequest: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   },
 }));
@@ -163,5 +164,35 @@ describe("Public Purchase Confirm POST API", () => {
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBe("Purchase request has already been confirmed");
+  });
+
+  it("should fail when requestId belongs to a different card", async () => {
+    vi.mocked(prisma.card.findUnique).mockResolvedValue({
+      id: "card-1",
+      clientId: "client-1",
+      status: "active",
+    } as any);
+
+    vi.mocked(prisma.publicPurchaseRequest.findUnique).mockResolvedValue({
+      id: "req-other-card",
+      cardId: "card-2",
+      clientId: "client-2",
+      type: "package",
+      payload: JSON.stringify({}),
+      status: "pending_confirmation",
+      confirmationCode: "123456",
+      expiresAt: new Date(Date.now() + 600000),
+      createdAt: new Date(),
+    } as any);
+
+    const request = new NextRequest("http://localhost:3000/api/public/cards/token-123/purchase/confirm", {
+      method: "POST",
+      body: JSON.stringify({ requestId: "req-other-card", confirmationCode: "123456" }),
+    });
+
+    const res = await POST(request, { params: Promise.resolve({ token: "token-123" }) });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("Purchase request not found");
   });
 });

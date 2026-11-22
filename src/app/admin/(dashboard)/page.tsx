@@ -1,10 +1,17 @@
 export const dynamic = "force-dynamic";
 
+import { redirect } from "next/navigation";
+import { requireAdminSession } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
 import { getCreditRate } from "@/lib/settings";
 import DashboardClient from "./dashboard-client";
 
 export default async function AdminDashboardPage() {
+  const { session, error } = await requireAdminSession();
+  if (error || !session) {
+    redirect("/admin/login");
+  }
+
   try {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());

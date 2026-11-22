@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { verifyCaptcha } from "@/lib/captcha";
 import { logger } from "@/lib/logger";
 
@@ -20,8 +20,7 @@ export async function OPTIONS() {
 }
 
 export async function POST(request: NextRequest) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`proposals:${ip}`, { windowMs: 60_000, max: 10 });
   if (limited) {

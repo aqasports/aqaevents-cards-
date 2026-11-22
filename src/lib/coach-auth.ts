@@ -175,8 +175,8 @@ export async function rotateCoachAuthSession(rawRefreshToken: string) {
     return { error: "INVALID_TOKEN", status: 401 };
   }
 
-  // Token reuse detection: if revoked or expired, revoke ALL sessions for this account
-  if (existingSession.revokedAt || existingSession.expiresAt < new Date()) {
+  // Token reuse detection: if already revoked, revoke ALL sessions for this account
+  if (existingSession.revokedAt) {
     await prisma.coachAuthSession.updateMany({
       where: { accountId: existingSession.accountId },
       data: { revokedAt: new Date() },
@@ -185,6 +185,11 @@ export async function rotateCoachAuthSession(rawRefreshToken: string) {
       `[coach-auth] Token reuse detected for account ${existingSession.accountId}. Revoked all sessions.`
     );
     return { error: "TOKEN_REVOKED_REUSE_DETECTED", status: 401 };
+  }
+
+  // Natural expiry: fail closed without revoking other active devices
+  if (existingSession.expiresAt < new Date()) {
+    return { error: "TOKEN_EXPIRED", status: 401 };
   }
 
   if (!existingSession.account.loginEnabled || !existingSession.account.coach.active) {
@@ -260,6 +265,23 @@ export async function requireCoachSession(req: NextRequest) {
       coach: null,
       account: null,
     };
+  }
+
+  if (payload.sessionId && typeof prisma.coachAuthSession?.findUnique === "function") {
+    const authSession = await prisma.coachAuthSession.findUnique({
+      where: { id: payload.sessionId },
+      select: { revokedAt: true, expiresAt: true },
+    });
+    if (!authSession || authSession.revokedAt || authSession.expiresAt < new Date()) {
+      return {
+        error: NextResponse.json(
+          { error: "Unauthorized: Session has been revoked or expired." },
+          { status: 401, headers: corsHeaders }
+        ),
+        coach: null,
+        account: null,
+      };
+    }
   }
 
   return {

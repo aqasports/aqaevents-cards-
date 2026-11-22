@@ -51,21 +51,14 @@ export default function NewClientPage() {
       return;
     }
 
-    const timer = setTimeout(async () => {
-      try {
-        await fetch(`/api/admin/clients?search=${encodeURIComponent(preCardCode.trim())}&limit=1`);
-        // We don't have a dedicated card-lookup endpoint — we'll just let the server validate at submit time
-        // But we can do basic format check
-        const code = preCardCode.trim().toUpperCase();
-        if (/^AQA-\d{6}$/.test(code)) {
-          setCardLookupStatus("ok");
-          setCardLookupMsg(`Format looks correct. Will be verified on submit.`);
-        } else {
-          setCardLookupStatus("error");
-          setCardLookupMsg("Expected format: AQA-000001");
-        }
-      } catch {
-        setCardLookupStatus("idle");
+    const timer = setTimeout(() => {
+      const code = preCardCode.trim().toUpperCase();
+      if (/^AQA-\d{6}$/.test(code)) {
+        setCardLookupStatus("ok");
+        setCardLookupMsg("Format looks correct. Will be verified on submit.");
+      } else {
+        setCardLookupStatus("error");
+        setCardLookupMsg("Expected format: AQA-000001");
       }
     }, 400);
 

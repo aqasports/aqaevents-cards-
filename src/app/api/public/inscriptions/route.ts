@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 import { formatSwimLeadNotes } from "@/lib/swim-lead-details";
@@ -45,8 +45,7 @@ function normalizeDuration(dur?: string | null, tierOrFormule?: string | null): 
 }
 
 export async function POST(request: NextRequest) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`public-inscriptions:${ip}`, {
     windowMs: 60_000,

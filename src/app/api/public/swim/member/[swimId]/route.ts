@@ -10,7 +10,7 @@ import {
   getMemberPaymentSituation,
 } from "@/lib/swim-groups";
 import { calculateSwimPrice } from "@/lib/swim-pricing";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { generateSwimCardCode, generateSwimToken } from "@/lib/swim-id";
 
 import { loadApneaProfile } from "@/lib/swim-apnea-profile";
@@ -233,10 +233,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ swimId: string }> }
 ) {
-  const ip =
-    request.headers.get("x-nf-client-connection-ip") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`swim_member_get:${ip}`, {
     windowMs: 60_000,
@@ -433,10 +430,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ swimId: string }> }
 ) {
-  const ip =
-    request.headers.get("x-nf-client-connection-ip") ||
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`swim_member_post:${ip}`, {
     windowMs: 60_000,

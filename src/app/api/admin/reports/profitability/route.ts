@@ -39,13 +39,37 @@ export async function GET(request: NextRequest) {
         checkIns: true,
         sessionExpenses: true,
         coach: true,
-        equipmentUsages: {
-          include: {
-            equipmentAsset: true,
-          },
-        },
       },
     });
+
+    const defaultCreditRate = await getCreditRate();
+    const uniqueFirstClientIds = Array.from(
+      new Set(
+        dbSessions
+          .map((s) => s.checkIns[0]?.clientId)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+
+    const clientRateMap = new Map<string, number>();
+    if (
+      uniqueFirstClientIds.length > 0 &&
+      typeof prisma.client?.findMany === "function"
+    ) {
+      const clientsWithOrg = await prisma.client.findMany({
+        where: { id: { in: uniqueFirstClientIds } },
+        select: {
+          id: true,
+          organization: { select: { creditRate: true } },
+        },
+      });
+      for (const c of clientsWithOrg) {
+        clientRateMap.set(
+          c.id,
+          c.organization?.creditRate ?? defaultCreditRate
+        );
+      }
+    }
 
     let totalRevenue = 0;
     let totalExpenses = 0;
@@ -61,9 +85,14 @@ export async function GET(request: NextRequest) {
 
     for (const s of dbSessions) {
       const firstClientId = s.checkIns[0]?.clientId;
-      const effectiveRate = firstClientId
-        ? await getEffectiveCreditRateForClient(firstClientId)
-        : await getCreditRate();
+      let effectiveRate = defaultCreditRate;
+      if (firstClientId) {
+        if (clientRateMap.has(firstClientId)) {
+          effectiveRate = clientRateMap.get(firstClientId)!;
+        } else if (typeof prisma.client?.findMany !== "function") {
+          effectiveRate = await getEffectiveCreditRateForClient(firstClientId);
+        }
+      }
 
       const grossRevenue = (s.checkIns.length || 0) * s.activity.creditCost * effectiveRate;
       const variableExpenses = s.sessionExpenses.reduce((sum, exp) => sum + exp.amount, 0);

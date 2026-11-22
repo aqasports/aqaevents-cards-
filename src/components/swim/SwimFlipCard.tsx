@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import QRCode from "qrcode";
 import { getCardTier, CardTierInfo } from "@/lib/swim-pricing";
 
 export interface SwimFlipCardMember {
@@ -54,20 +53,32 @@ export function SwimFlipCard({
     }
 
     if (member.card?.publicToken) {
+      let cancelled = false;
       const publicUrl = typeof window !== "undefined"
         ? `${window.location.origin}/swim/card/${member.card.publicToken}`
         : `https://aqasports.com/swim/card/${member.card.publicToken}`;
 
-      QRCode.toDataURL(publicUrl, {
-        width: 260,
-        margin: 1,
-        color: {
-          dark: "#030712",
-          light: "#ffffff",
-        },
-      })
-        .then((url) => setQrCode(url))
-        .catch(() => setQrCode(null));
+      import("qrcode")
+        .then(({ default: QRCode }) =>
+          QRCode.toDataURL(publicUrl, {
+            width: 260,
+            margin: 1,
+            color: {
+              dark: "#030712",
+              light: "#ffffff",
+            },
+          })
+        )
+        .then((url) => {
+          if (!cancelled) setQrCode(url);
+        })
+        .catch(() => {
+          if (!cancelled) setQrCode(null);
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
   }, [member.card?.publicToken, precomputedQr]);
 

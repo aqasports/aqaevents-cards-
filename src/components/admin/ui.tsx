@@ -140,6 +140,7 @@ export function Button({
       className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
       onClick={handleClick}
       {...props}
+      disabled={Boolean(props.disabled || loading)}
     >
       {loading ? (
         <svg className="h-4 w-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
@@ -171,7 +172,7 @@ export const Input = React.forwardRef<
   }
 
   const isDateOrTime = props.type === "datetime-local" || props.type === "date" || props.type === "time";
-  const derivedLang = props.lang || (isDateOrTime ? (locale === "ar" ? "ar-EG" : locale === "fr" ? "fr" : "en-GB") : undefined);
+  const derivedLang = props.lang || (isDateOrTime ? (locale === "ar" ? "ar-DZ-u-nu-latn" : locale === "fr" ? "fr" : "en-GB") : undefined);
 
   return (
     <label className="block text-sm">

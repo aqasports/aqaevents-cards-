@@ -1305,10 +1305,6 @@ export default function InvoicesPage() {
   }, []);
 
   useEffect(() => {
-    loadInvoices();
-  }, [loadInvoices]);
-
-  useEffect(() => {
     if (tab === "invoices" || tab === "sales") {
       loadInvoices();
     }

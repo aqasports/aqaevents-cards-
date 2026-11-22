@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const toolFn = AI_TOOL_REGISTRY[toolName];
+    const toolFn = Object.prototype.hasOwnProperty.call(AI_TOOL_REGISTRY, toolName)
+      ? AI_TOOL_REGISTRY[toolName]
+      : undefined;
     if (!toolFn) {
       return NextResponse.json(
         {

@@ -50,19 +50,7 @@ describe("AQA Swim Overview Batched API Endpoint", () => {
 
   it("should return consolidated members, leads, groups, and cards in one single batched call", async () => {
     // 1. Mock members
-    (vi.mocked(prisma.swimMember.findMany) as any).mockImplementation(async (args?: any) => {
-      // If querying secondary multi-group members
-      if (args?.where?.notes?.contains === "[GROUPS:") {
-        return [
-          {
-            id: "m-multi",
-            groupId: "g-1",
-            notes: "[GROUPS: g-1, g-2]",
-          },
-        ] as any;
-      }
-
-      // Default members query
+    (vi.mocked(prisma.swimMember.findMany) as any).mockImplementation(async () => {
       return [
         {
           id: "m-1",
@@ -70,6 +58,7 @@ describe("AQA Swim Overview Batched API Endpoint", () => {
           fullName: "Karim Benchikh",
           phone: "0550112233",
           groupId: "g-1",
+          notes: "[GROUPS: g-1, g-2]",
           group: {
             id: "g-1",
             name: "Homme Mardi 19h",

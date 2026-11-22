@@ -542,17 +542,16 @@ export default function RedeemPage() {
         setMessage({ text: t("refundedSuccessfully"), tone: "success" });
         playSuccessSound();
         triggerSuccessHaptics();
-        await Promise.all([
+        const [, freshClientsList] = await Promise.all([
           loadRecentRedemptions(),
-          fetch("/api/admin/clients")
-            .then((r) => r.json())
-            .then(setClients),
+          fetch("/api/admin/clients").then((r) => (r.ok ? r.json() : null)),
         ]);
-        if (lookup) {
-          const updatedClientsRes = await fetch("/api/admin/clients");
-          if (updatedClientsRes.ok) {
-            const freshClientsList = await updatedClientsRes.json();
-            const freshClientObj = freshClientsList.find((c: ClientDropdownItem) => c.id === lookup.client.id);
+        if (Array.isArray(freshClientsList)) {
+          setClients(freshClientsList);
+          if (lookup) {
+            const freshClientObj = freshClientsList.find(
+              (c: ClientDropdownItem) => c.id === lookup.client.id
+            );
             if (freshClientObj) {
               setLookup({
                 client: { id: freshClientObj.id, fullName: freshClientObj.fullName },

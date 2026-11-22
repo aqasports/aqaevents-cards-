@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CardsService } from "@/modules/cards/service";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 const cardsService = new CardsService();
@@ -9,8 +9,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`cards-token:${ip}`, { windowMs: 60_000, max: 60 });
   if (limited) {

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 import { PurchaseRequestsService } from "@/modules/purchase-requests/service";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 
 const purchaseRequestsService = new PurchaseRequestsService();
 
@@ -11,8 +11,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`purchase-confirm:${ip}`, { windowMs: 60_000, max: 15 });
   if (limited) {
@@ -42,6 +41,7 @@ export async function POST(
 
     const result = await purchaseRequestsService.confirmPurchaseRequest({
       requestId,
+      cardId: card.id,
       confirmationCode: String(confirmationCode).trim(),
     });
 

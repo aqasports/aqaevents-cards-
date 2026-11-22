@@ -82,17 +82,6 @@ export async function resolveCoachGroupIds(ctx: CoachContext): Promise<string[]>
     }
   }
 
-  // Fallback for shared/demo role accounts (e.g., "Coach AQA", "Assistant Coach AQA")
-  // when no explicit SwimGroupStaff records have been seeded for them yet
-  if (set.size === 0) {
-    const anyStaffCount = await prisma.swimGroupStaff.count({
-      where: { coachId: ctx.coachId, endsOn: null },
-    });
-    if (anyStaffCount === 0) {
-      return allActiveGroups.map((g) => g.id);
-    }
-  }
-
   return Array.from(set);
 }
 

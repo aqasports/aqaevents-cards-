@@ -215,19 +215,27 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async signIn({ user }) {
+      const isOrgUser =
+        (user as any).userType === "org" || Boolean((user as any).organizationId);
       await logAdminAction(
-        user.id ?? null,
+        isOrgUser ? null : (user.id ?? null),
         "LOGIN_SUCCESS",
         user.email ?? "unknown",
-        `User signed in (${(user as any).userType ?? "admin"}).`
+        isOrgUser
+          ? `User signed in (org, orgUserId: ${user.id ?? "unknown"}, orgId: ${(user as any).organizationId ?? "unknown"}).`
+          : `User signed in (${(user as any).userType ?? "admin"}).`
       );
     },
     async signOut({ token }) {
+      const isOrgUser =
+        token?.userType === "org" || Boolean(token?.organizationId);
       await logAdminAction(
-        (token?.id as string) ?? null,
+        isOrgUser ? null : ((token?.id as string) ?? null),
         "LOGOUT",
         (token?.email as string) ?? "unknown",
-        "User signed out."
+        isOrgUser
+          ? `User signed out (org, orgUserId: ${(token?.id as string) ?? "unknown"}, orgId: ${(token?.organizationId as string) ?? "unknown"}).`
+          : "User signed out."
       );
     },
   },

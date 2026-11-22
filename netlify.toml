@@ -9,6 +9,13 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Block public HTTP access to the local-only activity image editor script.
+[[redirects]]
+  from = "/activity-image-editor.js"
+  to = "/404"
+  status = 404
+  force = true
+
 [functions."keep-alive"]
   schedule = "0 0 * * *"
 

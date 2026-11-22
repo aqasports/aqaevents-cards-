@@ -31,15 +31,45 @@ export async function checkAndIncrement(
     });
 
     if (!bucket) {
-      await tx.rateLimitBucket.create({
-        data: {
-          key,
-          count: 1,
-          windowStart: now,
-          lockUntil: null,
-        },
-      });
-      return { limited: false };
+      try {
+        await tx.rateLimitBucket.create({
+          data: {
+            key,
+            count: 1,
+            windowStart: now,
+            lockUntil: null,
+          },
+        });
+        return { limited: false };
+      } catch (createErr: any) {
+        if (createErr?.code !== "P2002") {
+          throw createErr;
+        }
+        const existing = await tx.rateLimitBucket.findUnique({ where: { key } });
+        if (!existing) {
+          throw createErr;
+        }
+        const nextCount = existing.count + 1;
+        const isLimited = nextCount > opts.max;
+        const retryAfterSeconds = isLimited
+          ? opts.lockoutMs
+            ? Math.ceil(opts.lockoutMs / 1000)
+            : Math.max(
+                1,
+                Math.ceil((opts.windowMs - (now.getTime() - existing.windowStart.getTime())) / 1000)
+              )
+          : undefined;
+        await tx.rateLimitBucket.update({
+          where: { key },
+          data: {
+            count: nextCount,
+            ...(isLimited && opts.lockoutMs
+              ? { lockUntil: new Date(now.getTime() + opts.lockoutMs) }
+              : {}),
+          },
+        });
+        return isLimited ? { limited: true, retryAfterSeconds } : { limited: false };
+      }
     }
 
     // Check if bucket is currently locked out

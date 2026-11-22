@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations, useLocale } from "@/lib/i18n";
 import { ConfirmModal } from "@/components/admin/ui";
 import {
@@ -81,6 +81,8 @@ function bmiBandKey(band: WhoBmiBand | null): string {
 
 export function SwimKidsPhysicalDesk() {
   const { t } = useTranslations("swimKidsPhysical");
+  const tRef = useRef(t);
+  tRef.current = t;
   const { locale, setLocale } = useLocale();
 
   const [data, setData] = useState<DeskResponse | null>(null);
@@ -108,11 +110,11 @@ export function SwimKidsPhysicalDesk() {
       setData(await res.json());
       setError(null);
     } catch {
-      setError(t("loadError"));
+      setError(tRef.current("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, []);
 
   useEffect(() => {
     load();

@@ -13,7 +13,7 @@ export async function GET() {
   try {
     const unpaidInvoices = await prisma.invoice.findMany({
       where: {
-        status: { not: "paid" },
+        status: { notIn: ["paid", "refunded", "cancelled"] },
       },
       select: {
         id: true,
@@ -26,6 +26,7 @@ export async function GET() {
         items: true,
         notes: true,
         paidAt: true,
+        dueDate: true,
         createdAt: true,
         client: {
           select: { id: true, fullName: true, email: true, phone: true },
@@ -69,6 +70,7 @@ export async function GET() {
         status: inv.status,
         category: inv.category,
         items: inv.items,
+        dueDate: inv.dueDate ?? null,
         createdAt: inv.createdAt,
         ageDays,
         clientName: inv.client?.fullName ?? null,
