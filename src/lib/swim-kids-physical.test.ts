@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { KINE_PROTOCOL_BOOKS } from "@/components/admin/swim/kids/kine-protocol-data";
 import {
   computeAgeYears,
   computeBmi,
@@ -176,5 +177,21 @@ describe("swim-kids-physical clinical engine", () => {
       },
     });
     expect(invalid.success).toBe(false);
+  });
+
+  it("provides complete localized kine clinical protocol documentation (FR/AR/EN) with Western numerals and valid image paths", () => {
+    const requiredIds = ["prep", "step1", "step2", "step3", "step4", "step5", "step6", "redflags"];
+    for (const locale of ["fr", "ar", "en"] as const) {
+      const book = KINE_PROTOCOL_BOOKS[locale];
+      expect(book.sections.map((s) => s.id)).toEqual(requiredIds);
+      const serialized = JSON.stringify(book);
+      expect(serialized).not.toMatch(/[\u0660-\u0669\u06F0-\u06F9]/);
+      expect(serialized).not.toMatch(/[\uD83C-\uDBFF][\uDC00-\uDFFF]/);
+      for (const sec of book.sections) {
+        if (sec.image) {
+          expect(sec.image.startsWith("/image/kids-suivi/")).toBe(true);
+        }
+      }
+    }
   });
 });

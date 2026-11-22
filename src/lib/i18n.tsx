@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-type Locale = "en" | "fr" | "ar";
+export type Locale = "en" | "fr" | "ar";
 
 const dictionaries = {
   en: {
@@ -959,6 +959,8 @@ const dictionaries = {
       pendingTitle: "First Physical Assessment Scheduled",
       pendingDesc: "Your child is enrolled in AQA Kids physical and postural follow-up (growth, spine alignment, knees, foot arch and mobility). Once the AQA kinesiotherapist publishes the first bilan, all visual charts and recommendations will appear here.",
       printReport: "Print Report",
+      openKineGuide: "Physio Protocol & Guide",
+      stepProtocolHelp: "Step {n} Protocol",
       assessmentHistory: "Assessment History",
       assessedOn: "Assessed on",
       evaluator: "Evaluator",
@@ -3319,6 +3321,8 @@ const dictionaries = {
       pendingTitle: "Premier Bilan Physique en Cours de Planification",
       pendingDesc: "Votre enfant bénéficie du programme de suivi physique et postural AQA Kids (croissance, rachis, genoux, pieds et souplesse). Dès que le kinésithérapeute AQA publiera le premier bilan, les schémas anatomiques, courbes et recommandations apparaîtront ici.",
       printReport: "Imprimer le Bilan",
+      openKineGuide: "Guide Kiné & Protocole",
+      stepProtocolHelp: "Protocole Étape {n}",
       assessmentHistory: "Historique des Bilans",
       assessedOn: "Réalisé le",
       evaluator: "Évaluateur",
@@ -5678,6 +5682,8 @@ const dictionaries = {
       pendingTitle: "أول تقييم بدني قيد البرمجة",
       pendingDesc: "يستفيد طفلكم من برنامج المتابعة البدنية والقوامية AQA Kids (النمو، العمود الفقري، الركبتين، القدمين والمرونة). فور نشر أول تقييم من طرف أخصائي العلاج الطبيعي، ستظهر هنا الخرائط التشريحية والمنحنيات والتوصيات.",
       printReport: "طباعة التقرير",
+      openKineGuide: "دليل أخصائي العلاج الطبيعي",
+      stepProtocolHelp: "بروتوكول المرحلة {n}",
       assessmentHistory: "سجل التقييمات",
       assessedOn: "تاريخ الفحص",
       evaluator: "الفاحص",

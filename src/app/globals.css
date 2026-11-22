@@ -292,6 +292,16 @@ a, button, [role="button"], select, input[type="checkbox"], input[type="radio"] 
   .print\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
   body { background: white; color: black; }
   .bg-glow-orb-1, .bg-glow-orb-2 { display: none; }
+  body:has(#aqa-kine-guide-print) * { visibility: hidden; }
+  body:has(#aqa-kine-guide-print) #aqa-kine-guide-print,
+  body:has(#aqa-kine-guide-print) #aqa-kine-guide-print * { visibility: visible; }
+  body:has(#aqa-kine-guide-print) #aqa-kine-guide-print {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
 }
 
 /* ─── Kinetic Animations & Visual Effects ───────────────────────────────── */
