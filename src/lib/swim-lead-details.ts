@@ -63,10 +63,41 @@ export interface SwimLeadDemographics {
   priceDA?: number | null;
 }
 
+export interface SwimLeadFormation {
+  slug?: string | null;
+  title?: string | null;
+  swimLevel?: string | null;
+  apneaExperience?: string | null;
+  spearfishingExperience?: string | null;
+  hasGear?: string | null;
+  preferredSchedule?: string | null;
+  lang?: string | null;
+}
+
 export interface SwimLeadDetails {
   equipment: SwimLeadEquipment;
   demographics: SwimLeadDemographics;
+  formation?: SwimLeadFormation | null;
   userNotes: string;
+}
+
+/**
+ * Determines whether a SwimLead record represents a formation registration.
+ */
+export function isFormationLead(
+  lead:
+    | {
+        category?: string | null;
+        details?: SwimLeadDetails | null;
+        notes?: string | null;
+      }
+    | null
+    | undefined
+): boolean {
+  if (!lead) return false;
+  if ((lead.category || "").toLowerCase().trim() === "formation") return true;
+  const details = lead.details ?? (lead.notes ? parseSwimLeadNotes(lead.notes) : null);
+  return Boolean(details?.formation?.slug || details?.formation?.title);
 }
 
 const META_TAG_REGEX = /\[AQA_META_START\]([\s\S]*?)\[AQA_META_END\]/;
@@ -169,6 +200,32 @@ export function parseSwimLeadNotes(notes: string | null | undefined): SwimLeadDe
       const parsedMeta = JSON.parse(metaMatch[1]);
       const eq = parsedMeta.equipment || {};
       const demo = parsedMeta.demographics || {};
+      const rawFormation = parsedMeta.formation;
+      let parsedFormation: SwimLeadFormation | null = null;
+      if (rawFormation && typeof rawFormation === "object") {
+        const cleanForm: SwimLeadFormation = {
+          slug: typeof rawFormation.slug === "string" ? rawFormation.slug.trim() || null : null,
+          title: typeof rawFormation.title === "string" ? rawFormation.title.trim() || null : null,
+          swimLevel: typeof rawFormation.swimLevel === "string" ? rawFormation.swimLevel.trim() || null : null,
+          apneaExperience:
+            typeof rawFormation.apneaExperience === "string"
+              ? rawFormation.apneaExperience.trim() || null
+              : null,
+          spearfishingExperience:
+            typeof rawFormation.spearfishingExperience === "string"
+              ? rawFormation.spearfishingExperience.trim() || null
+              : null,
+          hasGear: typeof rawFormation.hasGear === "string" ? rawFormation.hasGear.trim() || null : null,
+          preferredSchedule:
+            typeof rawFormation.preferredSchedule === "string"
+              ? rawFormation.preferredSchedule.trim() || null
+              : null,
+          lang: typeof rawFormation.lang === "string" ? rawFormation.lang.trim() || null : null,
+        };
+        if (Object.values(cleanForm).some(Boolean)) {
+          parsedFormation = cleanForm;
+        }
+      }
 
       const articles: EquipmentArticleId[] = Array.isArray(eq.articles)
         ? (eq.articles.map(normalizeArticleId).filter(Boolean) as EquipmentArticleId[])
@@ -206,6 +263,7 @@ export function parseSwimLeadNotes(notes: string | null | undefined): SwimLeadDe
             : [],
           priceDA: typeof demo.priceDA === "number" ? demo.priceDA : demo.priceDA ? Number(demo.priceDA) : null,
         },
+        ...(parsedFormation ? { formation: parsedFormation } : {}),
         userNotes: remainingText,
       };
     } catch {
@@ -304,6 +362,7 @@ export function formatSwimLeadNotes(params: {
     selectedGroupNames?: string[] | null;
     priceDA?: number | string | null;
   };
+  formation?: SwimLeadFormation | null;
   userNotes?: string | null;
 }): string {
   const normArticles: EquipmentArticleId[] = (params.equipment?.articles || [])
@@ -347,6 +406,21 @@ export function formatSwimLeadNotes(params: {
     priceDA: parsedPriceDA,
   };
 
+  const rawForm = params.formation;
+  const cleanFormation: SwimLeadFormation | null = rawForm
+    ? {
+        slug: rawForm.slug?.trim() || null,
+        title: rawForm.title?.trim() || null,
+        swimLevel: rawForm.swimLevel?.trim() || null,
+        apneaExperience: rawForm.apneaExperience?.trim() || null,
+        spearfishingExperience: rawForm.spearfishingExperience?.trim() || null,
+        hasGear: rawForm.hasGear?.trim() || null,
+        preferredSchedule: rawForm.preferredSchedule?.trim() || null,
+        lang: rawForm.lang?.trim() || null,
+      }
+    : null;
+  const hasFormation = Boolean(cleanFormation && Object.values(cleanFormation).some(Boolean));
+
   const metaPayload = {
     equipment: {
       hasPack,
@@ -356,10 +430,33 @@ export function formatSwimLeadNotes(params: {
       notes: params.equipment?.notes?.trim() || null,
     },
     demographics: cleanDemo,
+    ...(hasFormation ? { formation: cleanFormation } : {}),
   };
 
   // Build human-readable summary for legacy readers/raw views
   const humanParts: string[] = [];
+
+  if (hasFormation && cleanFormation) {
+    if (cleanFormation.title || cleanFormation.slug) {
+      humanParts.push(`Formation: ${cleanFormation.title || cleanFormation.slug}`);
+    }
+    if (cleanFormation.swimLevel) {
+      humanParts.push(`Niveau Natation: ${cleanFormation.swimLevel}`);
+    }
+    const expParts = [
+      cleanFormation.spearfishingExperience,
+      cleanFormation.apneaExperience &&
+      cleanFormation.apneaExperience !== cleanFormation.spearfishingExperience
+        ? cleanFormation.apneaExperience
+        : null,
+    ].filter(Boolean);
+    if (expParts.length > 0) {
+      humanParts.push(`Experience: ${expParts.join(" / ")}`);
+    }
+    if (cleanFormation.hasGear) {
+      humanParts.push(`Equipement: ${cleanFormation.hasGear}`);
+    }
+  }
 
   if (cleanDemo.memberType === "old") {
     humanParts.push(`Renouvellement Ancien Membre${cleanDemo.personalId ? ` (ID: ${cleanDemo.personalId})` : ""}`);

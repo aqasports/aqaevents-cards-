@@ -5,6 +5,7 @@ import {
   normalizeArticleId,
   getArticleLabel,
   getArticleShortLabel,
+  isFormationLead,
 } from "./swim-lead-details";
 
 describe("swim-lead-details", () => {
@@ -175,6 +176,67 @@ describe("swim-lead-details", () => {
       expect(getArticleShortLabel("goggles")).toBe("Lunettes");
       expect(getArticleShortLabel("cap")).toBe("Bonnet");
       expect(getArticleShortLabel("swimsuit")).toBe("Maillot");
+    });
+  });
+
+  describe("Formation lead metadata & detection", () => {
+    it("round-trips formation metadata through formatSwimLeadNotes and parseSwimLeadNotes", () => {
+      const formatted = formatSwimLeadNotes({
+        demographics: {
+          city: "Alger",
+          age: 28,
+          whatsapp: "0550112233",
+          channel: "Instagram",
+          timePref: "weekend",
+          memberType: "new",
+        },
+        formation: {
+          slug: "chasse-sous-marine",
+          title: "Formation Chasse Sous-marine",
+          swimLevel: "intermediate",
+          apneaExperience: "initiation",
+          spearfishingExperience: "none",
+          hasGear: "partial",
+          preferredSchedule: "weekend",
+          lang: "fr",
+        },
+        userNotes: "Disponible le samedi matin.",
+      });
+
+      const parsed = parseSwimLeadNotes(formatted);
+
+      expect(parsed.formation).toEqual({
+        slug: "chasse-sous-marine",
+        title: "Formation Chasse Sous-marine",
+        swimLevel: "intermediate",
+        apneaExperience: "initiation",
+        spearfishingExperience: "none",
+        hasGear: "partial",
+        preferredSchedule: "weekend",
+        lang: "fr",
+      });
+      expect(parsed.demographics.city).toBe("Alger");
+      expect(parsed.demographics.age).toBe(28);
+      expect(parsed.userNotes).toBe("Disponible le samedi matin.");
+    });
+
+    it("detects formation leads vs regular swim leads cleanly", () => {
+      expect(isFormationLead({ category: "formation", notes: null })).toBe(true);
+      expect(
+        isFormationLead({
+          category: "homme",
+          notes: formatSwimLeadNotes({
+            formation: { slug: "chasse-sous-marine", title: "Formation Chasse Sous-marine" },
+          }),
+        })
+      ).toBe(true);
+      expect(
+        isFormationLead({
+          category: "homme",
+          notes: formatSwimLeadNotes({ demographics: { city: "Alger" } }),
+        })
+      ).toBe(false);
+      expect(isFormationLead(null)).toBe(false);
     });
   });
 });

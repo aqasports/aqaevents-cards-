@@ -12,9 +12,21 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") || "all";
+  const type = searchParams.get("type");
 
   try {
-    const where = status === "all" ? {} : { status };
+    const andFilters: Record<string, unknown>[] = [];
+    if (status !== "all") {
+      andFilters.push({ status });
+    }
+    if (type === "formation") {
+      andFilters.push({ category: "formation" });
+    } else if (type === "swim") {
+      andFilters.push({
+        OR: [{ category: { not: "formation" } }, { category: null }],
+      });
+    }
+    const where = andFilters.length > 0 ? { AND: andFilters } : {};
     const leads = await prisma.swimLead.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -58,6 +70,7 @@ export async function POST(request: NextRequest) {
       articles,
       hasEquipmentPack,
       equipmentNotes,
+      formation,
     } = body;
 
     if (!fullName || !phone) {
@@ -79,6 +92,7 @@ export async function POST(request: NextRequest) {
         timePref: preferredDays || null,
         memberType: "new",
       },
+      formation: formation && typeof formation === "object" ? formation : undefined,
       userNotes: notes || null,
     });
 

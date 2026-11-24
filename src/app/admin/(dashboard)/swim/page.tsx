@@ -18,6 +18,7 @@ import {
   parseSwimLeadNotes,
   cleanLeadNotesDisplay,
   formatSwimLeadNotes,
+  isFormationLead,
   SwimLeadDetails,
   EQUIPMENT_ARTICLES,
   EquipmentArticleId,
@@ -86,6 +87,10 @@ const SmartSwimPaymentModal = dynamic(
 );
 const SwimPaymentRequestsDesk = dynamic(
   () => import("@/components/admin/swim/payments/SwimPaymentRequestsDesk").then((mod) => mod.SwimPaymentRequestsDesk),
+  { ssr: false }
+);
+const SwimFormationsLeadsDesk = dynamic(
+  () => import("@/components/admin/swim/formations/SwimFormationsLeadsDesk").then((mod) => mod.SwimFormationsLeadsDesk),
   { ssr: false }
 );
 
@@ -214,7 +219,8 @@ function SwimOverviewPageInner() {
   const searchParams = useSearchParams();
   const { t: tPaymentsDesk } = useTranslations("swimPaymentsDesk");
   const { t: tKidsSuivi } = useTranslations("swimKidsPhysical");
-  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "kids" | "finance">("confirmed");
+  const { t: tFormations } = useTranslations("swimFormationsLeads");
+  const [activeTab, setActiveTab] = useState<"confirmed" | "leads" | "formations" | "groups" | "calendar" | "cards" | "sectors" | "calls" | "payments" | "backups" | "equipment" | "pool" | "apnea" | "kids" | "finance">("confirmed");
   const [loading, setLoading] = useState(true);
 
   // Delete Swimmer Modal State (for cleaning duplicated profiles)
@@ -228,6 +234,7 @@ function SwimOverviewPageInner() {
     if (
       tabParam === "confirmed" ||
       tabParam === "leads" ||
+      tabParam === "formations" ||
       tabParam === "groups" ||
       tabParam === "calendar" ||
       tabParam === "cards" ||
@@ -359,6 +366,7 @@ function SwimOverviewPageInner() {
       const updatedNotes = formatSwimLeadNotes({
         equipment: currentDetails.equipment,
         demographics: currentDetails.demographics,
+        formation: currentDetails.formation,
         userNotes: editingLeadNotes.trim(),
       });
 
@@ -490,11 +498,20 @@ function SwimOverviewPageInner() {
     });
   }, [members, searchTerm, levelFilter, categoryFilter, paymentFilter]);
 
-  // Filtered Leads
-  const filteredLeads = useMemo(() => {
+  // Split regular swim leads vs formation leads cleanly
+  const swimOnlyLeads = useMemo(() => {
     if (!Array.isArray(leads)) return [];
-    return leads.filter((l) => {
-      if (!l) return false;
+    return leads.filter((l) => l && !isFormationLead(l));
+  }, [leads]);
+
+  const formationLeads = useMemo(() => {
+    if (!Array.isArray(leads)) return [];
+    return leads.filter((l) => l && isFormationLead(l));
+  }, [leads]);
+
+  // Filtered Leads (Waitlist Demands — swim only)
+  const filteredLeads = useMemo(() => {
+    return swimOnlyLeads.filter((l) => {
       const matchStatus = leadStatusFilter === "all" || l.status === leadStatusFilter;
       if (!matchStatus) return false;
       const q = (searchTerm || "").toLowerCase().trim();
@@ -505,7 +522,7 @@ function SwimOverviewPageInner() {
         (l.email && l.email.toLowerCase().includes(q))
       );
     });
-  }, [leads, leadStatusFilter, searchTerm]);
+  }, [swimOnlyLeads, leadStatusFilter, searchTerm]);
 
   // Financial calculations
   const totalRevenueExpected = Array.isArray(members)
@@ -521,17 +538,14 @@ function SwimOverviewPageInner() {
         0
       )
     : 0;
-  const pendingLeadsCount = Array.isArray(leads)
-    ? leads.filter((l) => l?.status === "pending").length
-    : 0;
-  const equipmentDemandsCount = Array.isArray(leads)
-    ? leads.filter(
-        (l) =>
-          Boolean(l?.details?.equipment?.hasPack) ||
-          (Array.isArray(l?.details?.equipment?.articles) &&
-            l.details.equipment.articles.length > 0)
-      ).length
-    : 0;
+  const pendingLeadsCount = swimOnlyLeads.filter((l) => l?.status === "pending").length;
+  const pendingFormationLeadsCount = formationLeads.filter((l) => l?.status === "pending").length;
+  const equipmentDemandsCount = swimOnlyLeads.filter(
+    (l) =>
+      Boolean(l?.details?.equipment?.hasPack) ||
+      (Array.isArray(l?.details?.equipment?.articles) &&
+        l.details.equipment.articles.length > 0)
+  ).length;
 
   // Payments tab: enrich each member with subscription dates and totals
   const enrichedPaymentsMembers = useMemo(() => {
@@ -992,6 +1006,17 @@ function SwimOverviewPageInner() {
       badgeTone: "success" as const,
       actionText: "Ouvrir Finance Desk",
     },
+    {
+      title: tFormations("sectorTitle"),
+      desc: tFormations("sectorDesc"),
+      href: "/admin/swim?tab=formations",
+      badge:
+        pendingFormationLeadsCount > 0
+          ? tFormations("sectorBadgePending").replace("{n}", String(pendingFormationLeadsCount))
+          : tFormations("sectorBadgeUpToDate"),
+      badgeTone: pendingFormationLeadsCount > 0 ? ("warning" as const) : ("success" as const),
+      actionText: tFormations("sectorAction"),
+    },
   ];
 
   // Eligible groups for Add Member modal (category-scoped + optional solid filter)
@@ -1152,6 +1177,26 @@ function SwimOverviewPageInner() {
               {pendingLeadsCount > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-950 text-amber-300 border border-amber-800/40">
                   {pendingLeadsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveTab("formations")}
+              className={`shrink-0 px-3.5 py-2 min-h-[40px] rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer active:scale-95 ${
+                activeTab === "formations"
+                  ? "bg-[var(--primary)] text-white shadow-[0_0_12px_rgba(14,165,233,0.35)]"
+                  : "text-cyan-400 hover:text-white hover:bg-cyan-950/60 border border-cyan-900/40"
+              }`}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+              </svg>
+              <span>{tFormations("tabLabel")}</span>
+              {pendingFormationLeadsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/40 font-mono">
+                  {pendingFormationLeadsCount}
                 </span>
               )}
             </button>
@@ -2752,7 +2797,16 @@ function SwimOverviewPageInner() {
 
       {/* ─── TAB: EQUIPMENT DEMANDS, SALES & PROFITS ───────────────── */}
       {activeTab === "equipment" && (
-        <SwimEquipmentDesk leads={leads} members={members} />
+        <SwimEquipmentDesk leads={swimOnlyLeads} members={members} />
+      )}
+
+      {/* ─── TAB: FORMATIONS LEADS (CHASSE SOUS-MARINE & COURSES) ─── */}
+      {activeTab === "formations" && (
+        <SwimFormationsLeadsDesk
+          leads={formationLeads}
+          loading={loading}
+          onRefresh={() => loadAllData({ silent: true })}
+        />
       )}
 
       {/* ─── TAB: POOL DIRECTION DISPATCH & CORRESPONDENCE ─────────── */}

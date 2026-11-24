@@ -96,7 +96,7 @@ export default function SwimLeadsPage() {
     setLoading(true);
     try {
       const [leadsRes, groupsRes] = await Promise.all([
-        fetch(`/api/admin/swim/leads?status=${activeTab}`),
+        fetch(`/api/admin/swim/leads?status=${activeTab}&type=swim`),
         fetch("/api/admin/swim/groups"),
       ]);
       if (leadsRes.ok) {

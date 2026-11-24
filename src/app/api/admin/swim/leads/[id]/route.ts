@@ -52,6 +52,7 @@ export async function PATCH(
       computedNotes = formatSwimLeadNotes({
         equipment: details.equipment,
         demographics: details.demographics,
+        formation: details.formation,
         userNotes: details.userNotes ?? notes,
       });
     }
