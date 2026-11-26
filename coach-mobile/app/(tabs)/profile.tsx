@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import { AQA_IMAGES } from "../../src/assets/badges";
 import {
   AqaAmbientBackground,
@@ -39,6 +41,7 @@ export default function ProfileScreen() {
     flushOfflineOutbox,
     clearRejectedQueue,
     signOut,
+    isRtl,
   } = useCoachStore();
 
   const isHead = user?.isHeadCoach === true;
@@ -131,7 +134,7 @@ export default function ProfileScreen() {
         {/* 3. Notification & Security Preferences */}
         <AqaDoubleBezelCard padding={16}>
           <AqaSectionHeader
-            eyebrow="ALERTES & SECURITE"
+            eyebrow={t("profile.alerts_eyebrow")}
             title={t("notif.settings_title")}
           />
 
@@ -142,6 +145,7 @@ export default function ProfileScreen() {
             </View>
             <Switch
               value={notifySettings.isAuthorized}
+              accessibilityLabel={t("notif.allow_title")}
               onValueChange={(v) =>
                 void updateNotifySettings({ isAuthorized: v })
               }
@@ -165,6 +169,7 @@ export default function ProfileScreen() {
             </View>
             <Switch
               value={notifySettings.notifyNewClient}
+              accessibilityLabel={t("notif.new_client_toggle_title")}
               disabled={!notifySettings.isAuthorized}
               onValueChange={(v) =>
                 void updateNotifySettings({ notifyNewClient: v })
@@ -186,6 +191,7 @@ export default function ProfileScreen() {
             </View>
             <Switch
               value={notifySettings.notifyGroupMovement}
+              accessibilityLabel={t("notif.movement_toggle_title")}
               disabled={!notifySettings.isAuthorized}
               onValueChange={(v) =>
                 void updateNotifySettings({ notifyGroupMovement: v })
@@ -207,6 +213,7 @@ export default function ProfileScreen() {
             </View>
             <Switch
               value={notifySettings.notifyReplacements}
+              accessibilityLabel={t("notif.replacement_toggle_title")}
               disabled={!notifySettings.isAuthorized}
               onValueChange={(v) =>
                 void updateNotifySettings({ notifyReplacements: v })
@@ -228,6 +235,7 @@ export default function ProfileScreen() {
             </View>
             <Switch
               value={localRemindersEnabled}
+              accessibilityLabel={t("profile.local_reminders")}
               onValueChange={(v) => {
                 void setLocalRemindersEnabled(v);
                 void updateNotifySettings({ notifySessionReminder: v });
@@ -246,13 +254,15 @@ export default function ProfileScreen() {
             </View>
             <Switch
               value={biometricEnabled}
+              accessibilityLabel={t("profile.biometric_lock")}
               onValueChange={(v) => void setBiometricEnabled(v)}
               trackColor={{ true: aqaColors.primary, false: "#334155" }}
             />
           </View>
 
           <AqaIslandButton
-            label="Tester Notification AQA"
+            label={t("profile.test_notification")}
+            icon="notifications-outline"
             compact
             secondary
             onPress={() => void sendTestLocalNotification()}
@@ -264,25 +274,32 @@ export default function ProfileScreen() {
         <AqaDoubleBezelCard
           padding={16}
           onPress={() => router.push("/teaching-support")}
+          accessibilityLabel={t("profile.support_title")}
+          accessibilityHint={t("profile.support_sub")}
         >
           <View style={styles.rowBetween}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{t("profile.support_title")}</Text>
               <Text style={styles.cardSub}>{t("profile.support_sub")}</Text>
             </View>
-            <Text style={styles.chevron}>{">"}</Text>
+            <Ionicons
+              name={isRtl ? "chevron-back" : "chevron-forward"}
+              size={22}
+              color={aqaColors.accent}
+              accessible={false}
+            />
           </View>
         </AqaDoubleBezelCard>
 
         {/* 5. Coach Details & Offline Outbox Inspector */}
         <AqaDoubleBezelCard padding={16}>
           <AqaSectionHeader
-            eyebrow="SYNCHRONISATION & DOSSIER"
-            title="Etat de la File Hors-Ligne"
+            eyebrow={t("profile.sync_eyebrow")}
+            title={t("profile.outbox_title")}
           />
           <Text style={styles.metaLine}>
-            Coach ID: {user?.coachId || "N/A"} • Tel:{" "}
-            {user?.phone || "Non renseigne"}
+            {t("profile.coach_id")}: {user?.coachId || "--"} • {t("profile.phone")}:{" "}
+            {user?.phone || t("profile.not_set")}
           </Text>
           <Text style={styles.metaLine}>
              {t("common.pending_sync", { count: outboxItems.length })} •{" "}
@@ -292,6 +309,7 @@ export default function ProfileScreen() {
           {outboxItems.length > 0 ? (
             <AqaIslandButton
               label={t("profile.flush_outbox")}
+              icon="cloud-upload-outline"
               compact
               secondary
               onPress={() => void flushOfflineOutbox()}
@@ -311,6 +329,7 @@ export default function ProfileScreen() {
           {rejectedItems.length > 0 ? (
             <AqaIslandButton
               label={t("profile.clear_rejected")}
+              icon="trash-outline"
               compact
               secondary
               onPress={() => void clearRejectedQueue()}
@@ -322,12 +341,13 @@ export default function ProfileScreen() {
         {/* 6. Logout Button */}
         <AqaIslandButton
           label={t("auth.logout")}
+          icon="log-out-outline"
           danger
           onPress={confirmLogout}
         />
 
         <Text style={styles.versionCaption}>
-          AQA Swim Coaches Pro • v2.4.0 Production (SDK 58)
+          AQA Swim Coaches Pro • v{Constants.expoConfig?.version ?? "--"}
         </Text>
       </ScrollView>
     </AqaAmbientBackground>
@@ -338,7 +358,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     gap: 14,
-    paddingBottom: 110,
+    paddingBottom: 24,
   },
   heroRow: {
     flexDirection: "row",
@@ -375,7 +395,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2.5,
   },
   roleChipText: {
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   emailText: {
@@ -391,7 +411,7 @@ const styles = StyleSheet.create({
   },
   connectedText: {
     color: aqaColors.textPrimary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   rowBetween: {
@@ -407,7 +427,7 @@ const styles = StyleSheet.create({
   },
   cardSub: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 2,
   },
   toggleRow: {
@@ -416,6 +436,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     paddingVertical: 6,
+    minHeight: 56,
   },
   toggleTitle: {
     color: aqaColors.textPrimary,
@@ -424,7 +445,7 @@ const styles = StyleSheet.create({
   },
   toggleSub: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 2,
   },
   divider: {
@@ -457,12 +478,12 @@ const styles = StyleSheet.create({
   },
   rejectedReason: {
     color: aqaColors.danger,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 2,
   },
   versionCaption: {
     color: aqaColors.textLight,
-    fontSize: 11,
+    fontSize: 12,
     textAlign: "center",
     marginTop: 6,
   },

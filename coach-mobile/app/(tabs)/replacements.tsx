@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Alert,
   Modal,
   RefreshControl,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { coachApiClient } from "../../src/api/client";
 import {
   AqaAmbientBackground,
@@ -21,7 +23,7 @@ import { aqaColors } from "../../src/theme/tokens";
 
 export default function ReplacementsScreen() {
   const router = useRouter();
-  const { bootstrap, isRefreshing, refreshWorkspace, t, locale } =
+  const { bootstrap, isRefreshing, refreshWorkspace, t, isRtl } =
     useCoachStore();
 
   const [selectedSegment, setSelectedSegment] = useState<number>(0);
@@ -42,6 +44,8 @@ export default function ReplacementsScreen() {
     try {
       await coachApiClient.respondReplacement(id, accept, reason);
       await refreshWorkspace();
+    } catch (err) {
+      Alert.alert(t("common.error"), err instanceof Error ? err.message : t("common.error"));
     } finally {
       setBusyId(null);
     }
@@ -64,14 +68,11 @@ export default function ReplacementsScreen() {
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>{t("replacements.title")}</Text>
-              <Text style={styles.subtitle}>
-                {locale === "ar"
-                  ? "إدارة الاستخلافات وتصاريح الغياب"
-                  : "Gestion des couvertures de seances et absences"}
-              </Text>
+              <Text style={styles.subtitle}>{t("replacements.subtitle")}</Text>
             </View>
             <AqaIslandButton
               label={t("replacements.declare_absence")}
+              icon="add-circle-outline"
               compact
               onPress={() => router.push("/absences/new")}
             />
@@ -94,11 +95,10 @@ export default function ReplacementsScreen() {
         {selectedSegment === 0 ? (
           pending.length === 0 ? (
             <AqaDoubleBezelCard padding={32}>
-              <Text style={styles.emptyText}>
-                {locale === "ar"
-                  ? "لا توجد طلبات استخلاف معلقة حاليا."
-                  : "Aucune demande de remplacement en attente."}
-              </Text>
+              <View style={styles.emptyWrap}>
+                <Ionicons name="mail-open-outline" size={36} color={aqaColors.textLight} accessible={false} />
+                <Text style={styles.emptyText}>{t("replacements.empty_pending")}</Text>
+              </View>
             </AqaDoubleBezelCard>
           ) : (
             pending.map((rep) => (
@@ -110,12 +110,11 @@ export default function ReplacementsScreen() {
               >
                 <View style={styles.rowBetween}>
                   <Text style={styles.cardTitle}>
-                    {locale === "ar"
-                      ? `طلب من ${rep.originalCoachName}`
-                      : `Demande de ${rep.originalCoachName}`}
+                    {t("today.coverage_for", { name: rep.originalCoachName })}
                   </Text>
                   <View style={styles.pendingChip}>
-                    <Text style={styles.pendingChipText}>EN ATTENTE</Text>
+                    <Ionicons name="hourglass-outline" size={12} color={aqaColors.warning} accessible={false} />
+                    <Text style={styles.pendingChipText}>{t("replacements.pending")}</Text>
                   </View>
                 </View>
 
@@ -128,13 +127,15 @@ export default function ReplacementsScreen() {
                   {rep.pool}
                 </Text>
                 {rep.reason ? (
-                  <Text style={styles.reasonText}>Motif: {rep.reason}</Text>
+                  <Text style={styles.reasonText}>
+                    {t("replacements.reason_prefix")} {rep.reason}
+                  </Text>
                 ) : null}
 
                 <View style={styles.actionRow}>
                   <AqaIslandButton
                     label={t("replacements.decline")}
-                    compact
+                    icon="close-circle-outline"
                     secondary
                     loading={busyId === rep.id}
                     onPress={() => {
@@ -145,7 +146,7 @@ export default function ReplacementsScreen() {
                   />
                   <AqaIslandButton
                     label={t("replacements.accept")}
-                    compact
+                    icon="checkmark-circle-outline"
                     success
                     loading={busyId === rep.id}
                     onPress={() => void handleRespond(rep.id, true)}
@@ -161,9 +162,10 @@ export default function ReplacementsScreen() {
         {selectedSegment === 1 ? (
           active.length === 0 ? (
             <AqaDoubleBezelCard padding={32}>
-              <Text style={styles.emptyText}>
-                Aucun remplacement actif enregistre.
-              </Text>
+              <View style={styles.emptyWrap}>
+                <Ionicons name="swap-horizontal-outline" size={36} color={aqaColors.textLight} accessible={false} />
+                <Text style={styles.emptyText}>{t("replacements.empty_active")}</Text>
+              </View>
             </AqaDoubleBezelCard>
           ) : (
             active.map((rep) => (
@@ -174,9 +176,11 @@ export default function ReplacementsScreen() {
                     <Text style={styles.confirmedChipText}>{rep.status}</Text>
                   </View>
                 </View>
-                <Text style={styles.metaText}>
-                  {rep.originalCoachName} {"->"} {rep.replacementCoachName}
-                </Text>
+                <View style={styles.inlineRow}>
+                  <Text style={styles.metaText}>{rep.originalCoachName}</Text>
+                  <Ionicons name={isRtl ? "arrow-back" : "arrow-forward"} size={14} color={aqaColors.textMuted} accessible={false} />
+                  <Text style={styles.metaText}>{rep.replacementCoachName}</Text>
+                </View>
                 <Text style={styles.metaText}>
                   {rep.sessionDate} • {rep.startTime} - {rep.endTime} •{" "}
                   {rep.pool}
@@ -190,22 +194,27 @@ export default function ReplacementsScreen() {
         {selectedSegment === 2 ? (
           absences.length === 0 ? (
             <AqaDoubleBezelCard padding={32}>
-              <Text style={styles.emptyText}>
-                Aucune absence declaree dans votre historique.
-              </Text>
+              <View style={styles.emptyWrap}>
+                <Ionicons name="calendar-clear-outline" size={36} color={aqaColors.textLight} accessible={false} />
+                <Text style={styles.emptyText}>{t("replacements.empty_absences")}</Text>
+              </View>
             </AqaDoubleBezelCard>
           ) : (
             absences.map((abs) => (
               <AqaDoubleBezelCard key={abs.id} padding={16}>
                 <View style={styles.rowBetween}>
-                  <Text style={styles.cardTitle}>
-                    {abs.startDate} {"->"} {abs.endDate}
-                  </Text>
+                  <View style={[styles.inlineRow, { flex: 1 }]}>
+                    <Text style={styles.cardTitle}>{abs.startDate}</Text>
+                    <Ionicons name={isRtl ? "arrow-back" : "arrow-forward"} size={14} color={aqaColors.textMuted} accessible={false} />
+                    <Text style={styles.cardTitle}>{abs.endDate}</Text>
+                  </View>
                   <View style={styles.pendingChip}>
                     <Text style={styles.pendingChipText}>{abs.status}</Text>
                   </View>
                 </View>
-                <Text style={styles.groupText}>Motif: {abs.reason}</Text>
+                <Text style={styles.groupText}>
+                  {t("replacements.reason_prefix")} {abs.reason}
+                </Text>
                 {abs.notes ? (
                   <Text style={styles.reasonText}>{abs.notes}</Text>
                 ) : null}
@@ -220,18 +229,23 @@ export default function ReplacementsScreen() {
         visible={declineModalId != null}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setDeclineModalId(null)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Decliner le remplacement</Text>
-            <Text style={styles.modalSub}>
-              Indiquez optionnellement le motif du refus :
+          <View style={styles.modalBox} accessibilityViewIsModal>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              {t("replacements.decline_title")}
+            </Text>
+            <Text style={styles.modalSub} nativeID="declineReasonLabel">
+              {t("replacements.decline_hint")}
             </Text>
             <TextInput
               value={declineReason}
               onChangeText={setDeclineReason}
-              placeholder="Ex: Conflit d'horaire..."
+              accessibilityLabel={t("replacements.decline_hint")}
+              accessibilityLabelledBy="declineReasonLabel"
+              placeholder={t("replacements.decline_placeholder")}
               placeholderTextColor={aqaColors.textLight}
               style={styles.input}
             />
@@ -244,7 +258,7 @@ export default function ReplacementsScreen() {
                 style={{ flex: 1 }}
               />
               <AqaIslandButton
-                label={t("common.confirm")}
+                label={t("replacements.decline")}
                 compact
                 danger
                 onPress={() => {
@@ -268,7 +282,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     gap: 14,
-    paddingBottom: 110,
+    paddingBottom: 24,
   },
   headerRow: {
     flexDirection: "row",
@@ -289,7 +303,8 @@ const styles = StyleSheet.create({
   emptyText: {
     color: aqaColors.textMuted,
     textAlign: "center",
-    fontSize: 13.5,
+    fontSize: 15,
+    lineHeight: 22,
   },
   rowBetween: {
     flexDirection: "row",
@@ -308,10 +323,13 @@ const styles = StyleSheet.create({
     borderColor: aqaColors.warning,
     paddingHorizontal: 7,
     paddingVertical: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   pendingChipText: {
     color: aqaColors.warning,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
   },
   confirmedChip: {
@@ -324,7 +342,7 @@ const styles = StyleSheet.create({
   },
   confirmedChipText: {
     color: aqaColors.success,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
   },
   groupText: {
@@ -341,7 +359,7 @@ const styles = StyleSheet.create({
   },
   reasonText: {
     color: aqaColors.textLight,
-    fontSize: 11.5,
+    fontSize: 12,
     fontStyle: "italic",
     marginTop: 5,
   },
@@ -382,6 +400,17 @@ const styles = StyleSheet.create({
     color: aqaColors.textPrimary,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 13.5,
+    fontSize: 16,
+    minHeight: 48,
+  },
+  emptyWrap: {
+    alignItems: "center",
+    gap: 10,
+  },
+  inlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Image,
   ImageBackground,
@@ -12,6 +12,9 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { ZodError } from "zod";
+import { CoachApiError } from "../src/api/client";
 import { AQA_IMAGES } from "../src/assets/badges";
 import {
   AqaDoubleBezelCard,
@@ -24,7 +27,8 @@ import { aqaColors } from "../src/theme/tokens";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { signIn, t, locale, isRtl } = useCoachStore();
+  const { signIn, t, isRtl } = useCoachStore();
+  const passwordRef = useRef<React.ComponentRef<typeof TextInput>>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,11 +44,18 @@ export default function LoginScreen() {
       await signIn(email.trim(), password);
       router.replace("/(tabs)");
     } catch (err) {
-      setErrorMessage(
-        err instanceof Error && err.message
-          ? err.message
-          : t("auth.invalid_credentials")
-      );
+      // Show a translated, human message instead of raw server or validation text.
+      if (err instanceof ZodError) {
+        setErrorMessage(t("auth.invalid_email"));
+      } else if (err instanceof CoachApiError && err.isNetworkError) {
+        setErrorMessage(t("auth.network_error"));
+      } else if (err instanceof CoachApiError && err.status === 429) {
+        setErrorMessage(t("auth.too_many_attempts"));
+      } else if (err instanceof CoachApiError && err.status != null && err.status >= 500) {
+        setErrorMessage(t("common.error"));
+      } else {
+        setErrorMessage(t("auth.invalid_credentials"));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -96,6 +107,7 @@ export default function LoginScreen() {
               style={{ width: "100%", marginTop: 24 }}
             >
               <Text
+                nativeID="loginEmailLabel"
                 style={[
                   styles.fieldLabel,
                   isRtl && { textAlign: "right" },
@@ -106,14 +118,24 @@ export default function LoginScreen() {
               <TextInput
                 value={email}
                 onChangeText={setEmail}
+                accessibilityLabel={t("auth.email")}
+                accessibilityLabelledBy="loginEmailLabel"
                 autoCapitalize="none"
+                autoCorrect={false}
                 keyboardType="email-address"
+                // Lets iOS Keychain and Android password managers fill the account.
+                textContentType="username"
+                autoComplete="email"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                submitBehavior="submit"
                 placeholder="coach@aqasports.pro"
                 placeholderTextColor={aqaColors.textLight}
                 style={[styles.input, isRtl && { textAlign: "right" }]}
               />
 
               <Text
+                nativeID="loginPasswordLabel"
                 style={[
                   styles.fieldLabel,
                   { marginTop: 16 },
@@ -122,11 +144,20 @@ export default function LoginScreen() {
               >
                 {t("auth.password").toUpperCase()}
               </Text>
-              <View style={styles.passwordWrap}>
+              <View style={[styles.passwordWrap, errorMessage ? styles.inputError : null]}>
                 <TextInput
+                  ref={passwordRef}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={obscurePassword}
+                  accessibilityLabel={t("auth.password")}
+                  accessibilityLabelledBy="loginPasswordLabel"
+                  textContentType="password"
+                  autoComplete="password"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="go"
+                  onSubmitEditing={() => void handleLogin()}
                   placeholder="••••••••"
                   placeholderTextColor={aqaColors.textLight}
                   style={[
@@ -136,26 +167,24 @@ export default function LoginScreen() {
                 />
                 <Pressable
                   onPress={() => setObscurePassword((prev) => !prev)}
-                  style={styles.eyeBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    obscurePassword ? t("auth.show_password") : t("auth.hide_password")
+                  }
+                  style={({ pressed }) => [styles.eyeBtn, pressed && { opacity: 0.7 }]}
                 >
-                  <Text style={styles.eyeBtnText}>
-                    {obscurePassword
-                      ? locale === "ar"
-                        ? "إظهار"
-                        : locale === "en"
-                        ? "SHOW"
-                        : "VOIR"
-                      : locale === "ar"
-                      ? "إخفاء"
-                      : locale === "en"
-                      ? "HIDE"
-                      : "MASQUER"}
-                  </Text>
+                  <Ionicons
+                    name={obscurePassword ? "eye-outline" : "eye-off-outline"}
+                    size={22}
+                    color={aqaColors.accent}
+                  />
                 </Pressable>
               </View>
 
+              {/* Error sits right under the fields and is announced as soon as it appears. */}
               {errorMessage ? (
-                <View style={styles.errorBanner}>
+                <View style={styles.errorBanner} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                  <Ionicons name="alert-circle" size={20} color={aqaColors.dangerText} accessible={false} />
                   <Text style={styles.errorBannerText}>{errorMessage}</Text>
                 </View>
               ) : null}
@@ -170,11 +199,7 @@ export default function LoginScreen() {
             </AqaDoubleBezelCard>
 
             <Text style={styles.footerCaption}>
-              {locale === "ar"
-                ? "نظام AQA Swim الاحترافي للمدربين • متصل مباشرة بـ AQA ERP"
-                : locale === "en"
-                ? "AQA Swim Executive Coach Suite • Live AQA ERP Sync"
-                : "Suite Executive AQA Swim Coaches • Synchronisation directe AQA ERP"}
+              {t("auth.footer")}
             </Text>
           </View>
         </ScrollView>
@@ -221,7 +246,7 @@ const styles = StyleSheet.create({
   },
   cloudPillText: {
     color: aqaColors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.9,
   },
@@ -261,7 +286,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     color: aqaColors.textMuted,
-    fontSize: 10.5,
+    fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.7,
     marginBottom: 7,
@@ -274,7 +299,7 @@ const styles = StyleSheet.create({
     color: aqaColors.textPrimary,
     paddingHorizontal: 14,
     paddingVertical: 13,
-    fontSize: 14,
+    fontSize: 16,
   },
   passwordWrap: {
     flexDirection: "row",
@@ -288,34 +313,39 @@ const styles = StyleSheet.create({
     flex: 1,
     color: aqaColors.textPrimary,
     paddingHorizontal: 14,
-    paddingVertical: 13,
-    fontSize: 14,
+    minHeight: 50,
+    fontSize: 16,
+  },
+  inputError: {
+    borderColor: "rgba(248, 113, 113, 0.7)",
   },
   eyeBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  eyeBtnText: {
-    color: aqaColors.accent,
-    fontSize: 10.5,
-    fontWeight: "800",
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
   errorBanner: {
     marginTop: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     backgroundColor: "rgba(239, 68, 68, 0.14)",
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.45)",
-    padding: 11,
+    padding: 12,
   },
   errorBannerText: {
-    color: aqaColors.danger,
-    fontSize: 12.5,
+    flex: 1,
+    color: aqaColors.dangerText,
+    fontSize: 14,
     fontWeight: "700",
+    lineHeight: 20,
   },
   footerCaption: {
     color: aqaColors.textLight,
-    fontSize: 11,
+    fontSize: 12,
     marginTop: 22,
     textAlign: "center",
   },

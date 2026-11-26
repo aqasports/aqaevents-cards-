@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Image,
+  Platform,
+  FlatList,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -10,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   AQA_PEDAGOGICAL_STAGES,
   AQA_STROKE_BARS,
@@ -24,6 +27,8 @@ import {
   AqaNewClientBadge,
   AqaSectionHeader,
 } from "../../src/components/AqaUi";
+import type { CoachBootstrapPayload } from "../../src/contract";
+import type { SupportedLocale } from "../../src/i18n/translations";
 import { useCoachStore } from "../../src/state/CoachStore";
 import { aqaColors } from "../../src/theme/tokens";
 
@@ -77,24 +82,22 @@ export default function SuiviTechHubScreen() {
     });
   }, [searchQuery, selectedCategory, selectedStage, swimmers]);
 
-  return (
-    <AqaAmbientBackground>
-      <ScrollView
-        contentContainerStyle={styles.container}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={refreshWorkspace}
-            tintColor={aqaColors.accent}
-          />
-        }
-      >
+  const openFile = useCallback((id: string) => router.push(`/members/${id}`), [router]);
+  const openEvaluate = useCallback(
+    (id: string) => router.push(`/members/${id}/review`),
+    [router]
+  );
+
+  // Passed as an element (not a component) so the search field keeps focus while typing.
+  const listHeader = (
+    <View style={{ gap: 12, marginBottom: 12 }}>
         <AqaSectionHeader
-          eyebrow="AQA SWIM PEDAGOGIE (6 PALIERS • 15 BADGES)"
+          eyebrow={t("suivi.eyebrow")}
           title={t("suivi.title")}
-          subtitle={`${filteredSwimmers.length} / ${swimmers.length} ${
-            locale === "ar" ? "سباح" : "nageurs"
-          }`}
+          subtitle={t("suivi.count", {
+            shown: filteredSwimmers.length,
+            total: swimmers.length,
+          })}
         />
 
         {/* 6 Pedagogical Stages Mascot Filter Strip */}
@@ -102,12 +105,18 @@ export default function SuiviTechHubScreen() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.stageStrip}
+          accessibilityRole="radiogroup"
+          accessibilityLabel={t("suivi.stage_filter")}
         >
           <Pressable
             onPress={() => setSelectedStage("ALL")}
-            style={[
+            accessibilityRole="radio"
+            accessibilityState={{ checked: selectedStage === "ALL" }}
+            accessibilityLabel={`${t("suivi.all")}, ${t("suivi.swimmers", { count: stageCounts.ALL ?? 0 })}`}
+            style={({ pressed }) => [
               styles.stageCard,
               selectedStage === "ALL" && styles.stageCardActive,
+              pressed && { opacity: 0.82 },
             ]}
           >
             <View style={styles.stageCountCircle}>
@@ -121,7 +130,7 @@ export default function SuiviTechHubScreen() {
                 selectedStage === "ALL" && { color: aqaColors.accent },
               ]}
             >
-              {locale === "ar" ? "الكل" : "TOUS"}
+              {t("suivi.all")}
             </Text>
           </Pressable>
 
@@ -134,7 +143,14 @@ export default function SuiviTechHubScreen() {
                 onPress={() =>
                   setSelectedStage(active ? "ALL" : stage.key)
                 }
-                style={[styles.stageCard, active && styles.stageCardActive]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+                accessibilityLabel={`${getStageLabel(stage, locale)}, ${t("suivi.swimmers", { count })}`}
+                style={({ pressed }) => [
+                  styles.stageCard,
+                  active && styles.stageCardActive,
+                  pressed && { opacity: 0.82 },
+                ]}
               >
                 <Image
                   source={getBadgeImageSource(stage.asset)}
@@ -150,26 +166,44 @@ export default function SuiviTechHubScreen() {
                 >
                   {getStageLabel(stage, locale)}
                 </Text>
-                <Text style={styles.stageCardCount}>{count} nageurs</Text>
+                <Text style={styles.stageCardCount}>{t("suivi.swimmers", { count })}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
 
         {/* Search Input */}
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={t("common.search")}
-          placeholderTextColor={aqaColors.textLight}
-          style={styles.searchInput}
-        />
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={20} color={aqaColors.textMuted} accessible={false} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={t("common.search")}
+            placeholderTextColor={aqaColors.textLight}
+            accessibilityLabel={t("common.search")}
+            returnKeyType="search"
+            autoCorrect={false}
+            style={styles.searchInput}
+          />
+          {searchQuery ? (
+            <Pressable
+              onPress={() => setSearchQuery("")}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.clear_search")}
+              hitSlop={8}
+              style={styles.searchClear}
+            >
+              <Ionicons name="close-circle" size={20} color={aqaColors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* Sector Filter Chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.catStrip}
+          accessibilityRole="radiogroup"
         >
           {categories.map((cat) => {
             const active = selectedCategory === cat;
@@ -177,7 +211,13 @@ export default function SuiviTechHubScreen() {
               <Pressable
                 key={cat}
                 onPress={() => setSelectedCategory(cat)}
-                style={[styles.catChip, active && styles.catChipActive]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+                style={({ pressed }) => [
+                  styles.catChip,
+                  active && styles.catChipActive,
+                  pressed && { opacity: 0.82 },
+                ]}
               >
                 <Text
                   style={[
@@ -191,145 +231,219 @@ export default function SuiviTechHubScreen() {
             );
           })}
         </ScrollView>
+    </View>
+  );
 
-        {/* Swimmers Dossier Cards */}
-        {filteredSwimmers.map((member) => (
-          <AqaDoubleBezelCard
-            key={member.id}
-            padding={14}
-            onPress={() => router.push(`/members/${member.id}`)}
-          >
-            <View style={styles.memberTopRow}>
-              {/* Badge + Stage Mascot Overlay */}
-              <View style={styles.avatarStack}>
-                <View style={styles.badgeAvatarBox}>
-                  <Image
-                    source={getBadgeImageSource(member.badgeAsset)}
-                    style={styles.badgeAvatarImg}
-                    resizeMode="contain"
-                  />
-                </View>
-                <View style={styles.stageMiniBadge}>
-                  <Image
-                    source={getBadgeImageSource(member.stageAsset)}
-                    style={{ width: 16, height: 16 }}
-                    resizeMode="contain"
-                  />
-                </View>
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <View style={styles.nameRow}>
-                  <Text numberOfLines={1} style={styles.memberName}>
-                    {member.fullName}
-                  </Text>
-                  {member.isNewClient ? <AqaNewClientBadge compact /> : null}
-                </View>
-
-                <Text numberOfLines={1} style={styles.memberMeta}>
-                  {member.groupName || member.category.toUpperCase()} •{" "}
-                  {member.stageLabel}
-                </Text>
-
-                <View style={styles.pillRow}>
-                  <View style={styles.badgeTag}>
-                    <Text style={styles.badgeTagText}>
-                      {member.badgeLabel.toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.volumeTag}>
-                    <Text style={styles.volumeTagText}>
-                      {member.totalDistanceMeters} m
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.rateTagText,
-                      {
-                        color:
-                          member.attendanceRate >= 75
-                            ? aqaColors.success
-                            : aqaColors.warning,
-                      },
-                    ]}
-                  >
-                    {member.attendanceRate}%
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* 5-Stroke Mini Progress Matrix (0-200%) */}
-            <View style={styles.barsMiniGrid}>
-              {AQA_STROKE_BARS.map((def) => {
-                const pct = member.bars[def.key] ?? 0;
-                const isElite = pct > 100;
-                const fillPct = Math.min(100, Math.round(pct / 2));
-                return (
-                  <View key={def.key} style={styles.barMiniCol}>
-                    <View style={styles.barMiniHeader}>
-                      <Text numberOfLines={1} style={styles.barMiniLabel}>
-                        {getStrokeBarShortLabel(def, locale)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.barMiniValue,
-                          {
-                            color: isElite
-                              ? aqaColors.warning
-                              : aqaColors.accent,
-                          },
-                        ]}
-                      >
-                        {pct}%
-                      </Text>
-                    </View>
-                    <View style={styles.barMiniTrack}>
-                      <View
-                        style={[
-                          styles.barMiniFill,
-                          {
-                            width: `${fillPct}%`,
-                            backgroundColor: isElite
-                              ? aqaColors.warning
-                              : aqaColors.accent,
-                          },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Quick Actions: Dossier & Evaluation */}
-            <View style={styles.cardActionsRow}>
-              <AqaIslandButton
-                label="Dossier & Radar"
-                compact
-                secondary
-                onPress={() => router.push(`/members/${member.id}`)}
-                style={{ flex: 1 }}
-              />
-              <AqaIslandButton
-                label="Evaluer (0-200%)"
-                compact
-                onPress={() => router.push(`/members/${member.id}/review`)}
-                style={{ flex: 1 }}
-              />
-            </View>
-          </AqaDoubleBezelCard>
-        ))}
-      </ScrollView>
+  return (
+    <AqaAmbientBackground>
+      {/* Virtualized: only the swimmer cards on screen are rendered, so a club-wide
+          roster of several hundred swimmers scrolls smoothly. */}
+      <FlatList
+        data={filteredSwimmers}
+        keyExtractor={(member) => member.id}
+        renderItem={({ item }) => (
+          <SwimmerCard
+            member={item}
+            locale={locale}
+            t={t}
+            onOpenFile={openFile}
+            onEvaluate={openEvaluate}
+          />
+        )}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={<SuiviEmptyState t={t} />}
+        ItemSeparatorComponent={ListGap}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={7}
+        // Safe on Android; on iOS it can leave blank rows, so it stays off there.
+        removeClippedSubviews={Platform.OS === "android"}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={refreshWorkspace}
+            tintColor={aqaColors.accent}
+          />
+        }
+      />
     </AqaAmbientBackground>
   );
 }
 
+type Swimmer = NonNullable<CoachBootstrapPayload["swimmers"]>[number];
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+function ListGap() {
+  return <View style={{ height: 12 }} />;
+}
+
+function SuiviEmptyState({ t }: { t: Translate }) {
+  return (
+    <AqaDoubleBezelCard padding={28}>
+      <View style={{ alignItems: "center", gap: 10 }}>
+        <Ionicons name="search-outline" size={36} color={aqaColors.textLight} accessible={false} />
+        <Text style={styles.emptyText}>{t("suivi.empty")}</Text>
+      </View>
+    </AqaDoubleBezelCard>
+  );
+}
+
+/** One swimmer card. Memoized so typing in the search box does not re-render every row. */
+const SwimmerCard = React.memo(function SwimmerCard({
+  member,
+  locale,
+  t,
+  onOpenFile,
+  onEvaluate,
+}: {
+  member: Swimmer;
+  locale: SupportedLocale;
+  t: Translate;
+  onOpenFile: (id: string) => void;
+  onEvaluate: (id: string) => void;
+}) {
+  return (
+    <AqaDoubleBezelCard padding={14}>
+      <View style={styles.memberTopRow}>
+        {/* Badge + Stage Mascot Overlay */}
+        <View style={styles.avatarStack}>
+          <View style={styles.badgeAvatarBox}>
+            <Image
+              source={getBadgeImageSource(member.badgeAsset)}
+              style={styles.badgeAvatarImg}
+              resizeMode="contain"
+            />
+          </View>
+          <View style={styles.stageMiniBadge}>
+            <Image
+              source={getBadgeImageSource(member.stageAsset)}
+              style={{ width: 16, height: 16 }}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
+
+        <View style={{ flex: 1 }}>
+          <View style={styles.nameRow}>
+            <Text numberOfLines={1} style={styles.memberName}>
+              {member.fullName}
+            </Text>
+            {member.isNewClient ? <AqaNewClientBadge compact /> : null}
+          </View>
+
+          <Text numberOfLines={1} style={styles.memberMeta}>
+            {member.groupName || member.category.toUpperCase()} •{" "}
+            {member.stageLabel}
+          </Text>
+
+          <View style={styles.pillRow}>
+            <View style={styles.badgeTag}>
+              <Text style={styles.badgeTagText}>
+                {member.badgeLabel.toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.volumeTag}>
+              <Text style={styles.volumeTagText}>
+                {member.totalDistanceMeters} m
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.rateTagText,
+                {
+                  color:
+                    member.attendanceRate >= 75
+                      ? aqaColors.success
+                      : aqaColors.warning,
+                },
+              ]}
+            >
+              {member.attendanceRate}%
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 5-Stroke Mini Progress Matrix (0-200%) */}
+      <View
+        style={styles.barsMiniGrid}
+        accessible
+        accessibilityLabel={AQA_STROKE_BARS.map(
+          (def) => `${getStrokeBarShortLabel(def, locale)} ${member.bars[def.key] ?? 0}%`
+        ).join(", ")}
+      >
+        {AQA_STROKE_BARS.map((def) => {
+          const pct = member.bars[def.key] ?? 0;
+          const isElite = pct > 100;
+          const fillPct = Math.min(100, Math.round(pct / 2));
+          return (
+            <View key={def.key} style={styles.barMiniCol}>
+              <View style={styles.barMiniHeader}>
+                <Text numberOfLines={1} style={styles.barMiniLabel}>
+                  {getStrokeBarShortLabel(def, locale)}
+                </Text>
+                <Text
+                  style={[
+                    styles.barMiniValue,
+                    {
+                      color: isElite
+                        ? aqaColors.warning
+                        : aqaColors.accent,
+                    },
+                  ]}
+                >
+                  {pct}%
+                </Text>
+              </View>
+              <View style={styles.barMiniTrack}>
+                <View
+                  style={[
+                    styles.barMiniFill,
+                    {
+                      width: `${fillPct}%`,
+                      backgroundColor: isElite
+                        ? aqaColors.warning
+                        : aqaColors.accent,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Quick Actions: Dossier & Evaluation */}
+      <View style={styles.cardActionsRow}>
+        <AqaIslandButton
+          label={t("suivi.open_file")}
+          icon="document-text-outline"
+          accessibilityLabel={`${t("suivi.open_file")}: ${member.fullName}`}
+          compact
+          secondary
+          onPress={() => onOpenFile(member.id)}
+          style={{ flex: 1 }}
+        />
+        <AqaIslandButton
+          label={t("member.evaluate")}
+          icon="create-outline"
+          accessibilityLabel={`${t("member.evaluate")}: ${member.fullName}`}
+          compact
+          onPress={() => onEvaluate(member.id)}
+          style={{ flex: 1 }}
+        />
+      </View>
+    </AqaDoubleBezelCard>
+  );
+});
+
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    gap: 12,
-    paddingBottom: 110,
+    paddingBottom: 24,
   },
   stageStrip: {
     gap: 8,
@@ -372,24 +486,24 @@ const styles = StyleSheet.create({
   },
   stageCardTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
     textAlign: "center",
   },
   stageCardCount: {
     color: aqaColors.textMuted,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "700",
   },
   searchInput: {
-    backgroundColor: "#060B16",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: aqaColors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     color: aqaColors.textPrimary,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 13.5,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    fontSize: 16,
+    flex: 1,
+    minHeight: 48,
   },
   catStrip: {
     gap: 8,
@@ -401,6 +515,8 @@ const styles = StyleSheet.create({
     borderColor: aqaColors.borderSubtle,
     paddingHorizontal: 12,
     paddingVertical: 7,
+    minHeight: 44,
+    justifyContent: "center",
   },
   catChipActive: {
     backgroundColor: "#13223D",
@@ -408,7 +524,7 @@ const styles = StyleSheet.create({
   },
   catChipText: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   memberTopRow: {
@@ -462,7 +578,7 @@ const styles = StyleSheet.create({
   },
   memberMeta: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 2,
   },
   pillRow: {
@@ -479,7 +595,7 @@ const styles = StyleSheet.create({
   },
   badgeTagText: {
     color: aqaColors.primaryHover,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   volumeTag: {
@@ -490,11 +606,11 @@ const styles = StyleSheet.create({
   },
   volumeTagText: {
     color: aqaColors.accent,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   rateTagText: {
-    fontSize: 10.5,
+    fontSize: 12,
     fontWeight: "800",
   },
   barsMiniGrid: {
@@ -516,11 +632,11 @@ const styles = StyleSheet.create({
   },
   barMiniLabel: {
     color: aqaColors.textMuted,
-    fontSize: 8.5,
+    fontSize: 12,
     fontWeight: "800",
   },
   barMiniValue: {
-    fontSize: 8.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   barMiniTrack: {
@@ -537,5 +653,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 12,
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#060B16",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: aqaColors.borderSubtle,
+    paddingHorizontal: 12,
+  },
+  searchClear: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    color: aqaColors.textMuted,
+    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 22,
   },
 });

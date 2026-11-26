@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,8 @@ import {
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { coachApiClient } from "../../src/api/client";
 import {
   AQA_OFFICIAL_BADGES,
@@ -29,7 +31,6 @@ import {
   AqaSectionHeader,
   AqaSegmentedControl,
   AqaStrokeBar200,
-  LanguageSwitcherPill,
 } from "../../src/components/AqaUi";
 import type {
   AttendanceMethod,
@@ -39,7 +40,11 @@ import type {
   StrokeBars,
 } from "../../src/contract";
 import { useCoachStore } from "../../src/state/CoachStore";
-import { aqaColors } from "../../src/theme/tokens";
+import { AqaTokens, aqaColors } from "../../src/theme/tokens";
+
+const T = AqaTokens;
+// The camera reports the same card many times per second; ignore repeats inside this window.
+const QR_REPEAT_IGNORE_MS = 2500;
 
 interface SwimmerSessionState {
   memberId: string;
@@ -75,8 +80,10 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
     mode?: string;
   }>();
   const router = useRouter();
-  const { t, locale, refreshWorkspace } = useCoachStore();
+  const { t, locale, isRtl, refreshWorkspace } = useCoachStore();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const insets = useSafeAreaInsets();
+  const lastQrScanRef = useRef<{ code: string; at: number } | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -117,6 +124,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
   // QR Scanner
   const [qrScannerActive, setQrScannerActive] = useState(qr === "1");
   const [qrBanner, setQrBanner] = useState<string | null>(null);
+  const [qrBannerOk, setQrBannerOk] = useState(true);
 
   // Honor Lock Status
   const [monthHonorLocked, setMonthHonorLocked] = useState(false);
@@ -289,13 +297,11 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
     );
   };
 
-  const toggleStatus = (memberId: string) => {
+  const setStatus = (memberId: string, status: AttendanceStatus) => {
     if (isViewOnly) return;
-    updateRow(memberId, (r) => ({
-      ...r,
-      status: r.status === "present" ? "absent" : "present",
-      method: "manual",
-    }));
+    updateRow(memberId, (r) =>
+      r.status === status ? r : { ...r, status, method: "manual" }
+    );
   };
 
   const markAllPresent = () => {
@@ -305,6 +311,10 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
 
   const handleQrScanned = ({ data }: { data: string }) => {
     const code = data.trim().toLowerCase();
+    const now = Date.now();
+    const last = lastQrScanRef.current;
+    if (last && last.code === code && now - last.at < QR_REPEAT_IGNORE_MS) return;
+    lastQrScanRef.current = { code, at: now };
     const matched = rows.find(
       (r) =>
         (r.cardCode && r.cardCode.toLowerCase() === code) ||
@@ -318,8 +328,10 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
         method: "qr",
       }));
       setQrBanner(t("attendance.qr_matched", { name: matched.name }));
+      setQrBannerOk(true);
     } else {
       setQrBanner(t("attendance.qr_unmatched"));
+      setQrBannerOk(false);
     }
   };
 
@@ -405,6 +417,23 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
     ]);
     setGuestNameInput("");
     setGuestModalOpen(false);
+  };
+
+  // Closing a session is final on the server, so confirm with the counts first.
+  const confirmCloseSession = () => {
+    if (!id || saving || isViewOnly) return;
+    const present = rows.filter((r) => r.status === "present").length;
+    Alert.alert(
+      t("attendance.confirm_close_title"),
+      t("attendance.confirm_close_body", {
+        present,
+        absent: rows.length - present,
+      }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("attendance.close_and_save"), onPress: () => void handleSaveSession() },
+      ]
+    );
   };
 
   const handleSaveSession = async () => {
@@ -511,13 +540,23 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
     <AqaAmbientBackground>
       <View style={{ flex: 1 }}>
         {/* Top Session Header */}
-        <View style={styles.topHeader}>
+        <View style={[styles.topHeader, { paddingTop: insets.top + 8 }]}>
           <View style={styles.topHeaderRow}>
-            <Pressable onPress={() => router.back()} style={styles.backBtn}>
-              <Text style={styles.backBtnText}>{"<"}</Text>
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.back")}
+              style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.82 }]}
+            >
+              {/* Mirrors in Arabic so "back" always points to where the user came from. */}
+              <Ionicons
+                name={isRtl ? "chevron-forward" : "chevron-back"}
+                size={T.icon.lg}
+                color={aqaColors.accent}
+              />
             </Pressable>
             <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={styles.headerTitle}>
+              <Text numberOfLines={1} style={styles.headerTitle} accessibilityRole="header">
                 {sessionMeta.groupName}
               </Text>
               <Text numberOfLines={1} style={styles.headerSubtitle}>
@@ -525,13 +564,14 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                 {sessionMeta.endTime} • {sessionMeta.pool}
               </Text>
             </View>
-            <LanguageSwitcherPill compact />
             {!isViewOnly ? (
               <Pressable
                 onPress={() => setGuestModalOpen(true)}
-                style={styles.guestBtn}
+                accessibilityRole="button"
+                accessibilityLabel={t("attendance.add_guest")}
+                style={({ pressed }) => [styles.guestBtn, pressed && { opacity: 0.82 }]}
               >
-                <Text style={styles.guestBtnText}>+ INVITE</Text>
+                <Ionicons name="person-add-outline" size={T.icon.md} color={aqaColors.accent} />
               </Pressable>
             ) : null}
           </View>
@@ -574,7 +614,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                     <Text style={[styles.kpiCount, { color: aqaColors.accent }]}>
                       {ratePct}%
                     </Text>
-                    <Text style={styles.kpiLabel}>ASSIDUITE</Text>
+                    <Text style={styles.kpiLabel}>{t("attendance.rate")}</Text>
                   </View>
                 </View>
 
@@ -582,6 +622,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                   {!isViewOnly ? (
                     <AqaIslandButton
                       label={t("attendance.mark_all_present")}
+                      icon="checkmark-done"
                       compact
                       secondary
                       onPress={markAllPresent}
@@ -590,7 +631,8 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                   ) : null}
                   {!isViewOnly ? (
                     <AqaIslandButton
-                      label={qrScannerActive ? "Fermer QR" : t("today.scan_qr")}
+                      label={qrScannerActive ? t("attendance.qr_close") : t("today.scan_qr")}
+                      icon={qrScannerActive ? "close" : "qr-code-outline"}
                       compact
                       secondary
                       onPress={async () => {
@@ -616,24 +658,35 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                     />
                   </View>
                   {qrBanner ? (
-                    <Text style={styles.qrBannerText}>{qrBanner}</Text>
+                    // Announced by screen readers as soon as it changes.
+                    <View style={styles.qrBannerRow} accessibilityLiveRegion="polite">
+                      <Ionicons
+                        name={qrBannerOk ? "checkmark-circle" : "help-circle"}
+                        size={T.icon.md}
+                        color={qrBannerOk ? aqaColors.success : aqaColors.warning}
+                        accessible={false}
+                      />
+                      <Text
+                        style={[
+                          styles.qrBannerText,
+                          { color: qrBannerOk ? aqaColors.success : aqaColors.warning },
+                        ]}
+                      >
+                        {qrBanner}
+                      </Text>
+                    </View>
                   ) : null}
                 </AqaDoubleBezelCard>
               ) : null}
 
-              {/* Swimmer Binary Attendance List */}
+              {/* Swimmer Binary Attendance List.
+                  One control per row (the Present/Absent switch) so a stray tap on the card
+                  while scrolling never flips a swimmer by accident. */}
               {rows.map((row) => {
                 const isPresent = row.status === "present";
-                const color = isPresent ? aqaColors.success : aqaColors.danger;
+                const color = isPresent ? aqaColors.success : aqaColors.dangerText;
                 return (
-                  <AqaDoubleBezelCard
-                    key={row.memberId}
-                    accentColor={color}
-                    padding={13}
-                    onPress={
-                      isViewOnly ? undefined : () => toggleStatus(row.memberId)
-                    }
-                  >
+                  <AqaDoubleBezelCard key={row.memberId} accentColor={color} padding={13}>
                     <View style={styles.swimmerAttRow}>
                       <View
                         style={[
@@ -643,6 +696,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                             backgroundColor: `${color}22`,
                           },
                         ]}
+                        importantForAccessibility="no-hide-descendants"
                       >
                         <Text style={[styles.avatarInitial, { color }]}>
                           {row.name.slice(0, 1).toUpperCase()}
@@ -650,100 +704,85 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                       </View>
 
                       <View style={{ flex: 1 }}>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
+                        <View style={styles.swimmerNameRow}>
                           <Text numberOfLines={1} style={styles.swimmerName}>
                             {row.name}
                           </Text>
-                          {row.isNewClient ? (
-                            <AqaNewClientBadge compact />
-                          ) : null}
+                          {row.isNewClient ? <AqaNewClientBadge compact /> : null}
                           {row.isGuest ? (
                             <View style={styles.guestBadge}>
-                              <Text style={styles.guestBadgeText}>INVITE</Text>
+                              <Text style={styles.guestBadgeText}>
+                                {t("attendance.guest_badge")}
+                              </Text>
                             </View>
                           ) : null}
                         </View>
 
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 10,
-                            marginTop: 4,
-                          }}
-                        >
+                        <View style={styles.swimmerMetaRow}>
+                          <Ionicons
+                            name={isPresent ? "checkmark-circle" : "close-circle"}
+                            size={14}
+                            color={color}
+                            accessible={false}
+                          />
                           <Text style={[styles.statusSubText, { color }]}>
-                            {isPresent
-                              ? t("attendance.present").toUpperCase()
-                              : t("attendance.absent").toUpperCase()}
+                            {isPresent ? t("attendance.present") : t("attendance.absent")}
                             {row.method === "qr" ? " • QR" : ""}
                           </Text>
                           {!row.memberId.startsWith("guest-") ? (
                             <Pressable
-                              onPress={() =>
-                                router.push(`/members/${row.memberId}`)
-                              }
+                              onPress={() => router.push(`/members/${row.memberId}`)}
+                              hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
+                              accessibilityRole="link"
+                              accessibilityLabel={`${t("attendance.open_profile")}: ${row.name}`}
+                              style={({ pressed }) => [styles.suiviLink, pressed && { opacity: 0.7 }]}
                             >
                               <Text style={styles.suiviLinkText}>
-                                Dossier Suivi {">"}
+                                {t("attendance.open_profile")}
                               </Text>
+                              <Ionicons
+                                name={isRtl ? "chevron-back" : "chevron-forward"}
+                                size={14}
+                                color={aqaColors.accent}
+                                accessible={false}
+                              />
                             </Pressable>
                           ) : null}
                         </View>
                       </View>
 
-                      {/* Binary Pill Toggle */}
-                      <View style={styles.binaryTogglePill}>
-                        <Pressable
-                          onPress={() =>
-                            !isViewOnly &&
-                            updateRow(row.memberId, (r) => ({
-                              ...r,
-                              status: "present",
-                            }))
-                          }
-                          style={[
-                            styles.binaryOption,
-                            isPresent && { backgroundColor: aqaColors.success },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.binaryOptionText,
-                              isPresent && { color: "#FFFFFF" },
-                            ]}
-                          >
-                            {t("attendance.present").toUpperCase()}
-                          </Text>
-                        </Pressable>
-                        <Pressable
-                          onPress={() =>
-                            !isViewOnly &&
-                            updateRow(row.memberId, (r) => ({
-                              ...r,
-                              status: "absent",
-                            }))
-                          }
-                          style={[
-                            styles.binaryOption,
-                            !isPresent && { backgroundColor: aqaColors.danger },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.binaryOptionText,
-                              !isPresent && { color: "#FFFFFF" },
-                            ]}
-                          >
-                            {t("attendance.absent").toUpperCase()}
-                          </Text>
-                        </Pressable>
+                      {/* Present / Absent switch: icon + word + colour, 44pt each. */}
+                      <View
+                        style={styles.binaryTogglePill}
+                        accessibilityRole="radiogroup"
+                        accessibilityLabel={row.name}
+                      >
+                        {(["present", "absent"] as const).map((option) => {
+                          const selected = row.status === option;
+                          const fill = option === "present" ? aqaColors.success : aqaColors.danger;
+                          return (
+                            <Pressable
+                              key={option}
+                              disabled={isViewOnly}
+                              onPress={() => setStatus(row.memberId, option)}
+                              accessibilityRole="radio"
+                              accessibilityLabel={`${row.name}: ${t(`attendance.${option}`)}`}
+                              accessibilityState={{ checked: selected, disabled: isViewOnly }}
+                              style={({ pressed }) => [
+                                styles.binaryOption,
+                                selected && { backgroundColor: fill },
+                                pressed && { opacity: 0.82 },
+                              ]}
+                            >
+                              <Ionicons
+                                name={option === "present" ? "checkmark" : "close"}
+                                size={18}
+                                color={selected ? aqaColors.onPrimary : aqaColors.textMuted}
+                                accessible={false}
+                              />
+                            </Pressable>
+                          );
+                        })}
                       </View>
                     </View>
                   </AqaDoubleBezelCard>
@@ -757,28 +796,17 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
             <>
               <AqaDoubleBezelCard padding={14}>
                 <AqaSectionHeader
-                  eyebrow="AQA BIOMECHANICAL BARS (0% - 200%)"
-                  title={
-                    locale === "ar"
-                      ? "تقييم السباحة (0-100% تقني | 100-200% نخبة)"
-                      : "Evaluation Nage (0-100% Technique | 100-200% Elite)"
-                  }
-                  subtitle={
-                    locale === "ar"
-                      ? "الأشرطة الخمسة لكل سباح حاضر"
-                      : "Ajustez la progression technique ou elite des nageurs presents"
-                  }
+                  eyebrow={t("session.bars_eyebrow")}
+                  title={t("session.bars_title")}
+                  subtitle={t("session.bars_subtitle")}
                 />
                 <AqaIslandButton
                   label={
                     showAllBarsGlobal
-                      ? locale === "ar"
-                        ? "إظهار الشريط النشط فقط"
-                        : "Afficher uniquement la derniere barre touchee"
-                      : locale === "ar"
-                      ? "إظهار جميع الأشرطة الخمسة (5 أشرطة)"
-                      : "Afficher les 5 barres de progression"
+                      ? t("session.show_last_bar")
+                      : t("session.show_all_bars")
                   }
+                  icon={showAllBarsGlobal ? "contract-outline" : "expand-outline"}
                   compact
                   secondary
                   onPress={() => {
@@ -822,9 +850,14 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                             showAllBars: !r.showAllBars,
                           }))
                         }
+                        accessibilityRole="button"
+                        accessibilityLabel={`${row.name}: ${
+                          row.showAllBars ? t("session.one_bar") : t("session.five_bars")
+                        }`}
+                        hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
                       >
                         <Text style={styles.toggleFiveText}>
-                          {row.showAllBars ? "1 Barre" : "5 Barres"}
+                          {row.showAllBars ? t("session.one_bar") : t("session.five_bars")}
                         </Text>
                       </Pressable>
                     </View>
@@ -848,6 +881,9 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                                   lastTouchedBar: def.key,
                                 }))
                               }
+                              accessibilityRole="tab"
+                              accessibilityLabel={`${getStrokeBarShortLabel(def, locale)} ${val}%`}
+                              accessibilityState={{ selected: active }}
                               style={[
                                 styles.strokeMiniPill,
                                 active && styles.strokeMiniPillActive,
@@ -904,9 +940,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                   {/* Swimmer Selector Strip */}
                   <AqaDoubleBezelCard padding={13}>
                     <Text style={styles.bilanHintLabel}>
-                      {locale === "ar"
-                        ? "اختر السباح لتعبئة الحصيلة (Bilan):"
-                        : "Selectionnez le nageur present pour son Bilan :"}
+                      {t("session.pick_bilan_swimmer")}
                     </Text>
                     <ScrollView
                       horizontal
@@ -919,6 +953,9 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                           <Pressable
                             key={r.memberId}
                             onPress={() => setSelectedBilanMemberId(r.memberId)}
+                            accessibilityRole="radio"
+                            accessibilityLabel={r.name}
+                            accessibilityState={{ checked: selected }}
                             style={[
                               styles.bilanSwimmerPill,
                               selected && styles.bilanSwimmerPillActive,
@@ -945,10 +982,11 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         {t("suivi.volume_meters")}
                       </Text>
                       <Text style={styles.cumulText}>
-                        Total:{" "}
-                        {activeBilanRow.storedTotalDistanceMeters +
-                          (Number(activeBilanRow.sessionVolumeMeters) || 0)}{" "}
-                        m
+                        {t("session.total_meters", {
+                          meters:
+                            activeBilanRow.storedTotalDistanceMeters +
+                            (Number(activeBilanRow.sessionVolumeMeters) || 0),
+                        })}
                       </Text>
                     </View>
                     {activeBilanRow.bars.basics < 1 ? (
@@ -975,9 +1013,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                   {/* 2. Stored Records (50m & Apnea) with Lock/Unlock Toggle */}
                   <AqaDoubleBezelCard padding={14}>
                     <View style={styles.rowBetween}>
-                      <Text style={styles.cardTitle}>
-                        Records (50m & Apnee)
-                      </Text>
+                      <Text style={styles.cardTitle}>{t("session.records_title")}</Text>
                       <Pressable
                         onPress={() =>
                           updateRow(activeBilanRow.memberId, (r) => ({
@@ -985,25 +1021,39 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                             recordsUnlocked: !r.recordsUnlocked,
                           }))
                         }
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          activeBilanRow.recordsUnlocked
+                            ? t("session.records_lock")
+                            : t("session.records_edit")
+                        }
+                        hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                        style={({ pressed }) => [styles.recordToggle, pressed && { opacity: 0.7 }]}
                       >
+                        <Ionicons
+                          name={activeBilanRow.recordsUnlocked ? "lock-closed-outline" : "create-outline"}
+                          size={16}
+                          color={activeBilanRow.recordsUnlocked ? aqaColors.warning : aqaColors.accent}
+                          accessible={false}
+                        />
                         <Text
                           style={{
                             color: activeBilanRow.recordsUnlocked
                               ? aqaColors.warning
                               : aqaColors.accent,
-                            fontSize: 11.5,
+                            fontSize: 12,
                             fontWeight: "800",
                           }}
                         >
                           {activeBilanRow.recordsUnlocked
-                            ? "Verrouiller"
-                            : "Modifier Record"}
+                            ? t("session.records_lock")
+                            : t("session.records_edit")}
                         </Text>
                       </Pressable>
                     </View>
                     <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.subFieldLabel}>Record 50m (s)</Text>
+                        <Text style={styles.subFieldLabel}>{t("session.record_50m")}</Text>
                         <TextInput
                           value={activeBilanRow.record50m}
                           editable={activeBilanRow.recordsUnlocked}
@@ -1023,9 +1073,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.subFieldLabel}>
-                          Record Apnee (m)
-                        </Text>
+                        <Text style={styles.subFieldLabel}>{t("session.record_apnea")}</Text>
                         <TextInput
                           value={activeBilanRow.recordApnea}
                           editable={activeBilanRow.recordsUnlocked}
@@ -1088,9 +1136,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
 
                   {/* 3. Official 15 AQA Badges Picker + Honor Nominations */}
                   <AqaDoubleBezelCard padding={14}>
-                    <Text style={styles.cardTitle}>
-                      Attribution Badge Officiel AQA (15 Badges)
-                    </Text>
+                    <Text style={styles.cardTitle}>{t("session.badge_pick_title")}</Text>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
@@ -1101,6 +1147,9 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         return (
                           <Pressable
                             key={badge.key}
+                            accessibilityRole="radio"
+                            accessibilityLabel={getBadgeLabel(badge, locale)}
+                            accessibilityState={{ checked: selected }}
                             onPress={() =>
                               updateRow(activeBilanRow.memberId, (r) => ({
                                 ...r,
@@ -1138,6 +1187,12 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                     <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                       <Pressable
                         disabled={monthHonorLocked}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("suivi.honor_month")}
+                        accessibilityState={{
+                          disabled: monthHonorLocked,
+                          selected: activeBilanRow.honorRequestType === "swimmer_of_the_month",
+                        }}
                         onPress={() =>
                           updateRow(activeBilanRow.memberId, (r) => ({
                             ...r,
@@ -1160,17 +1215,23 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         <Text style={styles.honorCardSub}>
                           {monthHonorLocked
                             ? monthHonorWinner
-                              ? `Elu: ${monthHonorWinner}`
-                              : "Verrouille"
+                              ? t("honor.elected", { name: monthHonorWinner })
+                              : t("honor.locked")
                             : activeBilanRow.honorRequestType ===
                               "swimmer_of_the_month"
-                            ? "Selectionne pour ERP"
-                            : "Proposer a l'ERP"}
+                            ? t("honor.selected")
+                            : t("honor.propose")}
                         </Text>
                       </Pressable>
 
                       <Pressable
                         disabled={yearHonorLocked}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("suivi.honor_year")}
+                        accessibilityState={{
+                          disabled: yearHonorLocked,
+                          selected: activeBilanRow.honorRequestType === "swimmer_of_the_year",
+                        }}
                         onPress={() =>
                           updateRow(activeBilanRow.memberId, (r) => ({
                             ...r,
@@ -1193,12 +1254,12 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         <Text style={styles.honorCardSub}>
                           {yearHonorLocked
                             ? yearHonorWinner
-                              ? `Elu: ${yearHonorWinner}`
-                              : "Verrouille"
+                              ? t("honor.elected", { name: yearHonorWinner })
+                              : t("honor.locked")
                             : activeBilanRow.honorRequestType ===
                               "swimmer_of_the_year"
-                            ? "Selectionne pour ERP"
-                            : "Proposer a l'ERP"}
+                            ? t("honor.selected")
+                            : t("honor.propose")}
                         </Text>
                       </Pressable>
                     </View>
@@ -1218,7 +1279,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         }))
                       }
                       multiline
-                      placeholder="Message d'encouragement visible sur le dossier..."
+                      placeholder={t("session.word_placeholder")}
                       placeholderTextColor={aqaColors.textLight}
                       style={[styles.input, { minHeight: 64, marginTop: 8 }]}
                     />
@@ -1235,7 +1296,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         }))
                       }
                       multiline
-                      placeholder="Observation technique de la seance..."
+                      placeholder={t("session.observation_placeholder")}
                       placeholderTextColor={aqaColors.textLight}
                       style={[styles.input, { minHeight: 56, marginTop: 8 }]}
                     />
@@ -1249,18 +1310,30 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                   <Text style={styles.cardTitle}>
                     {t("attendance.session_rating")}
                   </Text>
-                  <Text style={styles.starScoreBadge}>{rating} / 5</Text>
+                  <Text style={styles.starScoreBadge} accessibilityLabel={t("common.rating_out_of", { value: rating })}>
+                    {rating} / 5
+                  </Text>
                 </View>
-                <View style={styles.ratingRow}>
+                <View style={styles.ratingRow} accessibilityRole="radiogroup">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Pressable
                       key={star}
                       onPress={() => setRating(star)}
-                      style={[
+                      accessibilityRole="radio"
+                      accessibilityLabel={t("common.rating_out_of", { value: star })}
+                      accessibilityState={{ checked: rating === star }}
+                      style={({ pressed }) => [
                         styles.starBtn,
                         rating >= star && styles.starBtnActive,
+                        pressed && { opacity: 0.82 },
                       ]}
                     >
+                      <Ionicons
+                        name={rating >= star ? "star" : "star-outline"}
+                        size={18}
+                        color={rating >= star ? aqaColors.warning : aqaColors.textMuted}
+                        accessible={false}
+                      />
                       <Text
                         style={[
                           styles.starText,
@@ -1280,7 +1353,7 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                   value={summary}
                   onChangeText={setSummary}
                   multiline
-                  placeholder="Resume global de la seance, exercices realises..."
+                  placeholder={t("session.summary_placeholder")}
                   placeholderTextColor={aqaColors.textLight}
                   style={[styles.input, { minHeight: 68 }]}
                 />
@@ -1291,34 +1364,47 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
 
         {/* Sticky Bottom Navigation / Save Bar */}
         {!isViewOnly ? (
-          <View style={styles.bottomBar}>
+          // Clears the Android gesture bar / iPhone home indicator.
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             {activeStep > 0 ? (
-              <AqaIslandButton
-                label="Retour"
-                compact
-                secondary
+              <Pressable
                 onPress={() => setActiveStep((s) => Math.max(0, s - 1))}
-                style={{ minWidth: 90 }}
-              />
+                accessibilityRole="button"
+                accessibilityLabel={t("common.previous_step")}
+                style={({ pressed }) => [styles.bottomIconBtn, pressed && { opacity: 0.82 }]}
+              >
+                <Ionicons
+                  name={isRtl ? "arrow-forward" : "arrow-back"}
+                  size={T.icon.md}
+                  color={aqaColors.accent}
+                />
+              </Pressable>
             ) : null}
             {activeStep < 2 ? (
               <AqaIslandButton
-                label={
-                  activeStep === 0
-                    ? "Suivant : 2. Evaluation (0-200%)"
-                    : "Suivant : 3. Bilan & Cloture"
-                }
+                label={t("common.next")}
+                icon={isRtl ? "arrow-back" : "arrow-forward"}
+                secondary
+                accessibilityLabel={`${t("common.next")}: ${t(
+                  activeStep === 0 ? "quick_logger.step2" : "quick_logger.step3"
+                )}`}
                 onPress={() => setActiveStep((s) => Math.min(2, s + 1))}
                 style={{ flex: 1 }}
               />
             ) : null}
             <AqaIslandButton
               label={
-                saving ? t("common.saving") : t("attendance.close_and_save")
+                saving
+                  ? t("common.saving")
+                  : activeStep < 2
+                  ? t("attendance.close_short")
+                  : t("attendance.close_and_save")
               }
+              icon="checkmark-done"
+              accessibilityLabel={t("attendance.close_and_save")}
               loading={saving}
               success
-              onPress={handleSaveSession}
+              onPress={confirmCloseSession}
               style={{ flex: 1 }}
             />
           </View>
@@ -1330,18 +1416,21 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
         visible={guestModalOpen}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setGuestModalOpen(false)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>{t("attendance.add_guest")}</Text>
+          <View style={styles.modalBox} accessibilityViewIsModal>
+            <Text style={styles.modalTitle} accessibilityRole="header">
+              {t("attendance.add_guest")}
+            </Text>
 
             {clubSwimmers.length > 0 ? (
-              <View style={{ maxHeight: 160, marginVertical: 10 }}>
+              <View style={{ maxHeight: 200, marginVertical: 10 }}>
                 <Text style={styles.subFieldLabel}>
-                  Choisir un nageur du club AQA :
+                  {t("attendance.pick_club_swimmer")}
                 </Text>
-                <ScrollView style={{ marginTop: 6 }}>
+                <ScrollView style={{ marginTop: 6 }} accessibilityRole="radiogroup">
                   {clubSwimmers.slice(0, 25).map((cs) => {
                     const selected = selectedClubSwimmerId === cs.id;
                     return (
@@ -1350,12 +1439,21 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
                         onPress={() =>
                           setSelectedClubSwimmerId(selected ? null : cs.id)
                         }
-                        style={[
+                        accessibilityRole="radio"
+                        accessibilityState={{ checked: selected }}
+                        style={({ pressed }) => [
                           styles.clubSwimmerOption,
                           selected && styles.clubSwimmerOptionActive,
+                          pressed && { opacity: 0.82 },
                         ]}
                       >
-                        <Text style={styles.clubSwimmerOptionText}>
+                        <Ionicons
+                          name={selected ? "radio-button-on" : "radio-button-off"}
+                          size={T.icon.md}
+                          color={selected ? aqaColors.accent : aqaColors.textMuted}
+                          accessible={false}
+                        />
+                        <Text style={styles.clubSwimmerOptionText} numberOfLines={1}>
                           {cs.fullName} {cs.level ? `(${cs.level})` : ""}
                         </Text>
                       </Pressable>
@@ -1365,11 +1463,18 @@ export default function SessionAttendanceAndQuickLoggerScreen() {
               </View>
             ) : null}
 
-            <Text style={styles.subFieldLabel}>{t("attendance.guest_name")}</Text>
+            <Text style={styles.subFieldLabel} nativeID="guestNameLabel">
+              {t("attendance.guest_name")}
+            </Text>
             <TextInput
               value={guestNameInput}
               onChangeText={setGuestNameInput}
-              placeholder="Nom complet de l'invite..."
+              accessibilityLabelledBy="guestNameLabel"
+              accessibilityLabel={t("attendance.guest_name")}
+              autoCapitalize="words"
+              textContentType="name"
+              returnKeyType="done"
+              placeholder={t("attendance.guest_name_placeholder")}
               placeholderTextColor={aqaColors.textLight}
               style={styles.input}
             />
@@ -1411,47 +1516,41 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   backBtn: {
-    backgroundColor: "#0F172A",
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    backgroundColor: aqaColors.surface,
+    width: T.touch.min,
+    height: T.touch.min,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
     alignItems: "center",
     justifyContent: "center",
   },
-  backBtnText: {
-    color: aqaColors.accent,
-    fontSize: 15,
-    fontWeight: "900",
-  },
   headerTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 15,
+    fontSize: T.fontSize.title,
     fontWeight: "800",
   },
   headerSubtitle: {
     color: aqaColors.textMuted,
-    fontSize: 11,
-    marginTop: 1,
+    fontSize: T.fontSize.label,
+    marginTop: 2,
   },
   guestBtn: {
     backgroundColor: "rgba(0, 242, 255, 0.14)",
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: aqaColors.accent,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-  },
-  guestBtnText: {
-    color: aqaColors.accent,
-    fontSize: 10,
-    fontWeight: "900",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    width: T.touch.min,
+    height: T.touch.min,
+    alignItems: "center",
+    justifyContent: "center",
   },
   scrollBody: {
     padding: 16,
     gap: 12,
-    paddingBottom: 110,
+    paddingBottom: T.spacing.lg,
   },
   kpiRow: {
     flexDirection: "row",
@@ -1461,7 +1560,7 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 10,
     borderWidth: 1,
-    paddingVertical: 8,
+    paddingVertical: 10,
     alignItems: "center",
   },
   kpiChipPresent: {
@@ -1477,13 +1576,13 @@ const styles = StyleSheet.create({
     borderColor: "rgba(0, 242, 255, 0.4)",
   },
   kpiCount: {
-    fontSize: 16,
+    fontSize: T.fontSize.headline,
     fontWeight: "900",
     fontVariant: ["tabular-nums"],
   },
   kpiLabel: {
     color: aqaColors.textMuted,
-    fontSize: 9.5,
+    fontSize: T.fontSize.caption,
     fontWeight: "800",
     marginTop: 2,
   },
@@ -1494,7 +1593,7 @@ const styles = StyleSheet.create({
   },
   qrTitle: {
     color: aqaColors.accent,
-    fontSize: 12,
+    fontSize: T.fontSize.label,
     fontWeight: "800",
     marginBottom: 8,
   },
@@ -1504,10 +1603,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   qrBannerText: {
-    color: aqaColors.success,
-    fontSize: 12,
+
+    fontSize: T.fontSize.label,
     fontWeight: "800",
-    marginTop: 8,
+    flex: 1,
   },
   swimmerAttRow: {
     flexDirection: "row",
@@ -1528,27 +1627,28 @@ const styles = StyleSheet.create({
   },
   swimmerName: {
     color: aqaColors.textPrimary,
-    fontSize: 14,
+    fontSize: T.fontSize.body,
     fontWeight: "800",
+    flexShrink: 1,
   },
   guestBadge: {
     backgroundColor: "rgba(56, 189, 248, 0.16)",
     borderRadius: 4,
     paddingHorizontal: 5,
-    paddingVertical: 1.5,
+    paddingVertical: 1,
   },
   guestBadgeText: {
     color: aqaColors.primaryHover,
-    fontSize: 8.5,
+    fontSize: T.fontSize.caption,
     fontWeight: "900",
   },
   statusSubText: {
-    fontSize: 10.5,
+    fontSize: T.fontSize.label,
     fontWeight: "800",
   },
   suiviLinkText: {
     color: aqaColors.accent,
-    fontSize: 11,
+    fontSize: T.fontSize.label,
     fontWeight: "800",
   },
   binaryTogglePill: {
@@ -1558,17 +1658,16 @@ const styles = StyleSheet.create({
     padding: 3,
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
-    gap: 3,
+    gap: 4,
   },
   binaryOption: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     borderRadius: 999,
-  },
-  binaryOptionText: {
-    color: aqaColors.textLight,
-    fontSize: 9.5,
-    fontWeight: "900",
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   evalSwimmerHeader: {
     flexDirection: "row",
@@ -1577,7 +1676,7 @@ const styles = StyleSheet.create({
   },
   toggleFiveText: {
     color: aqaColors.accent,
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: "800",
   },
   strokeMiniPill: {
@@ -1587,6 +1686,8 @@ const styles = StyleSheet.create({
     borderColor: aqaColors.borderSubtle,
     paddingHorizontal: 9,
     paddingVertical: 5,
+    minHeight: 40,
+    justifyContent: "center",
   },
   strokeMiniPillActive: {
     backgroundColor: "rgba(14, 165, 233, 0.18)",
@@ -1594,12 +1695,12 @@ const styles = StyleSheet.create({
   },
   strokeMiniPillText: {
     color: aqaColors.textMuted,
-    fontSize: 10.5,
+    fontSize: 12,
     fontWeight: "800",
   },
   bilanHintLabel: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: "700",
   },
   bilanSwimmerPill: {
@@ -1609,6 +1710,8 @@ const styles = StyleSheet.create({
     borderColor: aqaColors.borderSubtle,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    minHeight: 44,
+    justifyContent: "center",
   },
   bilanSwimmerPillActive: {
     backgroundColor: "rgba(0, 242, 255, 0.16)",
@@ -1637,12 +1740,12 @@ const styles = StyleSheet.create({
   },
   lockedHint: {
     color: aqaColors.warning,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 6,
   },
   subFieldLabel: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginBottom: 5,
   },
@@ -1677,7 +1780,7 @@ const styles = StyleSheet.create({
   },
   badgeSelectText: {
     color: aqaColors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   honorCard: {
@@ -1687,6 +1790,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
     padding: 10,
+    minHeight: 56,
   },
   honorCardActive: {
     backgroundColor: "rgba(245, 158, 11, 0.16)",
@@ -1694,12 +1798,12 @@ const styles = StyleSheet.create({
   },
   honorCardTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: "800",
   },
   honorCardSub: {
     color: aqaColors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 2,
   },
   starScoreBadge: {
@@ -1720,6 +1824,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
     alignItems: "center",
+    minHeight: 48,
+    flexDirection: "row",
+    gap: 4,
+    justifyContent: "center",
   },
   starBtnActive: {
     backgroundColor: "rgba(245, 158, 11, 0.22)",
@@ -1736,10 +1844,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 0,
     backgroundColor: "#060B16",
     borderTopWidth: 1,
     borderTopColor: aqaColors.borderSubtle,
+    paddingTop: 12,
+    alignItems: "center",
   },
   modalBackdrop: {
     flex: 1,
@@ -1756,17 +1866,21 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 16,
+    fontSize: T.fontSize.title,
     fontWeight: "800",
     marginBottom: 8,
   },
   clubSwimmerOption: {
-    paddingVertical: 8,
+    paddingVertical: 0,
     paddingHorizontal: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
     marginBottom: 6,
+    minHeight: T.touch.min,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
   clubSwimmerOptionActive: {
     backgroundColor: "rgba(0, 242, 255, 0.16)",
@@ -1774,7 +1888,48 @@ const styles = StyleSheet.create({
   },
   clubSwimmerOptionText: {
     color: aqaColors.textPrimary,
-    fontSize: 12.5,
+    fontSize: T.fontSize.body,
     fontWeight: "700",
+    flex: 1,
+  },
+  qrBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  swimmerNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  swimmerMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 4,
+  },
+  suiviLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginLeft: 6,
+  },
+  bottomIconBtn: {
+    width: T.touch.min,
+    height: T.touch.min,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(56, 189, 248, 0.35)",
+    backgroundColor: aqaColors.surfaceControl,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recordToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 32,
   },
 });

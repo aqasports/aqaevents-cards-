@@ -1,16 +1,37 @@
 import React from "react";
-import { SafeAreaView, StyleSheet, View } from "react-native";
+import { StyleSheet, View, type ColorValue } from "react-native";
 import { Tabs } from "expo-router";
-import { AqaExecutiveHeader } from "../../src/components/AqaUi";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AqaExecutiveHeader, type AqaIconName } from "../../src/components/AqaUi";
 import { useCoachStore } from "../../src/state/CoachStore";
-import { aqaColors } from "../../src/theme/tokens";
+import { AqaTokens, aqaColors } from "../../src/theme/tokens";
+
+const TAB_BAR_HEIGHT = 58;
+
+/** Outline icon when inactive, filled when active: one icon family, one style per state. */
+function tabIcon(outline: AqaIconName, filled: AqaIconName) {
+  function TabIcon({ focused, color }: { focused: boolean; color: ColorValue }) {
+    return (
+      <Ionicons
+        name={focused ? filled : outline}
+        size={AqaTokens.icon.lg}
+        // The tab navigator passes the active/inactive tint colours set below, which are strings.
+        color={color as string}
+      />
+    );
+  }
+  return TabIcon;
+}
 
 export default function TabsLayout() {
   const { t, bootstrap } = useCoachStore();
+  // react-native-safe-area-context handles notch, status bar and gesture bar on iOS and Android.
+  const insets = useSafeAreaInsets();
   const pendingCount = (bootstrap?.pendingRequests ?? []).length;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <AqaExecutiveHeader />
       <View style={{ flex: 1 }}>
         <Tabs
@@ -20,47 +41,55 @@ export default function TabsLayout() {
               backgroundColor: "#060B16",
               borderTopColor: "rgba(0, 242, 255, 0.18)",
               borderTopWidth: 1,
-              height: 62,
-              paddingBottom: 8,
+              height: TAB_BAR_HEIGHT + insets.bottom,
+              paddingBottom: Math.max(insets.bottom, 6),
               paddingTop: 6,
             },
             tabBarActiveTintColor: aqaColors.accent,
             tabBarInactiveTintColor: aqaColors.textMuted,
             tabBarLabelStyle: {
-              fontSize: 10.5,
-              fontWeight: "800",
-              letterSpacing: 0.2,
+              fontSize: AqaTokens.fontSize.caption,
+              fontWeight: "700",
             },
+            tabBarAllowFontScaling: true,
           }}
         >
           <Tabs.Screen
             name="index"
             options={{
               title: t("nav.today"),
+              tabBarIcon: tabIcon("calendar-outline", "calendar"),
             }}
           />
           <Tabs.Screen
             name="groups"
             options={{
               title: t("nav.groups"),
+              tabBarIcon: tabIcon("people-outline", "people"),
             }}
           />
           <Tabs.Screen
             name="suivi-tech"
             options={{
               title: t("nav.suivi"),
+              tabBarIcon: tabIcon("stats-chart-outline", "stats-chart"),
             }}
           />
           <Tabs.Screen
             name="replacements"
             options={{
               title: t("nav.replacements"),
+              tabBarIcon: tabIcon("swap-horizontal-outline", "swap-horizontal"),
               tabBarBadge: pendingCount > 0 ? pendingCount : undefined,
+              tabBarAccessibilityLabel:
+                pendingCount > 0
+                  ? `${t("nav.replacements")}, ${t("header.pending_requests", { count: pendingCount })}`
+                  : t("nav.replacements"),
               tabBarBadgeStyle: {
                 backgroundColor: aqaColors.warning,
-                color: "#000000",
+                color: aqaColors.onPrimary,
                 fontWeight: "900",
-                fontSize: 10,
+                fontSize: AqaTokens.fontSize.caption,
               },
             }}
           />
@@ -68,16 +97,17 @@ export default function TabsLayout() {
             name="profile"
             options={{
               title: t("nav.profile"),
+              tabBarIcon: tabIcon("person-circle-outline", "person-circle"),
             }}
           />
         </Tabs>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  root: {
     flex: 1,
     backgroundColor: "#050914",
   },

@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import {
   coachLoginRequestSchema,
@@ -15,10 +16,18 @@ import {
 } from "../contract";
 import { CoachOfflineOutbox, createMutationId } from "../sync/outbox";
 
-const DEFAULT_ERP_BASE_URL = "https://delightful-torte-bcca6a.netlify.app";
+// Build-time override (EXPO_PUBLIC_ERP_BASE_URL via eas.json) > app.json extra.apiBaseUrl > production.
+const DEFAULT_ERP_BASE_URL =
+  process.env.EXPO_PUBLIC_ERP_BASE_URL ||
+  (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ||
+  "https://delightful-torte-bcca6a.netlify.app";
 const KEY_ACCESS_TOKEN = "aqa_coach_v2_access_token";
 const KEY_REFRESH_TOKEN = "aqa_coach_v2_refresh_token";
 const KEY_USER_PROFILE = "aqa_coach_v2_user_profile";
+// 30 s: production responses were measured at 10-24 s while the database connection is slow.
+// At 20 s the app abandoned requests the server was still completing (HTTP 499 in Netlify logs).
+// Lower this again once the database latency is fixed.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 export class CoachApiError extends Error {
   readonly status: number | null;
@@ -83,6 +92,24 @@ export class CoachApiClient {
     return this.memoryAccessToken;
   }
 
+  // Single fetch with a one-shot abort timer (cleared in finally, not a polling loop).
+  // Any transport failure or timeout becomes a network error so callers can queue offline.
+  private async send(path: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(`${this.baseUrl}${path}`, { ...init, signal: controller.signal });
+    } catch (err) {
+      throw new CoachApiError(
+        err instanceof Error ? err.message : "Network connection failed",
+        null,
+        true
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   private async refreshAccessToken(): Promise<string | null> {
     if (this.refreshPromise) return this.refreshPromise;
 
@@ -96,15 +123,18 @@ export class CoachApiClient {
           return null;
         }
 
-        const res = await fetch(`${this.baseUrl}/api/coach/auth/refresh`, {
+        const res = await this.send("/api/coach/auth/refresh", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           body: JSON.stringify({ refreshToken }),
         });
 
         if (!res.ok) {
-          await this.clearSession();
-          this.onUnauthorized?.();
+          // Only a rejected refresh token ends the session; 5xx keeps the coach signed in.
+          if (res.status === 400 || res.status === 401 || res.status === 403) {
+            await this.clearSession();
+            this.onUnauthorized?.();
+          }
           return null;
         }
 
@@ -152,30 +182,14 @@ export class CoachApiClient {
       if (token) headers.Authorization = `Bearer ${token}`;
     }
 
-    let res: Response;
-    try {
-      res = await fetch(`${this.baseUrl}${path}`, {
-        method,
-        headers,
-        body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      });
-    } catch (err) {
-      throw new CoachApiError(
-        err instanceof Error ? err.message : "Network connection failed",
-        null,
-        true
-      );
-    }
+    const body = options.body !== undefined ? JSON.stringify(options.body) : undefined;
+    let res = await this.send(path, { method, headers, body });
 
     if (res.status === 401 && !options.skipAuth) {
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
         headers.Authorization = `Bearer ${refreshed}`;
-        res = await fetch(`${this.baseUrl}${path}`, {
-          method,
-          headers,
-          body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-        });
+        res = await this.send(path, { method, headers, body });
       }
     }
 

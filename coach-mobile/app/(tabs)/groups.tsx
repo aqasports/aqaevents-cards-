@@ -9,9 +9,11 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   AqaAmbientBackground,
   AqaDoubleBezelCard,
+  AqaIslandButton,
   AqaSectionHeader,
 } from "../../src/components/AqaUi";
 import { useCoachStore } from "../../src/state/CoachStore";
@@ -19,7 +21,7 @@ import { aqaColors } from "../../src/theme/tokens";
 
 export default function GroupsScreen() {
   const router = useRouter();
-  const { bootstrap, user, isRefreshing, refreshWorkspace, t, locale } =
+  const { bootstrap, user, isRefreshing, refreshWorkspace, t, isRtl } =
     useCoachStore();
 
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
@@ -74,11 +76,12 @@ export default function GroupsScreen() {
         }
       >
         <AqaSectionHeader
-          eyebrow="AQA GROUPS & SECTORS"
+          eyebrow={t("groups.eyebrow")}
           title={t("groups.title")}
-          subtitle={`${filteredGroups.length} ${
-            locale === "ar" ? "فوج" : "groupe(s)"
-          } • ${totalSwimmers} ${locale === "ar" ? "سباح" : "nageurs"}`}
+          subtitle={t("groups.summary", {
+            groups: filteredGroups.length,
+            swimmers: totalSwimmers,
+          })}
           rightSlot={
             user?.isHeadCoach ? (
               <View style={styles.headBadge}>
@@ -89,19 +92,37 @@ export default function GroupsScreen() {
         />
 
         {/* Search Input */}
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={t("groups.search_hint")}
-          placeholderTextColor={aqaColors.textLight}
-          style={styles.searchInput}
-        />
+        <View style={styles.searchWrap}>
+          <Ionicons name="search" size={20} color={aqaColors.textMuted} accessible={false} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={t("groups.search_hint")}
+            placeholderTextColor={aqaColors.textLight}
+            accessibilityLabel={t("groups.search_hint")}
+            returnKeyType="search"
+            autoCorrect={false}
+            style={styles.searchInput}
+          />
+          {searchQuery ? (
+            <Pressable
+              onPress={() => setSearchQuery("")}
+              accessibilityRole="button"
+              accessibilityLabel={t("common.clear_search")}
+              hitSlop={8}
+              style={styles.searchClear}
+            >
+              <Ionicons name="close-circle" size={20} color={aqaColors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* Category Filter Pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.catStrip}
+          accessibilityRole="radiogroup"
         >
           {categories.map((cat) => {
             const active = selectedCategory === cat;
@@ -109,9 +130,17 @@ export default function GroupsScreen() {
               <Pressable
                 key={cat}
                 onPress={() => setSelectedCategory(cat)}
-                style={[styles.catPill, active && styles.catPillActive]}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: active }}
+                style={({ pressed }) => [
+                  styles.catPill,
+                  active && styles.catPillActive,
+                  pressed && { opacity: 0.82 },
+                ]}
               >
-                {active ? <View style={styles.catDot} /> : null}
+                {active ? (
+                  <Ionicons name="checkmark" size={16} color={aqaColors.accent} accessible={false} />
+                ) : null}
                 <Text
                   style={[
                     styles.catPillText,
@@ -127,8 +156,24 @@ export default function GroupsScreen() {
 
         {/* Groups List */}
         {filteredGroups.length === 0 ? (
-          <AqaDoubleBezelCard padding={32}>
-            <Text style={styles.emptyText}>{t("common.search")}</Text>
+          // Was showing the search placeholder text here; now a real empty state.
+          <AqaDoubleBezelCard padding={28}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <Ionicons name="people-outline" size={36} color={aqaColors.textLight} accessible={false} />
+              <Text style={styles.emptyText}>{t("groups.empty")}</Text>
+              {searchQuery || selectedCategory !== "ALL" ? (
+                <AqaIslandButton
+                  label={t("common.clear_filters")}
+                  icon="refresh"
+                  compact
+                  secondary
+                  onPress={() => {
+                    setSearchQuery("");
+                    setSelectedCategory("ALL");
+                  }}
+                />
+              ) : null}
+            </View>
           </AqaDoubleBezelCard>
         ) : (
           filteredGroups.map((group) => {
@@ -141,9 +186,11 @@ export default function GroupsScreen() {
                 key={group.id}
                 padding={16}
                 onPress={() => router.push(`/groups/${group.id}`)}
+                accessibilityLabel={`${group.name}, ${group.category}, ${count} / ${cap}`}
+                accessibilityHint={t("groups.open_hint")}
               >
                 <View style={styles.groupHeaderRow}>
-                  <Text numberOfLines={1} style={styles.groupTitle}>
+                  <Text numberOfLines={2} style={styles.groupTitle}>
                     {group.name}
                   </Text>
                   <View
@@ -199,10 +246,17 @@ export default function GroupsScreen() {
                     {group.endTime}
                   </Text>
                   <View style={styles.countChip}>
+                    <Ionicons name="person" size={12} color={aqaColors.textPrimary} accessible={false} />
                     <Text style={styles.countChipText}>
                       {count} / {cap}
                     </Text>
                   </View>
+                  <Ionicons
+                    name={isRtl ? "chevron-back" : "chevron-forward"}
+                    size={18}
+                    color={aqaColors.textMuted}
+                    accessible={false}
+                  />
                 </View>
               </AqaDoubleBezelCard>
             );
@@ -217,7 +271,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     gap: 12,
-    paddingBottom: 110,
+    paddingBottom: 24,
   },
   headBadge: {
     backgroundColor: "rgba(245, 158, 11, 0.16)",
@@ -229,18 +283,18 @@ const styles = StyleSheet.create({
   },
   headBadgeText: {
     color: aqaColors.warning,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   searchInput: {
-    backgroundColor: "#060B16",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: aqaColors.borderSubtle,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     color: aqaColors.textPrimary,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 13.5,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    fontSize: 16,
+    flex: 1,
+    minHeight: 48,
   },
   catStrip: {
     gap: 8,
@@ -255,7 +309,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
     paddingHorizontal: 13,
-    paddingVertical: 8,
+    paddingVertical: 0,
+    minHeight: 44,
   },
   catPillActive: {
     backgroundColor: "#13223D",
@@ -269,7 +324,7 @@ const styles = StyleSheet.create({
   },
   catPillText: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: "700",
   },
   catPillTextActive: {
@@ -279,7 +334,8 @@ const styles = StyleSheet.create({
   emptyText: {
     color: aqaColors.textMuted,
     textAlign: "center",
-    fontSize: 13.5,
+    fontSize: 15,
+    lineHeight: 22,
   },
   groupHeaderRow: {
     flexDirection: "row",
@@ -307,7 +363,7 @@ const styles = StyleSheet.create({
   },
   roleBadgeText: {
     color: aqaColors.accent,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   metaRow: {
@@ -324,7 +380,7 @@ const styles = StyleSheet.create({
   },
   categoryTagText: {
     color: aqaColors.primaryHover,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   metaText: {
@@ -352,7 +408,7 @@ const styles = StyleSheet.create({
   scheduleText: {
     flex: 1,
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: 12,
     fontVariant: ["tabular-nums"],
   },
   countChip: {
@@ -362,11 +418,30 @@ const styles = StyleSheet.create({
     borderColor: aqaColors.borderSubtle,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   countChipText: {
     color: aqaColors.accent,
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: "900",
     fontVariant: ["tabular-nums"],
+  },
+  searchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#060B16",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: aqaColors.borderSubtle,
+    paddingHorizontal: 12,
+  },
+  searchClear: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

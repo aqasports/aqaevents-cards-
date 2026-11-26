@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ImageBackground,
   Modal,
@@ -8,17 +9,83 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
+  type PressableStateCallbackType,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { AQA_IMAGES, AQA_STROKE_BARS, getBadgeImageSource, getStrokeBarLabel, getStrokeBarShortLabel } from "../assets/badges";
 import { coachApiClient } from "../api/client";
 import type { StrokeBarKey, StrokeBars } from "../contract";
 import type { SupportedLocale } from "../i18n/translations";
 import { useCoachStore } from "../state/CoachStore";
-import { aqaColors } from "../theme/tokens";
+import { AqaTokens, aqaColors } from "../theme/tokens";
+
+export type AqaIconName = React.ComponentProps<typeof Ionicons>["name"];
+
+const T = AqaTokens;
+
+/** Pressed feedback that never changes layout bounds: opacity only, plus ripple on Android. */
+const pressedOpacity = ({ pressed }: PressableStateCallbackType) =>
+  pressed ? { opacity: 0.82 } : null;
+
+/** Expands a small visual control to the 48dp minimum without changing its look. */
+function hitSlopFor(visualHeight: number) {
+  const pad = Math.max(0, Math.ceil((T.touch.min - visualHeight) / 2));
+  return { top: pad, bottom: pad, left: 4, right: 4 };
+}
+
+/**
+ * Header for stack screens (opened on top of the tabs). Adds the status-bar / notch inset,
+ * a 48pt back button that mirrors in Arabic, and a title announced as a heading.
+ */
+export function AqaScreenHeader({
+  title,
+  subtitle,
+  rightSlot,
+  onBack,
+}: {
+  title: string;
+  subtitle?: string;
+  rightSlot?: React.ReactNode;
+  onBack?: () => void;
+}) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { t, isRtl } = useCoachStore();
+
+  return (
+    <View style={[styles.screenHeader, { paddingTop: insets.top + 8 }]}>
+      <Pressable
+        onPress={onBack ?? (() => router.back())}
+        accessibilityRole="button"
+        accessibilityLabel={t("common.back")}
+        android_ripple={{ color: aqaColors.rippleLight, borderless: true }}
+        style={(state) => [styles.screenHeaderBack, pressedOpacity(state)]}
+      >
+        <Ionicons
+          name={isRtl ? "chevron-forward" : "chevron-back"}
+          size={T.icon.lg}
+          color={aqaColors.accent}
+        />
+      </Pressable>
+      <View style={{ flex: 1 }}>
+        <Text numberOfLines={1} style={styles.screenHeaderTitle} accessibilityRole="header">
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text numberOfLines={1} style={styles.screenHeaderSubtitle}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      {rightSlot}
+    </View>
+  );
+}
 
 export function AqaAmbientBackground({
   children,
@@ -51,6 +118,8 @@ export function AqaDoubleBezelCard({
   glowEffect = false,
   accentColor,
   padding = 16,
+  accessibilityLabel,
+  accessibilityHint,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -58,6 +127,8 @@ export function AqaDoubleBezelCard({
   glowEffect?: boolean;
   accentColor?: string;
   padding?: number;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }) {
   const borderColor = accentColor
     ? `${accentColor}66`
@@ -96,9 +167,16 @@ export function AqaDoubleBezelCard({
 
   if (onPress) {
     return (
-      <TouchableOpacity activeOpacity={0.82} onPress={onPress}>
+      <Pressable
+        onPress={onPress}
+        style={pressedOpacity}
+        android_ripple={{ color: aqaColors.rippleLight, foreground: true }}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint={accessibilityHint}
+      >
         {content}
-      </TouchableOpacity>
+      </Pressable>
     );
   }
   return content;
@@ -114,6 +192,9 @@ export function AqaIslandButton({
   loading = false,
   disabled = false,
   style,
+  icon,
+  accessibilityLabel,
+  accessibilityHint,
 }: {
   label: string;
   onPress?: () => void;
@@ -124,13 +205,17 @@ export function AqaIslandButton({
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Optional leading icon; it is decorative because the label is always visible. */
+  icon?: AqaIconName;
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
 }) {
   const bg = danger
     ? aqaColors.danger
     : success
     ? aqaColors.success
     : secondary
-    ? "#111C33"
+    ? aqaColors.surfaceControl
     : aqaColors.primary;
 
   const border = danger
@@ -141,42 +226,64 @@ export function AqaIslandButton({
     ? "rgba(56, 189, 248, 0.35)"
     : "rgba(0, 242, 255, 0.45)";
 
-  const textCol = secondary ? aqaColors.accent : "#FFFFFF";
+  // Dark text on every filled variant: white fails contrast on all of them.
+  const textCol = secondary ? aqaColors.accent : aqaColors.onPrimary;
+  const isDisabled = disabled || loading || !onPress;
+  const height = compact ? T.touch.compact : T.touch.min;
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.82}
-      disabled={disabled || loading || !onPress}
+    <Pressable
+      disabled={isDisabled}
       onPress={onPress}
-      style={[
+      hitSlop={compact ? hitSlopFor(height) : undefined}
+      android_ripple={{
+        color: secondary ? aqaColors.rippleLight : aqaColors.rippleDark,
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      style={(state) => [
         styles.islandBtn,
         {
           backgroundColor: bg,
           borderColor: border,
-          paddingVertical: compact ? 9 : 13,
+          minHeight: height,
           paddingHorizontal: compact ? 12 : 18,
           opacity: disabled ? 0.5 : 1,
         },
+        !disabled && pressedOpacity(state),
         style,
       ]}
     >
       {loading ? (
         <ActivityIndicator size="small" color={textCol} />
       ) : (
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.islandBtnText,
-            {
-              color: textCol,
-              fontSize: compact ? 11.5 : 13.5,
-            },
-          ]}
-        >
-          {label}
-        </Text>
+        <>
+          {icon ? (
+            <Ionicons
+              name={icon}
+              size={compact ? T.icon.sm : T.icon.md}
+              color={textCol}
+              accessible={false}
+              importantForAccessibility="no"
+            />
+          ) : null}
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.islandBtnText,
+              {
+                color: textCol,
+                fontSize: compact ? T.fontSize.label : T.fontSize.body,
+              },
+            ]}
+          >
+            {label}
+          </Text>
+        </>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -195,7 +302,9 @@ export function AqaSectionHeader({
     <View style={styles.sectionHeaderRow}>
       <View style={{ flex: 1 }}>
         {eyebrow ? <Text style={styles.sectionEyebrow}>{eyebrow}</Text> : null}
-        <Text style={styles.sectionTitle}>{title}</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>
+          {title}
+        </Text>
         {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
       </View>
       {rightSlot ? <View style={{ marginLeft: 10 }}>{rightSlot}</View> : null}
@@ -210,8 +319,11 @@ export function AqaPulseIndicator({
   color?: string;
   size?: number;
 }) {
+  // Decorative status dot: always paired with text, so hidden from screen readers.
   return (
     <View
+      accessible={false}
+      importantForAccessibility="no-hide-descendants"
       style={{
         width: size,
         height: size,
@@ -231,10 +343,10 @@ export function AqaNewClientBadge({ compact = false }: { compact?: boolean }) {
     <View
       style={[
         styles.newClientBadge,
-        compact && { paddingHorizontal: 5, paddingVertical: 1.5 },
+        compact && { paddingHorizontal: 5, paddingVertical: 1 },
       ]}
     >
-      <Text style={[styles.newClientBadgeText, compact && { fontSize: 8.5 }]}>
+      <Text style={styles.newClientBadgeText}>
         NEW
       </Text>
     </View>
@@ -243,30 +355,37 @@ export function AqaNewClientBadge({ compact = false }: { compact?: boolean }) {
 
 export function LanguageSwitcherPill({ compact = false }: { compact?: boolean }) {
   const { locale, setLocale } = useCoachStore();
-  const langs: Array<{ code: SupportedLocale; label: string }> = [
-    { code: "fr", label: "FR" },
-    { code: "en", label: "EN" },
-    { code: "ar", label: "AR" },
+  // Spoken name of each language, in that language, so screen readers announce it correctly.
+  const langs: Array<{ code: SupportedLocale; label: string; spoken: string }> = [
+    { code: "fr", label: "FR", spoken: "Français" },
+    { code: "en", label: "EN", spoken: "English" },
+    { code: "ar", label: "AR", spoken: "العربية" },
   ];
+  const itemHeight = compact ? 28 : 32;
 
   return (
-    <View style={styles.langPillWrap}>
+    <View style={styles.langPillWrap} accessibilityRole="radiogroup">
       {langs.map((item) => {
         const active = locale === item.code;
         return (
           <Pressable
             key={item.code}
             onPress={() => void setLocale(item.code)}
-            style={[
+            hitSlop={hitSlopFor(itemHeight)}
+            accessibilityRole="radio"
+            accessibilityLabel={item.spoken}
+            accessibilityState={{ checked: active }}
+            style={(state) => [
               styles.langPillItem,
-              compact && { paddingHorizontal: 7, paddingVertical: 4 },
+              { minHeight: itemHeight },
+              compact && { paddingHorizontal: 8 },
               active && styles.langPillItemActive,
+              pressedOpacity(state),
             ]}
           >
             <Text
               style={[
                 styles.langPillText,
-                compact && { fontSize: 10 },
                 active && styles.langPillTextActive,
               ]}
             >
@@ -291,14 +410,21 @@ export function AqaSegmentedControl<T extends string | number>({
   onValueChanged: (val: T) => void;
 }) {
   return (
-    <View style={styles.segmentedWrap}>
+    <View style={styles.segmentedWrap} accessibilityRole="tablist">
       {values.map((val, idx) => {
         const active = val === selectedValue;
         return (
           <Pressable
             key={String(val)}
             onPress={() => onValueChanged(val)}
-            style={[styles.segmentedItem, active && styles.segmentedItemActive]}
+            accessibilityRole="tab"
+            accessibilityLabel={labels[idx] ?? String(val)}
+            accessibilityState={{ selected: active }}
+            style={(state) => [
+              styles.segmentedItem,
+              active && styles.segmentedItemActive,
+              pressedOpacity(state),
+            ]}
           >
             <Text
               numberOfLines={1}
@@ -406,7 +532,13 @@ export function AqaStrokeBar200({
       </View>
 
       {/* 2-Zone Visual Progress Track (0-100% Tech | 100-200% Elite) */}
-      <View style={styles.trackContainer}>
+      <View
+        style={styles.trackContainer}
+        accessible
+        accessibilityRole="progressbar"
+        accessibilityLabel={`${getStrokeBarLabel(def, locale)}, ${zoneText}`}
+        accessibilityValue={{ min: 0, max: 200, now: clamped, text: `${clamped}%` }}
+      >
         <View style={styles.trackBackground}>
           {techPct > 0 ? (
             <View
@@ -447,7 +579,7 @@ export function AqaStrokeBar200({
       </View>
 
       {!readOnly && onChange ? (
-        <View style={{ marginTop: 10, gap: 6 }}>
+        <View style={{ marginTop: 10, gap: T.touch.gap }}>
           <View style={styles.stepButtonRow}>
             {stepValues.map((delta) => (
               <Pressable
@@ -455,9 +587,15 @@ export function AqaStrokeBar200({
                 onPress={() =>
                   onChange(Math.max(0, Math.min(200, clamped + delta)))
                 }
-                style={[
+                accessibilityRole="button"
+                accessibilityLabel={`${getStrokeBarLabel(def, locale)} ${
+                  delta > 0 ? `+${delta}` : delta
+                }%`}
+                android_ripple={{ color: aqaColors.rippleLight }}
+                style={(state) => [
                   styles.stepControlBtn,
                   delta > 0 && styles.stepControlBtnPositive,
+                  pressedOpacity(state),
                 ]}
               >
                 <Text
@@ -479,12 +617,17 @@ export function AqaStrokeBar200({
                   <Pressable
                     key={preset}
                     onPress={() => onChange(preset)}
-                    style={[
+                    hitSlop={hitSlopFor(T.touch.compact)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${getStrokeBarLabel(def, locale)} ${preset}%`}
+                    accessibilityState={{ selected }}
+                    style={(state) => [
                       styles.presetChip,
                       selected && {
                         borderColor: activeColor,
                         backgroundColor: "rgba(0, 242, 255, 0.14)",
                       },
+                      pressedOpacity(state),
                     ]}
                   >
                     <Text
@@ -543,9 +686,20 @@ export function AqaBiomechanicalRadar({
     };
   });
 
+  // The radar is drawn from Views, so give screen readers the numbers as one summary.
+  const radarSummary = points.map((pt) => `${pt.label} ${pt.pct}%`).join(", ");
+
   return (
-    <View style={styles.radarContainer}>
-      <View style={{ width: size, height: size, position: "relative" }}>
+    <View
+      style={styles.radarContainer}
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={radarSummary}
+    >
+      <View
+        style={{ width: size, height: size, position: "relative" }}
+        importantForAccessibility="no-hide-descendants"
+      >
         {/* Concentric radar rings */}
         {[0.25, 0.5, 0.75, 1].map((ring) => {
           const r = maxRadius * ring;
@@ -651,7 +805,6 @@ export function AqaExecutiveHeader() {
     outboxItems,
     rejectedItems,
     isRefreshing,
-    locale,
     t,
     refreshWorkspace,
     dismissNotification,
@@ -660,6 +813,7 @@ export function AqaExecutiveHeader() {
   } = useCoachStore();
 
   const [notifOpen, setNotifOpen] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const isHead = user?.isHeadCoach === true;
   const isAssistant = user?.isAssistant === true;
@@ -681,25 +835,40 @@ export function AqaExecutiveHeader() {
       ? bootstrap.appConfig.announcement.trim()
       : "";
 
+  const respondToReplacement = async (id: string, accept: boolean) => {
+    try {
+      await coachApiClient.respondReplacement(id, accept);
+      await refreshWorkspace();
+    } catch (err) {
+      Alert.alert(t("common.error"), err instanceof Error ? err.message : t("common.error"));
+    }
+  };
+
+  const bellLabel =
+    totalBadgeCount > 0
+      ? `${t("header.notifications")}, ${t("header.notifications_count", { count: totalBadgeCount })}`
+      : t("header.notifications");
+
   return (
     <>
       <View style={styles.execBar}>
         <View style={styles.execBarInner}>
-          {/* Coach Logo Mark */}
-          <View style={styles.execLogoBox}>
+          {/* Coach Logo Mark (decorative: the coach name beside it is the visible label) */}
+          <View style={styles.execLogoBox} importantForAccessibility="no-hide-descendants">
             <Image
               source={AQA_IMAGES.coachLogo}
               style={styles.execLogoImg}
               resizeMode="cover"
+              accessible={false}
             />
           </View>
 
-          {/* Coach Name + Role Pill */}
-          <View style={{ flex: 1 }}>
+          {/* Coach Name + Role + Sync status */}
+          <View style={{ flex: 1 }} accessible accessibilityRole="header">
             <Text numberOfLines={1} style={styles.execCoachName}>
               {user?.name || "Coach AQA"}
             </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+            <View style={styles.execMetaRow}>
               <View
                 style={[
                   styles.execRolePill,
@@ -710,56 +879,88 @@ export function AqaExecutiveHeader() {
                 ]}
               >
                 <View style={[styles.execRoleDot, { backgroundColor: roleColor }]} />
-                <Text style={[styles.execRoleText, { color: roleColor }]}>
+                <Text style={[styles.execRoleText, { color: roleColor }]} numberOfLines={1}>
                   {(user?.roleDisplay || "COACH").toUpperCase()}
                 </Text>
               </View>
               {outboxItems.length > 0 ? (
-                <View style={styles.offlineQueuePill}>
-                  <Text style={styles.offlineQueuePillText}>
-                    SYNC: {outboxItems.length}
+                <View
+                  style={styles.statusChip}
+                  accessible
+                  accessibilityLabel={t("common.pending_sync", { count: outboxItems.length })}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={T.icon.sm}
+                    color={aqaColors.warning}
+                    accessible={false}
+                  />
+                  <Text style={[styles.statusChipText, { color: aqaColors.warning }]}>
+                    {outboxItems.length}
                   </Text>
                 </View>
               ) : null}
               {rejectedItems.length > 0 ? (
-                <View style={[styles.offlineQueuePill, { borderColor: aqaColors.danger }]}>
-                  <Text style={[styles.offlineQueuePillText, { color: aqaColors.danger }]}>
-                    ERR: {rejectedItems.length}
+                <View
+                  style={[styles.statusChip, { borderColor: aqaColors.dangerText }]}
+                  accessible
+                  accessibilityLabel={t("common.rejected_sync", { count: rejectedItems.length })}
+                >
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={T.icon.sm}
+                    color={aqaColors.dangerText}
+                    accessible={false}
+                  />
+                  <Text style={[styles.statusChipText, { color: aqaColors.dangerText }]}>
+                    {rejectedItems.length}
                   </Text>
                 </View>
               ) : null}
             </View>
           </View>
 
-          <LanguageSwitcherPill compact />
-
-          {/* Notification Bell */}
-          <Pressable
-            onPress={() => setNotifOpen(true)}
-            style={[
-              styles.execIconBtn,
-              totalBadgeCount > 0 && { borderColor: "rgba(0, 242, 255, 0.45)" },
-            ]}
-          >
-            <Text
-              style={[
-                styles.execIconBtnText,
-                totalBadgeCount > 0 && { color: aqaColors.accent },
-              ]}
-            >
-              {totalBadgeCount > 0 ? `ALERT (${totalBadgeCount})` : "ALERT"}
-            </Text>
-            {totalBadgeCount > 0 ? <View style={styles.notifDot} /> : null}
-          </Pressable>
-
-          {/* Refresh Button */}
+          {/* Refresh */}
           <Pressable
             onPress={() => void refreshWorkspace()}
-            style={styles.execIconBtn}
+            disabled={isRefreshing}
+            accessibilityRole="button"
+            accessibilityLabel={t("common.refresh")}
+            accessibilityState={{ busy: isRefreshing, disabled: isRefreshing }}
+            android_ripple={{ color: aqaColors.rippleLight, borderless: true }}
+            style={(state) => [styles.execIconBtn, pressedOpacity(state)]}
           >
-            <Text style={styles.execIconBtnText}>
-              {isRefreshing ? "..." : "SYNC"}
-            </Text>
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color={aqaColors.accent} />
+            ) : (
+              <Ionicons name="refresh" size={T.icon.md} color={aqaColors.textMuted} />
+            )}
+          </Pressable>
+
+          {/* Notification Bell with count badge */}
+          <Pressable
+            onPress={() => setNotifOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={bellLabel}
+            android_ripple={{ color: aqaColors.rippleLight, borderless: true }}
+            style={(state) => [
+              styles.execIconBtn,
+              totalBadgeCount > 0 && { borderColor: aqaColors.borderAccent },
+              pressedOpacity(state),
+            ]}
+          >
+            <Ionicons
+              name={totalBadgeCount > 0 ? "notifications" : "notifications-outline"}
+              size={T.icon.md}
+              color={totalBadgeCount > 0 ? aqaColors.accent : aqaColors.textMuted}
+            />
+            {totalBadgeCount > 0 ? (
+              <View style={styles.countBadge} importantForAccessibility="no-hide-descendants">
+                <Text style={styles.countBadgeText}>
+                  {totalBadgeCount > 99 ? "99+" : totalBadgeCount}
+                </Text>
+              </View>
+            ) : null}
           </Pressable>
         </View>
       </View>
@@ -769,44 +970,61 @@ export function AqaExecutiveHeader() {
         visible={notifOpen}
         transparent
         animationType="slide"
+        statusBarTranslucent
         onRequestClose={() => setNotifOpen(false)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.notifSheet}>
+          {/* Tapping the dimmed area closes the sheet; the close button stays the labelled path. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setNotifOpen(false)}
+            accessible={false}
+            importantForAccessibility="no"
+          />
+          <View
+            style={[styles.notifSheet, { paddingBottom: Math.max(insets.bottom, 16) + 8 }]}
+            accessibilityViewIsModal
+          >
             <View style={styles.sheetHandle} />
             <View style={styles.notifHeaderRow}>
-              <Text style={styles.notifHeaderTitle}>
+              <Text style={styles.notifHeaderTitle} accessibilityRole="header" numberOfLines={2}>
                 {t("notif.center_title")}
               </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable
+                onPress={() => setNotifOpen(false)}
+                hitSlop={hitSlopFor(36)}
+                accessibilityRole="button"
+                accessibilityLabel={t("common.close")}
+                style={(state) => [styles.closeModalBtn, pressedOpacity(state)]}
+              >
+                <Ionicons name="close" size={T.icon.md} color={aqaColors.textPrimary} />
+              </Pressable>
+            </View>
+            <View style={styles.notifActionsRow}>
+              <AqaIslandButton
+                label={t("notif.test_short")}
+                icon="notifications-outline"
+                compact
+                secondary
+                onPress={() => void sendTestLocalNotification()}
+              />
+              {activeNotifs.length > 0 ? (
                 <AqaIslandButton
-                  label={t("notif.test_short")}
+                  label={t("notif.clear_all")}
+                  icon="checkmark-done-outline"
                   compact
                   secondary
-                  onPress={() => void sendTestLocalNotification()}
+                  onPress={() =>
+                    void dismissAllNotifications(activeNotifs.map((n) => n.id))
+                  }
                 />
-                {activeNotifs.length > 0 ? (
-                  <Pressable
-                    onPress={() =>
-                      void dismissAllNotifications(activeNotifs.map((n) => n.id))
-                    }
-                    style={styles.clearAllBtn}
-                  >
-                    <Text style={styles.clearAllBtnText}>
-                      {t("notif.clear_all")}
-                    </Text>
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  onPress={() => setNotifOpen(false)}
-                  style={styles.closeModalBtn}
-                >
-                  <Text style={styles.closeModalBtnText}>X</Text>
-                </Pressable>
-              </View>
+              ) : null}
             </View>
 
-            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ gap: 10, paddingVertical: 10 }}>
+            <ScrollView
+              style={{ maxHeight: 460 }}
+              contentContainerStyle={{ gap: 10, paddingVertical: 10 }}
+            >
               {announcement.length > 0 ? (
                 <AqaDoubleBezelCard accentColor={aqaColors.primary} padding={12}>
                   <Text style={styles.announcementEyebrow}>
@@ -823,33 +1041,27 @@ export function AqaExecutiveHeader() {
                   padding={12}
                 >
                   <Text style={styles.repNotifTitle}>
-                    {locale === "ar"
-                      ? `طلب استخلاف من ${rep.originalCoachName}`
-                      : `Demande de remplacement: ${rep.originalCoachName}`}
+                    {t("notif.replacement_request", { name: rep.originalCoachName })}
                   </Text>
                   <Text style={styles.repNotifMeta}>
                     {rep.groupName} • {rep.sessionDate} ({rep.startTime}-{rep.endTime})
                   </Text>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  <View style={{ flexDirection: "row", gap: T.touch.gap, marginTop: 10 }}>
                     <AqaIslandButton
                       label={t("replacements.decline")}
+                      icon="close-circle-outline"
                       compact
                       secondary
                       style={{ flex: 1 }}
-                      onPress={async () => {
-                        await coachApiClient.respondReplacement(rep.id, false);
-                        await refreshWorkspace();
-                      }}
+                      onPress={() => void respondToReplacement(rep.id, false)}
                     />
                     <AqaIslandButton
                       label={t("replacements.accept")}
+                      icon="checkmark-circle-outline"
                       compact
                       success
                       style={{ flex: 1 }}
-                      onPress={async () => {
-                        await coachApiClient.respondReplacement(rep.id, true);
-                        await refreshWorkspace();
-                      }}
+                      onPress={() => void respondToReplacement(rep.id, true)}
                     />
                   </View>
                 </AqaDoubleBezelCard>
@@ -860,9 +1072,9 @@ export function AqaExecutiveHeader() {
                 const accent = isNewClient ? aqaColors.success : aqaColors.primaryHover;
                 return (
                   <AqaDoubleBezelCard key={n.id} accentColor={accent} padding={12}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                           {isNewClient ? <AqaNewClientBadge compact /> : null}
                           <Text style={styles.notifItemTitle}>{n.title}</Text>
                         </View>
@@ -872,11 +1084,12 @@ export function AqaExecutiveHeader() {
                       </View>
                       <Pressable
                         onPress={() => void dismissNotification(n.id)}
-                        style={{ padding: 4 }}
+                        hitSlop={hitSlopFor(32)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${t("notif.dismiss")}: ${n.title}`}
+                        style={(state) => [styles.dismissBtn, pressedOpacity(state)]}
                       >
-                        <Text style={{ color: aqaColors.textMuted, fontSize: 11, fontWeight: "700" }}>
-                          X
-                        </Text>
+                        <Ionicons name="close" size={T.icon.sm} color={aqaColors.textMuted} />
                       </Pressable>
                     </View>
                   </AqaDoubleBezelCard>
@@ -887,6 +1100,12 @@ export function AqaExecutiveHeader() {
               incomingReplacements.length === 0 &&
               activeNotifs.length === 0 ? (
                 <View style={styles.notifEmptyWrap}>
+                  <Ionicons
+                    name="notifications-off-outline"
+                    size={T.icon.lg + 8}
+                    color={aqaColors.textLight}
+                    accessible={false}
+                  />
                   <Text style={styles.notifEmptyTitle}>{t("notif.empty")}</Text>
                 </View>
               ) : null}
@@ -922,7 +1141,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(14, 165, 233, 0.06)",
   },
   bezelOuter: {
-    backgroundColor: "#0B1120",
+    backgroundColor: aqaColors.surfaceRaised,
     borderRadius: 18,
     borderWidth: 1,
     overflow: "hidden",
@@ -948,6 +1167,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
+    gap: 8,
   },
   islandBtnText: {
     fontWeight: "800",
@@ -960,7 +1180,7 @@ const styles = StyleSheet.create({
   },
   sectionEyebrow: {
     color: aqaColors.accent,
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "800",
     letterSpacing: 1,
     textTransform: "uppercase",
@@ -968,13 +1188,13 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 15,
+    fontSize: T.fontSize.title,
     fontWeight: "800",
     letterSpacing: -0.2,
   },
   sectionSubtitle: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: T.fontSize.label,
     marginTop: 2,
   },
   newClientBadge: {
@@ -987,13 +1207,13 @@ const styles = StyleSheet.create({
   },
   newClientBadgeText: {
     color: aqaColors.success,
-    fontSize: 9.5,
+    fontSize: T.fontSize.caption,
     fontWeight: "900",
     letterSpacing: 0.5,
   },
   langPillWrap: {
     flexDirection: "row",
-    backgroundColor: "#070C18",
+    backgroundColor: aqaColors.surfaceSunken,
     borderRadius: 10,
     padding: 2,
     borderWidth: 1,
@@ -1001,15 +1221,16 @@ const styles = StyleSheet.create({
   },
   langPillItem: {
     paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingVertical: 0,
     borderRadius: 8,
+    justifyContent: "center",
   },
   langPillItemActive: {
     backgroundColor: "rgba(14, 165, 233, 0.24)",
   },
   langPillText: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: T.fontSize.caption,
     fontWeight: "800",
   },
   langPillTextActive: {
@@ -1017,7 +1238,7 @@ const styles = StyleSheet.create({
   },
   segmentedWrap: {
     flexDirection: "row",
-    backgroundColor: "#070C18",
+    backgroundColor: aqaColors.surfaceSunken,
     borderRadius: 14,
     padding: 4,
     borderWidth: 1,
@@ -1031,15 +1252,16 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 44,
   },
   segmentedItemActive: {
-    backgroundColor: "#13223D",
+    backgroundColor: aqaColors.surfaceSelected,
     borderWidth: 1,
-    borderColor: "rgba(0, 242, 255, 0.38)",
+    borderColor: aqaColors.borderAccent,
   },
   segmentedText: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: T.fontSize.label,
     fontWeight: "700",
   },
   segmentedTextActive: {
@@ -1071,11 +1293,11 @@ const styles = StyleSheet.create({
   },
   strokeBarTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 13.5,
+    fontSize: T.fontSize.body,
     fontWeight: "800",
   },
   strokeBarZoneText: {
-    fontSize: 10.5,
+    fontSize: T.fontSize.caption,
     fontWeight: "700",
     marginTop: 2,
   },
@@ -1089,7 +1311,7 @@ const styles = StyleSheet.create({
   },
   lastTouchedChipText: {
     color: aqaColors.accent,
-    fontSize: 8.5,
+    fontSize: T.fontSize.caption,
     fontWeight: "900",
   },
   strokePctBadge: {
@@ -1143,31 +1365,33 @@ const styles = StyleSheet.create({
   },
   trackLegendMuted: {
     color: aqaColors.textLight,
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "700",
   },
   trackLegendTeal: {
     color: aqaColors.accent,
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "700",
   },
   trackLegendElite: {
     color: aqaColors.warning,
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "700",
   },
   stepButtonRow: {
     flexDirection: "row",
-    gap: 6,
+    gap: T.touch.gap,
   },
   stepControlBtn: {
     flex: 1,
-    backgroundColor: "#0F172A",
+    backgroundColor: aqaColors.surface,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
-    paddingVertical: 7,
+    paddingVertical: 0,
     alignItems: "center",
+    minHeight: 44,
+    justifyContent: "center",
   },
   stepControlBtnPositive: {
     borderColor: "rgba(0, 242, 255, 0.32)",
@@ -1175,22 +1399,24 @@ const styles = StyleSheet.create({
   },
   stepControlBtnText: {
     color: aqaColors.textPrimary,
-    fontSize: 11,
+    fontSize: T.fontSize.label,
     fontWeight: "800",
     fontVariant: ["tabular-nums"],
   },
   presetChip: {
     flex: 1,
-    backgroundColor: "#070C18",
+    backgroundColor: aqaColors.surfaceSunken,
     borderRadius: 7,
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
-    paddingVertical: 5,
+    paddingVertical: 0,
     alignItems: "center",
+    minHeight: T.touch.compact,
+    justifyContent: "center",
   },
   presetChipText: {
     color: aqaColors.textMuted,
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "800",
   },
   radarContainer: {
@@ -1200,11 +1426,11 @@ const styles = StyleSheet.create({
   },
   radarAxisLabel: {
     color: aqaColors.textMuted,
-    fontSize: 9,
+    fontSize: T.fontSize.caption,
     fontWeight: "800",
   },
   radarAxisValue: {
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "900",
     fontVariant: ["tabular-nums"],
   },
@@ -1218,7 +1444,7 @@ const styles = StyleSheet.create({
   execBarInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   execLogoBox: {
     width: 38,
@@ -1235,7 +1461,7 @@ const styles = StyleSheet.create({
   },
   execCoachName: {
     color: aqaColors.textPrimary,
-    fontSize: 14.5,
+    fontSize: T.fontSize.body,
     fontWeight: "800",
   },
   execRolePill: {
@@ -1243,7 +1469,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 6,
-    paddingVertical: 1.5,
+    paddingVertical: 2,
     borderRadius: 5,
     borderWidth: 1,
   },
@@ -1253,45 +1479,22 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
   execRoleText: {
-    fontSize: 8.5,
+    fontSize: T.fontSize.caption,
     fontWeight: "900",
     letterSpacing: 0.4,
   },
-  offlineQueuePill: {
-    backgroundColor: "rgba(245, 158, 11, 0.16)",
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: aqaColors.warning,
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-  },
-  offlineQueuePillText: {
-    color: aqaColors.warning,
-    fontSize: 8.5,
-    fontWeight: "900",
-  },
   execIconBtn: {
-    backgroundColor: "#0F172A",
-    borderRadius: 9,
+    backgroundColor: aqaColors.surface,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     position: "relative",
-  },
-  execIconBtnText: {
-    color: aqaColors.textMuted,
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  notifDot: {
-    position: "absolute",
-    top: -2,
-    right: -2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: aqaColors.accent,
+    width: T.touch.min,
+    height: T.touch.min,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalBackdrop: {
     flex: 1,
@@ -1299,7 +1502,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   notifSheet: {
-    backgroundColor: "#0B1120",
+    backgroundColor: aqaColors.surfaceRaised,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     borderTopWidth: 1.5,
@@ -1321,73 +1524,147 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
+    gap: 12,
   },
   notifHeaderTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 16,
+    fontSize: T.fontSize.title,
     fontWeight: "800",
-  },
-  clearAllBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-  },
-  clearAllBtnText: {
-    color: aqaColors.accent,
-    fontSize: 11.5,
-    fontWeight: "700",
+    flex: 1,
   },
   closeModalBtn: {
-    backgroundColor: "#1E293B",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    backgroundColor: aqaColors.surfaceSecondary,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
   },
-  closeModalBtnText: {
-    color: aqaColors.textPrimary,
-    fontSize: 11,
-    fontWeight: "800",
-  },
   announcementEyebrow: {
     color: aqaColors.primaryHover,
-    fontSize: 10,
+    fontSize: T.fontSize.caption,
     fontWeight: "800",
     marginBottom: 4,
   },
   announcementBody: {
     color: aqaColors.textPrimary,
-    fontSize: 13,
-    lineHeight: 19,
+    fontSize: T.fontSize.body,
+    lineHeight: 22,
   },
   repNotifTitle: {
     color: aqaColors.warning,
-    fontSize: 13.5,
+    fontSize: T.fontSize.body,
     fontWeight: "800",
   },
   repNotifMeta: {
     color: aqaColors.textMuted,
-    fontSize: 12,
+    fontSize: T.fontSize.label,
     marginTop: 2,
   },
   notifItemTitle: {
     color: aqaColors.textPrimary,
-    fontSize: 13.5,
+    fontSize: T.fontSize.body,
     fontWeight: "800",
   },
   notifItemBody: {
     color: aqaColors.textMuted,
-    fontSize: 12,
+    fontSize: T.fontSize.label,
     marginTop: 4,
-    lineHeight: 17,
+    lineHeight: 19,
   },
   notifEmptyWrap: {
     paddingVertical: 32,
     alignItems: "center",
+    gap: 10,
   },
   notifEmptyTitle: {
     color: aqaColors.textMuted,
-    fontSize: 13.5,
+    fontSize: T.fontSize.body,
     fontWeight: "700",
+    textAlign: "center",
+  },
+  execMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 3,
+    flexWrap: "wrap",
+  },
+  statusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: aqaColors.warning,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  statusChipText: {
+    fontSize: T.fontSize.caption,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  countBadge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 4,
+    backgroundColor: aqaColors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countBadgeText: {
+    color: aqaColors.onPrimary,
+    fontSize: T.fontSize.caption,
+    fontWeight: "900",
+    fontVariant: ["tabular-nums"],
+  },
+  notifActionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 4,
+  },
+  dismissBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: aqaColors.surfaceSecondary,
+  },
+  screenHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#060B16",
+    borderBottomWidth: 1,
+    borderBottomColor: aqaColors.borderSubtle,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  screenHeaderBack: {
+    width: T.touch.min,
+    height: T.touch.min,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: aqaColors.borderSubtle,
+    backgroundColor: aqaColors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  screenHeaderTitle: {
+    color: aqaColors.textPrimary,
+    fontSize: T.fontSize.title,
+    fontWeight: "800",
+  },
+  screenHeaderSubtitle: {
+    color: aqaColors.textMuted,
+    fontSize: T.fontSize.label,
+    marginTop: 2,
   },
 });

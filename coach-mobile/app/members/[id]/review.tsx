@@ -11,6 +11,8 @@ import {
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { coachApiClient } from "../../../src/api/client";
 import {
   AQA_OFFICIAL_BADGES,
@@ -26,7 +28,7 @@ import {
   AqaSectionHeader,
   AqaSegmentedControl,
   AqaStrokeBar200,
-  LanguageSwitcherPill,
+  AqaScreenHeader,
 } from "../../../src/components/AqaUi";
 import {
   normalizeMember,
@@ -40,7 +42,8 @@ import { aqaColors } from "../../../src/theme/tokens";
 export default function TechReviewAndBilanFormScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { t, locale, refreshWorkspace } = useCoachStore();
+  const insets = useSafeAreaInsets();
+  const { t, locale, refreshWorkspace, isRtl } = useCoachStore();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -180,6 +183,7 @@ export default function TechReviewAndBilanFormScreen() {
   if (loading) {
     return (
       <AqaAmbientBackground>
+        <AqaScreenHeader title={t("common.loading")} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={aqaColors.accent} />
         </View>
@@ -196,27 +200,15 @@ export default function TechReviewAndBilanFormScreen() {
 
   return (
     <AqaAmbientBackground>
-      <View style={styles.topHeader}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>{"<"}</Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text numberOfLines={1} style={styles.headerTitle}>
-            {swimmerName}
-          </Text>
-          <Text style={styles.headerSub}>
-            {currentStep === 0
-              ? "1. Evaluation Nage (0% - 200%)"
-              : "2. Bilan Nageur & Badges"}
-          </Text>
-        </View>
-        <LanguageSwitcherPill compact />
-      </View>
+      <AqaScreenHeader
+        title={swimmerName}
+        subtitle={currentStep === 0 ? t("review.step_eval") : t("review.step_bilan")}
+      />
 
       <View style={{ paddingHorizontal: 16, paddingTop: 10 }}>
         <AqaSegmentedControl
           values={[0, 1] as const}
-          labels={["1. Evaluation (0-200%)", "2. Bilan & Badges"]}
+          labels={[t("review.step_eval"), t("review.step_bilan")]}
           selectedValue={currentStep}
           onValueChanged={setCurrentStep}
         />
@@ -227,16 +219,17 @@ export default function TechReviewAndBilanFormScreen() {
           <>
             <AqaDoubleBezelCard padding={15}>
               <AqaSectionHeader
-                eyebrow="AQA 2-ZONE PROGRESS BARS"
+                eyebrow={t("session.bars_eyebrow")}
                 title={t("suivi.bars_title")}
-                subtitle="0-100% Technique • 100-200% Elite (Endurance, Vitesse, Force)"
+                subtitle={t("member.bars_subtitle")}
               />
               <AqaIslandButton
                 label={
                   showAllFiveBars
-                    ? "Afficher uniquement la derniere barre touchee"
-                    : "Afficher les 5 barres de progression"
+                    ? t("session.show_last_bar")
+                    : t("session.show_all_bars")
                 }
+                icon={showAllFiveBars ? "contract-outline" : "expand-outline"}
                 compact
                 secondary
                 onPress={() => setShowAllFiveBars((prev) => !prev)}
@@ -255,9 +248,13 @@ export default function TechReviewAndBilanFormScreen() {
                       <Pressable
                         key={def.key}
                         onPress={() => setLastTouchedBar(def.key)}
-                        style={[
+                        accessibilityRole="tab"
+                        accessibilityLabel={getStrokeBarShortLabel(def, locale)}
+                        accessibilityState={{ selected: active }}
+                        style={({ pressed }) => [
                           styles.strokeSelectorChip,
                           active && styles.strokeSelectorChipActive,
+                          pressed && { opacity: 0.82 },
                         ]}
                       >
                         <Text
@@ -322,22 +319,30 @@ export default function TechReviewAndBilanFormScreen() {
             {/* 2. Stored Records (50m & Apnea) with Lock/Unlock */}
             <AqaDoubleBezelCard padding={15}>
               <View style={styles.rowBetween}>
-                <Text style={styles.cardTitle}>
-                  Records Enregistres (50m & Apnee)
-                </Text>
+                <Text style={styles.cardTitle}>{t("review.records_title")}</Text>
                 <Pressable
                   onPress={() => setRecordsUnlocked((prev) => !prev)}
+                  accessibilityRole="button"
+                  accessibilityLabel={recordsUnlocked ? t("session.records_lock") : t("review.new_record")}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                  style={({ pressed }) => [styles.recordToggle, pressed && { opacity: 0.7 }]}
                 >
+                  <Ionicons
+                    name={recordsUnlocked ? "lock-closed-outline" : "add-circle-outline"}
+                    size={16}
+                    color={recordsUnlocked ? aqaColors.warning : aqaColors.accent}
+                    accessible={false}
+                  />
                   <Text
                     style={{
                       color: recordsUnlocked
                         ? aqaColors.warning
                         : aqaColors.accent,
-                      fontSize: 11.5,
+                      fontSize: 12,
                       fontWeight: "800",
                     }}
                   >
-                    {recordsUnlocked ? "Verrouiller" : "Nouveau Record"}
+                    {recordsUnlocked ? t("session.records_lock") : t("review.new_record")}
                   </Text>
                 </Pressable>
               </View>
@@ -402,9 +407,7 @@ export default function TechReviewAndBilanFormScreen() {
 
             {/* 3. Official 15 Badges Picker + Honor Nominations */}
             <AqaDoubleBezelCard padding={15}>
-              <Text style={styles.cardTitle}>
-                Choix du Badge Officiel AQA (15 Badges)
-              </Text>
+              <Text style={styles.cardTitle}>{t("review.badge_pick_title")}</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -418,9 +421,13 @@ export default function TechReviewAndBilanFormScreen() {
                       onPress={() =>
                         setSelectedBadgeKey(selected ? null : badge.key)
                       }
-                      style={[
+                      accessibilityRole="radio"
+                      accessibilityLabel={getBadgeLabel(badge, locale)}
+                      accessibilityState={{ checked: selected }}
+                      style={({ pressed }) => [
                         styles.badgeCard,
                         selected && styles.badgeCardActive,
+                        pressed && { opacity: 0.82 },
                       ]}
                     >
                       <Image
@@ -445,6 +452,12 @@ export default function TechReviewAndBilanFormScreen() {
               <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
                 <Pressable
                   disabled={monthHonorLocked}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("suivi.honor_month")}
+                  accessibilityState={{
+                    disabled: monthHonorLocked,
+                    selected: honorRequestType === "swimmer_of_the_month",
+                  }}
                   onPress={() =>
                     setHonorRequestType(
                       honorRequestType === "swimmer_of_the_month"
@@ -463,16 +476,22 @@ export default function TechReviewAndBilanFormScreen() {
                   <Text style={styles.honorSub}>
                     {monthHonorLocked
                       ? monthHonorWinner
-                        ? `Elu: ${monthHonorWinner}`
-                        : "Verrouille"
+                        ? t("honor.elected", { name: monthHonorWinner })
+                        : t("honor.locked")
                       : honorRequestType === "swimmer_of_the_month"
-                      ? "Demande prete pour ERP"
-                      : "Proposer a l'ERP"}
+                      ? t("honor.selected")
+                      : t("honor.propose")}
                   </Text>
                 </Pressable>
 
                 <Pressable
                   disabled={yearHonorLocked}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("suivi.honor_year")}
+                  accessibilityState={{
+                    disabled: yearHonorLocked,
+                    selected: honorRequestType === "swimmer_of_the_year",
+                  }}
                   onPress={() =>
                     setHonorRequestType(
                       honorRequestType === "swimmer_of_the_year"
@@ -491,11 +510,11 @@ export default function TechReviewAndBilanFormScreen() {
                   <Text style={styles.honorSub}>
                     {yearHonorLocked
                       ? yearHonorWinner
-                        ? `Elu: ${yearHonorWinner}`
-                        : "Verrouille"
+                        ? t("honor.elected", { name: yearHonorWinner })
+                        : t("honor.locked")
                       : honorRequestType === "swimmer_of_the_year"
-                      ? "Demande prete pour ERP"
-                      : "Proposer a l'ERP"}
+                      ? t("honor.selected")
+                      : t("honor.propose")}
                   </Text>
                 </Pressable>
               </View>
@@ -508,7 +527,7 @@ export default function TechReviewAndBilanFormScreen() {
                 value={wordFromCoach}
                 onChangeText={setWordFromCoach}
                 multiline
-                placeholder="Redigez le mot du coach pour ce nageur..."
+                placeholder={t("review.word_placeholder")}
                 placeholderTextColor={aqaColors.textLight}
                 style={[styles.input, { minHeight: 72, marginTop: 8 }]}
               />
@@ -520,7 +539,7 @@ export default function TechReviewAndBilanFormScreen() {
                 value={observation}
                 onChangeText={setObservation}
                 multiline
-                placeholder="Observation technique de la seance..."
+                placeholder={t("session.observation_placeholder")}
                 placeholderTextColor={aqaColors.textLight}
                 style={[styles.input, { minHeight: 60, marginTop: 8 }]}
               />
@@ -530,24 +549,29 @@ export default function TechReviewAndBilanFormScreen() {
       </ScrollView>
 
       {/* Bottom Action Bar */}
-      <View style={styles.bottomBar}>
+      {/* Clears the gesture bar / home indicator. */}
+      <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         {currentStep === 1 ? (
           <AqaIslandButton
-            label="Retour Evaluation"
-            compact
+            label={t("common.back")}
+            icon={isRtl ? "arrow-forward" : "arrow-back"}
+            accessibilityLabel={t("common.previous_step")}
             secondary
             onPress={() => setCurrentStep(0)}
           />
         ) : null}
         {currentStep === 0 ? (
           <AqaIslandButton
-            label="Suivant : 2. Bilan & Badges"
+            label={t("common.next")}
+            icon={isRtl ? "arrow-back" : "arrow-forward"}
+            accessibilityLabel={`${t("common.next")}: ${t("review.step_bilan")}`}
             onPress={() => setCurrentStep(1)}
             style={{ flex: 1 }}
           />
         ) : (
           <AqaIslandButton
-            label={saving ? t("common.saving") : "Valider Evaluation & Bilan"}
+            label={saving ? t("common.saving") : t("review.save")}
+            icon="checkmark-done"
             loading={saving}
             success
             onPress={handleSave}
@@ -561,45 +585,10 @@ export default function TechReviewAndBilanFormScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#060B16",
-    borderBottomWidth: 1,
-    borderBottomColor: aqaColors.borderSubtle,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  backBtn: {
-    backgroundColor: "#0F172A",
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: aqaColors.borderSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backBtnText: {
-    color: aqaColors.accent,
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  headerTitle: {
-    color: aqaColors.textPrimary,
-    fontSize: 15,
-    fontWeight: "800",
-  },
-  headerSub: {
-    color: aqaColors.accent,
-    fontSize: 11,
-    fontWeight: "700",
-  },
   container: {
     padding: 16,
     gap: 12,
-    paddingBottom: 110,
+    paddingBottom: 24,
   },
   strokeSelectorChip: {
     backgroundColor: "#060B16",
@@ -608,6 +597,8 @@ const styles = StyleSheet.create({
     borderColor: aqaColors.borderSubtle,
     paddingHorizontal: 10,
     paddingVertical: 6,
+    minHeight: 44,
+    justifyContent: "center",
   },
   strokeSelectorChipActive: {
     backgroundColor: "rgba(14, 165, 233, 0.18)",
@@ -615,7 +606,7 @@ const styles = StyleSheet.create({
   },
   strokeSelectorText: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   rowBetween: {
@@ -635,12 +626,12 @@ const styles = StyleSheet.create({
   },
   lockedHint: {
     color: aqaColors.warning,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 6,
   },
   subLabel: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
     marginBottom: 4,
   },
@@ -675,7 +666,7 @@ const styles = StyleSheet.create({
   },
   badgeCardLabel: {
     color: aqaColors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "800",
   },
   honorToggle: {
@@ -685,6 +676,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: aqaColors.borderSubtle,
     padding: 11,
+    minHeight: 56,
   },
   honorToggleActive: {
     backgroundColor: "rgba(245, 158, 11, 0.16)",
@@ -697,16 +689,24 @@ const styles = StyleSheet.create({
   },
   honorSub: {
     color: aqaColors.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 3,
   },
   bottomBar: {
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 0,
     backgroundColor: "#060B16",
     borderTopWidth: 1,
     borderTopColor: aqaColors.borderSubtle,
+    paddingTop: 12,
+    alignItems: "center",
+  },
+  recordToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 32,
   },
 });

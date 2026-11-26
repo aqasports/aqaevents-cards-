@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as LocalAuthentication from "expo-local-authentication";
@@ -25,6 +25,8 @@ const LOCALE_STORAGE_KEY = "aqa_coach_v2_locale";
 const BIOMETRIC_PREF_KEY = "aqa_coach_v2_biometric_enabled";
 const REMINDERS_PREF_KEY = "aqa_coach_v2_local_reminders_enabled";
 const NOTIFY_SETTINGS_KEY = "aqa_coach_v2_notify_settings";
+const FOREGROUND_REFRESH_MIN_MS = 120_000;
+const BIOMETRIC_RELOCK_MS = 5 * 60_000;
 
 export interface CoachNotificationSettings {
   isAuthorized: boolean;
@@ -88,6 +90,18 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
   const [bootstrap, setBootstrap] = useState<CoachBootstrapPayload | null>(null);
   const [outboxItems, setOutboxItems] = useState<OutboxMutation[]>([]);
   const [rejectedItems, setRejectedItems] = useState<OutboxMutation[]>([]);
+  // Refs keep refreshWorkspace stable so the boot effect runs exactly once.
+  const remindersOnRef = useRef(true);
+  const localeRef = useRef<SupportedLocale>("fr");
+  const lastRefreshAtRef = useRef(0);
+  const backgroundedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    remindersOnRef.current = localRemindersEnabled && notifySettings.notifySessionReminder;
+  }, [localRemindersEnabled, notifySettings.notifySessionReminder]);
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
 
   const reloadQueues = useCallback(async () => {
     const [pending, rejected] = await Promise.all([
@@ -99,6 +113,7 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   const refreshWorkspace = useCallback(async () => {
+    lastRefreshAtRef.current = Date.now();
     setIsRefreshing(true);
     try {
       await coachApiClient.flushOutbox();
@@ -107,15 +122,15 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
       setBootstrap(fresh);
       setUser(fresh.coach);
       await AsyncStorage.setItem(BOOTSTRAP_CACHE_KEY, JSON.stringify(fresh));
-      if (localRemindersEnabled && notifySettings.notifySessionReminder) {
-        await scheduleLocalSessionReminders(fresh.sessions, fresh.todayDate);
+      if (remindersOnRef.current) {
+        await scheduleLocalSessionReminders(fresh.sessions, fresh.todayDate, localeRef.current);
       }
     } catch {
       await reloadQueues();
     } finally {
       setIsRefreshing(false);
     }
-  }, [localRemindersEnabled, notifySettings.notifySessionReminder, reloadQueues]);
+  }, [reloadQueues]);
 
   useEffect(() => {
     coachApiClient.onUnauthorized = () => {
@@ -137,19 +152,23 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
 
         if (savedLocale === "fr" || savedLocale === "en" || savedLocale === "ar") {
           setLocaleState(savedLocale);
+          localeRef.current = savedLocale;
         }
         const bioOn = bioPref === "true";
         setBiometricEnabledState(bioOn);
         setLocalRemindersEnabledState(remPref !== "false");
 
+        let sessionReminderOn = true;
         if (rawNotify) {
           try {
             const parsed = JSON.parse(rawNotify) as Partial<CoachNotificationSettings>;
             setNotifySettings({ ...DEFAULT_NOTIFY_SETTINGS, ...parsed });
+            sessionReminderOn = parsed.notifySessionReminder !== false;
           } catch {
             // Keep default settings
           }
         }
+        remindersOnRef.current = remPref !== "false" && sessionReminderOn;
 
         if (storedUser) {
           setUser(storedUser);
@@ -177,8 +196,17 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
     if (!user) return;
 
     const handleAppState = (nextState: AppStateStatus) => {
+      if (nextState === "background") {
+        backgroundedAtRef.current = Date.now();
+        return;
+      }
       if (nextState === "active") {
-        void refreshWorkspace();
+        const awayMs = backgroundedAtRef.current ? Date.now() - backgroundedAtRef.current : 0;
+        backgroundedAtRef.current = null;
+        if (biometricEnabled && awayMs >= BIOMETRIC_RELOCK_MS) setIsBiometricLocked(true);
+        if (Date.now() - lastRefreshAtRef.current >= FOREGROUND_REFRESH_MIN_MS) {
+          void refreshWorkspace();
+        }
       }
     };
 
@@ -193,7 +221,7 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
       appStateSub.remove();
       pushSub.remove();
     };
-  }, [user, refreshWorkspace]);
+  }, [user, refreshWorkspace, biometricEnabled]);
 
   const setLocale = useCallback(async (next: SupportedLocale) => {
     setLocaleState(next);
@@ -280,8 +308,12 @@ export function CoachStoreProvider({ children }: { children: React.ReactNode }) 
   }, [locale]);
 
   const unlockWithBiometrics = useCallback(async (): Promise<boolean> => {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    if (!hasHardware) {
+    const [hasHardware, level] = await Promise.all([
+      LocalAuthentication.hasHardwareAsync(),
+      LocalAuthentication.getEnrolledLevelAsync(),
+    ]);
+    // No sensor or no device lock at all: the OS cannot verify anyone, so the gate cannot work.
+    if (!hasHardware || level === LocalAuthentication.SecurityLevel.NONE) {
       setIsBiometricLocked(false);
       return true;
     }

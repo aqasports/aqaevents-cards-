@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { coachApiClient } from "../../src/api/client";
 import { getBadgeImageSource } from "../../src/assets/badges";
 import {
@@ -17,7 +17,7 @@ import {
   AqaIslandButton,
   AqaNewClientBadge,
   AqaSegmentedControl,
-  LanguageSwitcherPill,
+  AqaScreenHeader,
 } from "../../src/components/AqaUi";
 import {
   normalizeMember,
@@ -31,7 +31,7 @@ import { aqaColors } from "../../src/theme/tokens";
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { t } = useCoachStore();
+  const { t, isRtl } = useCoachStore();
 
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<number>(0);
@@ -111,8 +111,9 @@ export default function GroupDetailScreen() {
   if (loading) {
     return (
       <AqaAmbientBackground>
+        <AqaScreenHeader title={t("common.loading")} />
         <View style={styles.center}>
-          <ActivityIndicator size="large" color={aqaColors.accent} />
+          <ActivityIndicator size="large" color={aqaColors.accent} accessibilityLabel={t("common.loading")} />
         </View>
       </AqaAmbientBackground>
     );
@@ -120,19 +121,12 @@ export default function GroupDetailScreen() {
 
   return (
     <AqaAmbientBackground>
-      <View style={styles.topHeader}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>{"<"}</Text>
-        </Pressable>
-        <Text numberOfLines={1} style={styles.headerTitle}>
-          {groupInfo.name}
-        </Text>
-        <LanguageSwitcherPill compact />
-      </View>
+      <AqaScreenHeader title={groupInfo.name} />
 
       <ScrollView contentContainerStyle={styles.container}>
         {isViewOnly ? (
           <View style={styles.viewOnlyBanner}>
+            <Ionicons name="eye-outline" size={18} color={aqaColors.warning} accessible={false} />
             <Text style={styles.viewOnlyText}>{t("common.view_only")}</Text>
           </View>
         ) : null}
@@ -149,9 +143,14 @@ export default function GroupDetailScreen() {
               </View>
             ) : null}
           </View>
-          <Text style={styles.poolScheduleText}>
-            {groupInfo.pool} • {groupInfo.startTime} - {groupInfo.endTime}
-          </Text>
+          <View style={styles.inlineRow}>
+            <Ionicons name="location-outline" size={16} color={aqaColors.textMuted} accessible={false} />
+            <Text style={styles.poolScheduleText}>{groupInfo.pool}</Text>
+            <Ionicons name="time-outline" size={16} color={aqaColors.textMuted} accessible={false} />
+            <Text style={styles.poolScheduleText}>
+              {groupInfo.startTime} - {groupInfo.endTime}
+            </Text>
+          </View>
           {staffList.length > 0 ? (
             <View style={styles.staffWrap}>
               {staffList.map((st, idx) => (
@@ -176,12 +175,34 @@ export default function GroupDetailScreen() {
           onValueChanged={setActiveTab}
         />
 
+        {activeTab === 0 && members.length === 0 ? (
+          <AqaDoubleBezelCard padding={28}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <Ionicons name="people-outline" size={36} color={aqaColors.textLight} accessible={false} />
+              <Text style={styles.emptyText}>{t("groups.empty_roster")}</Text>
+            </View>
+          </AqaDoubleBezelCard>
+        ) : null}
+        {activeTab === 1 && sessions.length === 0 ? (
+          <AqaDoubleBezelCard padding={28}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <Ionicons name="calendar-clear-outline" size={36} color={aqaColors.textLight} accessible={false} />
+              <Text style={styles.emptyText}>{t("groups.empty_sessions")}</Text>
+            </View>
+          </AqaDoubleBezelCard>
+        ) : null}
+
         {activeTab === 0 ? (
           members.map((m) => (
             <AqaDoubleBezelCard
               key={m.id}
               padding={13}
               onPress={() => router.push(`/members/${m.id}`)}
+              accessibilityLabel={`${m.fullName}, ${t("groups.attendance_rate", { rate: m.attendanceRate })}, ${t(
+                "groups.pres_abs_spoken",
+                { present: m.totalPresences, absent: m.totalAbsences }
+              )}`}
+              accessibilityHint={t("suivi.open_file")}
             >
               <View style={styles.swimmerRow}>
                 <View style={styles.mascotBox}>
@@ -226,11 +247,11 @@ export default function GroupDetailScreen() {
                         },
                       ]}
                     >
-                      Assiduite: {m.attendanceRate}%
+                      {t("groups.attendance_rate", { rate: m.attendanceRate })}
                     </Text>
                     <Text style={styles.metaDot}>•</Text>
                     <Text style={styles.presAbsText}>
-                      P: {m.totalPresences} | A: {m.totalAbsences}
+                      {t("groups.pres_abs", { present: m.totalPresences, absent: m.totalAbsences })}
                     </Text>
                     {m.totalDistanceMeters > 0 ? (
                       <>
@@ -243,7 +264,12 @@ export default function GroupDetailScreen() {
                   </View>
                 </View>
 
-                <Text style={styles.chevron}>{">"}</Text>
+                <Ionicons
+                  name={isRtl ? "chevron-back" : "chevron-forward"}
+                  size={20}
+                  color={aqaColors.textMuted}
+                  accessible={false}
+                />
               </View>
             </AqaDoubleBezelCard>
           ))
@@ -260,6 +286,7 @@ export default function GroupDetailScreen() {
                 {!isViewOnly ? (
                   <AqaIslandButton
                     label={t("today.quick_3_steps")}
+                    icon="flash"
                     compact
                     secondary
                     onPress={() => router.push(`/sessions/${s.id}?mode=quick`)}
@@ -268,6 +295,7 @@ export default function GroupDetailScreen() {
                 ) : null}
                 <AqaIslandButton
                   label={t("today.open_attendance")}
+                  icon="list"
                   compact
                   onPress={() => router.push(`/sessions/${s.id}`)}
                   style={{ flex: 1 }}
@@ -283,41 +311,10 @@ export default function GroupDetailScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#060B16",
-    borderBottomWidth: 1,
-    borderBottomColor: aqaColors.borderSubtle,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  backBtn: {
-    backgroundColor: "#0F172A",
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: aqaColors.borderSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backBtnText: {
-    color: aqaColors.accent,
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  headerTitle: {
-    flex: 1,
-    color: aqaColors.textPrimary,
-    fontSize: 15.5,
-    fontWeight: "800",
-  },
   container: {
     padding: 16,
     gap: 12,
-    paddingBottom: 90,
+    paddingBottom: 24,
   },
   viewOnlyBanner: {
     backgroundColor: "rgba(245, 158, 11, 0.14)",
@@ -325,6 +322,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: aqaColors.warning,
     padding: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   viewOnlyText: {
     color: aqaColors.warning,
@@ -353,13 +353,12 @@ const styles = StyleSheet.create({
   },
   catBadgeText: {
     color: aqaColors.primaryHover,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
   },
   poolScheduleText: {
     color: aqaColors.textMuted,
     fontSize: 12.5,
-    marginTop: 6,
   },
   staffWrap: {
     flexDirection: "row",
@@ -377,7 +376,7 @@ const styles = StyleSheet.create({
   },
   staffChipText: {
     color: aqaColors.textPrimary,
-    fontSize: 10.5,
+    fontSize: 12,
     fontWeight: "700",
   },
   swimmerRow: {
@@ -415,7 +414,7 @@ const styles = StyleSheet.create({
   },
   badgePillText: {
     color: aqaColors.primaryHover,
-    fontSize: 9,
+    fontSize: 12,
     fontWeight: "900",
   },
   statsRow: {
@@ -426,20 +425,20 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   rateText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   metaDot: {
     color: aqaColors.textLight,
-    fontSize: 10,
+    fontSize: 12,
   },
   presAbsText: {
     color: aqaColors.textMuted,
-    fontSize: 11,
+    fontSize: 12,
   },
   volText: {
     color: aqaColors.accent,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "800",
   },
   chevron: {
@@ -456,5 +455,18 @@ const styles = StyleSheet.create({
     color: aqaColors.textMuted,
     fontSize: 12,
     fontVariant: ["tabular-nums"],
+  },
+  inlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+    marginTop: 8,
+  },
+  emptyText: {
+    color: aqaColors.textMuted,
+    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 22,
   },
 });

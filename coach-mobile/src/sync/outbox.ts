@@ -111,10 +111,14 @@ export class CoachOfflineOutbox {
         }
       }
 
-      await this.writeList(OUTBOX_STORAGE_KEY, remaining);
+      // Keep mutations enqueued while this flush was running (they are not in the snapshot).
+      const snapshotIds = new Set(outbox.map((m) => m.id));
+      const addedDuringFlush = (await this.getOutbox()).filter((m) => !snapshotIds.has(m.id));
+      const finalQueue = [...remaining, ...addedDuringFlush];
+      await this.writeList(OUTBOX_STORAGE_KEY, finalQueue);
       await this.writeList(REJECTED_STORAGE_KEY, rejected);
 
-      return { accepted, rejected: newlyRejected, remaining: remaining.length };
+      return { accepted, rejected: newlyRejected, remaining: finalQueue.length };
     } finally {
       this.flushing = false;
     }

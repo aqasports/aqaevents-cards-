@@ -2,13 +2,13 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { coachApiClient } from "../../src/api/client";
 import {
   AQA_OFFICIAL_BADGES,
@@ -26,7 +26,7 @@ import {
   AqaNewClientBadge,
   AqaSectionHeader,
   AqaStrokeBar200,
-  LanguageSwitcherPill,
+  AqaScreenHeader,
 } from "../../src/components/AqaUi";
 import { normalizeMember, type SwimMemberSummary } from "../../src/contract";
 import { useCoachStore } from "../../src/state/CoachStore";
@@ -45,7 +45,7 @@ interface ReviewHistoryItem {
 export default function SwimmerProfileDossierScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { t, locale, bootstrap } = useCoachStore();
+  const { t, locale, bootstrap, isRtl } = useCoachStore();
 
   const [loading, setLoading] = useState(true);
   const [member, setMember] = useState<SwimMemberSummary | null>(null);
@@ -121,6 +121,7 @@ export default function SwimmerProfileDossierScreen() {
   if (loading || !member) {
     return (
       <AqaAmbientBackground>
+        <AqaScreenHeader title={t("common.loading")} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={aqaColors.accent} />
         </View>
@@ -139,20 +140,17 @@ export default function SwimmerProfileDossierScreen() {
   return (
     <AqaAmbientBackground>
       {/* Top Bar */}
-      <View style={styles.topHeader}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>{"<"}</Text>
-        </Pressable>
-        <Text numberOfLines={1} style={styles.headerTitle}>
-          Dossier Suivi Tech AQA
-        </Text>
-        <LanguageSwitcherPill compact />
-        <AqaIslandButton
-          label="Evaluer"
-          compact
-          onPress={() => router.push(`/members/${member.id}/review`)}
-        />
-      </View>
+      <AqaScreenHeader
+        title={t("member.file_title")}
+        rightSlot={
+          <AqaIslandButton
+            label={t("member.evaluate")}
+            icon="create-outline"
+            compact
+            onPress={() => router.push(`/members/${member.id}/review`)}
+          />
+        }
+      />
 
       <ScrollView contentContainerStyle={styles.container}>
         {/* 1. Hero Swimmer Dossier Card */}
@@ -219,13 +217,13 @@ export default function SwimmerProfileDossierScreen() {
               <Text style={[styles.kpiVal, { color: aqaColors.primaryHover }]}>
                 {member.attendanceRate}%
               </Text>
-              <Text style={styles.kpiCaption}>Assiduite</Text>
+              <Text style={styles.kpiCaption}>{t("member.kpi_rate")}</Text>
             </View>
             <View style={styles.kpiCell}>
               <Text style={[styles.kpiVal, { color: aqaColors.accent }]}>
                 {member.totalDistanceMeters}m
               </Text>
-              <Text style={styles.kpiCaption}>Volume</Text>
+              <Text style={styles.kpiCaption}>{t("member.kpi_volume")}</Text>
             </View>
           </View>
         </AqaDoubleBezelCard>
@@ -243,9 +241,9 @@ export default function SwimmerProfileDossierScreen() {
         {/* 3. 5-Axis Biomechanical Radar + 5 Stroke Progress Bars (0-200%) */}
         <AqaDoubleBezelCard padding={16}>
           <AqaSectionHeader
-            eyebrow="ANALYSE BIOMECANIQUE 5 AXES"
+            eyebrow={t("member.biomech_eyebrow")}
             title={t("suivi.bars_title")}
-            subtitle="0% - 100% Technique • 100% - 200% Elite (Endurance, Vitesse, Force)"
+            subtitle={t("member.bars_subtitle")}
           />
           <AqaBiomechanicalRadar bars={member.bars} locale={locale} />
           <View style={{ gap: 10, marginTop: 10 }}>
@@ -266,15 +264,15 @@ export default function SwimmerProfileDossierScreen() {
         {/* 4. Bilan & Records Metrics Grid */}
         <AqaDoubleBezelCard padding={16}>
           <AqaSectionHeader
-            eyebrow="BILAN PHYSIQUE & CHRONOMETRIQUE"
-            title="Records & Anthropometrie"
+            eyebrow={t("member.records_eyebrow")}
+            title={t("member.records_title")}
           />
           <View style={styles.metricsGrid}>
             <View style={styles.metricTile}>
               <Text style={[styles.metricValue, { color: aqaColors.accent }]}>
                 {member.totalDistanceMeters} m
               </Text>
-              <Text style={styles.metricLabel}>Volume Cumule</Text>
+              <Text style={styles.metricLabel}>{t("member.volume_total")}</Text>
             </View>
             <View style={styles.metricTile}>
               <Text
@@ -282,20 +280,20 @@ export default function SwimmerProfileDossierScreen() {
               >
                 {member.record50m != null ? `${member.record50m} s` : "--"}
               </Text>
-              <Text style={styles.metricLabel}>Record 50m</Text>
+              <Text style={styles.metricLabel}>{t("member.record_50m")}</Text>
             </View>
             <View style={styles.metricTile}>
               <Text style={[styles.metricValue, { color: aqaColors.accent }]}>
                 {member.recordApnea != null ? `${member.recordApnea} m` : "--"}
               </Text>
-              <Text style={styles.metricLabel}>Record Apnee</Text>
+              <Text style={styles.metricLabel}>{t("member.record_apnea")}</Text>
             </View>
             <View style={styles.metricTile}>
               <Text style={[styles.metricValue, { color: aqaColors.success }]}>
                 {member.weightKg != null ? `${member.weightKg} kg` : "--"} /{" "}
                 {member.heightCm != null ? `${member.heightCm} cm` : "--"}
               </Text>
-              <Text style={styles.metricLabel}>Poids / Taille</Text>
+              <Text style={styles.metricLabel}>{t("member.weight_height")}</Text>
             </View>
           </View>
         </AqaDoubleBezelCard>
@@ -303,8 +301,8 @@ export default function SwimmerProfileDossierScreen() {
         {/* 5. 6-Stage Pedagogical Pathway Roadmap */}
         <AqaDoubleBezelCard padding={16}>
           <AqaSectionHeader
-            eyebrow="PARCOURS PEDAGOGIQUE AQA"
-            title="Progression des 6 Paliers"
+            eyebrow={t("member.path_eyebrow")}
+            title={t("member.path_title")}
           />
           <ScrollView
             horizontal
@@ -317,7 +315,17 @@ export default function SwimmerProfileDossierScreen() {
                 activeStageIndex >= 0 ? idx <= activeStageIndex : idx === 0;
               return (
                 <React.Fragment key={stage.key}>
-                  <View style={styles.roadmapNode}>
+                  <View
+                    style={styles.roadmapNode}
+                    accessible
+                    accessibilityLabel={`${getStageLabel(stage, locale)}${
+                      isCurrent
+                        ? `, ${t("member.stage_current")}`
+                        : isReached
+                        ? `, ${t("member.stage_reached")}`
+                        : ""
+                    }`}
+                  >
                     <View
                       style={[
                         styles.roadmapCircle,
@@ -345,7 +353,13 @@ export default function SwimmerProfileDossierScreen() {
                     </Text>
                   </View>
                   {idx < AQA_PEDAGOGICAL_STAGES.length - 1 ? (
-                    <Text style={styles.roadmapArrow}>{">"}</Text>
+                    <Ionicons
+                      name={isRtl ? "chevron-back" : "chevron-forward"}
+                      size={16}
+                      color={aqaColors.textMuted}
+                      style={styles.roadmapArrow}
+                      accessible={false}
+                    />
                   ) : null}
                 </React.Fragment>
               );
@@ -356,9 +370,9 @@ export default function SwimmerProfileDossierScreen() {
         {/* 6. 15 Official AQA Suivi Badges Trophy Grid */}
         <AqaDoubleBezelCard padding={16}>
           <AqaSectionHeader
-            eyebrow="TROPHY ROOM AQA SWIM"
-            title="15 Badges Officiels AQA"
-            subtitle={`${unlockedSet.size} / 15 badges debloques`}
+            eyebrow={t("member.trophy_eyebrow")}
+            title={t("member.trophy_title")}
+            subtitle={t("member.badges_unlocked", { count: unlockedSet.size })}
           />
           <View style={styles.badgeTrophyGrid}>
             {AQA_OFFICIAL_BADGES.map((badge) => {
@@ -368,18 +382,26 @@ export default function SwimmerProfileDossierScreen() {
               return (
                 <View
                   key={badge.key}
+                  accessible
+                  accessibilityLabel={`${getBadgeLabel(badge, locale)}, ${
+                    unlocked ? t("member.badge_unlocked") : t("member.badge_locked")
+                  }`}
                   style={[
                     styles.trophyCell,
                     unlocked && styles.trophyCellUnlocked,
                     isCurrent && styles.trophyCellCurrent,
-                    !unlocked && { opacity: 0.38 },
                   ]}
                 >
                   <Image
                     source={getBadgeImageSource(badge.asset)}
-                    style={styles.trophyImg}
+                    style={[styles.trophyImg, !unlocked && { opacity: 0.35 }]}
                     resizeMode="contain"
                   />
+                  {!unlocked ? (
+                    <View style={styles.trophyLock}>
+                      <Ionicons name="lock-closed" size={12} color={aqaColors.textMuted} />
+                    </View>
+                  ) : null}
                   <Text numberOfLines={1} style={styles.trophyName}>
                     {getBadgeLabel(badge, locale)}
                   </Text>
@@ -391,9 +413,17 @@ export default function SwimmerProfileDossierScreen() {
 
         {/* 7. Evaluation History Timeline */}
         <AqaSectionHeader
-          eyebrow="HISTORIQUE SUIVI TECH"
-          title={`Evaluations (${reviews.length})`}
+          eyebrow={t("member.history_eyebrow")}
+          title={t("member.reviews_count", { count: reviews.length })}
         />
+        {reviews.length === 0 ? (
+          <AqaDoubleBezelCard padding={24}>
+            <View style={{ alignItems: "center", gap: 10 }}>
+              <Ionicons name="document-text-outline" size={32} color={aqaColors.textLight} accessible={false} />
+              <Text style={styles.emptyText}>{t("member.empty_history")}</Text>
+            </View>
+          </AqaDoubleBezelCard>
+        ) : null}
         {reviews.map((rev) => (
           <AqaDoubleBezelCard key={rev.id} padding={14}>
             <View style={styles.rowBetween}>
@@ -413,7 +443,9 @@ export default function SwimmerProfileDossierScreen() {
                 </View>
               </View>
             </View>
-            <Text style={styles.revCoach}>Evaluateur: {rev.coachName}</Text>
+            <Text style={styles.revCoach}>
+              {t("member.evaluator")}: {rev.coachName}
+            </Text>
             {rev.evaluatorNotes ? (
               <View style={styles.revNotesBox}>
                 <Text style={styles.revNotesText}>{rev.evaluatorNotes}</Text>
@@ -424,6 +456,7 @@ export default function SwimmerProfileDossierScreen() {
 
         <AqaIslandButton
           label={t("suivi.new_review")}
+          icon="add-circle-outline"
           onPress={() => router.push(`/members/${member.id}/review`)}
           style={{ marginTop: 8 }}
         />
@@ -434,41 +467,10 @@ export default function SwimmerProfileDossierScreen() {
 
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#060B16",
-    borderBottomWidth: 1,
-    borderBottomColor: aqaColors.borderSubtle,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  backBtn: {
-    backgroundColor: "#0F172A",
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: aqaColors.borderSubtle,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  backBtnText: {
-    color: aqaColors.accent,
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  headerTitle: {
-    flex: 1,
-    color: aqaColors.textPrimary,
-    fontSize: 15,
-    fontWeight: "800",
-  },
   container: {
     padding: 16,
     gap: 14,
-    paddingBottom: 100,
+    paddingBottom: 24,
   },
   heroTopRow: {
     flexDirection: "row",
@@ -540,7 +542,7 @@ const styles = StyleSheet.create({
   },
   badgeChipText: {
     color: aqaColors.primaryHover,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
   },
   stageChip: {
@@ -553,7 +555,7 @@ const styles = StyleSheet.create({
   },
   stageChipText: {
     color: aqaColors.accent,
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "900",
   },
   kpiGrid: {
@@ -578,13 +580,13 @@ const styles = StyleSheet.create({
   },
   kpiCaption: {
     color: aqaColors.textMuted,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 2,
   },
   coachWordTitle: {
     color: aqaColors.accent,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -617,7 +619,7 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: aqaColors.textMuted,
-    fontSize: 10.5,
+    fontSize: 12,
     fontWeight: "700",
     marginTop: 3,
   },
@@ -653,7 +655,7 @@ const styles = StyleSheet.create({
   },
   roadmapLabel: {
     color: aqaColors.textMuted,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -678,6 +680,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     alignItems: "center",
     gap: 5,
+    position: "relative",
   },
   trophyCellUnlocked: {
     borderColor: "rgba(56, 189, 248, 0.4)",
@@ -692,7 +695,7 @@ const styles = StyleSheet.create({
   },
   trophyName: {
     color: aqaColors.textPrimary,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "800",
     textAlign: "center",
   },
@@ -714,7 +717,7 @@ const styles = StyleSheet.create({
   },
   revVolChipText: {
     color: aqaColors.accent,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   revLevelChip: {
@@ -725,12 +728,12 @@ const styles = StyleSheet.create({
   },
   revLevelChipText: {
     color: aqaColors.primaryHover,
-    fontSize: 9.5,
+    fontSize: 12,
     fontWeight: "900",
   },
   revCoach: {
     color: aqaColors.textMuted,
-    fontSize: 11.5,
+    fontSize: 12,
     marginTop: 4,
   },
   revNotesBox: {
@@ -743,5 +746,22 @@ const styles = StyleSheet.create({
     color: aqaColors.textPrimary,
     fontSize: 12,
     lineHeight: 17,
+  },
+  trophyLock: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: aqaColors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    color: aqaColors.textMuted,
+    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 22,
   },
 });
