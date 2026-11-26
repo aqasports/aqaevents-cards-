@@ -23,6 +23,12 @@ vi.mock("@/lib/rate-limit", () => ({
   getClientIp: vi.fn(() => "127.0.0.1"),
 }));
 
+vi.mock("@/lib/coach-lockout", () => ({
+  isCoachLockedOut: vi.fn().mockResolvedValue(false),
+  recordCoachFailure: vi.fn().mockResolvedValue(undefined),
+  clearCoachFailures: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     platformSetting: {
@@ -72,6 +78,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     swimSession: {
       findMany: vi.fn().mockResolvedValue([]),
+      groupBy: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
@@ -83,6 +90,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     swimAttendance: {
       upsert: vi.fn().mockResolvedValue({ id: "att_1" }),
+      groupBy: vi.fn().mockResolvedValue([]),
     },
     swimTechReview: {
       upsert: vi.fn().mockResolvedValue({ id: "rev_1" }),

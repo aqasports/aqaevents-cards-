@@ -18,6 +18,7 @@ vi.mock("@/lib/prisma", () => ({
     },
     swimSession: {
       findMany: vi.fn(),
+      groupBy: vi.fn(),
     },
   },
 }));
@@ -34,7 +35,8 @@ describe("resolveCoachGroupIds RBAC fail-closed behavior", () => {
     ] as never);
     vi.mocked(prisma.swimGroupStaff.findMany).mockResolvedValue([]);
     vi.mocked(prisma.swimReplacement.findMany).mockResolvedValue([]);
-    vi.mocked(prisma.swimSession.findMany).mockResolvedValue([]);
+    // resolveCoachGroupIds now uses groupBy (SQL GROUP BY) for the coach's past sessions.
+    vi.mocked(prisma.swimSession.groupBy).mockResolvedValue([] as never);
 
     const result = await resolveCoachGroupIds({
       coachId: "coach-unassigned",

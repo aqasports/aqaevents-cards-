@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const { client, error } = await requireClientSession(request);
+  const { client, error, authMethod } = await requireClientSession(request);
   if (error || !client) {
     return error ?? NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -60,17 +60,26 @@ export async function GET(request: NextRequest) {
 
     const creditBalance = await getClientEffectiveBalance(fullClient.id);
 
+    // A QR card token is a read-only view: never return contact details or tokens through it.
+    const viaCardToken = authMethod === "card";
+
     return NextResponse.json({
       client: {
         id: fullClient.id,
         fullName: fullClient.fullName,
-        email: fullClient.email,
-        phone: fullClient.phone,
+        ...(viaCardToken ? {} : { email: fullClient.email, phone: fullClient.phone }),
         customerSegment: fullClient.customerSegment,
         organization: fullClient.organization,
       },
       creditBalance,
-      cards: fullClient.cards,
+      cards: viaCardToken
+        ? fullClient.cards.map((card) => ({
+            id: card.id,
+            cardCode: card.cardCode,
+            status: card.status,
+            issuedAt: card.issuedAt,
+          }))
+        : fullClient.cards,
       ledgerEntries: fullClient.ledgerEntries,
       redemptions: fullClient.redemptions,
     });

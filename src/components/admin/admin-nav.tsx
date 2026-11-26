@@ -640,10 +640,13 @@ function AdminNavInner() {
             {t(group.groupKey)}
           </p>
           <div className="flex flex-col gap-0.5">
+            {/* prefetch={false} on every nav link: prefetching ~20 dynamic admin pages at once
+                started a burst of server instances on each page load and slowed the real requests. */}
             {group.items.map((link) => {
               const active = isActive(link.href);
               return (
                 <Link
+                  prefetch={false}
                   key={`${group.groupKey}-${link.key}-${link.href}`}
                   href={link.href}
                   onClick={() => isMobile && setMobileOpen(false)}
@@ -676,7 +679,7 @@ function AdminNavInner() {
         {/* Top Header, Brand & Filiere Switcher */}
         <div className="p-4 border-b border-[var(--border)] space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <Link href="/admin" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <Link prefetch={false} href="/admin" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
               <img src="/aqa-logo.png" alt="AQA ERP Logo" className="h-8 w-auto object-contain shrink-0" />
               <div>
                 <p className="text-[11px] font-black uppercase tracking-widest text-[var(--accent)] leading-none">
@@ -765,7 +768,7 @@ function AdminNavInner() {
             </svg>
           </button>
 
-          <Link href="/admin" className="flex items-center gap-2">
+          <Link prefetch={false} href="/admin" className="flex items-center gap-2">
             <img src="/aqa-logo.png" alt="AQA ERP Logo" className="h-6 w-auto object-contain shrink-0" />
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm text-[var(--foreground)] tracking-tight">AQA ERP</span>
@@ -811,6 +814,7 @@ function AdminNavInner() {
         <div className="grid grid-cols-5 items-center justify-around px-1 pt-1.5">
           {/* 1. Hub */}
           <Link
+            prefetch={false}
             href="/admin"
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all touch-manipulation cursor-pointer active:scale-90 ${
               pathname === "/admin" && !searchParams?.get("view")
@@ -830,6 +834,7 @@ function AdminNavInner() {
 
           {/* 2. Academy */}
           <Link
+            prefetch={false}
             href="/admin/swim"
             className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-all touch-manipulation cursor-pointer active:scale-90 ${
               pathname.startsWith("/admin/swim") || pathname.startsWith("/admin/academy")
@@ -854,6 +859,7 @@ function AdminNavInner() {
 
           {/* 3. Redeem Center Action (Primary POS Action Button) */}
           <Link
+            prefetch={false}
             href="/admin/redeem"
             aria-label="Redeem & Scanner"
             className="flex flex-col items-center justify-center -mt-4 touch-manipulation cursor-pointer active:scale-95 group"
@@ -870,6 +876,7 @@ function AdminNavInner() {
 
           {/* 4. Events & Clients */}
           <Link
+            prefetch={false}
             href="/admin/clients"
             className={`relative flex flex-col items-center justify-center py-1 rounded-xl transition-all touch-manipulation cursor-pointer active:scale-90 ${
               pathname.startsWith("/admin/clients") || pathname.startsWith("/admin/events") || searchParams?.get("view") === "events"

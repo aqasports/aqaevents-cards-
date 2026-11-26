@@ -116,38 +116,94 @@ export default async function AdminDashboardPage() {
       swimGearRevenue += sale.sellPrice * qty;
     }
 
-    // 2. Compute Activities metrics
-    const popularActivities = await prisma.redemption.groupBy({
-      by: ["activityId"],
-      _count: { activityId: true },
-      orderBy: {
-        _count: { activityId: "desc" },
-      },
-      take: 1,
-    });
-
-    let popularActivityName = "None";
-    if (popularActivities.length > 0) {
-      const act = await prisma.activity.findUnique({
-        where: { id: popularActivities[0].activityId },
-        select: { name: true },
-      });
-      if (act) {
-        popularActivityName = `${act.name} (${popularActivities[0]._count.activityId})`;
-      }
-    }
-
-    const activeSessions = await prisma.activitySession.findMany({
-      where: {
-        active: true,
-        capacity: { not: null, gt: 0 },
-      },
-      include: {
-        _count: {
-          select: { redemptions: true },
+    // 2-4. These queries do not depend on each other, so they share one round trip
+    //      (they used to run one after another). Only the activity name lookup needs
+    //      the groupBy result, so it is chained inside its own branch.
+    const [
+      popularActivityName,
+      activeSessions,
+      returningClientsCount,
+      recentRedemptions,
+      lowBalanceClients,
+    ] = await Promise.all([
+      prisma.redemption
+        .groupBy({
+          by: ["activityId"],
+          _count: { activityId: true },
+          orderBy: {
+            _count: { activityId: "desc" },
+          },
+          take: 1,
+        })
+        .then(async (popularActivities) => {
+          if (popularActivities.length === 0) return "None";
+          const act = await prisma.activity.findUnique({
+            where: { id: popularActivities[0].activityId },
+            select: { name: true },
+          });
+          return act ? `${act.name} (${popularActivities[0]._count.activityId})` : "None";
+        }),
+      prisma.activitySession.findMany({
+        where: {
+          active: true,
+          capacity: { not: null, gt: 0 },
         },
-      },
-    });
+        include: {
+          _count: {
+            select: { redemptions: true },
+          },
+        },
+      }),
+      prisma.invoice
+        .groupBy({
+          by: ["clientId"],
+          where: { status: "paid" },
+          _count: { clientId: true },
+          having: {
+            clientId: {
+              _count: { gt: 1 },
+            },
+          },
+        })
+        .then((groups) => groups.length)
+        .catch((err) => {
+          console.error("[Dashboard] Failed to query returning clients count:", err);
+          return 0;
+        }),
+      // Fetch Recent Redemptions & Low Balance Clients for existing list UI
+      prisma.redemption.findMany({
+        include: {
+          client: { select: { fullName: true, id: true } },
+          activity: { select: { name: true } },
+          session: { select: { sessionDate: true } },
+          checkIns: {
+            select: { scannedAt: true, status: true },
+            orderBy: { scannedAt: "desc" },
+            take: 1,
+          },
+        },
+        orderBy: { redeemedAt: "desc" },
+        take: 8,
+      }),
+      prisma.client.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          fullName: true,
+          email: true,
+          phone: true,
+          ledgerEntries: {
+            select: { delta: true },
+          },
+          cards: {
+            where: { status: "active" },
+            take: 1,
+            select: { cardCode: true },
+          },
+        },
+      }),
+    ]);
 
     let totalBookings = 0;
     let totalCapacity = 0;
@@ -157,60 +213,7 @@ export default async function AdminDashboardPage() {
     }
     const attendanceRate = totalCapacity > 0 ? Math.round((totalBookings / totalCapacity) * 100) : 0;
     const utilizationRate = creditsSold > 0 ? Math.round((creditsUsed / creditsSold) * 100) : 0;
-
-    // 3. Compute Clients metrics (efficient DB groupBy)
-    let returningClientsCount = 0;
-    try {
-      const returningClientsGroups = await prisma.invoice.groupBy({
-        by: ["clientId"],
-        where: { status: "paid" },
-        _count: { clientId: true },
-        having: {
-          clientId: {
-            _count: { gt: 1 },
-          },
-        },
-      });
-      returningClientsCount = returningClientsGroups.length;
-    } catch (err) {
-      console.error("[Dashboard] Failed to query returning clients count:", err);
-    }
     const soldCreditRevenue = Math.round(creditsSold * creditRate);
-
-    // 4. Fetch Recent Redemptions & Low Balance Clients for existing list UI
-    const recentRedemptions = await prisma.redemption.findMany({
-      include: {
-        client: { select: { fullName: true, id: true } },
-        activity: { select: { name: true } },
-        session: { select: { sessionDate: true } },
-        checkIns: {
-          select: { scannedAt: true, status: true },
-          orderBy: { scannedAt: "desc" },
-          take: 1,
-        },
-      },
-      orderBy: { redeemedAt: "desc" },
-      take: 8,
-    });
-
-    const lowBalanceClients = await prisma.client.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        fullName: true,
-        email: true,
-        phone: true,
-        ledgerEntries: {
-          select: { delta: true },
-        },
-        cards: {
-          where: { status: "active" },
-          take: 1,
-          select: { cardCode: true },
-        },
-      },
-    });
 
     const lowBalance = lowBalanceClients
       .map((client) => ({

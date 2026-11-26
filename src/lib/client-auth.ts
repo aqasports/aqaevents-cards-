@@ -201,7 +201,9 @@ export async function verifyMagicPin(
   };
 }
 
-export async function requireClientSession(request: NextRequest): Promise<{ client: any; error: NextResponse | null }> {
+export async function requireClientSession(
+  request: NextRequest
+): Promise<{ client: any; error: NextResponse | null; authMethod?: "session" | "card" }> {
   const authHeader = request.headers.get("authorization");
   const tokenCookie = request.cookies.get("client_token")?.value;
   const rawToken = authHeader ? authHeader.replace(/^Bearer\s+/i, "").trim() : tokenCookie;
@@ -211,6 +213,7 @@ export async function requireClientSession(request: NextRequest): Promise<{ clie
     null;
 
   let clientId: string | null = null;
+  let authMethod: "session" | "card" = "session";
 
   if (rawToken && rawToken.startsWith("cli_")) {
     const verified = verifyClientToken(rawToken);
@@ -230,6 +233,7 @@ export async function requireClientSession(request: NextRequest): Promise<{ clie
     });
     if (card && card.status === "active" && card.clientId) {
       clientId = card.clientId;
+      authMethod = "card";
     }
   }
 
@@ -264,5 +268,5 @@ export async function requireClientSession(request: NextRequest): Promise<{ clie
     };
   }
 
-  return { client, error: null };
+  return { client, error: null, authMethod };
 }

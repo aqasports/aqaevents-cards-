@@ -6,6 +6,7 @@ import { logAdminAction } from "@/lib/audit";
 import { verifyPassword, createCoachAuthSession } from "@/lib/coach-auth";
 import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { getFlag } from "@/lib/feature-flags";
+import { isCoachLockedOut, recordCoachFailure, clearCoachFailures } from "@/lib/coach-lockout";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,9 @@ export async function OPTIONS() {
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(4),
+  // Keep this lenient: existing accounts may have short legacy passwords and must still sign in.
+  // The length policy is enforced where passwords are created (admin staff route).
+  password: z.string().min(1).max(256),
   platform: z.string().optional(),
   deviceLabel: z.string().optional(),
   appVersion: z.string().optional(),
@@ -66,6 +69,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Per-account lockout (in addition to the per-IP limit above), to slow distributed guessing.
+    if (await isCoachLockedOut(email)) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please wait 15 minutes." },
+        { status: 429, headers: corsHeaders }
+      );
+    }
+
     // Store-review accounts are created by an admin from the ERP, never auto-provisioned here.
     const account = await prisma.coachAccount.findUnique({
       where: { email },
@@ -74,6 +85,7 @@ export async function POST(req: NextRequest) {
 
     if (!account || !account.loginEnabled || !account.coach.active) {
       // Timing safe delay
+      await recordCoachFailure(email);
       await new Promise((r) => setTimeout(r, 600));
       return NextResponse.json(
         { error: "Invalid email or password." },
@@ -83,6 +95,7 @@ export async function POST(req: NextRequest) {
 
     const passwordValid = await verifyPassword(parsed.data.password, account.passwordHash);
     if (!passwordValid) {
+      await recordCoachFailure(email);
       await logAdminAction(
         null,
         "COACH_LOGIN_FAILED",
@@ -94,6 +107,8 @@ export async function POST(req: NextRequest) {
         { status: 401, headers: corsHeaders }
       );
     }
+
+    await clearCoachFailures(email);
 
     // Update lastLoginAt
     await prisma.coachAccount.update({

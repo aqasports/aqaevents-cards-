@@ -17,6 +17,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const trimmed = phone.trim();
+  if (trimmed.length <= 4) return "****";
+  return `${trimmed.slice(0, 3)}****${trimmed.slice(-2)}`;
+}
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -30,6 +37,18 @@ export async function POST(request: NextRequest) {
   });
 
   if (limited) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: corsHeaders }
+    );
+  }
+
+  // Hourly cap slows down id enumeration; a real member needs only a few lookups.
+  const { limited: hourlyLimited } = await checkAndIncrement(
+    `public-inscriptions-verify-hour:${ip}`,
+    { windowMs: 60 * 60_000, max: 60 }
+  );
+  if (hourlyLimited) {
     return NextResponse.json(
       { error: "Too many requests" },
       { status: 429, headers: corsHeaders }
@@ -53,7 +72,7 @@ export async function POST(request: NextRequest) {
       cleanDigits.length === 6 ? `SWM-${cleanDigits}` : cleanUpper;
 
     // 1. Try direct exact match on swimId, internal id, card.cardCode, or card.publicToken
-    let member = await prisma.swimMember.findFirst({
+    const member = await prisma.swimMember.findFirst({
       where: {
         OR: [
           { swimId: { equals: cleanUpper, mode: "insensitive" } },
@@ -72,73 +91,6 @@ export async function POST(request: NextRequest) {
       },
       include: { group: true, card: true },
     });
-
-    // 2. Fallback search across SwimMember by swimId/cardCode suffix (>= 4 chars/digits) or phone digits
-    if (!member) {
-      const suffixToken =
-        cleanDigits.length >= 4 ? cleanDigits : cleanUpper.replace(/^SWM-?/i, "");
-      const orConditions: Record<string, unknown>[] = [
-        { swimId: { equals: cleanUpper, mode: "insensitive" } },
-      ];
-      if (suffixToken.length >= 4) {
-        orConditions.push(
-          { swimId: { endsWith: suffixToken, mode: "insensitive" } },
-          {
-            card: {
-              cardCode: { endsWith: suffixToken, mode: "insensitive" },
-            },
-          }
-        );
-      }
-      if (cleanDigits.length >= 8) {
-        const last8 = cleanDigits.slice(-8);
-        orConditions.push({
-          phone: { contains: last8 },
-        });
-      }
-
-      const candidates = await prisma.swimMember.findMany({
-        where: { OR: orConditions },
-        include: { group: true, card: true },
-        take: 50,
-      });
-
-      member =
-        candidates.find((m) => {
-          const sId = m.swimId.toUpperCase();
-          const sDigits = sId.replace(/\D/g, "");
-          const cCode = (m.card?.cardCode || "").toUpperCase();
-          const cDigits = cCode.replace(/\D/g, "");
-          const mPhone = m.phone.replace(/\D/g, "");
-
-          if (
-            sId === cleanUpper ||
-            sId === formattedSwmCode ||
-            cCode === cleanUpper ||
-            cCode === formattedSwmCode
-          ) {
-            return true;
-          }
-          if (
-            suffixToken.length >= 4 &&
-            (sId.endsWith(suffixToken) ||
-              (cCode && cCode.endsWith(suffixToken)) ||
-              (cleanDigits.length >= 4 &&
-                (sDigits.endsWith(cleanDigits) ||
-                  (cDigits && cDigits.endsWith(cleanDigits)))))
-          ) {
-            return true;
-          }
-          if (
-            cleanDigits.length >= 8 &&
-            mPhone.length >= 8 &&
-            (mPhone.endsWith(cleanDigits) || cleanDigits.endsWith(mPhone))
-          ) {
-            return true;
-          }
-          return false;
-        }) ?? null;
-    }
 
     if (!member) {
       return NextResponse.json(
@@ -291,7 +243,7 @@ export async function POST(request: NextRequest) {
           dbId: member.id,
           fullName: member.fullName,
           firstName,
-          phone: member.phone,
+          phone: maskPhone(member.phone),
           category: member.category,
           level: member.level,
           pool: "reghaia",

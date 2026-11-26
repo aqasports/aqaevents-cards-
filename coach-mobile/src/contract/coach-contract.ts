@@ -51,7 +51,7 @@ export type HonorBadgeType = z.infer<typeof honorBadgeTypeSchema>;
 
 export const coachLoginRequestSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(4),
+  password: z.string().min(1).max(256),
   platform: z.enum(["android", "ios", "web"]).optional(),
   deviceLabel: z.string().max(120).optional(),
   appVersion: z.string().max(40).optional(),

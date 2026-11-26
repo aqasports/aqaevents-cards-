@@ -131,8 +131,11 @@ export async function PUT(
     if (role !== "head_coach") {
       const sessionDateStr = session.sessionDate.toISOString().split("T")[0];
       const [startH, startM] = session.startTime.split(":").map(Number);
-      const sessionStart = new Date(sessionDateStr);
-      sessionStart.setHours(startH || 0, startM || 0, 0, 0);
+      // startTime is Algeria local time (UTC+1, no daylight saving). Build the instant explicitly
+      // so the result does not depend on the server time zone (Netlify runs in UTC).
+      const hh = String(startH || 0).padStart(2, "0");
+      const mm = String(startM || 0).padStart(2, "0");
+      const sessionStart = new Date(`${sessionDateStr}T${hh}:${mm}:00+01:00`);
       const oneHourAfterStart = new Date(sessionStart.getTime() + 60 * 60 * 1000);
       const now = new Date();
 

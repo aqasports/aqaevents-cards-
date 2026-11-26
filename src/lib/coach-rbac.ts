@@ -59,14 +59,16 @@ export async function resolveCoachGroupIds(ctx: CoachContext): Promise<string[]>
           substituteCoachId: ctx.coachId,
           status: { in: ["accepted", "assigned"] },
         },
-        include: { session: { select: { groupId: true } } },
+        // Only the group id is needed, not the whole replacement row.
+        select: { session: { select: { groupId: true } } },
       }),
-      prisma.swimSession.findMany({
+      // SQL GROUP BY: Prisma applies `distinct` in memory, so findMany + distinct downloaded
+      // every session this coach has ever run on each request.
+      prisma.swimSession.groupBy({
+        by: ["groupId"],
         where: {
           actualCoachId: ctx.coachId,
         },
-        select: { groupId: true },
-        distinct: ["groupId"],
       }),
     ]);
 

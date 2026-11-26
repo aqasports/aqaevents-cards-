@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireCoachSession } from "@/lib/coach-auth";
 import { resolveCoachGroupIds } from "@/lib/coach-rbac";
@@ -68,8 +69,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Fetch groups, sessions, replacements, absences, active coaches, swimmers, app flag, and honor status in parallel
-    const [groups, sessions, allReplacements, myAbsences, allCoaches, rawSwimmers, rawSettings, isAppEnabled, honorLockStatus] =
+    // Same swimmer scope for the roster query and the attendance counts below.
+    const memberScopeWhere: Prisma.SwimMemberWhereInput = {
+      OR: [
+        { groupId: { in: groupIds } },
+        { notes: { contains: "[GROUPS:" } },
+      ],
+      groupStatus: { not: "rejected" },
+    };
+
+    // 3. Fetch groups, sessions, replacements, absences, active coaches, swimmers, app flag, honor status
+    //    and per-swimmer attendance counts in parallel
+    const [
+      groups,
+      sessions,
+      allReplacements,
+      myAbsences,
+      allCoaches,
+      rawSwimmers,
+      rawSettings,
+      isAppEnabled,
+      honorLockStatus,
+      attendanceGroups,
+    ] =
       await Promise.all([
         prisma.swimGroup.findMany({
           where: { id: { in: groupIds } },
@@ -167,13 +189,7 @@ export async function GET(req: NextRequest) {
         }),
         groupIds.length > 0
           ? prisma.swimMember.findMany({
-              where: {
-                OR: [
-                  { groupId: { in: groupIds } },
-                  { notes: { contains: "[GROUPS:" } },
-                ],
-                groupStatus: { not: "rejected" },
-              },
+              where: memberScopeWhere,
               select: {
                 id: true,
                 swimId: true,
@@ -185,9 +201,8 @@ export async function GET(req: NextRequest) {
                 groupId: true,
                 notes: true,
                 group: { select: { id: true, name: true } },
-                attendances: {
-                  select: { status: true },
-                },
+                // Attendance history is no longer downloaded here: it grew every week and was only
+                // used for counts, which now come from the SQL groupBy below.
                 techReviews: {
                   orderBy: { createdAt: "desc" },
                   take: 2,
@@ -211,23 +226,76 @@ export async function GET(req: NextRequest) {
         }),
         getFlag("coach_app_enabled", true),
         getCurrentHonorLockStatus(),
+        // One row per (swimmer, status) with a count, computed in SQL.
+        groupIds.length > 0
+          ? prisma.swimAttendance.groupBy({
+              by: ["memberId", "status"],
+              where: { member: memberScopeWhere },
+              _count: { _all: true },
+            })
+          : Promise.resolve([] as Array<{ memberId: string; status: string; _count: { _all: number } }>),
       ]);
 
-    // 4. Hydrate session ratings stored in AuditLog
+    // present + late count as present; absent + excused count as absent (same rule as before).
+    const attendanceByMemberId = new Map<string, { presences: number; absences: number }>();
+    for (const row of attendanceGroups) {
+      const entry = attendanceByMemberId.get(row.memberId) ?? { presences: 0, absences: 0 };
+      if (row.status === "present" || row.status === "late") {
+        entry.presences += row._count._all;
+      } else if (row.status === "absent" || row.status === "excused") {
+        entry.absences += row._count._all;
+      }
+      attendanceByMemberId.set(row.memberId, entry);
+    }
+    const attendanceFor = (memberId: string) =>
+      attendanceByMemberId.get(memberId) ?? { presences: 0, absences: 0 };
+
+    // Filter rawSwimmers so multi-group candidates belong to at least one of this coach's groupIds
+    const groupIdSet = new Set(groupIds);
+    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+    const scopedRawSwimmers = rawSwimmers.filter((m) => {
+      if (m.groupId && groupIdSet.has(m.groupId)) return true;
+      const assignedIds = decodeMemberGroupIds(m.notes, m.groupId);
+      return assignedIds.some((gid) => groupIdSet.has(gid));
+    });
+
+    const scopedMemberIds = scopedRawSwimmers.map((m) => m.id);
+    const attendanceCountByMemberId = new Map<string, number>();
+    const multiGroupMemberIds = new Set<string>();
+
+    for (const m of scopedRawSwimmers) {
+      const { presences, absences } = attendanceFor(m.id);
+      attendanceCountByMemberId.set(m.id, presences + absences);
+
+      const assignedGroupIds = decodeMemberGroupIds(m.notes, m.groupId);
+      if (assignedGroupIds.length > 1) {
+        multiGroupMemberIds.add(m.id);
+      }
+    }
+
+    // 4. Session ratings (AuditLog) and swimmer notifications are independent: one round trip for both.
     const sessionIds = sessions.map((s) => s.id);
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const ratingLogs =
-      sessionIds.length > 0
-        ? await prisma.auditLog.findMany({
-            where: {
-              action: "COACH_SESSION_RATING",
-              target: { in: sessionIds },
-              createdAt: { gte: thirtyDaysAgo },
-            },
-            orderBy: { createdAt: "desc" },
-            take: sessionIds.length * 2,
-          })
-        : [];
+    const [ratingLogs, { movedMemberIds, newClientMemberIds, coachNotifications }] =
+      await Promise.all([
+        sessionIds.length > 0
+          ? prisma.auditLog.findMany({
+              where: {
+                action: "COACH_SESSION_RATING",
+                target: { in: sessionIds },
+                createdAt: { gte: thirtyDaysAgo },
+              },
+              orderBy: { createdAt: "desc" },
+              take: sessionIds.length * 2,
+            })
+          : Promise.resolve([]),
+        loadCoachSwimmerBootstrapData({
+          groupIds,
+          scopedMemberIds,
+          attendanceCountByMemberId,
+          multiGroupMemberIds,
+        }),
+      ]);
 
     const ratingBySessionId = new Map<string, Record<string, unknown>>();
     for (const log of ratingLogs) {
@@ -402,51 +470,9 @@ export async function GET(req: NextRequest) {
       .filter((r) => r.status !== "proposed" || r.originalCoachId === coach.id)
       .map(shapeReplacement);
 
-    // Filter rawSwimmers so multi-group candidates belong to at least one of this coach's groupIds
-    const groupIdSet = new Set(groupIds);
-    const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
-    const scopedRawSwimmers = rawSwimmers.filter((m) => {
-      if (m.groupId && groupIdSet.has(m.groupId)) return true;
-      const assignedIds = decodeMemberGroupIds(m.notes, m.groupId);
-      return assignedIds.some((gid) => groupIdSet.has(gid));
-    });
-
-    const scopedMemberIds = scopedRawSwimmers.map((m) => m.id);
-    const attendanceCountByMemberId = new Map<string, number>();
-    const multiGroupMemberIds = new Set<string>();
-
-    for (const m of scopedRawSwimmers) {
-      const presences = m.attendances.filter(
-        (a) => a.status === "present" || a.status === "late"
-      ).length;
-      const absences = m.attendances.filter(
-        (a) => a.status === "absent" || a.status === "excused"
-      ).length;
-      attendanceCountByMemberId.set(m.id, presences + absences);
-
-      const assignedGroupIds = decodeMemberGroupIds(m.notes, m.groupId);
-      if (assignedGroupIds.length > 1) {
-        multiGroupMemberIds.add(m.id);
-      }
-    }
-
-    // Consolidated single batched query for AuditLog and new members
-    const { movedMemberIds, newClientMemberIds, coachNotifications } =
-      await loadCoachSwimmerBootstrapData({
-        groupIds,
-        scopedMemberIds,
-        attendanceCountByMemberId,
-        multiGroupMemberIds,
-      });
-
     // Shape all swimmers with Suivi progression, 5-bar model, cumulative volume, NEW client status, and binary attendance counts
     const shapedSwimmers = scopedRawSwimmers.map((m) => {
-      const presences = m.attendances.filter(
-        (a) => a.status === "present" || a.status === "late"
-      ).length;
-      const absences = m.attendances.filter(
-        (a) => a.status === "absent" || a.status === "excused"
-      ).length;
+      const { presences, absences } = attendanceFor(m.id);
       const totalAtt = presences + absences;
       const attendanceRate = totalAtt > 0 ? Math.round((presences / totalAtt) * 100) : 100;
 

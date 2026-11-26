@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const staffAccountSchema = z.object({
   coachId: z.string(),
   email: z.string().email(),
-  password: z.string().min(4).optional(),
+  password: z.string().min(10).max(128).optional(),
   role: z.enum(["head_coach", "coach", "assistant"]).default("coach"),
   categories: z.array(z.string()).optional(),
   loginEnabled: z.boolean().default(true),

@@ -9,8 +9,8 @@ const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getJwtSecret(): string {
   const secret = process.env.COACH_JWT_SECRET || process.env.NEXTAUTH_SECRET;
-  if (!secret && process.env.NODE_ENV === "production") {
-    throw new Error("COACH_JWT_SECRET or NEXTAUTH_SECRET must be set in production");
+  if (!secret && (process.env.NODE_ENV === "production" || process.env.NETLIFY)) {
+    throw new Error("COACH_JWT_SECRET or NEXTAUTH_SECRET must be set in any deployed environment");
   }
   return secret || "aqa_coach_jwt_secret_dev_key_change_in_production";
 }
@@ -251,10 +251,22 @@ export async function requireCoachSession(req: NextRequest) {
     };
   }
 
-  const account = await prisma.coachAccount.findUnique({
-    where: { id: payload.sub },
-    include: { coach: true },
-  });
+  // The account and the login session are independent lookups: fetch both in one round trip.
+  // This runs on every coach API call, so one saved round trip here speeds up the whole app.
+  const checkSession =
+    Boolean(payload.sessionId) && typeof prisma.coachAuthSession?.findUnique === "function";
+  const [account, authSession] = await Promise.all([
+    prisma.coachAccount.findUnique({
+      where: { id: payload.sub },
+      include: { coach: true },
+    }),
+    checkSession
+      ? prisma.coachAuthSession.findUnique({
+          where: { id: payload.sessionId as string },
+          select: { revokedAt: true, expiresAt: true },
+        })
+      : Promise.resolve(null),
+  ]);
 
   if (!account || !account.loginEnabled || !account.coach.active) {
     return {
@@ -267,11 +279,7 @@ export async function requireCoachSession(req: NextRequest) {
     };
   }
 
-  if (payload.sessionId && typeof prisma.coachAuthSession?.findUnique === "function") {
-    const authSession = await prisma.coachAuthSession.findUnique({
-      where: { id: payload.sessionId },
-      select: { revokedAt: true, expiresAt: true },
-    });
+  if (checkSession) {
     if (!authSession || authSession.revokedAt || authSession.expiresAt < new Date()) {
       return {
         error: NextResponse.json(

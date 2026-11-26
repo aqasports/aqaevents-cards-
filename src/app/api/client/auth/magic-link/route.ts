@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMagicPin } from "@/lib/client-auth";
-import { checkAndIncrement } from "@/lib/rate-limit";
+import { checkAndIncrement, getClientIp } from "@/lib/rate-limit";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request);
 
   const { limited } = await checkAndIncrement(`magic_link:${ip}`, { windowMs: 60_000, max: 10 });
   if (limited) {
